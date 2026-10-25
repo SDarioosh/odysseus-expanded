@@ -1691,6 +1691,11 @@ async def execute_tool_block(
             "exit_code": 1, "blocked": True,
             "failure_kind": "request_authority_denied",
         }
+    # Fork: web_fetch of a page this run's web_search returned (src/web_turn_scope.py)
+    if not admitted and valid:
+        from src.web_turn_scope import with_search_hit_fetch
+        authority, admitted = with_search_hit_fetch(
+            authority, operation, security_context, client_runtime_context)
     if not admitted:
         reason = "The exact operation is outside server request authority."
         if tool_policy and any(tool_policy.blocks(name) for name in email_tool_policy_names(getattr(block, "tool_type", ""))):
