@@ -897,7 +897,7 @@ class ToolRunSecurityContext:
     ) -> None:
         # Fork: note URLs a tool result returned (src/auto_mode.py)
         from src.auto_mode import observe_tool_result as auto_mode_observe_result
-        auto_mode_observe_result(self, result)
+        auto_mode_observe_result(self, result, tool_name)
         if not tool_result_should_arm_gate(tool_name, result, content):
             return
         self.external_untrusted_context_seen = True
