@@ -317,10 +317,19 @@ def _owner_key(norm: str, subject: str | None) -> str:
     return norm
 
 
-def category_for(about: str, text: str) -> str:
-    """The memory category (fact|preference|contact). About the owner -> preference when
-    the text has a preference word, else fact; a person -> contact; else fact."""
+# Kinds a source can give a fact (Athena MCP 0.11.0 ``kind``); they decide the category
+# instead of preference words (:func:`category_for`).
+FACT_KINDS = ("preference", "plan", "decision", "relationship", "personal", "other")
+
+
+def category_for(about: str, text: str, kind: str | None = None) -> str:
+    """The memory category (fact|preference|contact). A person -> contact. Else a source's
+    fact ``kind`` (:data:`FACT_KINDS`) decides: preference, or fact; without one, about the
+    owner -> preference when the text has a preference word, else fact."""
     about = str(about or "").strip().lower()
+    kind = str(kind or "").strip().lower()
+    if kind in FACT_KINDS and about != "person":
+        return "preference" if kind == "preference" else "fact"
     if about == "owner":
         words = set(re.findall(r"[a-z]+", str(text or "").lower()))
         return "preference" if words & PREFERENCE_WORDS else "fact"
@@ -1082,7 +1091,27 @@ def _attach(db: sqlite3.Connection, owner: str, ev: dict, stamp: str, cache: _Su
     cols = ", ".join(f"{c} = ?" for c in _EV_COLS)
     db.execute(f"UPDATE evidence SET {cols}, updated_at = ? WHERE id = ?",
                (*(ev[c] for c in _EV_COLS), stamp, row["id"]))
+    for touched_id in touched:
+        _follow_category(db, touched_id, stamp)
     return "evidence_updated", touched, added, True
+
+
+def _follow_category(db: sqlite3.Connection, belief_id: int, stamp: str) -> None:
+    """A belief's category follows its live evidence when all of it (about the belief's
+    own ``about``) agrees, also for a belief the owner decided on or one with several
+    sources: the category is a label the sources derive (a source that starts sending
+    fact kinds relabels its old beliefs), not something the owner chose."""
+    b = db.execute("SELECT about, category, erased_at FROM beliefs WHERE id = ?",
+                   (belief_id,)).fetchone()
+    if b is None or b["erased_at"]:
+        return
+    cats = {r["category"] for r in db.execute(
+        "SELECT category, about, payload FROM evidence WHERE belief_id = ?", (belief_id,))
+        if r["about"] == b["about"] and not _payload(r["payload"]).get("gone")}
+    if len(cats) == 1:
+        cat = cats.pop()
+        if cat in CATEGORIES and cat != b["category"]:
+            _set(db, belief_id, stamp, category=cat)
 
 
 def submit(owner: str | None, evidence: list[Evidence], *, now: datetime | None = None,
@@ -1378,13 +1407,49 @@ def move(owner: str | None, belief_id: int, *, subject_id: int | None = None,
         fields: dict[str, Any] = dict(
             subject_id=target["id"], subject=target["display"], about=about,
             norm=normalize(row["text"], target["display"], about),
-            category=category_for(about, shown), status="confirmed",
+            category=category_for(about, shown, _belief_kind(db, row["id"])),
+            status="confirmed",
             confirmed_by="owner", structured_at=None)
         if row["owner_text"]:
             fields["owner_norm"] = normalize(row["owner_text"], target["display"], about)
         _set(db, row["id"], stamp, **fields)
         _event(db, row["id"], "moved", f"to {target['display']} by owner", stamp)
     return _owner_action(owner, belief_id, now, apply)
+
+
+def _belief_kind(db: sqlite3.Connection, belief_id: int) -> str | None:
+    """The fact kind a source gave this belief (live evidence first), or None."""
+    rows = db.execute("SELECT payload FROM evidence WHERE belief_id = ? ORDER BY id",
+                      (belief_id,)).fetchall()
+    payloads = [_payload(r["payload"]) for r in rows]
+    for p in sorted(payloads, key=lambda p: bool(p.get("gone"))):
+        if str(p.get("kind") or "").strip().lower() in FACT_KINDS:
+            return str(p["kind"]).strip().lower()
+    return None
+
+
+def scrub_quotes(owner: str | None, quotes: Iterable[str]) -> int:
+    """Remove ``quotes`` (transcript lines a source sent with its evidence) from every
+    evidence payload of this owner: after a forget erased a line, beliefs said on the
+    same line must not keep showing its words. Returns how many evidence rows changed."""
+    wanted = {q for q in quotes if q}
+    if not wanted:
+        return 0
+    owner = owner or ""
+    changed = 0
+    with _WRITE:
+        with _connect(write=True) as db:
+            db.execute("PRAGMA secure_delete = ON")
+            for r in db.execute("SELECT id, payload FROM evidence WHERE owner = ?"
+                                " AND payload LIKE '%quote%'", (owner,)).fetchall():
+                payload = _payload(r["payload"])
+                if payload.get("quote") in wanted:
+                    payload.pop("quote")
+                    db.execute("UPDATE evidence SET payload = ? WHERE id = ?",
+                               (json.dumps(payload, sort_keys=True, ensure_ascii=False),
+                                r["id"]))
+                    changed += 1
+    return changed
 
 
 def restore(owner: str | None, belief_id: int, *, now: datetime | None = None) -> dict:

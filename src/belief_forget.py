@@ -168,6 +168,8 @@ async def forget(owner: str | None, belief_id: int, reason: str = "", *,
     "propagated": {"erased", "retired", "failed", "unsupported"}, "erased": {"memory",
     "insights", "remaining", "pending"}}``."""
     evidence = ledger.reject(owner, belief_id, reason)
+    # the transcript lines it was said on: erased there, so no other belief shows them
+    quotes = [(e.get("payload") or {}).get("quote") for e in evidence]
     if ledger.get_belief(owner, belief_id).get("erased_at"):
         evidence = [e for e in evidence if (e.get("payload") or {}).get("erase") != "done"]
     ids = _fact_ids(evidence)
@@ -179,6 +181,7 @@ async def forget(owner: str | None, belief_id: int, reason: str = "", *,
             logger.warning("belief %s: module not updated: %s", belief_id, e)
             outcomes = {str(i): "failed" for i in ids}
     result = ledger.erase(owner, belief_id, outcomes)
+    ledger.scrub_quotes(owner, [q for q in quotes if q])
     memory = insights = 0
     try:
         memory = remove_memory_copies(owner, result["texts"])

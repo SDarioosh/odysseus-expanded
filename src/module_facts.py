@@ -11,6 +11,9 @@ confirmed and mirrors confirmed beliefs into Odysseus memory, one memory per bel
   or, from a module that doesn't send it yet, membership in a second
   ``list_facts {"confirmed": true, "format": "json", "limit": 1000}`` answer (one extra
   call, made only then).
+* A row's ``kind`` (MCP 0.11.0) sets the memory category (:func:`category`) and travels,
+  with ``quote`` and ``conversation_id``, in the evidence payload for the review page
+  (:func:`payload`). An older module sends none of them; nothing changes then.
 * Facts the module no longer returns (retracted, replaced, merged) are marked gone in the
   ledger (``reconcile_source``); a belief left without live evidence goes stale and
   leaves memory unless the owner confirmed it. Then expiry runs (``apply_decay``) and
@@ -186,10 +189,43 @@ async def read_people(call: CallTool) -> list[dict] | None:
         return None
 
 
+# Athena's fact kinds (MCP 0.11.0, ``list_facts`` JSON ``kind``)
+FACT_KINDS = ledger.FACT_KINDS
+QUOTE_CHARS = 300
+
+
+def fact_kind(row: dict) -> str | None:
+    """The module's kind for a fact (one of :data:`FACT_KINDS`), or None (an older module
+    or an older fact)."""
+    kind = str(row.get("kind") or "").strip().lower()
+    return kind if kind in FACT_KINDS else None
+
+
 def category(row: dict) -> str:
-    """The hub memory category for a module fact (fact|preference|contact), from the bare
-    fact text (words in the link don't count)."""
-    return ledger.category_for(row.get("about"), row.get("fact"))
+    """The hub memory category for a module fact (fact|preference|contact). A fact about a
+    person is a contact. Else the module's ``kind`` decides (preference or fact); without
+    one, a preference word in the bare fact text does (words in the link don't count):
+    "wants Bo to write a report" is a request, not a preference, and only the module can
+    tell."""
+    return ledger.category_for(row.get("about"), row.get("fact"), fact_kind(row))
+
+
+def payload(row: dict) -> dict:
+    """What the review page shows next to a module fact, kept in the evidence payload:
+    its ``kind``, the transcript line it was said on (``quote``) and its
+    ``conversation_id`` (the page groups tentative beliefs by conversation). Only the
+    fields the module sends; erasing the belief clears them (``evidence_intake``)."""
+    out: dict[str, str] = {}
+    kind = fact_kind(row)
+    if kind:
+        out["kind"] = kind
+    quote = " ".join(str(row.get("quote") or "").split())[:QUOTE_CHARS]
+    if quote:
+        out["quote"] = quote
+    conv = str(row.get("conversation_id") or "").strip()
+    if conv:
+        out["conversation_id"] = conv
+    return out
 
 
 def _truthy(value: Any) -> bool:
@@ -209,7 +245,7 @@ def evidence(row: dict, confirmed_ids: set[int] | None = None) -> ledger.Evidenc
         link=str(row.get("link") or ""), seen_first=str(row.get("first_said") or ""),
         seen_last=str(row.get("last_said") or ""), times=max(1, _int(row.get("times_said"))),
         days=max(1, _int(row.get("days"))), source_confirmed=confirmed,
-        category=category(row), person_id=_person_id(row))
+        category=category(row), person_id=_person_id(row), payload=payload(row) or None)
 
 
 def _person_id(row: dict) -> str | None:
