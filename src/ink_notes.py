@@ -525,8 +525,18 @@ def list_notes(owner: str | None) -> list[dict[str, Any]]:
         pages = len(stored.get("pages") or []) if stored else 0
         out.append({**note, "pages": pages,
                     "edited_at": int(stored.get("edited_at") or 0) if stored else 0,
-                    "link": note_link(note["id"])})
+                    "link": note_link(note["id"]),
+                    # H2: pages to review, failed, being read (src/ink_transcribe.py)
+                    "transcripts": _transcript_summary(stored)})
     return out
+
+
+def _transcript_summary(stored: dict[str, Any] | None) -> dict[str, Any]:
+    from src import ink_transcribe  # imports this module
+
+    if not stored:
+        return {"review": [], "failed": [], "pending": 0}
+    return ink_transcribe.summary(stored)
 
 
 # =================================================================== the adapter

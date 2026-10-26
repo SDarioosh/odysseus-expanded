@@ -1,8 +1,10 @@
-"""Fork: handwritten notes, H1 routes (routes/ink_routes.py).
+"""Fork: handwritten notes, H1 and H2 routes (routes/ink_routes.py).
 
 The routes run on a temporary notes database and upload store, with a stand-in for the
 auth middleware (signed-in user or API token). Fictional strokes only.
 """
+import json as _json
+import time as _time
 import uuid
 
 import pytest
@@ -13,6 +15,7 @@ import core.database as cdb
 import routes.ink_routes as ir
 from core.database import Note
 from src import ink_notes as ink
+from src import ink_transcribe as tr
 from src import tool_utils
 from src.upload_handler import UploadHandler
 from tests.helpers.sqlite_db import make_temp_sqlite
@@ -172,3 +175,114 @@ def test_title_must_be_text_and_pages_the_write_size(env):
     big = doc()
     big["pages"][0].update(width=4000, height=20000)
     assert c.put(f"/api/ink/notes/{nid()}", json=big).status_code == 400
+
+
+# ------------------------------------------------- H2: transcription and review
+class _Reader:
+    def __init__(self, texts):
+        self.texts = list(texts)
+        self.calls = 0
+
+    async def __call__(self, messages):
+        self.calls += 1
+        return _json.dumps({"text": self.texts.pop(0) if self.texts else "more"})
+
+
+def _wait_status(c, note_id, want, timeout=10):
+    deadline = _time.time() + timeout
+    while _time.time() < deadline:
+        pages = c.get(f"/api/ink/notes/{note_id}/transcripts").json()["pages"]
+        if all(p["status"] == want for p in pages):
+            return pages
+        _time.sleep(0.05)
+    raise AssertionError(pages)
+
+
+@pytest.fixture
+def reader(monkeypatch):
+    fake = _Reader(["Pick up the [?] parcel\nPond walk 9:00"])
+    monkeypatch.setattr(tr, "default_reader", lambda owner: ("fake-vl", fake))
+    monkeypatch.setattr(tr, "_RUNNING", set())
+    return fake
+
+
+def test_transcribe_then_review(env, reader):
+    note_id = nid()
+    with client_for() as c:
+        c.put(f"/api/ink/notes/{note_id}", json=doc(title="Errands"))
+        r = c.post(f"/api/ink/notes/{note_id}/transcribe", json={})
+        assert r.status_code == 200 and r.json()["running"] is True
+        page = _wait_status(c, note_id, "machine")[0]
+        assert page["text"] == "Pick up the [?] parcel\nPond walk 9:00"
+        assert page["unreadable"] == 1 and page["model"] == "fake-vl"
+        listed = c.get("/api/ink/notes").json()["notes"][0]
+        assert listed["transcripts"] == {"review": [0], "failed": [], "pending": 0}
+        r = c.put(f"/api/ink/notes/{note_id}/pages/p0/transcript",
+                  json={"text": "Pick up the blue parcel\nPond walk 9:00"})
+        assert r.status_code == 200 and r.json()["pages"][0]["status"] == "reviewed"
+        assert c.get("/api/ink/notes").json()["notes"][0]["transcripts"]["review"] == []
+        # a save from the Write view keeps the reviewed text
+        c.put(f"/api/ink/notes/{note_id}", json=doc(edited_at=2000, sid="s2"))
+        page = c.get(f"/api/ink/notes/{note_id}/transcripts").json()["pages"][0]
+        assert page["status"] == "reviewed" and page["changed"] is True
+        # leaving the changed page reads it again
+        c.post(f"/api/ink/notes/{note_id}/transcribe", json={"only_changed": True})
+        page = _wait_status(c, note_id, "machine")[0]
+        assert page["previous"]["text"].startswith("Pick up the blue parcel")
+    s = env()
+    row = s.query(Note).filter(Note.id == note_id).first()
+    assert row.content == "Pick up the blue parcel\nPond walk 9:00"
+    s.close()
+
+
+def test_transcription_routes_are_the_owners_only(env, reader):
+    note_id = nid()
+    client_for("alice").put(f"/api/ink/notes/{note_id}", json=doc())
+    bob = client_for("bob")
+    assert bob.get(f"/api/ink/notes/{note_id}/transcripts").status_code == 404
+    assert bob.post(f"/api/ink/notes/{note_id}/transcribe", json={}).status_code == 404
+    assert bob.put(f"/api/ink/notes/{note_id}/pages/p0/transcript",
+                   json={"text": "x"}).status_code == 404
+    s = env()
+    s.add(Note(id="11111111-2222-3333-4444-555555555555", owner="alice", title="Typed",
+               label="work", note_type="note", content="keep"))
+    s.commit()
+    s.close()
+    alice = client_for("alice")
+    typed = "11111111-2222-3333-4444-555555555555"
+    assert alice.get(f"/api/ink/notes/{typed}/transcripts").status_code == 404
+    assert alice.post(f"/api/ink/notes/{typed}/transcribe", json={}).status_code == 404
+    assert alice.put(f"/api/ink/notes/{typed}/pages/p0/transcript",
+                     json={"text": "x"}).status_code == 404
+    assert reader.calls == 0
+    token = client_for("alice", token=True)
+    assert token.get(f"/api/ink/notes/{note_id}/transcripts").status_code == 403
+    assert token.post(f"/api/ink/notes/{note_id}/transcribe", json={}).status_code == 403
+    assert token.put(f"/api/ink/notes/{note_id}/pages/p0/transcript",
+                     json={"text": "x"}).status_code == 403
+    s = env()
+    assert s.query(Note).filter(Note.id == typed).first().content == "keep"
+    s.close()
+
+
+def test_transcription_route_errors(env, reader, monkeypatch):
+    note_id = nid()
+    c = client_for()
+    c.put(f"/api/ink/notes/{note_id}", json=doc())
+    assert c.post(f"/api/ink/notes/{note_id}/transcribe", json={"pages": ["nope"]}).status_code == 404
+    assert c.post(f"/api/ink/notes/{note_id}/transcribe", json={"pages": "p0"}).status_code == 400
+    assert c.post(f"/api/ink/notes/{note_id}/transcribe", content=b"[").status_code == 400
+    assert c.put(f"/api/ink/notes/{note_id}/pages/p0/transcript",
+                 json={"text": 5}).status_code == 400
+    assert c.put(f"/api/ink/notes/{note_id}/pages/bad%20id/transcript",
+                 json={"text": "x"}).status_code == 404
+    assert c.put(f"/api/ink/notes/{note_id}/pages/p0/transcript",
+                 json={"text": "x" * (tr.MAX_PAGE_TEXT + 1)}).status_code == 413
+
+    def no_model(owner):
+        raise tr.NoModel("No vision model is set: choose one in Settings, Vision.")
+
+    monkeypatch.setattr(tr, "default_reader", no_model)
+    r = c.post(f"/api/ink/notes/{note_id}/transcribe", json={})
+    assert r.status_code == 503 and "Settings, Vision" in r.json()["detail"]
+    assert c.get(f"/api/ink/notes/{note_id}/transcripts").json()["pages"][0]["status"] == "none"
