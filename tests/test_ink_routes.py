@@ -147,3 +147,28 @@ def test_listing_sweeps_notes_deleted_in_the_notes_window(env):
     assert [n["id"] for n in c.get("/api/ink/notes").json()["notes"]] == [b]
     assert ink.sidecar_ids("alice") == [b]
     assert c.put(f"/api/ink/notes/{a}", json=doc(edited_at=99999)).status_code == 410
+
+
+def test_other_notes_are_not_reachable_through_ink_routes(env):
+    s = env()
+    s.add(Note(id="11111111-2222-3333-4444-555555555555", owner="alice", title="Groceries",
+               label="work", note_type="checklist"))
+    s.commit()
+    s.close()
+    c = client_for()
+    nid_ = "11111111-2222-3333-4444-555555555555"
+    assert c.put(f"/api/ink/notes/{nid_}", json=doc(title="Hijacked")).status_code == 404
+    assert c.get(f"/api/ink/notes/{nid_}").status_code == 404
+    assert c.delete(f"/api/ink/notes/{nid_}").status_code == 404
+    s = env()
+    row = s.query(Note).filter(Note.id == nid_).first()
+    assert row is not None and row.title == "Groceries"
+    s.close()
+
+
+def test_title_must_be_text_and_pages_the_write_size(env):
+    c = client_for()
+    assert c.put(f"/api/ink/notes/{nid()}", json=doc(title=["a", "b"])).status_code == 400
+    big = doc()
+    big["pages"][0].update(width=4000, height=20000)
+    assert c.put(f"/api/ink/notes/{nid()}", json=big).status_code == 400

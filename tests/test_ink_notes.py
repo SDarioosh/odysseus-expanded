@@ -266,3 +266,151 @@ def test_strokes_hash_follows_the_strokes(env):
     assert ink.strokes_hash(page) == ink.strokes_hash(same)
     same["strokes"][0]["points"][0][0] += 1
     assert ink.strokes_hash(page) != ink.strokes_hash(same)
+
+
+# ------------------------------------------------- review findings (PR 88 QC report)
+def _plain_note(factory, owner="alice", label="work", note_type="checklist", title="Groceries"):
+    note_id = nid()
+    s = factory()
+    s.add(Note(id=note_id, owner=owner, title=title, label=label, note_type=note_type))
+    s.commit()
+    s.close()
+    return note_id
+
+
+@pytest.mark.parametrize("label", ["work", "odysseus-sound", None])
+def test_other_notes_of_the_same_owner_are_never_touched(env, label):
+    note_id = _plain_note(env, label=label)
+    with pytest.raises(ink.InkError) as exc:
+        ink.save("alice", note_id, body(), title="Hijacked")
+    assert exc.value.status == 404
+    assert ink.load("alice", note_id) is None
+    assert ink.delete("alice", note_id) is False
+    row = note_row(env, note_id)
+    assert row is not None and row.title == "Groceries" and row.image_url is None
+    assert not ink.sidecar_path("alice", note_id).exists()
+
+
+def test_relabelled_note_keeps_its_strokes_but_leaves_write(env):
+    note_id = nid()
+    ink.save("alice", note_id, body())
+    s = env()
+    s.query(Note).filter(Note.id == note_id).first().label = "work"
+    s.commit()
+    s.close()
+    assert ink.sweep("alice") == []
+    assert ink.sidecar_path("alice", note_id).exists()
+    assert ink.list_notes("alice") == []
+    with pytest.raises(ink.InkError) as exc:
+        ink.save("alice", note_id, body(edited_at=9999))
+    assert exc.value.status == 404  # not Gone: its strokes stay
+
+
+def test_sweep_never_tombstones_a_note_that_still_exists(env):
+    a, b = nid(), nid()
+    ink.save("alice", a, body())
+    ink.save("alice", b, body())
+    ink.delete_note("alice", b)
+    assert ink.sweep("alice") == [b]
+    assert not ink.is_deleted("alice", a) and ink.is_deleted("alice", b)
+    assert ink.sidecar_path("alice", a).exists()
+
+
+def test_concurrent_deletes_keep_every_tombstone(env):
+    import threading
+
+    ids = [nid() for _ in range(12)]
+    for note_id in ids:
+        ink.save("alice", note_id, body())
+    threads = [threading.Thread(target=ink.delete, args=("alice", i)) for i in ids]
+    for t in threads:
+        t.start()
+    for t in threads:
+        t.join()
+    assert all(ink.is_deleted("alice", i) for i in ids)
+
+
+@pytest.mark.parametrize("size", [{"width": 4000}, {"height": 20000}, {"width": 999}])
+def test_pages_must_have_the_write_view_size(env, size):
+    doc = body()
+    doc["pages"][0].update(size)
+    with pytest.raises(ink.InkError):
+        ink.clean_document(doc)
+
+
+def test_empty_title_is_kept_and_non_text_titles_are_refused(env):
+    note_id = nid()
+    ink.save("alice", note_id, body(), title="My Title")
+    assert ink.save("alice", note_id, body(edited_at=2000), title="")["title"] == ""
+    assert ink.save("alice", note_id, body(edited_at=3000))["title"] == ""  # no title sent
+    for bad in (["a", "b"], 5, {"x": 1}):
+        with pytest.raises(ink.InkError):
+            ink.save("alice", note_id, body(edited_at=4000), title=bad)
+    assert note_row(env, note_id).title == ""
+    fresh = nid()
+    assert ink.save("alice", fresh, body(), title="")["title"] == ""
+
+
+def test_failed_first_save_leaves_no_note_behind(env, monkeypatch):
+    note_id = nid()
+
+    def boom(*_a, **_k):
+        raise RuntimeError("render failed")
+
+    monkeypatch.setattr(ink, "render_page_png", boom)
+    with pytest.raises(RuntimeError):
+        ink.save("alice", note_id, body())
+    assert note_row(env, note_id) is None
+    assert not ink.sidecar_path("alice", note_id).exists()
+    monkeypatch.undo()
+    assert ink.save("alice", note_id, body())["note_id"] == note_id  # a retry works
+
+
+def test_failed_later_save_keeps_the_note(env, monkeypatch):
+    note_id = nid()
+    ink.save("alice", note_id, body(), now=1000)
+
+    def boom(*_a, **_k):
+        raise RuntimeError("render failed")
+
+    monkeypatch.setattr(ink, "render_page_png", boom)
+    with pytest.raises(RuntimeError):
+        ink.save("alice", note_id, body([stroke("x", y=500)], edited_at=2000), final=True)
+    assert note_row(env, note_id) is not None
+    assert ink.load("alice", note_id)["pages"][0]["strokes"][0]["id"] == "s1"
+
+
+def test_single_user_mode_finds_each_owners_strokes(env):
+    note_id = nid()
+    ink.save("dave", note_id, body([stroke("a")], [stroke("b")]))
+    listed = [n for n in ink.list_notes(None) if n["id"] == note_id]
+    assert listed and listed[0]["pages"] == 2
+    assert ink.load(None, note_id)["pages"][1]["strokes"][0]["id"] == "b"
+    ink.save(None, note_id, body([stroke("c")], edited_at=5000))
+    assert not ink.sidecar_path(None, note_id).exists()  # no second copy in _single
+    assert ink.load("dave", note_id)["pages"][0]["strokes"][0]["id"] == "c"
+    mine = nid()
+    ink.save(None, mine, body())
+    assert ink.sidecar_path(None, mine).exists() and ink.load(None, mine)
+    assert ink.delete(None, note_id) and not ink.sidecar_path("dave", note_id).exists()
+
+
+def test_server_render_follows_the_smoothed_curve(env):
+    pts = [[100, 100, 0], [300, 400, 1], [500, 100, 2]]
+    smooth = ink.smooth_points(pts)
+    assert smooth[0] == (100.0, 100.0) and smooth[-1] == (500.0, 100.0)
+    # Like the canvas, the curve doesn't reach the middle point (300, 400): it peaks
+    # at y = 300 and passes (275, 287.5) halfway along its first piece.
+    assert max(y for _x, y in smooth) <= 300.5
+    page = ink.clean_document(body([{"id": "c", "pen": BLACK, "points": pts}]))["pages"][0]
+    img = Image.open(io.BytesIO(ink.render_page_png(page))).convert("RGB")
+    assert img.getpixel((300, 400)) == (255, 255, 255)  # no sharp corner at the point
+    assert img.getpixel((275, 287))[0] < 80             # the curve passes here
+
+
+def test_thin_round_caps_are_the_pen_width(env):
+    page = ink.clean_document(body([{"id": "d", "pen": BLACK, "points": [[200, 200, 0]]}]))["pages"][0]
+    img = Image.open(io.BytesIO(ink.render_page_png(page))).convert("L")
+    dark = [(x, y) for x in range(195, 206) for y in range(195, 206) if img.getpixel((x, y)) < 128]
+    xs = {x for x, _ in dark}
+    assert len(xs) <= 3  # a 2.5-unit pen: about 3 px across, not 4

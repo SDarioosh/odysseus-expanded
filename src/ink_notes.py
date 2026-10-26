@@ -120,13 +120,15 @@ def _tombstone_path(owner: str | None) -> Path:
     return ink_dir(owner) / "deleted.json"
 
 
-_LOCKS: dict[tuple[str, str], threading.Lock] = {}
+# One lock per owner folder: saves, deletes, sweeps and the tombstone file of one owner
+# never interleave (one person writes on one or two devices, so this costs nothing).
+_LOCKS: dict[str, threading.RLock] = {}
 _LOCKS_GUARD = threading.Lock()
 
 
-def _lock(owner: str | None, note_id: str) -> threading.Lock:
+def _lock(owner: str | None) -> threading.RLock:
     with _LOCKS_GUARD:
-        return _LOCKS.setdefault((owner or "", note_id), threading.Lock())
+        return _LOCKS.setdefault(_owner_dir_name(owner), threading.RLock())
 
 
 def _write_json(path: Path, data: Any) -> None:
@@ -164,8 +166,9 @@ def _add_tombstones(owner: str | None, ids: Iterable[str]) -> None:
     ids = [i for i in ids if valid_note_id(i)]
     if not ids:
         return
-    current = [i for i in _tombstones(owner) if i not in ids]
-    _write_json(_tombstone_path(owner), (current + ids)[-MAX_TOMBSTONES:])
+    with _lock(owner):  # read-modify-write of the owner's one file
+        current = [i for i in _tombstones(owner) if i not in ids]
+        _write_json(_tombstone_path(owner), (current + ids)[-MAX_TOMBSTONES:])
 
 
 def is_deleted(owner: str | None, note_id: str) -> bool:
@@ -248,8 +251,10 @@ def clean_document(body: Any) -> dict[str, Any]:
         if not isinstance(pid, str) or not _SHORT_ID_RE.match(pid) or pid in seen_pages:
             raise InkError("page id is invalid or repeated")
         seen_pages.add(pid)
-        width = _num(page.get("width", PAGE_WIDTH), 100, 4000, "page width")
-        height = _num(page.get("height", PAGE_HEIGHT), 100, 20000, "page height")
+        # Every page is the Write view's page size, so a request can't ask the renderer
+        # for a huge bitmap.
+        width = _num(page.get("width", PAGE_WIDTH), PAGE_WIDTH, PAGE_WIDTH, "page width")
+        height = _num(page.get("height", PAGE_HEIGHT), PAGE_HEIGHT, PAGE_HEIGHT, "page height")
         strokes = page.get("strokes") or []
         if not isinstance(strokes, list):
             raise InkError("strokes must be a list")
@@ -298,18 +303,40 @@ def render_page_png(page: dict[str, Any], *, scale: float = RENDER_SCALE,
     return out.getvalue()
 
 
+def smooth_points(points: list[list[float]], steps: int = 6) -> list[tuple[float, float]]:
+    """The same curve the Write view draws (static/js/forkInk.js ``strokePath``): from
+    the first point, a quadratic curve through each point to the midpoint of the next
+    segment, then a line to the last point. Returned as a polyline."""
+    pts = [(float(p[0]), float(p[1])) for p in points]
+    if len(pts) < 3:
+        return pts
+    out = [pts[0]]
+    start = pts[0]
+    for i in range(1, len(pts) - 1):
+        (cx, cy), (nx, ny) = pts[i], pts[i + 1]
+        end = ((cx + nx) / 2, (cy + ny) / 2)
+        for k in range(1, steps + 1):
+            t = k / steps
+            a, b, c = (1 - t) ** 2, 2 * (1 - t) * t, t * t
+            out.append((a * start[0] + b * cx + c * end[0], a * start[1] + b * cy + c * end[1]))
+        start = end
+    out.append(pts[-1])
+    return out
+
+
 def _draw_strokes(draw, strokes: list[dict[str, Any]], scale: float, *, opaque: bool) -> None:
     for stroke in strokes:
         pen = stroke["pen"]
         rgb = tuple(int(pen["color"][i:i + 2], 16) for i in (1, 3, 5))
         fill = (*rgb, 255)
         w = max(1, int(round(pen["width"] * scale)))
-        pts = [(p[0] * scale, p[1] * scale) for p in stroke["points"]]
-        r = w / 2
+        pts = [(x * scale, y * scale) for x, y in smooth_points(stroke["points"])]
         if len(pts) > 1:
             draw.line(pts, fill=fill, width=w, joint="curve")
-        for x, y in (pts[0], pts[-1]):  # round caps
-            draw.ellipse((x - r, y - r, x + r, y + r), fill=fill)
+        # Round caps, w pixels across (Pillow's ellipse box is inclusive).
+        lo, hi = (w - 1) / 2, w / 2 - 0.5
+        for x, y in (pts[0], pts[-1]):
+            draw.ellipse((x - lo, y - lo, x + hi, y + hi), fill=fill)
 
 
 # --------------------------------------------------------------------- the notes
@@ -335,27 +362,54 @@ def save(owner: str | None, note_id: str, body: Any, *, title: str | None = None
         raise InkError("Invalid note id")
     doc = clean_document(body)
     if title is not None:
-        title = str(title).strip()[:MAX_TITLE]
-    with _lock(owner, note_id):
-        current = load_sidecar(owner, note_id)
+        if not isinstance(title, str):
+            raise InkError("title must be a string")
+        title = title.strip()[:MAX_TITLE]  # an empty title stays empty ("Untitled")
+    if note_id_taken(note_id) and not existing_note_ids(owner, [note_id]):
+        # Another owner's note, or one of this owner's notes that isn't handwritten
+        # (a checklist, a typed note, an Athena note): never touched from here.
+        raise InkError("Note not found", 404)
+    store = _store_owner(owner, note_id)
+    with _lock(store):
+        current = load_sidecar(store, note_id)
         exists = bool(existing_note_ids(owner, [note_id]))
+        created = False
         if not exists:
-            if current is not None or is_deleted(owner, note_id):
+            if note_id_taken(note_id):
+                raise InkError("Note not found", 404)
+            if current is not None or is_deleted(store, note_id):
                 # The note was deleted (e.g. in the Notes window): don't bring it back.
-                _remove_sidecar(owner, note_id)
-                _add_tombstones(owner, [note_id])
+                _remove_sidecar(store, note_id)
+                _add_tombstones(store, [note_id])
                 raise Gone()
-            if not create_note(owner, title or default_title(), LABEL, None, note_id=note_id):
-                raise InkError("Note not found", 404)  # the id belongs to someone else
+            if not create_note(owner, default_title() if title is None else title, LABEL,
+                               None, note_id=note_id):
+                raise InkError("Note not found", 404)  # taken meanwhile
+            created = True
         elif current is not None and doc["edited_at"] < int(current.get("edited_at") or 0):
             raise Stale(public(current, note_title(owner, note_id)))
-        stored = _merge(current, doc, note_id)
-        _render_if_changed(owner, note_id, stored, final=final,
-                           now=time.time() if now is None else now)
-        _write_json(sidecar_path(owner, note_id), stored)
+        try:
+            stored = _merge(current, doc, note_id)
+            _render_if_changed(owner, note_id, stored, final=final,
+                               now=time.time() if now is None else now)
+            _write_json(sidecar_path(store, note_id), stored)
+        except BaseException:
+            if created:  # no note without its strokes
+                delete_note(owner, note_id)
+                _remove_sidecar(store, note_id)
+            raise
         if exists and title is not None:
-            update_note(owner, note_id, title=title or default_title())
-    return public(stored, note_title(owner, note_id))
+            update_note(owner, note_id, title=title)
+        return public(stored, note_title(owner, note_id))
+
+
+def _store_owner(owner: str | None, note_id: str) -> str | None:
+    """Whose ink folder holds this note's strokes. In single-user mode (``owner`` None)
+    every note is visible, so an existing note's strokes are in its own owner's folder;
+    a new one goes to ``_single``."""
+    if owner is not None:
+        return owner
+    return note_owner(note_id)
 
 
 def _merge(current: dict[str, Any] | None, doc: dict[str, Any], note_id: str
@@ -410,7 +464,9 @@ def load(owner: str | None, note_id: str) -> dict[str, Any] | None:
     """The note's sidecar, or ``None`` when it isn't this owner's handwritten note."""
     if not valid_note_id(note_id) or not existing_note_ids(owner, [note_id]):
         return None
-    stored = load_sidecar(owner, note_id)
+    store = _store_owner(owner, note_id)
+    with _lock(store):
+        stored = load_sidecar(store, note_id)
     if stored is None:
         return None
     return public(stored, note_title(owner, note_id))
@@ -427,13 +483,16 @@ def delete(owner: str | None, note_id: str) -> bool:
     """Delete the note and its strokes. ``False`` when it isn't this owner's note."""
     if not valid_note_id(note_id):
         return False
-    with _lock(owner, note_id):
-        had_sidecar = load_sidecar(owner, note_id) is not None
+    if note_id_taken(note_id) and not existing_note_ids(owner, [note_id]):
+        return False  # not this owner's handwritten note: never deleted from here
+    store = _store_owner(owner, note_id)
+    with _lock(store):
+        had_sidecar = load_sidecar(store, note_id) is not None
         removed = delete_note(owner, note_id)
         if not removed and not had_sidecar:
             return False
-        _remove_sidecar(owner, note_id)
-        _add_tombstones(owner, [note_id])
+        _remove_sidecar(store, note_id)
+        _add_tombstones(store, [note_id])
     return True
 
 
@@ -441,27 +500,28 @@ def sweep(owner: str | None) -> list[str]:
     """Remove sidecars whose note is gone (deleted in the Notes window or by a tool),
     and remember their ids so a queued save from a tablet doesn't bring them back.
     Returns the removed ids. (H4 also asks Athena to drop notes it was sent.)"""
-    ids = sidecar_ids(owner)
-    if not ids:
-        return []
-    alive = existing_note_ids(owner, ids)
-    gone = [i for i in ids if i not in alive]
-    for note_id in gone:
-        with _lock(owner, note_id):
-            if existing_note_ids(owner, [note_id]):
-                continue  # created meanwhile
-            _remove_sidecar(owner, note_id)
-    _add_tombstones(owner, gone)
-    return gone
+    with _lock(owner):  # no save, delete or tombstone write of this owner meanwhile
+        ids = sidecar_ids(owner)
+        if not ids:
+            return []
+        # Any note with that id keeps its strokes (also one relabelled in Notes).
+        alive = {i for i in ids if note_id_taken(i)}
+        removed = []
+        for note_id in ids:
+            if note_id not in alive:
+                _remove_sidecar(owner, note_id)
+                removed.append(note_id)
+        _add_tombstones(owner, removed)
+        return removed
 
 
 def list_notes(owner: str | None) -> list[dict[str, Any]]:
     """The owner's handwritten notes, newest first, after a sweep."""
     sweep(owner)
-    have = set(sidecar_ids(owner))
     out = []
     for note in handwritten_notes(owner):
-        stored = load_sidecar(owner, note["id"]) if note["id"] in have else None
+        store = note["owner"] if owner is None else owner
+        stored = load_sidecar(store, note["id"])
         pages = len(stored.get("pages") or []) if stored else 0
         out.append({**note, "pages": pages,
                     "edited_at": int(stored.get("edited_at") or 0) if stored else 0,
@@ -522,14 +582,14 @@ def create_note(owner: str | None, title: str, label: str, image_url: str | None
 
 def update_note(owner: str | None, note_id: str, *, content: str | None = None,
                 image_url: str | None = None, title: str | None = None) -> bool:
-    """Change fields of the owner's note (``image_url=""`` clears it)."""
+    """Change fields of the owner's handwritten note (``image_url=""`` clears it)."""
     from core.database import Note, SessionLocal
 
     if image_url:
         _reserve(owner, image_url)
     db = SessionLocal()
     try:
-        note = _note_query(db, owner).filter(Note.id == note_id).first()
+        note = _note_query(db, owner).filter(Note.id == note_id, Note.label == LABEL).first()
         if note is None:
             return False
         if content is not None:
@@ -545,11 +605,12 @@ def update_note(owner: str | None, note_id: str, *, content: str | None = None,
 
 
 def delete_note(owner: str | None, note_id: str) -> bool:
+    """Delete the owner's handwritten note; any other note is left alone."""
     from core.database import Note, SessionLocal
 
     db = SessionLocal()
     try:
-        note = _note_query(db, owner).filter(Note.id == note_id).first()
+        note = _note_query(db, owner).filter(Note.id == note_id, Note.label == LABEL).first()
         if note is None:
             return False
         db.delete(note)
@@ -560,7 +621,7 @@ def delete_note(owner: str | None, note_id: str) -> bool:
 
 
 def existing_note_ids(owner: str | None, ids: Iterable[str]) -> set[str]:
-    """Which of ``ids`` are notes of this owner (archived ones count)."""
+    """Which of ``ids`` are handwritten notes of this owner (archived ones count)."""
     from core.database import Note, SessionLocal
 
     ids = [i for i in ids if isinstance(i, str)]
@@ -571,7 +632,8 @@ def existing_note_ids(owner: str | None, ids: Iterable[str]) -> set[str]:
         found: set[str] = set()
         for start in range(0, len(ids), 500):
             chunk = ids[start:start + 500]
-            rows = _note_query(db, owner).filter(Note.id.in_(chunk)).with_entities(Note.id)
+            rows = (_note_query(db, owner).filter(Note.id.in_(chunk), Note.label == LABEL)
+                    .with_entities(Note.id))
             found.update(r[0] for r in rows)
         return found
     finally:
@@ -583,8 +645,31 @@ def note_title(owner: str | None, note_id: str) -> str:
 
     db = SessionLocal()
     try:
-        note = _note_query(db, owner).filter(Note.id == note_id).first()
+        note = _note_query(db, owner).filter(Note.id == note_id, Note.label == LABEL).first()
         return (note.title or "") if note is not None else ""
+    finally:
+        db.close()
+
+
+def note_id_taken(note_id: str) -> bool:
+    """Whether any note (any owner, any label) has this id."""
+    from core.database import Note, SessionLocal
+
+    db = SessionLocal()
+    try:
+        return db.query(Note.id).filter(Note.id == note_id).first() is not None
+    finally:
+        db.close()
+
+
+def note_owner(note_id: str) -> str | None:
+    """The owner stored on a note (``None`` for an unknown id or an ownerless note)."""
+    from core.database import Note, SessionLocal
+
+    db = SessionLocal()
+    try:
+        row = db.query(Note.owner).filter(Note.id == note_id).first()
+        return row[0] if row else None
     finally:
         db.close()
 
@@ -598,7 +683,7 @@ def handwritten_notes(owner: str | None) -> list[dict[str, Any]]:
         rows = (_note_query(db, owner)
                 .filter(Note.label == LABEL, Note.archived == False)  # noqa: E712
                 .order_by(Note.updated_at.desc()).all())
-        return [{"id": n.id, "title": n.title or "", "image_url": n.image_url,
+        return [{"id": n.id, "owner": n.owner, "title": n.title or "", "image_url": n.image_url,
                  "updated_at": n.updated_at.isoformat() if n.updated_at else None}
                 for n in rows]
     finally:
