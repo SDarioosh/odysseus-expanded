@@ -724,5 +724,47 @@ await check('h2_12_drafts_of_two_pages', async () => {
   return { ok: saved.length === 2 && saved[0] === 'first page words', saved };
 });
 
+// ------------------------------------------- QC bug hunt on H2 (2026-10-26), PR 92
+// docs/fork/qc-ink-h2-2026-10-26.md
+const idbDrafts = (page, user) => page.evaluate((u) => new Promise((resolve) => {
+  const req = indexedDB.open('fork-ink:' + u);
+  req.onsuccess = () => {
+    const db = req.result;
+    if (!db.objectStoreNames.contains('drafts')) { resolve([]); return; }
+    const g = db.transaction('drafts').objectStore('drafts').getAll();
+    g.onsuccess = () => resolve(g.result);
+  };
+}), user);
+
+// O-5. An older transcripts answer arriving after the transcribe answer doesn't stop
+// the Text tab from following the run.
+await check('qc_o5_old_transcripts_answer_is_dropped', async () => {
+  const page = await openPage(browser, { user: 'qa1' });
+  await newNote(page);
+  await page.evaluate((pts) => stroke('pen', 2, pts), line(200));
+  await page.evaluate(async () => { await view.flush(); await settle(300); });
+  await page.evaluate(() => {
+    // the hub answers the first GET at once (nothing read yet) but it arrives late
+    const hubFetch = window.fetch;
+    let first = true;
+    window.fetch = async (url, opts = {}) => {
+      const res = hubFetch(url, opts);
+      if (first && (opts.method || 'GET') === 'GET' && String(url).endsWith('/transcripts')) {
+        first = false;
+        const r = await res;
+        await settle(400);
+        return r;
+      }
+      return res;
+    };
+  });
+  await textTab(page);
+  let ok = true;
+  try { await waitText(page, () => document.querySelector('.ink-tarea').value.includes('Line one'), 4500); } catch (_) { ok = false; }
+  const st = await textState(page);
+  await page.close();
+  return { ok, st };
+});
+
 await browser.close();
 console.log(JSON.stringify(results));

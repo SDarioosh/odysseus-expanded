@@ -264,7 +264,7 @@ def test_write_view_review_findings_in_a_browser():
     got = _review_e2e()
     failed = {name: r["detail"] for name, r in got.items() if not r["ok"]}
     assert not failed, failed
-    assert len(got) == 30  # 18 from H1 and its fixes, 12 for the H2 Text tab
+    assert len(got) == 31  # 18 from H1 and its fixes, 12 for the H2 Text tab, 1 from the H2 QC
 
 
 @pytest.mark.skipif(not _HAS_NODE, reason="node binary not on PATH")

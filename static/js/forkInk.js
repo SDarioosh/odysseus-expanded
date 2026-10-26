@@ -455,6 +455,10 @@ export function mountInk(root, options = {}) {
   const edited = new Set();   // page ids of the open note
   let pollTimer = 0;
   let autoChain = Promise.resolve();
+  // Transcript answers: each question is numbered, and an answer to an older question
+  // than the one shown is dropped (a slow GET must not undo a newer transcribe answer).
+  let trAsked = 0;
+  let trTaken = 0;
   const syncing = new Map();  // note id -> { promise, again }
   let timers = [];
   let suspended = false;
@@ -1446,8 +1450,9 @@ export function mountInk(root, options = {}) {
     renderText();
   }
 
-  function takeTranscripts(noteId, body) {
-    if (!body || !Array.isArray(body.pages)) return;
+  function takeTranscripts(noteId, body, seq) {
+    if (!body || !Array.isArray(body.pages) || seq < trTaken) return;
+    trTaken = seq;
     tr = { noteId, pages: new Map(body.pages.map((p) => [p.id, p])), running: !!body.running, missing: false };
   }
 
@@ -1456,12 +1461,17 @@ export function mountInk(root, options = {}) {
     const my = nav;
     const id = state.note.id;
     const db = store;
+    const seq = ++trAsked;
     let res = null;
     try { res = await api(`${API}/${enc(id)}/transcripts`); } catch (_) { res = null; }
     if (!current(my, id, db)) return;
+    if (seq < trTaken) { schedulePoll(); return; } // a newer answer is on screen
     let message = '';
-    if (res && res.ok) takeTranscripts(id, res.body);
-    else if (res && res.status === 404) tr = { noteId: id, pages: new Map(), running: false, missing: true };
+    if (res && res.ok) takeTranscripts(id, res.body, seq);
+    else if (res && res.status === 404) {
+      trTaken = seq;
+      tr = { noteId: id, pages: new Map(), running: false, missing: true };
+    }
     else message = res ? `The hub said ${res.status}.` : 'The hub is not reachable: the text can be read when it is back.';
     renderText(message);
     schedulePoll();
@@ -1645,12 +1655,13 @@ export function mountInk(root, options = {}) {
     if (!(await pushStrokes(id))) { show('The writing is saved on this device but not on the hub yet: try again when it syncs.'); return 'retry'; }
     if (db !== store) return 'retry';
     let res = null;
+    const seq = ++trAsked;
     try {
       res = await api(`${API}/${enc(id)}/transcribe`, { method: 'POST',
         body: JSON.stringify({ pages: pageIds, only_changed: onlyChanged }) });
     } catch (_) { res = null; }
     if (res && res.ok) {
-      if (current(my, id, db)) { takeTranscripts(id, res.body); renderText(); schedulePoll(); }
+      if (current(my, id, db)) { takeTranscripts(id, res.body, seq); renderText(); schedulePoll(); }
       return 'ok';
     }
     if (!res || (res.status >= 500 && res.status !== 503)) { show('The hub is not reachable: try again later.'); return 'retry'; }
@@ -1702,6 +1713,7 @@ export function mountInk(root, options = {}) {
     const text = tArea.value;
     tSave.disabled = true;
     setTState('Saving...');
+    const seq = ++trAsked;
     let res = null;
     try {
       res = await api(`${API}/${enc(id)}/pages/${enc(page.id)}/transcript`, { method: 'PUT', body: JSON.stringify({ text }) });
@@ -1710,7 +1722,7 @@ export function mountInk(root, options = {}) {
     if (res && res.ok) {
       await dropDraft(key, text);
       if (current(my, id, db)) {
-        takeTranscripts(id, res.body);
+        takeTranscripts(id, res.body, seq);
         renderText();
         if (tArea.dataset.key === key && !drafts.has(key)) setTState('Reviewed and saved in the note. It stays in the hub.');
       }
