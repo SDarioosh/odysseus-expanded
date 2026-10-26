@@ -455,6 +455,10 @@ export function mountInk(root, options = {}) {
   const edited = new Set();   // page ids of the open note
   let pollTimer = 0;
   let autoChain = Promise.resolve();
+  // Transcript answers: each question is numbered, and an answer to an older question
+  // than the one shown is dropped (a slow GET must not undo a newer transcribe answer).
+  let trAsked = 0;
+  let trTaken = 0;
   const syncing = new Map();  // note id -> { promise, again }
   let timers = [];
   let suspended = false;
@@ -1332,6 +1336,7 @@ export function mountInk(root, options = {}) {
       }
     } else if (res.status === 410) {
       await db.del('notes', id);
+      await dropNoteDrafts(id, db);
       if (isOpen()) {
         state.live = null;
         router.reset();
@@ -1446,8 +1451,9 @@ export function mountInk(root, options = {}) {
     renderText();
   }
 
-  function takeTranscripts(noteId, body) {
-    if (!body || !Array.isArray(body.pages)) return;
+  function takeTranscripts(noteId, body, seq) {
+    if (!body || !Array.isArray(body.pages) || seq < trTaken) return;
+    trTaken = seq;
     tr = { noteId, pages: new Map(body.pages.map((p) => [p.id, p])), running: !!body.running, missing: false };
   }
 
@@ -1456,12 +1462,17 @@ export function mountInk(root, options = {}) {
     const my = nav;
     const id = state.note.id;
     const db = store;
+    const seq = ++trAsked;
     let res = null;
     try { res = await api(`${API}/${enc(id)}/transcripts`); } catch (_) { res = null; }
     if (!current(my, id, db)) return;
+    if (seq < trTaken) { schedulePoll(); return; } // a newer answer is on screen
     let message = '';
-    if (res && res.ok) takeTranscripts(id, res.body);
-    else if (res && res.status === 404) tr = { noteId: id, pages: new Map(), running: false, missing: true };
+    if (res && res.ok) takeTranscripts(id, res.body, seq);
+    else if (res && res.status === 404) {
+      trTaken = seq;
+      tr = { noteId: id, pages: new Map(), running: false, missing: true };
+    }
     else message = res ? `The hub said ${res.status}.` : 'The hub is not reachable: the text can be read when it is back.';
     renderText(message);
     schedulePoll();
@@ -1577,9 +1588,17 @@ export function mountInk(root, options = {}) {
     if (!state.note || state.view !== 'text') return;
     const key = tArea.dataset.key;
     if (!key || !key.startsWith(`${state.note.id}:`)) return;
-    drafts.set(key, tArea.value);
     updateHighlight();
     const db = store;
+    const tp = trPage(key.slice(state.note.id.length + 1));
+    if (tp && tArea.value === tp.text) { // back to the hub's text: nothing to keep
+      clearTimeout(draftTimers.get(key));
+      draftTimers.delete(key);
+      drafts.delete(key);
+      Promise.resolve(db.del('drafts', key)).catch(() => {});
+      return;
+    }
+    drafts.set(key, tArea.value);
     const text = tArea.value;
     clearTimeout(draftTimers.get(key));
     draftTimers.set(key, setTimeout(() => {
@@ -1599,6 +1618,20 @@ export function mountInk(root, options = {}) {
       if (r && typeof r.id === 'string' && r.id.startsWith(`${noteId}:`) && !drafts.has(r.id)) drafts.set(r.id, r.text);
     }
     if (state.note && state.note.id === noteId) renderText();
+  }
+
+  // A note gone from this device: its drafts go too.
+  async function dropNoteDrafts(noteId, db = store) {
+    const mine = (k) => typeof k === 'string' && k.startsWith(`${noteId}:`);
+    if (db === store) {
+      for (const k of [...drafts.keys()]) if (mine(k)) drafts.delete(k);
+      for (const [k, t] of [...draftTimers]) if (mine(k)) { clearTimeout(t); draftTimers.delete(k); }
+    }
+    let rows = [];
+    try { rows = (await db.all('drafts')) || []; } catch (_) { rows = []; }
+    for (const r of rows) {
+      if (r && mine(r.id)) { try { await db.del('drafts', r.id); } catch (_) { /* memory only */ } }
+    }
   }
 
   async function dropDraft(key, text) {
@@ -1645,12 +1678,13 @@ export function mountInk(root, options = {}) {
     if (!(await pushStrokes(id))) { show('The writing is saved on this device but not on the hub yet: try again when it syncs.'); return 'retry'; }
     if (db !== store) return 'retry';
     let res = null;
+    const seq = ++trAsked;
     try {
       res = await api(`${API}/${enc(id)}/transcribe`, { method: 'POST',
         body: JSON.stringify({ pages: pageIds, only_changed: onlyChanged }) });
     } catch (_) { res = null; }
     if (res && res.ok) {
-      if (current(my, id, db)) { takeTranscripts(id, res.body); renderText(); schedulePoll(); }
+      if (current(my, id, db)) { takeTranscripts(id, res.body, seq); renderText(); schedulePoll(); }
       return 'ok';
     }
     if (!res || (res.status >= 500 && res.status !== 503)) { show('The hub is not reachable: try again later.'); return 'retry'; }
@@ -1702,6 +1736,7 @@ export function mountInk(root, options = {}) {
     const text = tArea.value;
     tSave.disabled = true;
     setTState('Saving...');
+    const seq = ++trAsked;
     let res = null;
     try {
       res = await api(`${API}/${enc(id)}/pages/${enc(page.id)}/transcript`, { method: 'PUT', body: JSON.stringify({ text }) });
@@ -1710,7 +1745,7 @@ export function mountInk(root, options = {}) {
     if (res && res.ok) {
       await dropDraft(key, text);
       if (current(my, id, db)) {
-        takeTranscripts(id, res.body);
+        takeTranscripts(id, res.body, seq);
         renderText();
         if (tArea.dataset.key === key && !drafts.has(key)) setTState('Reviewed and saved in the note. It stays in the hub.');
       }
@@ -1835,6 +1870,7 @@ export function mountInk(root, options = {}) {
       await store.del('notes', id);
       await store.put('deletes', { id });
     } catch (_) { /* memory only */ }
+    await dropNoteDrafts(id);
   }
 
   async function deleteNote(id, title) {
@@ -1886,7 +1922,7 @@ export function mountInk(root, options = {}) {
       // the list was asked for may just be missing from it.
       const gone = (n) => n.synced && !remoteIds.has(n.id) && !((n.synced_at || 0) >= asked);
       for (const n of local) {
-        if (gone(n)) { try { await db.del('notes', n.id); } catch (_) { /* */ } }
+        if (gone(n)) { try { await db.del('notes', n.id); } catch (_) { /* */ } await dropNoteDrafts(n.id, db); }
       }
       local = local.filter((n) => !gone(n));
       for (const n of remote) byId.set(n.id, { ...n, waiting: false });
@@ -1895,7 +1931,8 @@ export function mountInk(root, options = {}) {
       const known = byId.get(n.id);
       if (!known || !n.synced) {
         byId.set(n.id, { id: n.id, title: n.title, image_url: n.image_url || (known && known.image_url),
-          edited_at: n.edited_at, pages: n.pages.length, waiting: !n.synced, blocked: n.blocked });
+          edited_at: n.edited_at, pages: n.pages.length, waiting: !n.synced, blocked: n.blocked,
+          transcripts: known && known.transcripts });
       }
     }
     const items = [...byId.values()].sort((a, b) => (b.edited_at || 0) - (a.edited_at || 0)
@@ -1973,12 +2010,20 @@ export function mountInk(root, options = {}) {
   document.addEventListener('visibilitychange', onHidden);
   window.addEventListener('pagehide', onHidden);
   window.addEventListener('online', onOnline);
+  // A new size (window, rotation): the Write canvas, and the Text tab's page image.
+  const onResize = () => {
+    if (state.screen !== 'editor') return;
+    resize();
+    const page = state.note && state.view === 'text' && state.note.pages[state.textPage];
+    if (page) drawPageImage(page);
+  };
   let observer = null;
   if (globalThis.ResizeObserver) {
-    observer = new ResizeObserver(() => { if (state.screen === 'editor') resize(); });
+    observer = new ResizeObserver(onResize);
     observer.observe(stage);
+    observer.observe(textPanel);
   }
-  window.addEventListener('orientationchange', resize);
+  window.addEventListener('orientationchange', onResize);
 
   // Write is open: timers and the window-wide pen listener run.
   function resume() {
@@ -1996,6 +2041,7 @@ export function mountInk(root, options = {}) {
     suspended = true;
     router.release();
     flush();
+    if (state.note) autoTranscribe([...edited]); // like Back: read the pages changed
     clearTimeout(pollTimer);
     pollTimer = 0;
     timers.forEach(clearInterval);
@@ -2024,6 +2070,7 @@ export function mountInk(root, options = {}) {
         }
       } else if (res.status === 404) {
         await store.del('notes', id);
+        await dropNoteDrafts(id);
         state.note = null;
         return showList('This note was deleted elsewhere.');
       }
@@ -2050,7 +2097,7 @@ export function mountInk(root, options = {}) {
       document.removeEventListener('visibilitychange', onHidden);
       window.removeEventListener('pagehide', onHidden);
       window.removeEventListener('online', onOnline);
-      window.removeEventListener('orientationchange', resize);
+      window.removeEventListener('orientationchange', onResize);
     },
     // For tests.
     _state: state,

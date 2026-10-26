@@ -7,6 +7,7 @@ Per page, the sidecar's ``transcript`` is::
     {"text", "model", "status", "strokes_hash", "at",
      "error",      # why the last run failed (status ``failed``)
      "job",        # the run that will write this page (status ``pending``)
+     "reading",    # strokes_hash of the strokes that run reads (status ``pending``)
      "previous"}   # {"text", "at"}: reviewed text a new transcription replaced
 
 ``status`` is ``none`` -> ``pending`` -> ``machine`` (model output, not reviewed) or
@@ -57,6 +58,7 @@ OVERLAP = 30                          # page units on each side of a cut inside 
 PAD = 24                              # page units of paper around a band
 LINE_JOIN = 10                        # strokes closer than this vertically are one line
 PARAGRAPH_GAP = 80                    # a gap this tall between bands is a blank line
+SEAM_LINES = 3                        # lines at most that both bands of a cut can hold
 MAX_PAGE_TEXT = 20_000                # characters kept per page (model or owner)
 UNREADABLE = "[?]"
 
@@ -100,11 +102,16 @@ def has_ink(page: dict[str, Any]) -> bool:
 
 
 def _extents(page: dict[str, Any]) -> list[tuple[float, float]]:
+    """Vertical span of each ink stroke, cut to the paper: a stroke may lie in the margin
+    the hub accepts around a page (``src/ink_notes.py``), which the render leaves out."""
+    height = float(page.get("height") or ink.PAGE_HEIGHT)
     out = []
     for s in _ink_strokes(page):
         ys = [p[1] for p in s["points"]]
         half = s["pen"]["width"] / 2
-        out.append((min(ys) - half, max(ys) + half))
+        top, bottom = max(0.0, min(ys) - half), min(height, max(ys) + half)
+        if top < bottom:
+            out.append((top, bottom))
     return out
 
 
@@ -138,7 +145,10 @@ def cut_bands(page: dict[str, Any], max_band: float = MAX_BAND
               ) -> list[tuple[float, float, bool]]:
     """``(top, bottom, overlaps_previous)`` bands in page units covering all ink. Cuts
     fall in the gaps between line clusters; a cluster taller than ``max_band`` is cut
-    where the fewest strokes cross, and the two bands then overlap by ``OVERLAP``."""
+    where the fewest strokes cross, and the two bands then overlap by ``OVERLAP`` on each
+    side of the cut. Ink outside the paper is left out."""
+    if max_band <= 2 * OVERLAP:  # a forced cut would never move down the page
+        raise ValueError(f"max_band must be more than {2 * OVERLAP}")
     height = float(page.get("height") or ink.PAGE_HEIGHT)
     clusters = line_clusters(page)
     if not clusters:
@@ -160,10 +170,11 @@ def cut_bands(page: dict[str, Any], max_band: float = MAX_BAND
             bands.append([top, bottom, joined])
     out = []
     for i, (top, bottom, joined) in enumerate(bands):
-        # Paper around the band, but never into the next or previous line.
-        gap_above = PAD if i == 0 or joined else min(PAD, (top - bands[i - 1][1]) / 2)
+        # Paper around the band, but never into the next or previous line. A forced cut
+        # already has OVERLAP on each side: no paper on top of it.
+        gap_above = 0.0 if joined else PAD if i == 0 else min(PAD, (top - bands[i - 1][1]) / 2)
         nxt = bands[i + 1] if i + 1 < len(bands) else None
-        gap_below = PAD if nxt is None or nxt[2] else min(PAD, (nxt[0] - bottom) / 2)
+        gap_below = PAD if nxt is None else 0.0 if nxt[2] else min(PAD, (nxt[0] - bottom) / 2)
         out.append((max(0.0, top - gap_above), min(height, bottom + gap_below), bool(joined)))
     return out
 
@@ -220,13 +231,14 @@ def parse_answer(raw: Any) -> str | None:
         return None
     s = raw.strip()
     s = re.sub(r"^```(?:json)?\s*|\s*```$", "", s)
-    candidates = [s]
-    start, end = s.find("{"), s.rfind("}")
-    if 0 <= start < end:
-        candidates.append(s[start:end + 1])
-    for c in candidates:
+    # The first object with a string "text" that starts at a "{": braces in the words
+    # around it (or inside it) don't matter.
+    decoder = json.JSONDecoder()
+    for i, ch in enumerate(s):
+        if ch != "{":
+            continue
         try:
-            data = json.loads(c)
+            data, _ = decoder.raw_decode(s, i)
         except ValueError:
             continue
         if isinstance(data, dict) and isinstance(data.get("text"), str):
@@ -240,16 +252,20 @@ def _norm(line: str) -> str:
 
 def join_bands(parts: list[tuple[str, dict[str, Any]]]) -> str:
     """Join band texts top to bottom. A blank line marks a tall gap between bands; where
-    two bands overlap, a line read twice at the seam is kept once."""
+    two bands overlap, the lines read twice at the seam (up to ``SEAM_LINES``) are kept
+    once."""
     lines: list[str] = []
     prev: dict[str, Any] | None = None
     for text, band in parts:
         new = clean_text(text).split("\n") if clean_text(text) else []
         if prev is not None and new:
             if band["overlap"]:
-                tail = [ln for ln in lines if ln.strip()]
-                if tail and _norm(tail[-1]) == _norm(new[0]):
-                    new = new[1:]
+                tail = [_norm(ln) for ln in lines if ln.strip()]
+                head = [_norm(ln) for ln in new]
+                for k in range(min(SEAM_LINES, len(tail), len(head)), 0, -1):
+                    if tail[-k:] == head[:k]:
+                        new = new[k:]
+                        break
             elif lines and band["top"] - prev["bottom"] >= PARAGRAPH_GAP - 2 * PAD:
                 lines.append("")
         lines.extend(new)
@@ -416,15 +432,22 @@ def _status(t: dict[str, Any]) -> str:
     return status
 
 
+def _stale_run(page: dict[str, Any], t: dict[str, Any]) -> bool:
+    """The page is pending, but its strokes changed after the run took it (strokes drawn
+    while it was read): a new run may take it over."""
+    return t.get("reading") not in (None, ink.strokes_hash(page))
+
+
 def needs_transcription(page: dict[str, Any]) -> bool:
     """A page with ink whose text is missing, failed, or older than its strokes (and
-    no run is on it)."""
+    no run is on it, or the run on it reads older strokes)."""
     t = _transcript(page)
     status = _status(t)
     if status == "pending":
-        return False
-    if not has_ink(page):
-        return t.get("strokes_hash") not in (None, ink.strokes_hash(page)) and bool(t.get("text"))
+        return _stale_run(page, t)
+    if not has_ink(page):  # its ink was erased: clear what was read from it, once
+        return (t.get("strokes_hash") not in (None, ink.strokes_hash(page))
+                and (bool(t.get("text")) or status != "none"))
     return status in ("none", "failed") or t.get("strokes_hash") != ink.strokes_hash(page)
 
 
@@ -524,7 +547,8 @@ def _prepare(owner: str | None, note_id: str, page_ids: list[str] | None,
         chosen = [by_id[pid] for pid in page_ids] if page_ids is not None else stored["pages"]
         if only_changed or page_ids is None:
             chosen = [p for p in chosen if needs_transcription(p)]
-        chosen = [p for p in chosen if _status(_transcript(p)) != "pending"]
+        chosen = [p for p in chosen
+                  if _status(_transcript(p)) != "pending" or _stale_run(p, _transcript(p))]
         empty = [p for p in chosen if not has_ink(p)]
         work = [p for p in chosen if has_ink(p)]
         if work and reader is None:
@@ -534,12 +558,13 @@ def _prepare(owner: str | None, note_id: str, page_ids: list[str] | None,
             _keep_reviewed(t)
             t.update(text="", model=None, status="none", strokes_hash=ink.strokes_hash(page),
                      at=now(), error=None, job=None)
+            t.pop("reading", None)
         job = uuid.uuid4().hex if work else None
         snapshot = []
         for page in work:
             t = _transcript(page)
             _keep_reviewed(t)
-            t.update(status="pending", job=job, error=None)
+            t.update(status="pending", job=job, error=None, reading=ink.strokes_hash(page))
             snapshot.append(json.loads(json.dumps(page)))
         if job:
             _RUNNING.add(job)
@@ -602,6 +627,7 @@ def _store_result(store: str | None, note_id: str, page: dict[str, Any], job: st
         t = _transcript(target)
         if t.get("job") != job or t.get("status") != "pending":
             return
+        t.pop("reading", None)
         if text is None:
             t.update(status="failed", error=error, job=None)
         else:
@@ -629,6 +655,7 @@ def save_review(owner: str | None, note_id: str, page_id: str, text: Any,
         t.update(text=clean_text(text), status="reviewed", strokes_hash=ink.strokes_hash(page),
                  at=now(), error=None, job=None)
         t.pop("previous", None)
+        t.pop("reading", None)
         ink._write_json(ink.sidecar_path(store, note_id), stored)
         if not ink.update_note(owner, note_id, content=note_content(stored)):
             raise ink.InkError("Note not found", 404)
@@ -637,12 +664,15 @@ def save_review(owner: str | None, note_id: str, page_id: str, text: Any,
 
 def note_content(stored: dict[str, Any]) -> str:
     """The note's ``content``: reviewed pages' text in page order, a blank line between
-    pages (empty until a page is reviewed)."""
+    pages (empty until a page is reviewed). A page read again since its review keeps its
+    reviewed text (``previous``) here until it is reviewed again."""
     parts = []
     for page in stored.get("pages") or []:
         t = page.get("transcript") if isinstance(page.get("transcript"), dict) else {}
-        if t.get("status") == "reviewed" and (t.get("text") or "").strip():
-            parts.append(t["text"].strip())
+        prev = t.get("previous") if isinstance(t.get("previous"), dict) else {}
+        text = t.get("text") if t.get("status") == "reviewed" else prev.get("text")
+        if isinstance(text, str) and text.strip():
+            parts.append(text.strip())
     return "\n\n".join(parts)
 
 

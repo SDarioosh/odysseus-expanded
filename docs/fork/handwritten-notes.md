@@ -220,6 +220,12 @@ Every page is reviewed by the owner before its text leaves the hub.
 - "Send to Athena" calls `/ingest/text` through the module's MCP HTTP URL and token
   (the same way the call recorder uploads audio) with all reviewed pages of the note
   joined in order, and stores `athena.sent_hash`.
+- **Limits (QC of H2, X-1).** H2 allows 60 pages of up to 20,000 characters each, with
+  lines of any length; Athena's `/ingest/text` (H3) takes at most 200,000 characters and
+  5,000 non-empty lines, and refuses text without words (send `DELETE` instead). A line
+  over 4,000 characters is wrapped at a space by Athena (SDarioosh/Athena#110), and the
+  wrapped lines count toward the 5,000. H4 checks the joined text before sending and says
+  what is over (or that no page has reviewed text) instead of sending.
 - **Edits:** if the owner edits strokes or text after sending, the page goes back to
   "Needs review" (re-transcribe if strokes changed). Sending again replaces the note in
   Athena. The hourly fact sync then retires facts Athena no longer returns; filed to-dos
@@ -327,8 +333,10 @@ As planned (`src/ink_transcribe.py`, routes on the existing ink router, a Text t
   cluster; bands are at most 560 units (about 12 ruled lines), cut in the gaps, with up
   to 24 units of paper around them but never into the next line. A cluster taller than
   a band (a drawing, a margin line) is cut where the fewest strokes cross, with 30 units
-  of overlap; a line read twice at that seam is kept once. A gap of 80 units or more
-  between bands is a blank line. A page without ink is cleared without a model call.
+  of overlap on each side of the cut and no paper added there; lines read twice at that
+  seam (up to 3) are kept once. Ink in the 50-unit margin the hub accepts around a page
+  is cut to the paper, as in the render. A gap of 80 units or more between bands is a
+  blank line. A page without ink is cleared without a model call.
 - **Prompt and answer.** As planned, plus: keep list markers, leave out struck-through
   words and drawings. The answer must be JSON `{text}`; code fences and words around the
   object are tolerated, anything else gets one retry and then `failed`. Words like
@@ -344,7 +352,9 @@ As planned (`src/ink_transcribe.py`, routes on the existing ink router, a Text t
   the page is still pending for that run, so a review saved meanwhile, a newer run or a
   deleted note wins. A page left `pending` by a hub restart reads as `failed`
   ("Interrupted") and is read again on the next leave. A page whose strokes changed shows
-  "the writing changed" in the Text tab.
+  "the writing changed" in the Text tab. A run notes which strokes it reads; strokes
+  drawn on a page while it is read let the next leave start a new run on it, and the
+  older run's text is dropped.
 - **Reviewed text is never lost silently.** When a changed page is read again, its
   reviewed text is kept as `transcript.previous` (**Restore reviewed text** in the Text
   tab) until the next review. **Transcribe** on a reviewed page, or over edits not saved

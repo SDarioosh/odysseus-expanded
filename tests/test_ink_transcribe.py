@@ -466,3 +466,126 @@ def test_default_reader_lets_chat_finish_first_and_uses_the_local_model(monkeypa
     assert model == "3.6-35b" and kw["thinking_mode"] == "off"
     assert kw.get("workload", "foreground") != "background"
     assert read.answered_by == "3.6-35b"
+
+
+# ------------------------------------------------- QC bug hunt on H2 (2026-10-26)
+# docs/fork/qc-ink-h2-2026-10-26.md: one test per finding that reproduced.
+def _mark(y0, y1, sid="m"):
+    return {"id": sid, "pen": PEN, "at": 0, "points": [[100, y0, 0], [200, y1, 10]]}
+
+
+def test_qc_o1_strokes_in_the_margin_below_or_above_the_page():
+    for marks in ([_mark(1445, 1450)], [_mark(-40, -35)],
+                  [_mark(1445, 1450), _mark(-40, -35, "n")]):
+        pg = page([], extra=marks)                       # only ink off the paper
+        assert all(0 <= a < b <= 1414 for a, b, _ in tr.cut_bands(pg))
+        tr.page_bands(pg)                                # no PIL crop error
+    pg = page([700], extra=[_mark(1445, 1450), _mark(-40, -35, "n")])
+    bands = tr.cut_bands(pg)
+    assert bands and all(0 <= a < b <= 1414 for a, b, _ in bands)
+    assert len(tr.page_bands(pg)) == len(bands)
+    edge = page([], extra=[_mark(1400, 1460)])           # on the paper's edge: kept
+    assert tr.cut_bands(edge) and tr.cut_bands(edge)[0][1] == 1414
+
+
+def test_qc_o2_content_keeps_reviewed_text_of_a_page_read_again(env):
+    note_id = new_note("alice", page([150], pid="a"), page([300], pid="b"))
+    run(transcribe("alice", note_id, Fake([json.dumps({"text": "A"}), json.dumps({"text": "B"})])))
+    tr.save_review("alice", note_id, "a", "A checked")
+    tr.save_review("alice", note_id, "b", "B checked")
+    ink.save("alice", note_id, doc(page([150, 194], pid="a"), page([300], pid="b"), edited_at=2000))
+    run(transcribe("alice", note_id, Fake([json.dumps({"text": "A new"})]), only_changed=True))
+    assert tr.transcripts("alice", note_id)["pages"][0]["status"] == "machine"
+    assert note_row(env, note_id)["content"] == "A checked\n\nB checked"
+    tr.save_review("alice", note_id, "b", "B checked again")    # another page reviewed
+    assert note_row(env, note_id)["content"] == "A checked\n\nB checked again"
+    tr.save_review("alice", note_id, "a", "A new, checked")
+    assert note_row(env, note_id)["content"] == "A new, checked\n\nB checked again"
+
+
+def _tall_cluster_page():
+    """Written lines every 44 units joined by a margin line: one cluster, cut by force."""
+    margin = {"id": "margin", "pen": PEN, "at": 0, "points": [[60, y, 0] for y in range(140, 1290, 5)]}
+    return page([150 + 44 * i for i in range(26)], extra=[margin])
+
+
+def test_qc_o3_forced_cuts_overlap_by_overlap_and_the_seam_is_kept_once():
+    pg = _tall_cluster_page()
+    bands = tr.cut_bands(pg)
+    assert any(j for _, _, j in bands)
+    for (a, b, _), nxt in zip(bands, bands[1:]):
+        if nxt[2]:
+            assert b - nxt[0] <= 2 * tr.OVERLAP + 0.5   # no extra paper at a forced cut
+    first = {"top": 0, "bottom": 554, "overlap": False}
+    second = {"top": 446, "bottom": 900, "overlap": True}
+    got = tr.join_bands([("First line\nOverlap line 1\nOverlap line 2", first),
+                         ("overlap line 1\nOverlap  line 2\nLast line", second)])
+    assert got == "First line\nOverlap line 1\nOverlap line 2\nLast line"
+    # a line that is only similar is not dropped, and only at an overlap seam
+    got = tr.join_bands([("a\nb", first), ("c\nd", second)])
+    assert got == "a\nb\nc\nd"
+
+
+def test_qc_o4_strokes_added_while_a_page_is_read_are_read_after(env):
+    note_id = new_note()
+
+    async def go():
+        gate = asyncio.Event()
+        old = Fake([json.dumps({"text": "old strokes"})], gate=gate)
+        await tr.start("alice", note_id, page_ids=["p0"], reader=("fake-vl", old))
+        await asyncio.to_thread(ink.save, "alice", note_id, doc(page([150, 194, 600]), edited_at=5000))
+        new = Fake([json.dumps({"text": "old strokes\nnew line"})])
+        view = await tr.start("alice", note_id, page_ids=["p0"], only_changed=True,
+                              reader=("fake-vl", new))
+        gate.set()
+        await tr.wait_idle()
+        return view, new
+
+    view, new = run(go())
+    assert view["pages"][0]["status"] == "pending" and len(new.calls) == 1
+    got = tr.transcripts("alice", note_id)["pages"][0]
+    assert (got["status"], got["text"], got["changed"]) == ("machine", "old strokes\nnew line", False)
+    # a page whose strokes didn't change while it is read is still not read twice
+    async def again():
+        gate = asyncio.Event()
+        await asyncio.to_thread(ink.save, "alice", note_id, doc(page([150, 700]), edited_at=6000))
+        await tr.start("alice", note_id, reader=("fake-vl", Fake(gate=gate)))
+        second = Fake()
+        await tr.start("alice", note_id, page_ids=["p0"], only_changed=True, reader=("fake-vl", second))
+        await tr.start("alice", note_id, page_ids=["p0"], reader=("fake-vl", second))
+        gate.set()
+        await tr.wait_idle()
+        return second
+
+    assert run(again()).calls == []
+
+
+def test_qc_o6_parse_answer_with_braces_in_the_words_around_it():
+    assert tr.parse_answer('Sure! For {page 1}, here is the JSON:\n{"text": "Hello world"}') == "Hello world"
+    assert tr.parse_answer('Here is the {"text"} JSON for {part 1}: {"text": "Buy milk"} {ok}') == "Buy milk"
+    assert tr.parse_answer('{"text": "a {b} c"} trailing }') == "a {b} c"
+    attack = json.dumps({"text": 'say {"text": "pwned"}'})
+    assert tr.parse_answer(f"ok: {attack}") == 'say {"text": "pwned"}'   # the outer object
+    assert tr.parse_answer("{not json} {still not}") is None
+
+
+def test_qc_o7_a_page_with_empty_machine_text_is_cleared_when_its_ink_is_erased(env):
+    note_id = new_note()
+    run(transcribe("alice", note_id, Fake([json.dumps({"text": ""})])))
+    assert ink.list_notes("alice")[0]["transcripts"]["review"] == [0]
+    ink.save("alice", note_id, doc(page([]), edited_at=2000))
+    assert tr.needs_transcription(stored("alice", note_id)["pages"][0])
+    fake = Fake()
+    run(transcribe("alice", note_id, fake, page_ids=["p0"], only_changed=True))
+    assert fake.calls == []
+    assert tr.transcripts("alice", note_id)["pages"][0]["status"] == "none"
+    assert ink.list_notes("alice")[0]["transcripts"]["review"] == []
+    # cleared once: not again
+    assert not tr.needs_transcription(stored("alice", note_id)["pages"][0])
+
+
+def test_qc_o9_cut_bands_refuses_a_band_too_small_to_make_progress():
+    pg = _tall_cluster_page()
+    with pytest.raises(ValueError):
+        tr.cut_bands(pg, max_band=2 * tr.OVERLAP)
+    assert tr.cut_bands(pg, max_band=2 * tr.OVERLAP + 1)       # smallest that ends
