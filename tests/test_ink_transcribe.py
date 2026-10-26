@@ -488,6 +488,21 @@ def test_qc_o1_strokes_in_the_margin_below_or_above_the_page():
     assert tr.cut_bands(edge) and tr.cut_bands(edge)[0][1] == 1414
 
 
+def test_qc_o2_content_keeps_reviewed_text_of_a_page_read_again(env):
+    note_id = new_note("alice", page([150], pid="a"), page([300], pid="b"))
+    run(transcribe("alice", note_id, Fake([json.dumps({"text": "A"}), json.dumps({"text": "B"})])))
+    tr.save_review("alice", note_id, "a", "A checked")
+    tr.save_review("alice", note_id, "b", "B checked")
+    ink.save("alice", note_id, doc(page([150, 194], pid="a"), page([300], pid="b"), edited_at=2000))
+    run(transcribe("alice", note_id, Fake([json.dumps({"text": "A new"})]), only_changed=True))
+    assert tr.transcripts("alice", note_id)["pages"][0]["status"] == "machine"
+    assert note_row(env, note_id)["content"] == "A checked\n\nB checked"
+    tr.save_review("alice", note_id, "b", "B checked again")    # another page reviewed
+    assert note_row(env, note_id)["content"] == "A checked\n\nB checked again"
+    tr.save_review("alice", note_id, "a", "A new, checked")
+    assert note_row(env, note_id)["content"] == "A new, checked\n\nB checked again"
+
+
 def _tall_cluster_page():
     """Written lines every 44 units joined by a margin line: one cluster, cut by force."""
     margin = {"id": "margin", "pen": PEN, "at": 0, "points": [[60, y, 0] for y in range(140, 1290, 5)]}

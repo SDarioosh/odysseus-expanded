@@ -652,12 +652,15 @@ def save_review(owner: str | None, note_id: str, page_id: str, text: Any,
 
 def note_content(stored: dict[str, Any]) -> str:
     """The note's ``content``: reviewed pages' text in page order, a blank line between
-    pages (empty until a page is reviewed)."""
+    pages (empty until a page is reviewed). A page read again since its review keeps its
+    reviewed text (``previous``) here until it is reviewed again."""
     parts = []
     for page in stored.get("pages") or []:
         t = page.get("transcript") if isinstance(page.get("transcript"), dict) else {}
-        if t.get("status") == "reviewed" and (t.get("text") or "").strip():
-            parts.append(t["text"].strip())
+        prev = t.get("previous") if isinstance(t.get("previous"), dict) else {}
+        text = t.get("text") if t.get("status") == "reviewed" else prev.get("text")
+        if isinstance(text, str) and text.strip():
+            parts.append(text.strip())
     return "\n\n".join(parts)
 
 
