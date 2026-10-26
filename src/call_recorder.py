@@ -1,14 +1,14 @@
-"""Fork: add recordings to odysseus-sound through its connected MCP server.
+"""Fork: add recordings to Athena through its connected MCP server.
 
 Two callers send audio pieces here, and this file checks each piece and forwards it:
 
 * the "Record a call" page (``static/call-recorder.html``): self-contained 30-second
   WebM/Opus pieces of a meeting captured in the browser (admin session);
-* the phone relay paired through Odysseus (odysseus-sound's ``android-relay``): the
+* the phone relay paired through Odysseus (Athena's ``android-relay``): the
   watch's 30-second Ogg/Opus chunks (API token with scope ``sound:ingest``,
   ``routes/sound_relay_routes.py``).
 
-Where the pieces go: odysseus-sound's MCP HTTP server (``convo-server mcp --http``) has two
+Where the pieces go: Athena's MCP HTTP server (``convo-server mcp --http``) has two
 plain HTTP routes next to ``/mcp``, behind its MCP token: ``POST /ingest/chunk`` and
 ``POST /sessions/{id}/end``. They are not MCP tools; the module forwards them to its own
 ingest API with its ingest token, which never leaves the module. So the only settings
@@ -42,14 +42,14 @@ DEFAULT_SERVER = "convo"
 DEVICE_ENV = "SOUND_MODULE_CALL_DEVICE"
 DEFAULT_DEVICE = "computer"
 
-# Same rule as odysseus-sound's ids (convo_server/pipeline.py _SAFE).
+# Same rule as Athena's ids (convo_server/pipeline.py _SAFE).
 SAFE_ID = re.compile(r"^[A-Za-z0-9._:-]{1,128}$")
-KINDS = {"conversation", "note"}  # odysseus-sound's session kinds
+KINDS = {"conversation", "note"}  # Athena's session kinds
 MAX_CHUNK_BYTES = 5 * 1024 * 1024  # 30 s of Opus is ~60-250 KB; leaves room for 60 s at 64 kbit/s
 MAX_SEQUENCE = 100_000  # 4 h sessions (the module's default cap) are 480 pieces
 TIMEOUT = httpx.Timeout(60.0, connect=5.0)  # the module decodes and runs VAD before it answers
-UPDATE_MODULE = ("odysseus-sound can't take uploads through its MCP server yet: update "
-                 "odysseus-sound (scripts/fork_deploy.sh deploy).")
+UPDATE_MODULE = ("Athena can't take uploads through its MCP server yet: update "
+                 "Athena (scripts/fork_deploy.sh deploy).")
 
 
 @dataclass(frozen=True)
@@ -138,7 +138,7 @@ def resolve() -> Link:
     rows = [r for r in _server_rows()
             if str(r[0]).casefold() == want or r[1].strip().casefold() == want]
     if not rows:
-        raise RecorderError(503, f"No MCP server named {key!r}: add odysseus-sound's MCP "
+        raise RecorderError(503, f"No MCP server named {key!r}: add Athena's MCP "
                                  "server in Settings → MCP (docs/fork/modules/odysseus-sound.md).")
     rows.sort(key=lambda r: not r[3])  # enabled first
     if not rows[0][3]:
@@ -231,13 +231,13 @@ def _module_error(res: httpx.Response) -> RecorderError:
     detail = _detail(res)
     if res.status_code in (401, 403):
         # Odysseus's MCP token for the module is wrong: not the caller's fault.
-        return RecorderError(502, f"odysseus-sound refused the token of the {server_key()!r} "
+        return RecorderError(502, f"Athena refused the token of the {server_key()!r} "
                                   "MCP server (Settings → MCP).")
     if res.status_code in (400, 413, 415, 422):
-        return RecorderError(res.status_code, detail or f"odysseus-sound HTTP {res.status_code}")
+        return RecorderError(res.status_code, detail or f"Athena HTTP {res.status_code}")
     if res.status_code == 502 and detail:  # the module's ingest API is down
         return RecorderError(502, detail)
-    return RecorderError(502, f"odysseus-sound HTTP {res.status_code}")
+    return RecorderError(502, f"Athena HTTP {res.status_code}")
 
 
 async def _post(link: Link, path: str, transport: httpx.AsyncBaseTransport | None,
@@ -248,8 +248,8 @@ async def _post(link: Link, path: str, transport: httpx.AsyncBaseTransport | Non
                                      **kwargs)
     except httpx.HTTPError as exc:
         # The URL carries the token: log only the base and the error's type.
-        logger.warning("odysseus-sound unreachable at %s: %s", link.base, type(exc).__name__)
-        raise RecorderError(502, "odysseus-sound is not reachable") from None
+        logger.warning("Athena unreachable at %s: %s", link.base, type(exc).__name__)
+        raise RecorderError(502, "Athena is not reachable") from None
 
 
 async def forward_chunk(link: Link, *, data: bytes, session_id: str, sequence: int,
@@ -273,9 +273,9 @@ async def forward_chunk(link: Link, *, data: bytes, session_id: str, sequence: i
     try:
         body = res.json()
     except ValueError:
-        raise RecorderError(502, "odysseus-sound sent an unreadable answer") from None
+        raise RecorderError(502, "Athena sent an unreadable answer") from None
     if not isinstance(body, dict):
-        raise RecorderError(502, "odysseus-sound sent an unreadable answer")
+        raise RecorderError(502, "Athena sent an unreadable answer")
     return {**body, "ok": bool(body.get("ok", True)), "stop": bool(body.get("stop")),
             "reason": body.get("reason")}
 
@@ -302,7 +302,7 @@ async def forward(link: Link, method: str, path: str, *, params: dict[str, Any] 
 
     The module's own status and ``detail`` come back as they are, except that a refused
     Odysseus token becomes 502 (it is not the caller's token) and a missing route says to
-    update odysseus-sound.
+    update Athena.
     """
     query = {k: v for k, v in (params or {}).items() if v is not None}
     query["access_token"] = link.token
@@ -310,8 +310,8 @@ async def forward(link: Link, method: str, path: str, *, params: dict[str, Any] 
         async with _client(transport) as client:
             res = await client.request(method, f"{link.base}{path}", params=query, json=json)
     except httpx.HTTPError as exc:
-        logger.warning("odysseus-sound unreachable at %s: %s", link.base, type(exc).__name__)
-        raise RecorderError(502, "odysseus-sound is not reachable") from None
+        logger.warning("Athena unreachable at %s: %s", link.base, type(exc).__name__)
+        raise RecorderError(502, "Athena is not reachable") from None
     if res.status_code in (401, 403):
         raise _module_error(res)
     try:
@@ -322,7 +322,7 @@ async def forward(link: Link, method: str, path: str, *, params: dict[str, Any] 
                                               and body.get("detail") != "Not Found"):
         raise RecorderError(502, UPDATE_MODULE)
     if body is None:
-        raise RecorderError(502, f"odysseus-sound HTTP {res.status_code} without JSON")
+        raise RecorderError(502, f"Athena HTTP {res.status_code} without JSON")
     return res.status_code, body
 
 

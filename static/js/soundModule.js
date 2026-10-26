@@ -1,4 +1,4 @@
-// Fork: odysseus-sound view — conversations list, action items, "who is this?" cards
+// Fork: Athena view — conversations list, action items, "who is this?" cards
 // and a transcript reader with click-to-fix speakers. Mounted by the Conversations
 // window in the main app (static/js/forkModuleWindows.js) and by the standalone page
 // (static/sound-module.html). Data comes from routes/sound_module_routes.py, which
@@ -141,7 +141,7 @@ async function loadWho() {
 }
 
 // ----------------------------------------------------------------- action items
-// Live from odysseus-sound, the source of truth. Explicit voice-note items are filed into
+// Live from Athena, the source of truth. Explicit voice-note items are filed into
 // the Odysseus calendar / to-dos / notes by src/module_action_items.py; other voice-note
 // items and conversation items are suggestions until the owner taps Add (MODULE_FILE_ITEMS
 // decides which voice-note items count as explicit). Every change answers with the item as it is
@@ -989,7 +989,7 @@ function refreshAll() {
  */
 export function mountSoundModule(root, { embedded = false, scroller = null, onAsk = null,
                                          confirm = null } = {}) {
-  if (ctx) throw new Error('the odysseus-sound view is already mounted');
+  if (ctx) throw new Error('the Athena view is already mounted');
   ctx = {
     root, embedded, scroller, onAsk,
     confirm: confirm || ((message) => Promise.resolve(window.confirm(message))),

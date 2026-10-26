@@ -9,12 +9,12 @@ exactly the confirmed beliefs are in ``memory.json``, as ``<text> (source: <link
 and a second ``sync_memory`` leaves the file byte-identical. Prints expected vs actual
 per check and a score (``N/N``); exit code 1 on any mismatch. No model is involved.
 
-The odysseus-sound side is simulated the way the facts job drives it
+The Athena side is simulated the way the facts job drives it
 (``src/module_facts.py``): each pass submits every fact the module currently lists,
 reconciles the source with those ids, applies decay and mirrors memory once.
 
 ``--chat`` (optional, the only non-deterministic part) then asks a running Odysseus
-"What do you know about Priya Nair?" with odysseus-sound's bakeoff client
+"What do you know about Priya Nair?" with Athena's bakeoff client
 (``--bakeoff``, env ``ODYSSEUS_URL`` and ``ODYSSEUS_PASSWORD``/``_FILE`` or
 ``ODYSSEUS_API_TOKEN``, as for ``scripts/module_slash_eval.py``) and reports whether the
 answer has the expected facts and their links. It needs ``--data-dir`` set to that
@@ -148,7 +148,7 @@ class Run:
 
         self.ledger = ledger
         self.owner = owner
-        self.module: dict[int, dict] = {}  # what odysseus-sound currently lists
+        self.module: dict[int, dict] = {}  # what Athena currently lists
         self.checks: list[Check] = []
 
     # ------------------------------------------------------------------ sources
@@ -662,7 +662,7 @@ def score_answer(answer: str) -> list[tuple[str, bool, bool]]:
 def chat(bakeoff: Path) -> int:
     """Ask the running Odysseus; print the answer and what it contains. Not scored."""
     sys.path.insert(0, str(bakeoff.resolve().parent))
-    import bakeoff as client  # odysseus-sound's eval script, unmodified
+    import bakeoff as client  # Athena's eval script, unmodified
 
     answer, tools = client.run_odysseus(CHAT_QUESTION)
     print(f"\nchat (not scored): {CHAT_QUESTION}\n  tools: {', '.join(tools) or '-'}")
@@ -687,7 +687,7 @@ def main(argv: list[str] | None = None) -> int:
                                     "ODYSSEUS_USER or 'admin')")
     ap.add_argument("--chat", action="store_true",
                     help="also ask a running Odysseus (needs --data-dir and --bakeoff)")
-    ap.add_argument("--bakeoff", type=Path, help="odysseus-sound's server/eval/bakeoff.py")
+    ap.add_argument("--bakeoff", type=Path, help="Athena's server/eval/bakeoff.py")
     ap.add_argument("--cleanup", action="store_true",
                     help="delete what an earlier run seeded for --owner in --data-dir")
     args = ap.parse_args(argv)

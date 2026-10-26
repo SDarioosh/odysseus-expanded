@@ -877,7 +877,7 @@ from routes.mcp.mcp_routes import setup_mcp_routes
 mcp_manager = McpManager()
 set_mcp_manager(mcp_manager)
 app.include_router(setup_mcp_routes(mcp_manager))
-# Fork: odysseus-sound conversations page (routes/sound_module_routes.py)
+# Fork: Athena conversations page (routes/sound_module_routes.py)
 from routes.sound_module_routes import setup_sound_module_routes  # noqa: E402
 app.include_router(setup_sound_module_routes())
 # Fork: Today insight page, votes and token route (routes/today_insight_routes.py)
@@ -889,12 +889,18 @@ app.include_router(setup_belief_search_routes())
 # Fork: belief review page and routes (routes/beliefs_routes.py)
 from routes.beliefs_routes import setup_beliefs_routes  # noqa: E402
 app.include_router(setup_beliefs_routes())
-# Fork: odysseus-sound phone relay through Odysseus, pairing by QR (routes/sound_relay_routes.py)
+# Fork: Athena phone relay through Odysseus, pairing by QR (routes/sound_relay_routes.py)
 from routes.sound_relay_routes import setup_sound_relay_routes  # noqa: E402
 app.include_router(setup_sound_relay_routes())
-# Fork: odysseus-sound's summary model for Settings → AI Defaults (routes/summary_model_routes.py)
+# Fork: Athena's summary model for Settings → AI Defaults (routes/summary_model_routes.py)
 from routes.summary_model_routes import setup_summary_model_routes  # noqa: E402
 app.include_router(setup_summary_model_routes())
+# Fork: auto mode switch for Settings → Tools (routes/auto_mode_routes.py)
+from routes.auto_mode_routes import setup_auto_mode_routes  # noqa: E402
+app.include_router(setup_auto_mode_routes())
+# Fork: handwritten notes, the Write view's strokes (routes/ink_routes.py)
+from routes.ink_routes import setup_ink_routes  # noqa: E402
+app.include_router(setup_ink_routes())
 logger.info("MCP routes initialized")
 
 # AI Interaction tools (debates, pipelines, self-managing AI, UI control)

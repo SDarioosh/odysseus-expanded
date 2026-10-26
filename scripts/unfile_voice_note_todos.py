@@ -8,7 +8,7 @@ to-dos: label ``odysseus-sound``, one checklist line, no due date and no reminde
 from a voice note whose item isn't explicit now, and still in Odysseus, each with why it
 qualifies. To-dos filed in ``explicit`` mode or from the page are left out unless
 ``--all``; dated to-dos and reminders never qualify. With ``--apply`` it deletes them
-and dismisses their items in odysseus-sound (``update_action_item``; items already done
+and dismisses their items in Athena (``update_action_item``; items already done
 stay done). They are never filed again.
 
 It runs in the hub, which holds the module's MCP connection: the script calls the admin

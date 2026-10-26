@@ -12,12 +12,18 @@ this repository. Read this file completely before changing anything.
 - Odysseus is the **hub** of a personal, fully local AI system: the one chat and agent
   interface the owner uses from an Android phone and a Mac over Tailscale. The fork
   keeps the Odysseus name and adds capabilities through modules.
-- **Modules** are separate programs in separate repos (`odysseus-<name>`; the first one's
-  repo is still `barvis-sound`). Each owns its data and exposes it through its own MCP
-  server. Odysseus is only a client of them.
-- First module: [odysseus-sound](https://github.com/SDarioosh/barvis-sound) (recorded
-  conversations: transcripts, summaries, action items, facts). Details:
-  [docs/fork/modules/odysseus-sound.md](docs/fork/modules/odysseus-sound.md).
+- **Modules** are separate programs in separate repos (`odysseus-<name>`, or a name of
+  their own: the first one's repo is `SDarioosh/Athena`, formerly `barvis-sound`). Each
+  owns its data and exposes it through its own MCP server. Odysseus is only a client of
+  them.
+- First module: [Athena](https://github.com/SDarioosh/Athena) (formerly
+  odysseus-sound; recorded conversations: transcripts, summaries, action items, facts).
+  Details: [docs/fork/modules/odysseus-sound.md](docs/fork/modules/odysseus-sound.md).
+  The rename is wording only. Code and stored values keep the old names: the MCP server
+  `convo`, the `/sound` skill, `/modules/sound` routes, `sound:*` token scopes, and the
+  string `"odysseus-sound"` used as the belief source, the label on filed notes, the
+  memory source and calendar uid prefixes. Changing them breaks existing data; don't
+  "fix" them.
 - What the fork changes today: [FORK.md](FORK.md). System picture, ports and
   services: [docs/fork/architecture.md](docs/fork/architecture.md). Status and
   next work: [docs/fork/roadmap.md](docs/fork/roadmap.md).
@@ -32,7 +38,7 @@ this repository. Read this file completely before changing anything.
 - Cloud is fine only for development tooling (coding agents, package and model-weight
   downloads).
 - Never paste real transcripts, chat content or tokens into issues, PRs, commit messages
-  or test fixtures. Use fictional data (odysseus-sound's `server/scripts/seed_demo.py`).
+  or test fixtures. Use fictional data (Athena's `server/scripts/seed_demo.py`).
 
 ## Where Odysseus keeps things
 
@@ -55,22 +61,22 @@ Odysseus is large (~478k lines of Python) and fast-moving. Start from these file
 
 Fork code so far: `src/mcp_trust.py`, `src/mcp_stdio_owner.py`, `src/mcp_session_recovery.py`, `src/skill_mcp_toolsets.py`,
 `src/skill_invocation.py`, `src/offered_reads.py`, `src/module_action_items.py`,
-`src/sound_module_view.py`, `src/web_turn_scope.py`, `src/chat_mode_scope.py`, `src/module_turn_scope.py`,
-`src/checklist_auto_archive.py`, `src/builtin_task_authority.py`, `src/module_facts.py`, `src/evidence_intake.py`, `src/belief_consolidation.py`, `src/belief_forget.py`, `src/belief_export.py`, `src/today_insight.py`,
+`src/sound_module_view.py`, `src/web_turn_scope.py`, `src/chat_mode_scope.py`, `src/module_turn_scope.py`, `src/auto_mode.py`,
+`src/web_read_recovery.py`, `src/checklist_auto_archive.py`, `src/builtin_task_authority.py`, `src/module_facts.py`, `src/evidence_intake.py`, `src/belief_consolidation.py`, `src/belief_forget.py`, `src/belief_move.py`, `src/belief_export.py`, `src/today_insight.py`,
 `src/call_recorder.py`, `src/phone_pairing.py`, `routes/sound_relay_routes.py`,
-`src/notes_evidence.py`, `src/belief_structure.py`, `src/belief_search.py`,
+`src/notes_evidence.py`, `src/belief_structure.py`, `src/belief_search.py`, `src/ink_notes.py`, `src/ink_transcribe.py`, `routes/ink_routes.py`,
 `src/insight_outcomes.py`, `src/insight_weights.py`, `src/insight_push.py`, `src/insight_routines.py`,
 `src/insight_inputs.py`, `src/insight_trends.py`, `routes/insight_outcome_routes.py`,
 `routes/insight_weights_routes.py`, `routes/insight_trends_routes.py`,
-`routes/sound_module_routes.py`, `routes/today_insight_routes.py`, `routes/summary_model_routes.py`, `routes/beliefs_routes.py`, `routes/belief_search_routes.py`, `static/sound-module.html`,
+`routes/sound_module_routes.py`, `routes/today_insight_routes.py`, `routes/summary_model_routes.py`, `routes/auto_mode_routes.py`, `routes/beliefs_routes.py`, `routes/belief_search_routes.py`, `static/sound-module.html`,
 `static/today.html`, `static/js/today.js`, `static/js/todayWeights.js`, `static/js/todayTrends.js`, `static/beliefs.html`, `static/js/beliefs.js`,
 `static/call-recorder.html`, `static/js/callRecorder.js`, `static/phone-pairing.html`, `static/js/phonePairing.js`,
 `static/js/soundModule.js`, `static/js/forkChatAsk.js`, `static/js/forkEntityHash.js`,
-`static/js/forkModuleWindows.js`, `static/js/forkModuleShortcuts.js`, `static/js/forkBackgroundModels.js`, `static/css/fork-modules.css`,
+`static/js/forkModuleWindows.js`, `static/js/forkModuleShortcuts.js`, `static/js/forkInk.js`, `static/css/fork-ink.css`, `static/js/forkBackgroundModels.js`, `static/js/forkAutoMode.js`, `static/js/forkResumeFallback.js`, `static/css/fork-modules.css`,
 `scripts/modules_setup.py`, `scripts/belief_eval.py`, `scripts/belief_eval_scale.py`, `scripts/unfile_voice_note_todos.py`,
 `scripts/module_slash_eval.py`, `scripts/insight_eval.py`, `scripts/fork_deploy.sh`, `docker/fork.override.yml`,
 their tests (`tests/test_mcp_trust.py`,
-`tests/test_mcp_http_annotations.py`, `tests/test_mcp_stdio_owner.py`, `tests/test_mcp_session_recovery.py`, `tests/test_modules_setup.py`,
+`tests/test_mcp_http_annotations.py`, `tests/test_mcp_stdio_owner.py`, `tests/test_mcp_session_recovery.py`, `tests/test_agent_thinking_switch.py`, `tests/test_modules_setup.py`,
 `tests/test_skill_mcp_toolsets.py`, `tests/test_offered_reads.py`,
 `tests/test_module_action_items.py`, `tests/test_sound_module_view.py`, `tests/test_web_turn_scope.py`, `tests/test_chat_mode_scope.py`,
 `tests/test_module_turn_scope.py`, `tests/test_calendar_reminder_wall_time.py`,
@@ -80,7 +86,7 @@ their tests (`tests/test_mcp_trust.py`,
 `tests/test_call_recorder.py`, `tests/test_sound_relay.py`, `tests/test_insight_outcomes.py`,
 `tests/test_insight_weights.py`, `tests/test_insight_push.py`, `tests/test_insight_routines.py`,
 `tests/test_insight_inputs.py`, `tests/test_insight_eval.py`, `tests/test_summary_model_routes.py`,
-`tests/test_belief_consolidation.py`, `tests/test_belief_forget.py`), and the hooks listed in [FORK.md](FORK.md).
+`tests/test_belief_consolidation.py`, `tests/test_module_fact_kinds.py`, `tests/test_belief_forget.py`, `tests/test_belief_move.py`, `tests/test_auto_mode.py`, `tests/test_web_read_recovery.py`, `tests/test_fork_resume_fallback.py`, `tests/test_ink_notes.py`, `tests/test_ink_routes.py`, `tests/test_ink_upstream_contract.py`, `tests/test_ink_palm_rejection.py`, `tests/test_ink_perf.py`, `tests/test_ink_transcribe.py`), and the hooks listed in [FORK.md](FORK.md).
 
 ## Fork rules (merge-friendly)
 
@@ -134,7 +140,7 @@ the two PRs to each other.
 - You work in a cloud sandbox, **not on the owner's server**. Never assume access to the
   server, its services, its data or Tailscale.
 - The sandbox can build and run the whole system with small CPU models and fictional
-  data: llama-server, whisper-server, odysseus-sound, its MCP server, Odysseus on
+  data: llama-server, whisper-server, Athena, its MCP server, Odysseus on
   `127.0.0.1:7010`, and the eval. Steps, timings and known issues:
   [docs/fork/sandbox.md](docs/fork/sandbox.md).
 - Small-model scores are only comparable with other sandbox runs. The real score
@@ -159,7 +165,7 @@ the two PRs to each other.
   (`127.0.0.1:7010`, started with `~/.hermes/cache/scratch/barvis-run.sh`, log
   `~/.hermes/cache/scratch/bakeoff/barvis.log`) is what verification steps target.
 - Server clones: `~/projects/barvis` (this repo) and `~/projects/barvis-ai-wt/*`
-  (odysseus-sound worktrees; the folder may be renamed).
+  (Athena worktrees; the folder may be renamed).
 
 ## Tests
 

@@ -35,7 +35,7 @@ odysseus-deploy rollback        # Odysseus back to the image before the last dep
    `docker-compose.override.yml` doesn't select an `odysseus-fork:` image (or the former
    `barvis:` one).
 2. Runs each module's deploy command from `FORK_MODULES`
-   ([modules.md](modules.md#deploying-a-module)). For odysseus-sound that updates its
+   ([modules.md](modules.md#deploying-a-module)). For Athena that updates its
    checkout, installs it, restarts `convo-server serve`, the MCP server and (if
    configured) whisper-server as background services, and waits until they answer. A
    failed module rolls itself back; Odysseus is still deployed and the run ends with an
@@ -52,7 +52,7 @@ odysseus-deploy rollback        # Odysseus back to the image before the last dep
 Run it as your user, not with `sudo`: it calls `sudo docker` itself, and the modules run
 as your user.
 
-odysseus-sound's own `server/scripts/deploy.sh deploy` does the same in the other order:
+Athena's own `server/scripts/deploy.sh deploy` does the same in the other order:
 it updates the module, then runs this script with no modules (it finds this checkout from the
 running Odysseus container, or from `BARVIS_SOUND_ODYSSEUS_DIR` in its `server/.env`). Either
 command updates both. Started from here, the module's script skips that step
@@ -66,7 +66,7 @@ names, `~/.config/barvis/` and `~/barvis-backups` still work ([below](#moving-fr
 
 ### One-command setup (once)
 
-On the owner's server, with odysseus-sound in `~/projects/barvis-ai-wt/main` (adjust the
+On the owner's server, with Athena in `~/projects/barvis-ai-wt/main` (adjust the
 path if the folder was renamed):
 
 ```bash
@@ -78,7 +78,7 @@ FORK_PY=~/projects/barvis/venv/bin/python
 EOF
 ```
 
-`modules_setup.py` needs Python with `httpx`, hence `FORK_PY`. In odysseus-sound's
+`modules_setup.py` needs Python with `httpx`, hence `FORK_PY`. In Athena's
 `server/.env`, set what used to be typed on the command line, so the services get it:
 
 ```bash
@@ -90,7 +90,7 @@ BARVIS_SOUND_WHISPER_CMD=/path/to/whisper-server -m /path/to/ggml-large-v3-turbo
 
 Stop any `convo-server` or `whisper-server` started by hand (the module's deploy refuses
 to start next to them), then run `odysseus-deploy deploy`. After that the module services
-start at boot and restart on a crash. odysseus-sound's side:
+start at boot and restart on a crash. Athena's side:
 [server/README.md](https://github.com/SDarioosh/barvis-sound/blob/main/server/README.md#deploy-one-command-runs-in-the-background).
 
 ### Moving from the Barvis name (once)
@@ -148,7 +148,7 @@ a plain question doesn't reach module tools: per-turn selection picks built-ins
 /context what did I tell Emily I'd do last Wednesday?
 ```
 
-- `/sound` offers odysseus-sound's tools (`mcp:convo`); `/context` offers the tools of
+- `/sound` offers Athena's tools (`mcp:convo`); `/context` offers the tools of
   every server in `ODYSSEUS_TRUSTED_READONLY_MCP`. That message gets only those tools
   plus `ask_user`/`update_plan` (~10 instead of ~130), so a small model finds them.
 - It applies to that one message. The next message without a slash command is routed
@@ -161,7 +161,7 @@ a plain question doesn't reach module tools: per-turn selection picks built-ins
   context), so "last Wednesday" becomes a date.
 - Both are skills (Settings > Skills, category `modules`) with `source: managed`:
   `modules_setup.py` creates and updates them, and they need no skill audit. `/sound`'s
-  procedure is the Custom preset's text (odysseus-sound's `INSTRUCTIONS`): edit the
+  procedure is the Custom preset's text (Athena's `INSTRUCTIONS`): edit the
   preset and rerun setup; don't edit the skill by hand. `--no-skills` skips them;
   `--module-skill NAME=SERVER`, `--skill-text NAME=FILE`, `--context-skill NAME` and
   `--trusted a,b` change them.
@@ -174,7 +174,7 @@ a plain question doesn't reach module tools: per-turn selection picks built-ins
   tools on it still overflows a 32k context; use `--trim` there.
 
 A module plugs in as an MCP server ([modules.md](modules.md#registering-a-module-in-odysseus)).
-For odysseus-sound on this server:
+For Athena on this server:
 
 - Run its MCP server on the Docker bridge address, so the container can reach it:
   `CONVO_MCP_HOST=172.17.0.1` in its `server/.env` (port 8001). `odysseus-deploy` keeps it
@@ -198,9 +198,9 @@ except Exception as e: print('NOT reachable:', e)"
 
 **Record a call** and **Pair a phone** ([modules/odysseus-sound.md](modules/odysseus-sound.md#uploads-through-the-mcp-server))
 need no settings: they use the `convo` MCP server Odysseus already has (Settings → MCP,
-`http://host.docker.internal:8001/mcp?access_token=…`). They need odysseus-sound with MCP
+`http://host.docker.internal:8001/mcp?access_token=…`). They need Athena with MCP
 0.8.0 or newer (`scripts/fork_deploy.sh deploy` updates both); with an older module the
-pages say "update odysseus-sound". The module's MCP server forwards uploads to its ingest
+pages say "update Athena". The module's MCP server forwards uploads to its ingest
 API on `CONVO_HOST:CONVO_PORT` on the same machine, so the container never needs to
 reach port 8000.
 

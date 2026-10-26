@@ -11,11 +11,11 @@
   "generated": <the current insight's generated or null>}`` at once (a model call takes
   longer than the request timeout); the page polls ``GET /api/insight/today`` until
   ``generated`` changes or ``refreshing`` is false.
-* ``GET  /api/codex/insight/today``: for API-token clients (odysseus-sound's phone and PC
+* ``GET  /api/codex/insight/today``: for API-token clients (Athena's phone and PC
   relays, the T5 PDA) with scope ``insight:read``; same JSON (owner order applied)
   without ``input_hash``, ``votes`` and outcomes, 404 ``{"error": "no insight yet"}`` when there is none.
 
-The page routes use the same auth as the odysseus-sound page (admin session). To-dos are
+The page routes use the same auth as the Athena page (admin session). To-dos are
 ticked through the notes API's own ``toggle`` route, not a new one.
 """
 

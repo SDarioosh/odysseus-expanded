@@ -7,12 +7,12 @@ Registered modules:
 
 | Module | What it provides | Doc |
 |---|---|---|
-| odysseus-sound | recorded conversations: transcripts, summaries, action items, facts, digests | [modules/odysseus-sound.md](modules/odysseus-sound.md) |
+| Athena | recorded conversations: transcripts, summaries, action items, facts, digests | [modules/odysseus-sound.md](modules/odysseus-sound.md) |
 
 ## Repo and ownership
 
-- One module = one repo, named `odysseus-<name>` (the first, odysseus-sound, is still at
-  `barvis-sound`).
+- One module = one repo, named `odysseus-<name>` or a name of its own (the first,
+  Athena, is `SDarioosh/Athena`, formerly `barvis-sound`; GitHub redirects the old URL).
 - The module is a separate program. It owns its storage (database, files, models) and is
   the only thing that writes to it.
 - Odysseus never reads or writes the module's storage directly. It uses the module's MCP
@@ -39,7 +39,7 @@ Registered modules:
 - **stdio** for clients that spawn a process (e.g. Hermes Agent, Odysseus with a stdio
   server).
 - **Streamable HTTP** for clients that connect over the network (e.g. Odysseus in Docker).
-- One command starts each, documented in the module's README. odysseus-sound:
+- One command starts each, documented in the module's README. Athena:
   `convo-server mcp` (stdio) and `convo-server mcp --http`.
 
 ### Auth (HTTP)
@@ -49,7 +49,7 @@ Registered modules:
   Odysseus' HTTP MCP client only does OAuth and can't send a static header, so Odysseus
   uses the query form: `http://<host>:<port>/mcp?access_token=<token>`.
 - Compare tokens in constant time. Use a token separate from any device/ingest token.
-  Reference implementation: `BearerAuth` in odysseus-sound's
+  Reference implementation: `BearerAuth` in Athena's
   `server/convo_server/mcp_server.py`.
 
 ### Tool naming and descriptions
@@ -62,7 +62,7 @@ Registered modules:
   description what makes this tool different ("the user's recorded conversations").
 - The description says when to use the tool, in one or two sentences. Every argument
   has a description. Dates are `YYYY-MM-DD` in the module's configured timezone.
-- Keep the tool count small (odysseus-sound has 13). Every schema is sent with every
+- Keep the tool count small (Athena has 13). Every schema is sent with every
   request.
 
 ### Annotations (Odysseus trust depends on them)
@@ -82,7 +82,7 @@ name heuristic. So:
 
 - Return compact text, not raw JSON dumps.
 - Every fact in a result carries a **source link** the user can open on the phone (for
-  odysseus-sound: a signed transcript link that jumps to the moment).
+  Athena: a signed transcript link that jumps to the moment).
 - Odysseus doesn't pass the MCP server's `instructions` to the model. Put the
   citation rule in the tool results themselves: every non-empty result says to put the
   link next to each fact used. Empty results say so plainly ("No conversations found.").
@@ -101,7 +101,7 @@ finds them among Odysseus' ~130 tools. Mechanism: an Odysseus skill whose
 What the module ships:
 
 - **The skill text is the module's MCP `instructions`.** The module owns it, in its
-  own repo (odysseus-sound: `INSTRUCTIONS` in `server/convo_server/mcp_server.py`). Write
+  own repo (Athena: `INSTRUCTIONS` in `server/convo_server/mcp_server.py`). Write
   it so it works as a procedure: which tool for which question, dates as
   `YYYY-MM-DD`, and "put the link next to each fact". Paragraphs or list items become
   the skill's procedure steps.
@@ -133,7 +133,7 @@ text only; no module or Odysseus code implements the aggregator yet.
 | `person` | string | a person's name as the user says it ("Emily"); the module matches its own people/speakers |
 | `limit` | integer | maximum hits (default about 10) |
 
-odysseus-sound's `search_conversations` already has `query`, `person`, `since`, `until`,
+Athena's `search_conversations` already has `query`, `person`, `since`, `until`,
 `limit`. `since`/`until` match its existing names; an aggregator maps "from/to" to them.
 
 **Result** (compact text, one hit per block, best first):
@@ -144,7 +144,7 @@ odysseus-sound's `search_conversations` already has `query`, `person`, `since`, 
 link: <source link that opens this item at the right place>
 ```
 
-- Every hit has a date and a link (the module's usual source link, e.g. odysseus-sound's
+- Every hit has a date and a link (the module's usual source link, e.g. Athena's
   signed transcript link with `#t=<seconds>`). No hit without a link.
 - The result ends with the usual citation rule ("put the link next to each fact").
 - No hits: one line saying so ("No conversations found."), so the aggregator can tell
@@ -169,7 +169,7 @@ the server's test instance (`127.0.0.1:7010`), then on production (port 7000) pe
    ([sandbox.md](sandbox.md#findings-from-the-first-sandbox-run), finding 2), but the
    Docker image would need the module installed inside it.
 2. **Add it to Odysseus:** Settings > MCP, or `POST /api/mcp/servers`. Give it a short
-   name (odysseus-sound: `convo`). HTTP URL form: `http://<host>:<port>/mcp?access_token=<token>`.
+   name (Athena: `convo`). HTTP URL form: `http://<host>:<port>/mcp?access_token=<token>`.
 3. **Trust its read-only tools:** add the server name to `ODYSSEUS_TRUSTED_READONLY_MCP`
    (comma separated, e.g. `ODYSSEUS_TRUSTED_READONLY_MCP=convo,<next>`) in `.env` or
    `docker-compose.override.yml` (production), then restart. Write tools keep normal
@@ -196,7 +196,7 @@ the server's test instance (`127.0.0.1:7010`), then on production (port 7000) pe
 So that one `scripts/fork_deploy.sh deploy` updates the whole system
 ([deploy.md](deploy.md#update-production)), a module ships a deploy command:
 
-- An executable in the module repo (odysseus-sound: `server/scripts/deploy.sh`), listed in
+- An executable in the module repo (Athena: `server/scripts/deploy.sh`), listed in
   `FORK_MODULES`. Odysseus runs it with `deploy`, and with `status` for
   `fork_deploy.sh status`. Nothing else: Odysseus never reaches into the module's files.
 - `deploy` works from any directory, as the owner's user, without sudo and without
@@ -204,21 +204,21 @@ So that one `scripts/fork_deploy.sh deploy` updates the whole system
   restarts its services in the background (so they survive logout and reboot), waits
   until its MCP server answers, and exits non-zero if it doesn't. It rolls itself back
   when the new version doesn't come up.
-- Its settings live in the module's own config (odysseus-sound: `server/.env`), not in
+- Its settings live in the module's own config (Athena: `server/.env`), not in
   Odysseus.
 - Odysseus deploys modules first, then itself, so `modules_setup.py` finds their MCP
   servers connected.
 
 ## Eval harness
 
-- Each module ships an eval script like odysseus-sound's `server/eval/bakeoff.py`:
+- Each module ships an eval script like Athena's `server/eval/bakeoff.py`:
   - fictional seed data (never real recordings), created by a script in the module;
   - a fixed question list, each with the expected source(s) and answer keywords;
   - a pass rule: the frontend called a module tool, cited a link to an expected source,
     and the answer has an expected keyword;
   - a `--frontend odysseus` mode that talks to an Odysseus instance over its API;
   - results written to a gitignored file.
-- Each module states a **target score** in its module doc. odysseus-sound: ≥ 15/20 (what
+- Each module states a **target score** in its module doc. Athena: ≥ 15/20 (what
   tuned Hermes Agent reached).
 - Rerun the eval after: any change to the module's tool contract, any Odysseus change to
   MCP gating/routing/presets, and every upstream merge.
@@ -252,9 +252,9 @@ For a breaking change:
    scores in both PRs.
 4. The owner merges the module PR first, then the Odysseus PR.
 
-Bump the version string the module's MCP server reports (odysseus-sound: `version=` in
+Bump the version string the module's MCP server reports (Athena: `version=` in
 `build_mcp`; the upload routes came with 0.8.0) on every contract change. Plain HTTP routes a
-module adds next to its MCP endpoint (odysseus-sound's uploads) are part of the contract
+module adds next to its MCP endpoint (Athena's uploads) are part of the contract
 like tools: adding one is non-breaking, renaming or removing one is breaking.
 
 ## Checklist: adding a new module

@@ -75,6 +75,9 @@ TOOL_HANDLERS = {
 }
 # Config/integration admin tools (manage_endpoints/mcp/webhooks/tokens/settings).
 TOOL_HANDLERS.update(ADMIN_TOOL_HANDLERS)
+# Fork: calculator, arithmetic only (src/auto_mode.py)
+from src.auto_mode import calculator_tool as _fork_calculator_tool  # noqa: E402
+TOOL_HANDLERS["calculate"] = _fork_calculator_tool
 
 # ---------------------------------------------------------------------------
 # Constants (re-exported for backward compatibility — single source of truth

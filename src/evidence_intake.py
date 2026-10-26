@@ -3,7 +3,7 @@
 Personal-context plan stages 1.1 (evidence intake) and 1.5 (expiry and decay); the
 design is in ``docs/fork/beliefs.md``.
 
-* A **source** (the odysseus-sound facts job, later notes, chat ...) submits
+* A **source** (the Athena facts job, later notes, chat ...) submits
   :class:`Evidence`: what it observed, with its own id for it and a link to where it
   came from. :func:`submit` files each item under a **belief**: the one this source id
   already maps to, else a belief of the same owner with the same normalized text, else
@@ -71,7 +71,7 @@ CATEGORIES = ("fact", "preference", "contact")
 STATUSES = ("tentative", "confirmed", "stale", "rejected")
 CONFIRMED_BY = ("source", "owner", "rule")
 EVENT_KINDS = ("added", "evidence", "confirmed", "stale", "rejected", "corrected",
-               "restored", "retired_upstream", "unconfirmed", "merged", "erased")
+               "restored", "retired_upstream", "unconfirmed", "merged", "erased", "moved")
 NORM_VERSION = 1  # PRAGMA user_version: matching keys of this version
 SCHEMA_VERSION = 2  # PRAGMA user_version: subjects and structure columns (Phase 2)
 ERASE_VERSION = 3  # PRAGMA user_version: ``erased_at`` (complete forget, stage 4.2)
@@ -98,7 +98,7 @@ PREFERENCE_WORDS = frozenset({
     "like", "likes", "prefer", "prefers", "love", "loves", "hate", "hates", "enjoy",
     "enjoys", "favorite", "favourite", "want", "wants", "dislike",
 })
-# Memory fields only a belief with odysseus-sound evidence carries (the Phase 0 shape).
+# Memory fields only a belief with Athena evidence carries (the Phase 0 shape).
 MODULE_FIELDS = ("module_fact_id", "times_said", "days", "first_said", "last_said")
 # Memory fields a mirrored entry carries only sometimes (removed when they no longer apply).
 OPTIONAL_FIELDS = (*MODULE_FIELDS, "contact_id")
@@ -250,7 +250,7 @@ class Evidence:
     sightings, distinct days); ``source_confirmed`` is the source's own verdict.
     ``valid_until`` (ISO date, optional) ends the belief on that day. ``person_id``
     (optional) is the source's stable id of the person the evidence is about (e.g.
-    odysseus-sound's ``list_people`` id): it files the belief under that person's subject
+    Athena's ``list_people`` id): it files the belief under that person's subject
     whatever name the source uses."""
 
     source: str
@@ -317,10 +317,19 @@ def _owner_key(norm: str, subject: str | None) -> str:
     return norm
 
 
-def category_for(about: str, text: str) -> str:
-    """The memory category (fact|preference|contact). About the owner -> preference when
-    the text has a preference word, else fact; a person -> contact; else fact."""
+# Kinds a source can give a fact (Athena MCP 0.11.0 ``kind``); they decide the category
+# instead of preference words (:func:`category_for`).
+FACT_KINDS = ("preference", "plan", "decision", "relationship", "personal", "other")
+
+
+def category_for(about: str, text: str, kind: str | None = None) -> str:
+    """The memory category (fact|preference|contact). A person -> contact. Else a source's
+    fact ``kind`` (:data:`FACT_KINDS`) decides: preference, or fact; without one, about the
+    owner -> preference when the text has a preference word, else fact."""
     about = str(about or "").strip().lower()
+    kind = str(kind or "").strip().lower()
+    if kind in FACT_KINDS and about != "person":
+        return "preference" if kind == "preference" else "fact"
     if about == "owner":
         words = set(re.findall(r"[a-z]+", str(text or "").lower()))
         return "preference" if words & PREFERENCE_WORDS else "fact"
@@ -740,7 +749,7 @@ def _evidence_rows(db: sqlite3.Connection, belief_ids: Iterable[int]) -> dict[in
 
 def link_rank(e: Mapping) -> int:
     """How well an evidence's link serves as the belief's citation: 2 for an absolute
-    ``http(s)://`` link from odysseus-sound (the signed transcript link), 1 for any other
+    ``http(s)://`` link from Athena (the signed transcript link), 1 for any other
     absolute link, 0 for a relative one (e.g. a note's ``/#open=notes…``)."""
     link = str(e.get("link") or "").strip().lower()
     if not link.startswith(("http://", "https://")):
@@ -940,7 +949,7 @@ def _erased(db: sqlite3.Connection, belief_id: int) -> bool:
 
 def _erased_evidence(ev: dict, state: str) -> dict:
     """What evidence filed under an erased belief keeps: no words, a link only for a
-    source that still holds them (not odysseus-sound, which erases them itself)."""
+    source that still holds them (not Athena, which erases them itself)."""
     out = dict(ev, subject="", text="", payload=json.dumps({"erase": state}))
     if ev["source"] == MODULE_SOURCE:
         out["link"] = ""
@@ -982,6 +991,15 @@ def _note_person(cache: _Subjects, belief_id: int, ev: dict, stamp: str) -> None
     cache.map(row["subject_id"], ev["source"], ev["person_id"], ev["subject"], stamp)
     if ev["subject"] and row["kind"] != "owner":
         cache.add_alias(row["subject_id"], ev["subject"], stamp)
+
+
+def _reworded(row: Mapping, ev: dict) -> bool:
+    """The source says the same thing about the same subject in other glue words."""
+    from src.belief_consolidation import same_rewording
+
+    return ((row["subject"], row["about"]) == (ev["subject"], ev["about"])
+            and same_rewording(normalize(row["text"], row["subject"], row["about"]),
+                               ev["norm"]))
 
 
 def _attach(db: sqlite3.Connection, owner: str, ev: dict, stamp: str, cache: _Subjects
@@ -1038,7 +1056,14 @@ def _attach(db: sqlite3.Connection, owner: str, ev: dict, stamp: str, cache: _Su
     # the source changed what it says
     if normalize(row["text"], row["subject"], row["about"]) != ev["norm"]:
         target = _match(db, owner, ev["norm"], exclude=belief_id)
-        if others or decided or target is not None:
+        # the same claim, it stays with the owner's decision: the source now gives it to
+        # the subject the owner moved it to (``move``), or rewords it in nearly the same
+        # words about the same subject (an Athena re-summary; "cello" -> "viola" splits)
+        moved = (belief["confirmed_by"] == "owner"
+                 and (row["subject"], row["about"]) != (ev["subject"], ev["about"]))
+        agrees = (target is None and decided and (moved or _reworded(row, ev))
+                  and _subject_for(cache, ev, stamp) == belief["subject_id"])
+        if not agrees and (others or decided or target is not None):
             # a different claim now: move it to the belief it matches, or a new one
             if target is None:
                 target, added = _new_belief(db, owner, ev, stamp, cache), 1
@@ -1066,7 +1091,27 @@ def _attach(db: sqlite3.Connection, owner: str, ev: dict, stamp: str, cache: _Su
     cols = ", ".join(f"{c} = ?" for c in _EV_COLS)
     db.execute(f"UPDATE evidence SET {cols}, updated_at = ? WHERE id = ?",
                (*(ev[c] for c in _EV_COLS), stamp, row["id"]))
+    for touched_id in touched:
+        _follow_category(db, touched_id, stamp)
     return "evidence_updated", touched, added, True
+
+
+def _follow_category(db: sqlite3.Connection, belief_id: int, stamp: str) -> None:
+    """A belief's category follows its live evidence when all of it (about the belief's
+    own ``about``) agrees, also for a belief the owner decided on or one with several
+    sources: the category is a label the sources derive (a source that starts sending
+    fact kinds relabels its old beliefs), not something the owner chose."""
+    b = db.execute("SELECT about, category, erased_at FROM beliefs WHERE id = ?",
+                   (belief_id,)).fetchone()
+    if b is None or b["erased_at"]:
+        return
+    cats = {r["category"] for r in db.execute(
+        "SELECT category, about, payload FROM evidence WHERE belief_id = ?", (belief_id,))
+        if r["about"] == b["about"] and not _payload(r["payload"]).get("gone")}
+    if len(cats) == 1:
+        cat = cats.pop()
+        if cat in CATEGORIES and cat != b["category"]:
+            _set(db, belief_id, stamp, category=cat)
 
 
 def submit(owner: str | None, evidence: list[Evidence], *, now: datetime | None = None,
@@ -1235,7 +1280,7 @@ def erase(owner: str | None, belief_id: int, outcomes: Mapping[str, str] | None 
     and structure are cleared, its matching keys become hashes (:func:`erased_key`, so the
     claim said again still finds it and stays out of memory), its evidence keeps no text
     (and no link, except evidence of a source that still holds the words), its events keep
-    no details, and its search vector is deleted. ``outcomes``: per odysseus-sound fact id,
+    no details, and its search vector is deleted. ``outcomes``: per Athena fact id,
     what the module did (``erased``, ``retired``, else not reached). Idempotent: run
     again, it updates the evidence states. Returns ``{"belief", "texts", "remaining",
     "pending"}``: ``texts`` the words it held (to find copies elsewhere; only on the first
@@ -1301,7 +1346,7 @@ def _checkpoint() -> None:
 
 
 def erase_pending(owner: str | None) -> list[dict]:
-    """Erased beliefs with odysseus-sound evidence the module hasn't erased yet:
+    """Erased beliefs with Athena evidence the module hasn't erased yet:
     ``[{"belief_id", "fact_ids"}]`` (for ``belief_forget.retry_pending``)."""
     out: dict[int, list[int]] = {}
     with _connect() as db:
@@ -1330,6 +1375,81 @@ def correct(owner: str | None, belief_id: int, text: str, *,
              status="confirmed", confirmed_by="owner", structured_at=None)
         _event(db, row["id"], "corrected", "by owner", stamp)
     return _owner_action(owner, belief_id, now, apply)
+
+
+def move(owner: str | None, belief_id: int, *, subject_id: int | None = None,
+         name: str | None = None, now: datetime | None = None) -> dict:
+    """The owner says a belief is about someone else (a line given to the wrong voice):
+    it moves to ``subject_id``, or to the subject called ``name`` (created as a person
+    when there is none; the owner's names give the owner subject). Its ``about``, matching
+    keys and category follow the new subject, and it is confirmed by the owner, so the
+    source can't move it back (:func:`_attach`). Raises ValueError (no target),
+    :class:`SubjectNotFound`, :class:`BeliefErased`."""
+    if subject_id is None and not _clean_name(name):
+        raise ValueError("pick a subject or give a name")
+
+    def apply(db, row, stamp, _today):
+        _not_erased(row)
+        cache = _Subjects(db, row["owner"])
+        if subject_id is not None:
+            target = _subject(db, row["owner"], subject_id)
+        elif _is_owner_name(name):
+            target = cache.row(cache.owner_subject("", stamp))
+        else:
+            display = _clean_name(name)
+            found = cache.by_key.get(subject_key(display))
+            target = cache.row(found if found is not None
+                               else cache.create(display, "person", stamp))
+        if target["id"] == row["subject_id"]:
+            return
+        about = {"owner": "owner", "person": "person"}.get(target["kind"], "other")
+        shown = row["owner_text"] or row["text"]
+        fields: dict[str, Any] = dict(
+            subject_id=target["id"], subject=target["display"], about=about,
+            norm=normalize(row["text"], target["display"], about),
+            category=category_for(about, shown, _belief_kind(db, row["id"])),
+            status="confirmed",
+            confirmed_by="owner", structured_at=None)
+        if row["owner_text"]:
+            fields["owner_norm"] = normalize(row["owner_text"], target["display"], about)
+        _set(db, row["id"], stamp, **fields)
+        _event(db, row["id"], "moved", f"to {target['display']} by owner", stamp)
+    return _owner_action(owner, belief_id, now, apply)
+
+
+def _belief_kind(db: sqlite3.Connection, belief_id: int) -> str | None:
+    """The fact kind a source gave this belief (live evidence first), or None."""
+    rows = db.execute("SELECT payload FROM evidence WHERE belief_id = ? ORDER BY id",
+                      (belief_id,)).fetchall()
+    payloads = [_payload(r["payload"]) for r in rows]
+    for p in sorted(payloads, key=lambda p: bool(p.get("gone"))):
+        if str(p.get("kind") or "").strip().lower() in FACT_KINDS:
+            return str(p["kind"]).strip().lower()
+    return None
+
+
+def scrub_quotes(owner: str | None, quotes: Iterable[str]) -> int:
+    """Remove ``quotes`` (transcript lines a source sent with its evidence) from every
+    evidence payload of this owner: after a forget erased a line, beliefs said on the
+    same line must not keep showing its words. Returns how many evidence rows changed."""
+    wanted = {q for q in quotes if q}
+    if not wanted:
+        return 0
+    owner = owner or ""
+    changed = 0
+    with _WRITE:
+        with _connect(write=True) as db:
+            db.execute("PRAGMA secure_delete = ON")
+            for r in db.execute("SELECT id, payload FROM evidence WHERE owner = ?"
+                                " AND payload LIKE '%quote%'", (owner,)).fetchall():
+                payload = _payload(r["payload"])
+                if payload.get("quote") in wanted:
+                    payload.pop("quote")
+                    db.execute("UPDATE evidence SET payload = ? WHERE id = ?",
+                               (json.dumps(payload, sort_keys=True, ensure_ascii=False),
+                                r["id"]))
+                    changed += 1
+    return changed
 
 
 def restore(owner: str | None, belief_id: int, *, now: datetime | None = None) -> dict:
@@ -1668,7 +1788,7 @@ def beliefs_for_contact(owner: str | None, contact_id: str,
 
 def sync_people(owner: str | None, source: str, people: Iterable[Mapping], *,
                 now: datetime | None = None, mirror: bool = True) -> dict[str, int]:
-    """A source's people (odysseus-sound's ``list_people`` JSON: ``id``, ``name``,
+    """A source's people (Athena's ``list_people`` JSON: ``id``, ``name``,
     ``aliases``, ``is_owner``) as subjects. Each id maps to a subject: the one it already
     maps to, the owner subject for ``is_owner``, else the subject whose name or alias
     matches, else a new ``person``. Names and aliases the subject doesn't have become

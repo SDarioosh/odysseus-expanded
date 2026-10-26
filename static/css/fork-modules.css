@@ -1,4 +1,4 @@
-/* Fork: shared look of the module views (odysseus-sound Conversations, Today).
+/* Fork: shared look of the module views (Athena Conversations, Today).
    Used by their Odysseus windows (static/js/forkModuleWindows.js) and by the
    standalone pages (static/sound-module.html, static/today.html). Mirrors the
    built-in tool windows: Inter type like .modal-content, tabs like .memory-tab,
@@ -158,7 +158,7 @@
 /* ---- the Odysseus windows (static/js/forkModuleWindows.js) */
 @media (min-width: 769px) {
   /* centered in the chat area, like the built-in tool windows */
-  #fork-sound-modal, #fork-today-modal {
+  #fork-sound-modal, #fork-today-modal, #fork-ink-modal {
     left: calc(var(--icon-rail-w, 48px) + var(--sidebar-w, 0px));
     width: calc(100% - (var(--icon-rail-w, 48px) + var(--sidebar-w, 0px)));
     box-sizing: border-box;

@@ -3,7 +3,7 @@
 When the owner forgets a belief on ``/beliefs`` it is erased, not only rejected. In order:
 
 1. The ledger rejects it (``evidence_intake.reject``): it leaves memory at once.
-2. odysseus-sound erases each fact behind it (``erase_fact``, MCP 0.10.0): the transcript
+2. Athena erases each fact behind it (``erase_fact``, MCP 0.10.0): the transcript
    line that said it is redacted, its conversation's notes and digests are rewritten
    without it. An older module without ``erase_fact`` gets ``retire_fact`` (1.4): the
    fact is hidden there but its words stay; that evidence stays ``retired`` and the
@@ -69,7 +69,7 @@ async def erase_in_module(fact_ids: Iterable[int], call: mf.CallTool | None
             text = await call(tool, args)
         except RuntimeError as e:
             if tool == "erase_fact" and _MISSING.search(str(e)):
-                logger.info("odysseus-sound has no erase_fact (update the module): facts are "
+                logger.info("Athena has no erase_fact (update the module): facts are "
                             "only retired there, their words stay until it is updated")
                 tool = "retire_fact"
                 try:
@@ -168,6 +168,8 @@ async def forget(owner: str | None, belief_id: int, reason: str = "", *,
     "propagated": {"erased", "retired", "failed", "unsupported"}, "erased": {"memory",
     "insights", "remaining", "pending"}}``."""
     evidence = ledger.reject(owner, belief_id, reason)
+    # the transcript lines it was said on: erased there, so no other belief shows them
+    quotes = [(e.get("payload") or {}).get("quote") for e in evidence]
     if ledger.get_belief(owner, belief_id).get("erased_at"):
         evidence = [e for e in evidence if (e.get("payload") or {}).get("erase") != "done"]
     ids = _fact_ids(evidence)
@@ -179,6 +181,7 @@ async def forget(owner: str | None, belief_id: int, reason: str = "", *,
             logger.warning("belief %s: module not updated: %s", belief_id, e)
             outcomes = {str(i): "failed" for i in ids}
     result = ledger.erase(owner, belief_id, outcomes)
+    ledger.scrub_quotes(owner, [q for q in quotes if q])
     memory = insights = 0
     try:
         memory = remove_memory_copies(owner, result["texts"])
@@ -200,7 +203,7 @@ async def dismiss(owner: str | None, belief_id: int, reason: str = "", *,
                   call: mf.CallTool | None = None, timeout: float = MODULE_TIMEOUT
                   ) -> dict[str, Any]:
     """Dismiss a belief: rejected here (out of memory, later repeats stay rejected) and
-    each odysseus-sound fact behind it retired there (``retire_fact``: hidden, its
+    each Athena fact behind it retired there (``retire_fact``: hidden, its
     transcript words kept). Nothing is erased; Restore brings it back. Never fails because
     of the module. Raises ``BeliefNotFound``, ``BeliefErased``. Returns ``{"belief",
     "propagated": {"retired", "failed", "unsupported"}}``."""

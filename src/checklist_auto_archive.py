@@ -1,6 +1,6 @@
 """Fork: finished checklists archive themselves.
 
-A checklist whose items are all done stays on the notes page, and on odysseus-sound's
+A checklist whose items are all done stays on the notes page, and on Athena's
 T5 PDA (whose Tasks tab shows the owner's checklists through
 ``GET /api/codex/todos?format=json``), until someone archives it by hand. Now, about
 once a minute, every checklist that

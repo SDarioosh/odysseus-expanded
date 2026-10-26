@@ -91,7 +91,7 @@ Take Graphiti's temporal model; this is the most useful single idea in this file
   did I live last year?" still works.
 - Retrieval uses beliefs valid now by default; a date in the question selects beliefs
   valid then.
-- odysseus-sound's supersede chain already gives the dates; map it onto these fields
+- Athena's supersede chain already gives the dates; map it onto these fields
   rather than inventing new ones.
 - Decay is a ranking signal, not deletion: "not heard since" lowers rank and shows on
   the review page; only the owner or a contradiction retires a belief.
@@ -119,7 +119,7 @@ present); use a local judge only for free-text answers, like `bakeoff.py`.
 - Graphiti resolves entities on the way in (is this "Alice" the known Alice?). Do the
   same but conservatively: link on the module's stable person id and the hub contact id,
   never on a name match alone; an uncertain match becomes a "who is this?" card, as
-  odysseus-sound already does for speakers.
+  Athena already does for speakers.
 
 ### 2.2 Structured entries
 
@@ -219,7 +219,7 @@ and upgrade on purpose, rereading this table each time.
 
 - Screenpipe runs on the machine it records (the owner's Mac first). The module is a
   small program next to it: it reads Screenpipe's REST API on localhost and serves its
-  own MCP server, bound to Tailscale with a bearer token like odysseus-sound
+  own MCP server, bound to Tailscale with a bearer token like Athena
   ([modules.md](modules.md#auth-http)).
 - **Don't register `screenpipe-mcp` in Odysseus directly.** Our own MCP server is what
   gives Odysseus the correct `readOnlyHint` annotations, a source link on every hit, the
@@ -229,11 +229,11 @@ and upgrade on purpose, rereading this table each time.
   `query`, `since`, `until`, `person`, `limit`; hits with app, window, time and link),
   `get_screen_moment` (the text around one moment), `get_activity_summary` (time per app
   or project for a day). Links open a module page that shows the frame and its text at
-  that moment, signed like odysseus-sound's transcript links.
+  that moment, signed like Athena's transcript links.
 - Evidence later: a daily job turns the day into a short summary and candidate facts
   ("worked on the T5 firmware for 3 h"), submitted through the 1.1 intake as `experience`
   evidence with links. Raw screen text never goes into hub memory.
-- Audio: odysseus-sound owns conversations, including Zoom and other calls on the
+- Audio: Athena owns conversations, including Zoom and other calls on the
   computer, recorded with the hub's **Record a call** page into the module's normal ingest
   path ([modules/odysseus-sound.md](modules/odysseus-sound.md#recording-calls-from-the-computer)).
   Run Screenpipe with audio capture off, so a meeting isn't recorded and transcribed
@@ -242,7 +242,7 @@ and upgrade on purpose, rereading this table each time.
 **Privacy rules for this module** (on top of AGENTS.md):
 
 - Exclusions are set before the first recording: password managers, banking, private
-  browser windows, and the Odysseus and odysseus-sound pages themselves (no
+  browser windows, and the Odysseus and Athena pages themselves (no
   self-recording).
 - A retention limit for frames and media (proposal: 30 days), with text summaries kept.
 - A one-click pause on the Mac, and a visible indicator while recording.

@@ -5,7 +5,7 @@
 //   upstream has no field for. The Today insight, memory, notes and scheduled-task jobs
 //   and chat summaries use it; blank falls back to the Utility Model, then the chat model
 //   (src/task_endpoint.py).
-// * Conversation summaries (odysseus-sound): the model the module's own LLM server uses,
+// * Conversation summaries (Athena): the model the module's own LLM server uses,
 //   through /api/fork/summary-model (routes/summary_model_routes.py). Only the model name
 //   is sent; the module's LLM server stays what its .env says.
 
@@ -67,7 +67,7 @@ function buildCard() {
   const modelSel = el('select', { class: 'settings-select', id: 'fork-taskModelSelect' });
   const hubMsg = el('div', { style: 'font-size:11px;' });
 
-  const modHead = el('div', { class: 'admin-toggle-label' }, 'Conversation summaries (odysseus-sound)');
+  const modHead = el('div', { class: 'admin-toggle-label' }, 'Conversation summaries (Athena)');
   modHead.style.marginTop = '12px';
   const modNote = note('');
   const modSel = el('select', { class: 'settings-select', id: 'fork-summaryModelSelect' });
@@ -146,7 +146,7 @@ function wire(ui) {
   function showModule(info) {
     ui.modSel.disabled = false;
     if (!info.connected) {
-      ui.modNote.textContent = info.problem || 'odysseus-sound is not reachable.';
+      ui.modNote.textContent = info.problem || 'Athena is not reachable.';
       ui.modSelRow.style.display = 'none';
       ui.modTextRow.style.display = 'none';
       return;
@@ -198,7 +198,7 @@ function wire(ui) {
     try {
       showModule(await getJSON('/api/fork/summary-model'));
     } catch (e) {
-      showModule({ connected: false, problem: e.status === 403 ? 'Admin only.' : 'Could not ask odysseus-sound.' });
+      showModule({ connected: false, problem: e.status === 403 ? 'Admin only.' : 'Could not ask Athena.' });
     }
   }
 

@@ -212,6 +212,44 @@ def test_source_edit_follows_or_moves(data):
     assert [e["source_id"] for e in beliefs["Prefers rice milk"]["evidence"]] == ["1"]
 
 
+def test_source_rewording_keeps_the_owners_decision(data):
+    """Athena re-summarized a conversation and reworded a fact under the same id: the
+    owner's confirmed (or dismissed) belief keeps it, no second belief in memory."""
+    bike = "Shahyah owns a carbureted motorcycle with no computer on it."
+    reworded = "Shahyah owns a carbureted motorcycle that has no computer."
+    person = {"about": "person", "subject": "Shahyah"}
+    ei.submit("alice", [ev("odysseus-sound", "7", bike, **person)], now=T0)
+    ei.confirm("alice", only()["id"], now=T0)
+    ei.submit("alice", [ev("odysseus-sound", "7", reworded, source_confirmed=True, **person)],
+              now=T1)
+    belief = only()
+    assert (belief["text"], belief["status"], belief["confirmed_by"]) == \
+        (bike, "confirmed", "owner")
+    assert belief["evidence"][0]["text"] == reworded
+    assert [m["belief_id"] for m in memories(data)] == [belief["id"]]
+
+    cat = "Has a cat called Luna"
+    ei.submit("alice", [ev("odysseus-sound", "8", cat, **person)], now=T0)
+    luna = next(b for b in ei.list_beliefs("alice") if b["text"] == cat)
+    ei.reject("alice", luna["id"], now=T0)
+    ei.submit("alice", [ev("odysseus-sound", "8", "Has a cat that is called Luna", **person)],
+              now=T1)
+    assert [(b["text"], b["status"]) for b in ei.list_beliefs("alice", status=None)
+            if b["id"] != belief["id"]] == [(cat, "rejected")]
+    # new words are a different claim: it splits off, as before
+    ei.submit("alice", [ev("odysseus-sound", "8", "Has a cat called Bruno", **person)],
+              now=T1)
+    assert len(ei.list_beliefs("alice", status=None)) == 3
+
+    # about someone else now (a speaker renamed): a different claim, a new belief
+    ei.submit("alice", [ev("odysseus-sound", "7", "Bob owns a carbureted motorcycle.",
+                           about="person", subject="Bob")], now=T1)
+    texts = {b["text"]: b for b in ei.list_beliefs("alice", status=None)}
+    assert texts[bike]["evidence"] == []
+    assert [e["source_id"] for e in texts["Bob owns a carbureted motorcycle."]["evidence"]] \
+        == ["7"]
+
+
 # ----------------------------------------------------------------- owner actions
 def test_owner_confirm_wins_over_the_rule_and_survives_retraction(data):
     ei.submit("alice", [ev()], now=T0)

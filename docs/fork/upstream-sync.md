@@ -101,7 +101,7 @@ When resolving:
    (`tests/test_null_owner_gates.py`, `tests/test_runtime_evidence_contract.py`).
 3. Bring up the sandbox stack ([sandbox.md](sandbox.md)) on the merged code and re-run
    `scripts/modules_setup.py` against it. Check that module servers still connect.
-4. Run each module's eval in the sandbox (odysseus-sound:
+4. Run each module's eval in the sandbox (Athena:
    `server/eval/bakeoff.py --frontend odysseus --only 1 4 16`) and compare with the last
    sandbox run. Put both numbers in the PR.
 5. Add a Server verification section: restart the server's test instance, re-run

@@ -93,7 +93,7 @@ function postOutcome(ref, outcome, extra = {}) {
 }
 
 // "Not a task" on an open loop: the module item was never a to-do (a quick errand the
-// summary model picked up). It is dismissed in odysseus-sound, so it doesn't come back
+// summary model picked up). It is dismissed in Athena, so it doesn't come back
 // (routes/sound_module_routes.py -> update_action_item), and hidden today with
 // not_task in the outcome log. Undo reopens it.
 async function setLoopStatus(ref, status) {

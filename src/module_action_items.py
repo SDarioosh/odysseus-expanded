@@ -1,6 +1,6 @@
-"""Fork: phone notifications for odysseus-sound action items and the daily digest.
+"""Fork: phone notifications for Athena action items and the daily digest.
 
-Action items stay in the module (odysseus-sound is the only source; the owner chose a live
+Action items stay in the module (Athena is the only source; the owner chose a live
 view over copies). A built-in scheduled task ("Module Action Items", every 15 minutes)
 reads them through the module's MCP tools and pushes, through Odysseus' reminder
 dispatcher on the ntfy channel:
@@ -11,7 +11,7 @@ dispatcher on the ntfy channel:
 Odysseus never opens the module's database and keeps no copy of the items: the only state
 is which item ids and days were already pushed (``<DATA_DIR>/barvis_action_items_*.json``;
 the file name is kept from the fork's former name so existing state carries over).
-The live list (tick done / dismiss) is on the odysseus-sound page, ``/modules/sound``.
+The live list (tick done / dismiss) is on the Athena page, ``/modules/sound``.
 
 Settings (environment; the former ``BARVIS_*`` names are still read as a fallback):
 
@@ -92,13 +92,13 @@ HOUSEKEEPING_DEFAULT = {
              "old_cron_expressions": ["*/15 * * * *"],
              "legacy_names": ["Barvis Action Items"]},
 }
-INFO = ("File odysseus-sound action items from voice notes into the calendar, to-dos and "
+INFO = ("File Athena action items from voice notes into the calendar, to-dos and "
         "notes, "
         "keep their status in step, and push what was filed, items due today and the "
         "daily digest to the phone via ntfy. Reads them through the module's MCP tools.")
 MAX_PUSHED_ITEMS = 5
 
-# One line of odysseus-sound's list_action_items result, e.g.
+# One line of Athena's list_action_items result, e.g.
 # - #12 [open] Send Alice the spreadsheet (owner Me) due 2026-09-19 (Friday) — from
 #   "Q4 budget" 2026-09-15 10:00 http://host:8000/view/abc?sig=...#t=40
 _LINE = re.compile(
@@ -266,7 +266,7 @@ async def sync(owner: str, call: CallTool, *, now: datetime | None = None) -> di
         return await _sync_text(owner, call, now=now)
     rows = parse_items_json(await call("list_action_items", {"status": "all", "format": "json"}))
     if rows is None:  # an older module: text only, so the old behaviour (nothing filed)
-        logger.info("odysseus-sound answered list_action_items with text; not filing")
+        logger.info("Athena answered list_action_items with text; not filing")
         return await _sync_text(owner, call, now=now)
     rows = [r for r in rows if r.get("mine") is not False]  # someone else's to-do isn't ours
     async with _lock(owner):
@@ -408,7 +408,7 @@ def _zone(name: str | None) -> tzinfo:
         try:
             return ZoneInfo(str(name))
         except (ValueError, KeyError, OSError):
-            logger.warning("odysseus-sound timezone %r is unknown; using Odysseus'", name)
+            logger.warning("Athena timezone %r is unknown; using Odysseus'", name)
     from src.user_time import user_timezone
 
     return user_timezone()
@@ -436,7 +436,7 @@ def _warn_timezone(state: dict, name: str | None, now_utc: datetime) -> None:
         return
     key = f"{name}|{hub}"
     if state.get("tz_warned") != key:
-        logger.warning("odysseus-sound times are in %s but Odysseus runs in %s; filed items "
+        logger.warning("Athena times are in %s but Odysseus runs in %s; filed items "
                        "keep the module's wall time (converted). Set CONVO_TIMEZONE to match.",
                        name, hub)
         state["tz_warned"] = key
@@ -1032,7 +1032,7 @@ def _filed_message(filed: list[tuple[dict, str]]) -> tuple[str, str]:
              else f"Filed {len(filed)} items from your voice notes")
     lines = [_filed_line(item, target) for item, target in filed[:MAX_PUSHED_ITEMS]]
     if len(filed) > MAX_PUSHED_ITEMS:
-        lines.append(f"... and {len(filed) - MAX_PUSHED_ITEMS} more on the odysseus-sound page")
+        lines.append(f"... and {len(filed) - MAX_PUSHED_ITEMS} more on the Athena page")
     return title, "\n".join(lines)
 
 
@@ -1042,7 +1042,7 @@ def _suggested_message(items: list[dict]) -> tuple[str, str]:
     lines = [f"💡 {item_title(item)}" for item in items[:MAX_PUSHED_ITEMS]]
     if len(items) > MAX_PUSHED_ITEMS:
         lines.append(f"... and {len(items) - MAX_PUSHED_ITEMS} more")
-    lines.append("Add or dismiss them on the odysseus-sound page.")
+    lines.append("Add or dismiss them on the Athena page.")
     return title, "\n".join(lines)
 
 
@@ -1117,7 +1117,7 @@ async def _sync_json(owner: str, call: CallTool, rows: list[dict], *,
             filed[key]["filed_mode"] = file_mode()  # the clean-up leaves these alone
         except Exception as e:  # keep it unseen, try again next pass (a few times)
             attempts[key] = attempts.get(key, 0) + 1
-            logger.warning("filing odysseus-sound item #%s failed (%s/%s): %s", key,
+            logger.warning("filing Athena item #%s failed (%s/%s): %s", key,
                            attempts[key], MAX_FILE_ATTEMPTS, e)
             if attempts[key] < MAX_FILE_ATTEMPTS:
                 retry.add(row["id"])
@@ -1130,7 +1130,7 @@ async def _sync_json(owner: str, call: CallTool, rows: list[dict], *,
                 await _set_module_status(call, row["id"], "done")
                 filed[key]["module"] = "done"
             except Exception as e:
-                logger.warning("marking odysseus-sound note #%s done failed: %s", key, e)
+                logger.warning("marking Athena note #%s done failed: %s", key, e)
     state["seen"] = sorted((seen | set(by_id)) - retry)
     save_state(owner, state)
 
@@ -1139,7 +1139,7 @@ async def _sync_json(owner: str, call: CallTool, rows: list[dict], *,
             stats["synced"] += await _sync_status(owner, call, int(key), entry,
                                                   by_id.get(int(key)), now_utc)
         except Exception as e:  # the next pass sees the same difference and retries
-            logger.warning("status sync for odysseus-sound item #%s failed: %s", key, e)
+            logger.warning("status sync for Athena item #%s failed: %s", key, e)
     save_state(owner, state)
 
     if newly:
@@ -1164,7 +1164,7 @@ async def _sync_json(owner: str, call: CallTool, rows: list[dict], *,
 async def _find_row(call: CallTool, item_id: int) -> dict:
     rows = parse_items_json(await call("list_action_items", {"status": "all", "format": "json"}))
     if rows is None:
-        raise RuntimeError("this odysseus-sound version can't list items as JSON; update it")
+        raise RuntimeError("this Athena version can't list items as JSON; update it")
     for row in rows:
         if row["id"] == int(item_id):
             return row
@@ -1280,7 +1280,7 @@ async def unfile_auto_todos(owner: str, call: CallTool, *, apply: bool = False,
     rows = parse_items_json(await call("list_action_items",
                                        {"status": "all", "format": "json"}))
     if rows is None:
-        raise RuntimeError("this odysseus-sound version can't list items as JSON; update it")
+        raise RuntimeError("this Athena version can't list items as JSON; update it")
     by_id = {r["id"]: r for r in rows}
     async with _lock(owner):
         state = load_state(owner)

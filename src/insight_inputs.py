@@ -3,7 +3,7 @@
 ``today_insight.gather`` adds :func:`extra_candidates` after the 30 rule-ordered to-dos
 and events; the prompt labels them ``L1…`` (loops) and ``P1…`` (plans).
 
-* **Open loops**: things the owner said they would do for someone, from odysseus-sound's
+* **Open loops**: things the owner said they would do for someone, from Athena's
   open action items (``list_action_items`` JSON, already read by the insight pass): rows
   that are the owner's (``mine`` true, or no ``mine`` and an owner word as ``owner``),
   are for someone: one of the row's ``with`` people (module MCP ≥ 0.9.0; a row without

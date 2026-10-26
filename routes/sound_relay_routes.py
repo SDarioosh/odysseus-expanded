@@ -1,4 +1,4 @@
-"""Fork: odysseus-sound's phone relay through Odysseus, and pairing it by QR code.
+"""Fork: Athena's phone relay through Odysseus, and pairing it by QR code.
 
 Token routes for the relay (API tokens; an admin session works too, for testing). They
 forward to the upload and read routes of the module's MCP HTTP server, with the URL and

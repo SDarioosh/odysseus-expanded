@@ -4,12 +4,16 @@
 // (the owner, people, projects, things) can be renamed, given a kind, linked to an
 // Odysseus contact and merged; a subject opens to its summary and its beliefs grouped
 // by attribute. Data: routes/beliefs_routes.py. Forget erases the belief for good
-// (src/belief_forget.py): odysseus-sound erases the facts behind it, the toast says what
+// (src/belief_forget.py): Athena erases the facts behind it, the toast says what
 // the module did and where the words still are (a note). Dismiss only rejects it (the
 // module retires the facts, transcripts keep their words; Restore undoes it). Download: GET
 // /api/beliefs/export. The search
 // box uses GET /api/beliefs/search (routes/belief_search_routes.py) and falls back to a
 // plain text match when that route isn't installed (404).
+// Athena's facts (MCP 0.11.0) carry a kind, the transcript line they were said on and
+// their conversation in the evidence payload (src/module_facts.py): a card shows the kind
+// and the line, and the Tentative tab groups beliefs by conversation, each group with
+// "Dismiss all".
 
 const $ = (sel) => document.querySelector(sel);
 
@@ -34,6 +38,13 @@ const CONFIRMED_BY = {
 };
 
 const SOURCE_NAMES = { 'odysseus-sound': 'Conversations', notes: 'Notes', routines: 'Calendar' };
+const MODULE_SOURCE = 'odysseus-sound';
+
+// Athena's fact kinds (src/module_facts.py FACT_KINDS); "other" shows the category.
+const FACT_KINDS = {
+  preference: 'Preference', plan: 'Plan', decision: 'Decision',
+  relationship: 'Relationship', personal: 'Personal',
+};
 
 // The ledger's attribute vocabulary (evidence_intake.ATTRIBUTES), in its order.
 const ATTRIBUTES = [
@@ -260,10 +271,39 @@ function statusChip(b) {
 // What an erased belief's evidence says about its source (src/evidence_intake.py).
 const ERASE_STATES = {
   done: 'erased there',
-  retired: 'hidden there; its words stay until odysseus-sound is updated',
+  retired: 'hidden there; its words stay until Athena is updated',
   pending: 'not erased there yet (retried hourly)',
   source: 'still written there: edit it yourself',
 };
+
+// The first payload value ``key`` among a belief's evidence (live evidence first).
+function evidenceValue(b, key) {
+  const evidence = Array.isArray(b.evidence) ? b.evidence : [];
+  const live = evidence.filter((e) => !e.gone).concat(evidence.filter((e) => e.gone));
+  for (const e of live) {
+    const v = (e.payload || {})[key];
+    if (v) return v;
+  }
+  return null;
+}
+
+// The kind label Athena gave the fact ("other" reads "fact"), else the memory category.
+function kindLabel(b) {
+  const kind = evidenceValue(b, 'kind');
+  if (kind) return FACT_KINDS[kind] || 'fact';
+  return b.category || null;
+}
+
+// The kind label, unless the attribute chip already says it ("Decision: …" + "Decision").
+function cardKindLabel(b) {
+  const label = kindLabel(b);
+  if (!label || !b.attribute || !b.value) return label;
+  const attr = (ATTRIBUTE_LABEL[b.attribute] || b.attribute).toLowerCase().replace(/s$/, '');
+  return attr === label.toLowerCase().replace(/s$/, '') ? null : label;
+}
+
+// Beliefs a "Dismiss all" is working on: their buttons stay off, also after a re-render.
+const busy = new Set();
 
 function sourceRow(e) {
   const name = SOURCE_NAMES[e.source] || e.source;
@@ -280,7 +320,9 @@ function sourceRow(e) {
       ? el('span', { className: 'bs-gone' }, ERASE_STATES[e.payload.erase]) : null,
     href ? el('a', { href, target: '_blank', rel: 'noopener noreferrer',
                      title: 'Open where it came from (new tab)' },
-              el('span', { html: ICONS.link }), 'Open') : null);
+              el('span', { html: ICONS.link }), 'Open') : null,
+    (e.payload || {}).quote
+      ? el('q', { className: 'bs-said', title: 'What was said' }, e.payload.quote) : null);
 }
 
 function button(icon, label, onclick, title) {
@@ -310,14 +352,14 @@ function forgetMessage(r) {
   const missed = (p.failed || 0) + (p.unsupported || 0);
   const parts = ['Forgotten and erased here.'];
   let warn = false;
-  if (erased) parts.push(`odysseus-sound erased ${plural(erased, 'fact')} from its transcripts.`);
+  if (erased) parts.push(`Athena erased ${plural(erased, 'fact')} from its transcripts.`);
   if (retired) {
-    parts.push(`odysseus-sound is older: ${plural(retired, 'fact')} hidden there, the words ` +
+    parts.push(`Athena is older: ${plural(retired, 'fact')} hidden there, the words ` +
                'stay in its transcripts until it is updated.');
     warn = true;
   }
   if (missed) {
-    parts.push(`odysseus-sound could not be reached for ${plural(missed, 'fact')}; ` +
+    parts.push(`Athena could not be reached for ${plural(missed, 'fact')}; ` +
                'the hourly facts job tries again.');
     warn = true;
   }
@@ -331,7 +373,7 @@ function forgetMessage(r) {
 }
 
 const FORGET_WARNING = 'Forget this for good? It leaves memory and is erased everywhere ' +
-  'Odysseus and odysseus-sound keep it: the transcript lines that said it read ' +
+  'Odysseus and Athena keep it: the transcript lines that said it read ' +
   '"[forgotten]", summaries are rewritten without it. This cannot be undone.';
 
 function forget(b, card) {
@@ -347,9 +389,9 @@ function dismissMessage(r) {
   const retired = p.retired || 0;
   const missed = (p.failed || 0) + (p.unsupported || 0);
   const parts = ['Dismissed: out of memory, transcripts untouched. Restore it from the Rejected tab.'];
-  if (retired) parts.push(`odysseus-sound won't offer ${retired === 1 ? 'it' : 'them'} again.`);
+  if (retired) parts.push(`Athena won't offer ${retired === 1 ? 'it' : 'them'} again.`);
   if (missed) {
-    parts.push(`odysseus-sound could not be reached for ${plural(missed, 'fact')}; ` +
+    parts.push(`Athena could not be reached for ${plural(missed, 'fact')}; ` +
                'if it comes back it stays dismissed.');
   }
   return [parts.join(' '), missed > 0];
@@ -386,7 +428,86 @@ function editMode(b, card, textNode) {
   input.select();
 }
 
+// What the module did with the line behind a moved belief (src/belief_move.py).
+function moveMessage(r, display) {
+  const l = r.lines;
+  const parts = [`Moved to ${display}; confirmed by you.`];
+  if (!l) return [parts.join(' '), false];
+  if (l.reassigned) {
+    parts.push(`Athena gave ${plural(l.reassigned, 'line')} to ${display} and ` +
+               'is redoing that conversation\'s summary.');
+  }
+  if (l.kept) parts.push(`${plural(l.kept, 'line')} left as is (someone else said it).`);
+  const missed = (l.failed || 0) + (l.unsupported || 0) + (l.not_found || 0);
+  if (missed) {
+    parts.push(`${plural(missed, 'line')} could not be fixed in Athena; ` +
+               'open the transcript and ask in chat to reassign it.');
+  }
+  return [parts.join(' '), missed > 0];
+}
+
+async function movePanel(b, card) {
+  const panel = togglePanel(card, 'move');
+  if (!panel) return;
+  panel.append(el('div', { className: 'bs-status' }, 'Loading subjects…'));
+  let all;
+  try {
+    const data = await api('/api/beliefs/subjects');
+    all = Array.isArray(data.subjects) ? data.subjects : [];
+  } catch (e) {
+    panel.replaceChildren(el('div', { className: 'bs-status error' },
+      `Couldn't load your subjects: ${e.message}`), closeButton(panel));
+    return;
+  }
+  const others = all.filter((o) => o.id !== b.subject_id && (o.kind === 'person' || o.kind === 'owner'));
+  const select = el('select', { className: 'bs-select', 'aria-label': 'Move to' },
+    el('option', { value: '' }, others.length ? 'Move to…' : 'No other people yet'),
+    ...others.map((o) => el('option', { value: String(o.id) }, o.display)));
+  const input = el('input', { type: 'text', className: 'bs-filter', placeholder: 'or a new name',
+                              'aria-label': 'New person', maxlength: '120' });
+  const fromSound = (b.evidence || []).some((e) => e.source === 'odysseus-sound' && e.link);
+  const fix = el('input', { type: 'checkbox', checked: true, id: `fix-${b.id}` });
+  const go = () => {
+    const name = input.value.trim();
+    const target = others.find((o) => String(o.id) === select.value);
+    if (!name && !target) {
+      toast('Pick a person or type a name.', true);
+      return;
+    }
+    const body = name ? { name } : { subject_id: target.id };
+    body.fix_line = fromSound && fix.checked;
+    act(card, `/api/beliefs/${b.id}/move`, body, (r) => {
+      const [text, warn] = moveMessage(r, r.subject_display || name || target.display);
+      toast(text, warn);
+    });
+  };
+  input.addEventListener('keydown', (ev) => {
+    if (ev.key === 'Enter') go();
+    if (ev.key === 'Escape') panel.remove();
+  });
+  panel.replaceChildren(
+    el('p', { className: 'bs-meta' }, 'Who is this really about? The belief moves there.'),
+    el('div', { className: 'bs-row' }, select, input, button('kind_person', 'Move', go), closeButton(panel)),
+    fromSound ? el('label', { className: 'bs-meta', for: `fix-${b.id}` }, fix,
+      ' They said it: give the line to them in the transcript too') : null);
+  select.focus();
+}
+
+// The subject's name on a card; it opens the subject, like a section head does.
+function subjectLabel(b) {
+  const name = b.subject_display || b.subject || 'No subject';
+  if (b.subject_id === null || b.subject_id === undefined) return el('b', { className: 'bs-who' }, name);
+  return el('button', { type: 'button', className: 'bs-who', title: 'Open this subject',
+                        onclick: () => openSubject(b.subject_id) }, name);
+}
+
 function actions(b, card, textNode) {
+  const row = actionButtons(b, card, textNode);
+  if (busy.has(b.id)) for (const x of row.querySelectorAll('button')) x.disabled = true;
+  return row;
+}
+
+function actionButtons(b, card, textNode) {
   const row = el('div', { className: 'bs-row bs-actions' });
   const confirm = (label) => button('confirm', label,
     () => act(card, `/api/beliefs/${b.id}/confirm`, {}, () => toast('Confirmed; it is in memory now.')));
@@ -395,8 +516,10 @@ function actions(b, card, textNode) {
     'Erase it everywhere, including the transcript lines that said it (cannot be undone)');
   const dismissBtn = () => button('dismiss', 'Dismiss', () => dismiss(b, card),
     'Not worth remembering: out of memory, transcripts untouched (can be restored)');
-  if (b.status === 'tentative') row.append(confirm('Confirm'), edit(), dismissBtn(), forgetBtn());
-  else if (b.status === 'confirmed') row.append(edit(), dismissBtn(), forgetBtn());
+  const moveBtn = () => button('kind_person', 'Move', () => movePanel(b, card),
+    'It is about someone else (for example a line heard as the wrong voice)');
+  if (b.status === 'tentative') row.append(confirm('Confirm'), edit(), moveBtn(), dismissBtn(), forgetBtn());
+  else if (b.status === 'confirmed') row.append(edit(), moveBtn(), dismissBtn(), forgetBtn());
   else if (b.status === 'stale') {
     row.append(button('confirm', 'Confirm',
       () => act(card, `/api/beliefs/${b.id}/confirm`, {}, () => toast('Restored and confirmed.')),
@@ -412,15 +535,16 @@ function actions(b, card, textNode) {
   return row;
 }
 
-function beliefCard(b, why) {
+function beliefCard(b, why, showSubject = false) {
   const card = el('div', { className: 'bs-card', id: `belief-${b.id}` });
   const textNode = el('p', { className: 'bs-text' }, b.erased_at ? 'Erased' : b.shown_text,
     b.owner_text ? el('span', { className: 'bs-tag', title: `Originally: ${b.text}` }, 'edited') : null);
   const facts = el('div', { className: 'bs-facts' },
     b.subject_kind ? kindIcon(b.subject_kind) : null,
+    showSubject ? subjectLabel(b) : null,
     statusChip(b),
     attributeChip(b),
-    b.category ? el('span', {}, b.category) : null,
+    cardKindLabel(b) ? el('span', {}, cardKindLabel(b)) : null,
     b.first_seen ? el('span', {}, `first seen ${day(b.first_seen)}`) : null,
     b.status === 'stale'
       ? (b.last_seen ? el('span', {}, `not heard since ${day(b.last_seen)}`) : null)
@@ -465,8 +589,31 @@ function renderBeliefs() {
     main.replaceChildren(el('div', { className: 'bs-empty' }, text));
     return;
   }
+  const parts = [];
+  let rest = rows;
+  if (state.tab === 'tentative') {
+    // new beliefs come in by conversation: review (and dismiss) them that way
+    const convs = new Map();
+    rest = [];
+    for (const b of rows) {
+      const conv = conversationOf(b);
+      if (!conv) { rest.push(b); continue; }
+      if (!convs.has(conv)) convs.set(conv, []);
+      convs.get(conv).push(b);
+    }
+    // a conversation's day is when its facts were first said (a fact said again later
+    // doesn't move it); same day: the newest beliefs (highest id) first
+    const convDay = (items) => items.map((b) => b.first_seen || b.last_seen || '').sort().pop() || '';
+    const newest = (items) => Math.max(...items.map((b) => Number(b.id) || 0));
+    const ordered = [...convs.values()].sort((a, b) =>
+      convDay(b).localeCompare(convDay(a)) || newest(b) - newest(a));
+    for (const items of ordered) {
+      parts.push(conversationHead(items, convDay(items)),
+        ...items.map((b) => beliefCard(b, null, true)));
+    }
+  }
   const groups = new Map();
-  for (const b of rows) {
+  for (const b of rest) {
     const key = b.subject_id !== null && b.subject_id !== undefined
       ? `id:${b.subject_id}` : `name:${b.subject || ''}`;
     if (!groups.has(key)) {
@@ -475,11 +622,64 @@ function renderBeliefs() {
     }
     groups.get(key).items.push(b);
   }
-  const parts = [];
   for (const g of groups.values()) {
     parts.push(sectionHead(g.name, g.kind, g.id), ...g.items.map((b) => beliefCard(b)));
   }
   main.replaceChildren(...parts);
+}
+
+// The Athena conversation a belief was heard in (live evidence), or null.
+function conversationOf(b) {
+  const evidence = Array.isArray(b.evidence) ? b.evidence : [];
+  const e = evidence.find((x) => x.source === MODULE_SOURCE && !x.gone &&
+                                 (x.payload || {}).conversation_id);
+  return e ? e.payload.conversation_id : null;
+}
+
+function conversationHead(items, lastDay) {
+  const label = lastDay ? `Conversation · ${day(lastDay)}` : 'Conversation';
+  const head = el('div', { className: 'bs-conv' },
+    el('span', { className: 'bs-conv-name' }, label, ' · ', plural(items.length, 'belief')));
+  if (items.length > 1) {
+    const btn = button('dismiss', `Dismiss all ${items.length}`, () => dismissAll(items, btn),
+      'None of these is worth remembering: out of memory, transcripts untouched (can be restored)');
+    if (items.some((b) => busy.has(b.id))) btn.disabled = true;
+    head.append(btn);
+  }
+  return head;
+}
+
+// Dismiss every belief of one conversation, one after another (each tells Athena).
+async function dismissAll(items, btn) {
+  const n = items.length;
+  if (!window.confirm(`Dismiss all ${n} beliefs from this conversation? ` +
+                      'You can restore them from the Rejected tab.')) return;
+  // every button of these cards stays off until all are done (re-renders keep it so)
+  for (const b of items) busy.add(b.id);
+  btn.disabled = true;
+  for (const b of items) {
+    const card = document.getElementById(`belief-${b.id}`);
+    if (card) for (const x of card.querySelectorAll('button')) x.disabled = true;
+  }
+  let done = 0;
+  let failed = 0;
+  let missed = 0;
+  for (const b of items) {
+    try {
+      const r = await postJSON(`/api/beliefs/${b.id}/dismiss`, {});
+      const p = (r && r.propagated) || {};
+      missed += (p.failed || 0) + (p.unsupported || 0);
+      done += 1;
+    } catch (e) {
+      failed += 1;
+    }
+  }
+  for (const b of items) busy.delete(b.id);
+  const text = done ? [`Dismissed ${plural(done, 'belief')}; restore from the Rejected tab.`] : [];
+  if (failed) text.push(`${plural(failed, 'belief')} could not be dismissed; try again.`);
+  if (missed) text.push(`Athena could not be reached for ${plural(missed, 'fact')}.`);
+  toast(text.join(' '), failed > 0 || missed > 0);
+  await load(true);
 }
 
 async function loadBeliefs(quiet) {
@@ -829,6 +1029,9 @@ async function localSearch(q) {
     ['text', (b) => `${b.shown_text || ''} ${b.text || ''}`],
     ['subject', (b) => `${b.subject_display || ''} ${b.subject || ''}`],
     ['attribute', (b) => `${ATTRIBUTE_LABEL[b.attribute] || ''} ${b.value || ''}`],
+    ['kind', (b) => kindLabel(b) || ''],
+    ['quote', (b) => (Array.isArray(b.evidence) ? b.evidence : [])
+      .map((e) => (e.payload || {}).quote || '').join(' ')],
   ];
   const hits = [];
   for (const b of Array.isArray(data.beliefs) ? data.beliefs : []) {

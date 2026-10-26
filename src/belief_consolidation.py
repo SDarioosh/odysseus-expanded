@@ -6,7 +6,7 @@ Two parts:
 
 * **Upstream's tidy leaves sourced memories alone.** A memory entry that mirrors a
   belief (``belief_id``) or is a Phase 0 copy of a module fact (``module_fact_id`` from
-  odysseus-sound) carries provenance: a source, an id and a link that the ledger keeps
+  Athena) carries provenance: a source, an id and a link that the ledger keeps
   in step. Upstream's Memory Tidy task and its memory audit (the Tidy button, and the
   automatic audit after chat extraction) know only text: they could merge such an entry
   with an unrelated memory, rewrite it without its link, or delete it, and the next
@@ -16,7 +16,7 @@ Two parts:
 * **The fork's own pass merges near-duplicates in the ledger, one source at a time.**
   :func:`consolidate` looks at one owner's tentative and confirmed beliefs whose
   evidence all comes from one source, and merges two of them when they are about the
-  same subject, in the same category, say the same thing in nearly the same words
+  same subject, say the same thing in nearly the same words
   (every word that differs is a filler word or another form of the same word; no
   different negation or number) and don't differ in their structured attribute/value.
   The merged belief's evidence moves to the kept one with its source ids and links,
@@ -53,6 +53,13 @@ NEGATIONS = frozenset({
 # Words that don't change a claim when added or dropped.
 FILLER = frozenset({"a", "an", "the", "very", "really", "also", "still", "just", "quite",
                     "so", "too", "much", "actually"})
+# Also ignorable when a source rewords an item under the same id (``same_rewording``):
+# glue words of a rephrased sentence ("a bike with no computer on it" / "a bike that has
+# no computer"). Not tense or time words ("had", "was", "used"): those change a claim.
+REWORD_FILLER = FILLER | frozenset({
+    "that", "which", "who", "with", "has", "have", "is", "are", "be", "on", "in", "of",
+    "it", "its", "to", "for", "at", "there", "this", "and",
+})
 # Endings of one word's forms (after a shared stem of at least 3 letters): plural and
 # third person only, so a change of tense ("works at" / "worked at") stays apart.
 INFLECTIONS = frozenset({"", "s", "es"})
@@ -62,7 +69,7 @@ _WORD = re.compile(r"[a-z0-9]+")
 # ------------------------------------------------------------- upstream's tidy
 def is_sourced(entry: Mapping) -> bool:
     """Whether a memory entry carries provenance the ledger keeps: a mirrored belief
-    (``belief_id``) or a Phase 0 copy of an odysseus-sound fact (``module_fact_id``)."""
+    (``belief_id``) or a Phase 0 copy of an Athena fact (``module_fact_id``)."""
     if not isinstance(entry, Mapping):
         return False
     if entry.get("belief_id") is not None:
@@ -123,7 +130,7 @@ def same_word(a: str, b: str) -> bool:
     return n >= 3 and a[n:] in INFLECTIONS and b[n:] in INFLECTIONS
 
 
-def same_claim(a: str, b: str) -> bool:
+def same_claim(a: str, b: str, filler: frozenset = FILLER) -> bool:
     """Whether two matching keys (``beliefs.norm``) say the same thing in nearly the same
     words: the same negations and numbers, and every word that differs is a filler word
     (:data:`FILLER`) or the same word in another form (:func:`same_word`). A different
@@ -139,11 +146,17 @@ def same_claim(a: str, b: str) -> bool:
     for tag, i1, i2, j1, j2 in SequenceMatcher(None, wa, wb, autojunk=False).get_opcodes():
         if tag == "equal":
             continue
-        da = [w for w in wa[i1:i2] if w not in FILLER]
-        db = [w for w in wb[j1:j2] if w not in FILLER]
+        da = [w for w in wa[i1:i2] if w not in filler]
+        db = [w for w in wb[j1:j2] if w not in filler]
         if len(da) != len(db) or not all(same_word(x, y) for x, y in zip(da, db)):
             return False
     return True
+
+
+def same_rewording(a: str, b: str) -> bool:
+    """:func:`same_claim` with :data:`REWORD_FILLER`: for one item a source reworded under
+    its own id (an Athena re-summary), not for two items that merely look alike."""
+    return same_claim(a, b, REWORD_FILLER)
 
 
 def _structure_agrees(a: Mapping, b: Mapping) -> bool:
@@ -181,11 +194,13 @@ def _candidates(db, owner: str, source: str) -> tuple[list, dict[int, int]]:
 
 
 def plan_merges(rows: list, counts: Mapping[int, int]) -> list[tuple[int, int]]:
-    """``[(keep_id, drop_id)]``: within each (subject, about, category) group, the
-    beliefs in keep order; each one joins the first kept belief it repeats."""
+    """``[(keep_id, drop_id)]``: within each (subject, about) group, the beliefs in keep
+    order; each one joins the first kept belief it repeats. The category is not part of
+    the group: two near-identical claims can carry different labels (a preference word
+    guessed before the source sent fact kinds, a kind after), and the kept one's stays."""
     groups: dict[tuple, list] = {}
     for row in rows:
-        groups.setdefault((row["subject_id"], row["about"], row["category"]), []).append(row)
+        groups.setdefault((row["subject_id"], row["about"]), []).append(row)
     merges: list[tuple[int, int]] = []
     for group in groups.values():
         if len(group) < 2:

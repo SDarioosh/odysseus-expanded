@@ -4,8 +4,8 @@ A built-in task ("Today Insight", every 15 minutes per owner) gathers, in code:
 
 * calendar events from today 00:00 local to +7 days (not cancelled, not ended);
 * the open items of to-do notes (``checklist``, ``todo``, ``goal``; not archived);
-* memory: preference / contact / fact entries and everything from odysseus-sound;
-* odysseus-sound's digest for today and its open action items, over its MCP server,
+* memory: preference / contact / fact entries and everything from Athena;
+* Athena's digest for today and its open action items, over its MCP server,
   when that server is connected (otherwise they are simply left out).
 
 Code buckets every to-do item and event (overdue, due_today, due_soon, undated; items due
@@ -24,7 +24,7 @@ Settings (environment):
 * ``TODAY_INSIGHT_ENABLED``: ``on`` (default) or ``off``.
 * ``TODAY_INSIGHT_SKIP_LISTS``: comma-separated list titles left out unless the note has a
   due date (default ``Shopping,Groceries,Grocery``; any case, with or without "list").
-* ``MODULE_ACTION_ITEMS_SERVER``: the odysseus-sound MCP server (default ``convo``).
+* ``MODULE_ACTION_ITEMS_SERVER``: the Athena MCP server (default ``convo``).
 
 Docs: ``docs/fork/today-insight.md``.
 """
@@ -51,7 +51,7 @@ HOUSEKEEPING_DEFAULT = {
              "cron_expression": "*/15 * * * *"},
 }
 INFO = ("Write the daily Today insight (what to do first, what is coming up, what else is "
-        "worth a look) from the calendar, to-dos, memory and odysseus-sound. The local model "
+        "worth a look) from the calendar, to-dos, memory and Athena. The local model "
         "runs only when the inputs changed.")
 
 TODO_TYPES = ("checklist", "todo", "goal")
@@ -366,7 +366,7 @@ def select_memory(entries: Iterable[dict], limit: int = MAX_MEMORY, *,
 
     With ``query`` (``memory_query`` of the day's candidates): the confirmed beliefs the
     ledger's ranker (``src/belief_search.py``) puts first for it, then the other
-    preference/contact/fact entries and odysseus-sound facts, most used first, up to
+    preference/contact/fact entries and Athena facts, most used first, up to
     ``limit``. Without a query, or when the ledger has nothing for it: most used first."""
     fallback, rows = _by_use(entries, limit)
     if query is None:

@@ -3590,7 +3590,7 @@ BUILTIN_ACTION_INFO = {
 # Fork: module action items -> ntfy (src/module_action_items.py)
 from src.module_action_items import register_builtin_action as _fork_register  # noqa: E402
 _fork_register(BUILTIN_ACTIONS, BUILTIN_ACTION_INFO)
-# Fork: odysseus-sound facts -> Odysseus memory (src/module_facts.py)
+# Fork: Athena facts -> Odysseus memory (src/module_facts.py)
 from src.module_facts import register_builtin_action as _fork_register_facts  # noqa: E402
 _fork_register_facts(BUILTIN_ACTIONS, BUILTIN_ACTION_INFO)
 # Fork: daily Today insight (src/today_insight.py)

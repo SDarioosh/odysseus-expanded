@@ -1,6 +1,6 @@
-"""Fork: odysseus-sound's facts as evidence for the belief ledger, and so into memory.
+"""Fork: Athena's facts as evidence for the belief ledger, and so into memory.
 
-A built-in scheduled task ("Module Facts", hourly) reads every current fact odysseus-sound
+A built-in scheduled task ("Module Facts", hourly) reads every current fact Athena
 holds (``list_facts {"format": "json", "limit": 1000}``) through the module's MCP server
 and submits each one to the belief ledger (``src/evidence_intake.py``) as evidence from
 source ``odysseus-sound`` with the module fact id as source id. The ledger decides what is
@@ -11,6 +11,9 @@ confirmed and mirrors confirmed beliefs into Odysseus memory, one memory per bel
   or, from a module that doesn't send it yet, membership in a second
   ``list_facts {"confirmed": true, "format": "json", "limit": 1000}`` answer (one extra
   call, made only then).
+* A row's ``kind`` (MCP 0.11.0) sets the memory category (:func:`category`) and travels,
+  with ``quote`` and ``conversation_id``, in the evidence payload for the review page
+  (:func:`payload`). An older module sends none of them; nothing changes then.
 * Facts the module no longer returns (retracted, replaced, merged) are marked gone in the
   ledger (``reconcile_source``); a belief left without live evidence goes stale and
   leaves memory unless the owner confirmed it. Then expiry runs (``apply_decay``) and
@@ -27,7 +30,7 @@ that answers ``list_people`` with text, or has no such tool, is tolerated (logge
 facts then match subjects by name.
 
 :func:`propagate_forget` carries the owner's "forget" back to the module: it calls the
-module's ``retire_fact`` for each odysseus-sound fact behind a rejected belief, so the
+module's ``retire_fact`` for each Athena fact behind a rejected belief, so the
 fact is not submitted again (an older module without the tool is tolerated; the ledger
 keeps the belief rejected either way).
 
@@ -74,7 +77,7 @@ HOUSEKEEPING_DEFAULT = {
     ACTION: {"name": TASK_NAME, "schedule": "cron", "scheduled_time": None,
              "cron_expression": "0 * * * *"},
 }
-INFO = ("Feed odysseus-sound's facts into the belief ledger as evidence (with their "
+INFO = ("Feed Athena's facts into the belief ledger as evidence (with their "
         "transcript links) and keep Odysseus memory in step with the confirmed beliefs: "
         "new ones added, changed ones updated, retracted or expired ones removed. Reads "
         "them through the module's MCP tools.")
@@ -186,10 +189,43 @@ async def read_people(call: CallTool) -> list[dict] | None:
         return None
 
 
+# Athena's fact kinds (MCP 0.11.0, ``list_facts`` JSON ``kind``)
+FACT_KINDS = ledger.FACT_KINDS
+QUOTE_CHARS = 300
+
+
+def fact_kind(row: dict) -> str | None:
+    """The module's kind for a fact (one of :data:`FACT_KINDS`), or None (an older module
+    or an older fact)."""
+    kind = str(row.get("kind") or "").strip().lower()
+    return kind if kind in FACT_KINDS else None
+
+
 def category(row: dict) -> str:
-    """The hub memory category for a module fact (fact|preference|contact), from the bare
-    fact text (words in the link don't count)."""
-    return ledger.category_for(row.get("about"), row.get("fact"))
+    """The hub memory category for a module fact (fact|preference|contact). A fact about a
+    person is a contact. Else the module's ``kind`` decides (preference or fact); without
+    one, a preference word in the bare fact text does (words in the link don't count):
+    "wants Bo to write a report" is a request, not a preference, and only the module can
+    tell."""
+    return ledger.category_for(row.get("about"), row.get("fact"), fact_kind(row))
+
+
+def payload(row: dict) -> dict:
+    """What the review page shows next to a module fact, kept in the evidence payload:
+    its ``kind``, the transcript line it was said on (``quote``) and its
+    ``conversation_id`` (the page groups tentative beliefs by conversation). Only the
+    fields the module sends; erasing the belief clears them (``evidence_intake``)."""
+    out: dict[str, str] = {}
+    kind = fact_kind(row)
+    if kind:
+        out["kind"] = kind
+    quote = " ".join(str(row.get("quote") or "").split())[:QUOTE_CHARS]
+    if quote:
+        out["quote"] = quote
+    conv = str(row.get("conversation_id") or "").strip()
+    if conv:
+        out["conversation_id"] = conv
+    return out
 
 
 def _truthy(value: Any) -> bool:
@@ -209,7 +245,7 @@ def evidence(row: dict, confirmed_ids: set[int] | None = None) -> ledger.Evidenc
         link=str(row.get("link") or ""), seen_first=str(row.get("first_said") or ""),
         seen_last=str(row.get("last_said") or ""), times=max(1, _int(row.get("times_said"))),
         days=max(1, _int(row.get("days"))), source_confirmed=confirmed,
-        category=category(row), person_id=_person_id(row))
+        category=category(row), person_id=_person_id(row), payload=payload(row) or None)
 
 
 def _person_id(row: dict) -> str | None:
@@ -232,7 +268,7 @@ async def sync(owner: str | None, call: CallTool, *, now: datetime | None = None
         state = load_state(owner)
         if rows is None:
             if not state.get("text_only"):
-                logger.info("odysseus-sound answered list_facts with text; facts not synced "
+                logger.info("Athena answered list_facts with text; facts not synced "
                             "(update the module)")
                 state["text_only"] = True
                 save_state(owner, state)
@@ -242,7 +278,7 @@ async def sync(owner: str | None, call: CallTool, *, now: datetime | None = None
         stats = {"facts": len(rows)}
         if people is None:
             if not state.get("people_text_only"):
-                logger.info("odysseus-sound has no list_people JSON; facts match subjects "
+                logger.info("Athena has no list_people JSON; facts match subjects "
                             "by name (update the module)")
                 state["people_text_only"] = True
         else:
@@ -309,7 +345,7 @@ async def action_sync_facts(owner: str, **kwargs) -> tuple[str, bool]:
     except RuntimeError as e:  # a failed tool call, or MemoryStoreUnreadable
         return f"Facts sync failed: {e}", False
     if stats is None:
-        raise TaskNoop("odysseus-sound answered list_facts with text; nothing synced")
+        raise TaskNoop("Athena answered list_facts with text; nothing synced")
     if not changed(stats):
         raise TaskNoop(summary(stats))
     return summary(stats), True
@@ -327,7 +363,7 @@ async def propagate_forget(owner: str | None, belief: dict | Iterable[dict],
     """Retire the module facts behind a belief the owner forgot.
 
     ``belief`` is a belief dict (``evidence_intake.get_belief``) or its evidence list
-    (what ``evidence_intake.reject`` returns). For each odysseus-sound evidence it calls
+    (what ``evidence_intake.reject`` returns). For each Athena evidence it calls
     ``retire_fact {"fact_id": <id>, "reason": "owner forgot it in Odysseus"}`` through
     the module's MCP server (``call``, else the connected module server). A module
     without that tool is tolerated (logged once per owner). Returns counts: ``retired``,
@@ -373,7 +409,7 @@ async def _note_retire_support(owner: str | None, supported: bool) -> None:
                 save_state(owner, state)
             return
         if not state.get("no_retire_fact"):
-            logger.info("odysseus-sound has no retire_fact tool; a forgotten fact stays "
+            logger.info("Athena has no retire_fact tool; a forgotten fact stays "
                         "in the module (update the module). Odysseus keeps it rejected.")
             state["no_retire_fact"] = True
             save_state(owner, state)

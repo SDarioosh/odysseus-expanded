@@ -34,7 +34,7 @@ from urllib.parse import parse_qs, quote, urlsplit
 
 CODE_TTL = 10 * 60  # seconds
 SCHEME = "odysseus-pair"
-# What the relay calls (odysseus-sound android-relay: HttpUploader, PdaHttp): uploads and
+# What the relay calls (Athena android-relay: HttpUploader, PdaHttp): uploads and
 # the T5's module reads and writes through Odysseus, the calendar (the T5 adds and
 # deletes events), checklists (the T5 ticks items) and the Today insight.
 RELAY_SCOPES = ["sound:ingest", "sound:read", "sound:write", "calendar:read",

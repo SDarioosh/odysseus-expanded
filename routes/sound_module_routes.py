@@ -1,4 +1,4 @@
-"""Fork: the odysseus-sound page (conversations and "who is this?" cards).
+"""Fork: the Athena page (conversations and "who is this?" cards).
 
 ``GET /modules/sound`` serves ``static/sound-module.html`` (the former ``/barvis/sound``
 redirects there); its script calls:
@@ -115,13 +115,13 @@ def _caller() -> view.CallTool:
     manager = get_mcp_manager()
     server_id = view.server_id(manager, key) if manager is not None else None
     if server_id is None:
-        raise HTTPException(503, f"The odysseus-sound MCP server ({key!r}) is not connected.")
+        raise HTTPException(503, f"The Athena MCP server ({key!r}) is not connected.")
 
     async def call(tool: str, args: dict) -> str:
         res = await manager.call_tool(f"mcp__{server_id}__{tool}", args)
         if res.get("exit_code") or res.get("error"):
-            logger.warning("odysseus-sound %s failed: %s", tool, res.get("error") or res.get("stderr"))
-            raise HTTPException(502, f"odysseus-sound {tool} failed")
+            logger.warning("Athena %s failed: %s", tool, res.get("error") or res.get("stderr"))
+            raise HTTPException(502, f"Athena {tool} failed")
         return res.get("stdout") or ""
 
     return call
@@ -154,7 +154,7 @@ async def _filed_state(owner: str) -> dict:
             return {}
         return (await _maybe_await(fn(owner))) or {}
     except Exception as e:  # noqa: BLE001 -- the list still shows without it
-        logger.warning("odysseus-sound filed state unavailable: %s", e)
+        logger.warning("Athena filed state unavailable: %s", e)
         return {}
 
 
@@ -176,7 +176,7 @@ async def _filing_call(what: str, coro) -> Any:
     except LookupError as e:
         raise HTTPException(404, str(e)) from e
     except Exception as e:  # logged; the page shows a short error
-        logger.warning("odysseus-sound %s failed: %s", what, e)
+        logger.warning("Athena %s failed: %s", what, e)
         raise HTTPException(502, f"Could not {what} the action item.") from e
 
 

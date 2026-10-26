@@ -906,7 +906,7 @@ async def test_only_explicit_voice_note_items_are_filed(hub, pushes):
     assert suggested["title"] == "3 suggestions from your voice notes"
     assert suggested["body"].splitlines() == [
         "💡 Stop prioritizing side projects", "💡 Focus on testing existing bugs",
-        "💡 Use less battery", "Add or dismiss them on the odysseus-sound page."]
+        "💡 Use less battery", "Add or dismiss them on the Athena page."]
     assert {r["status"] for i, r in module.rows.items() if i != 93} == {"open"}
     assert set(await bai.filed_state("alice")) == {93}
     # suggested once: later passes neither file nor push them

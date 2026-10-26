@@ -162,6 +162,8 @@ def skip_reason(note: Any) -> str | None:
     """Why a plain, unarchived note is left out, or None when it is read."""
     if str(getattr(note, "label", None) or "").strip().lower() == MODULE_LABEL:
         return "module"
+    if str(getattr(note, "label", None) or "").strip().lower() == "handwritten":
+        return "handwritten"  # its text goes to Athena (src/ink_notes.py), not here
     if is_calendar_reminder(note):
         return "reminder"
     if len(" ".join(note_text(note).split())) < MIN_CHARS:

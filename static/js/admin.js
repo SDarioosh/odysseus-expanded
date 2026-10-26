@@ -3335,9 +3335,9 @@ const _TOKEN_SCOPES = [
   { key: 'cookbook:read',     label: 'Cookbook read',     detail: 'List cookbook tasks + tail their tmux output' },
   { key: 'cookbook:launch',   label: 'Cookbook launch',   detail: 'Launch and stop cookbook serve tasks' },
   { key: 'insight:read',      label: 'Insight read',      detail: "Read today's insight" }, // Fork: Today insight (routes/today_insight_routes.py)
-  { key: 'sound:ingest',      label: 'Recordings upload', detail: 'Add recordings to odysseus-sound (phone relay)' }, // Fork: phone relay (routes/sound_relay_routes.py)
-  { key: 'sound:read',        label: 'Recordings read',   detail: 'Read odysseus-sound conversations and action items' }, // Fork: phone relay
-  { key: 'sound:write',       label: 'Recordings write',  detail: 'Mark odysseus-sound action items, make digests' }, // Fork: phone relay
+  { key: 'sound:ingest',      label: 'Recordings upload', detail: 'Add recordings to Athena (phone relay)' }, // Fork: phone relay (routes/sound_relay_routes.py)
+  { key: 'sound:read',        label: 'Recordings read',   detail: 'Read Athena conversations and action items' }, // Fork: phone relay
+  { key: 'sound:write',       label: 'Recordings write',  detail: 'Mark Athena action items, make digests' }, // Fork: phone relay
 ];
 
 function _renderTokenScopeRows(t) {

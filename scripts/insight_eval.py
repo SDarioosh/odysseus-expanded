@@ -16,7 +16,7 @@ today's date and a 28-day outcome history) and checks, in a temp ``DATA_DIR``:
 * **min_shown**: a list shown 5 times keeps weight 0; shown 6 times it moves.
 * **t5_table**: ``insight_weights.t5_table`` for the fixture's notes.
 * **t5_day**: the T5 PDA host test's own day (``scripts/fixtures/t5_weights_day.json``,
-  copied verbatim from odysseus-sound ``firmware/pda/test/fixtures/insight_eval_day.json``)
+  copied verbatim from Athena ``firmware/pda/test/fixtures/insight_eval_day.json``)
   through the hub's ``order_candidates`` with its weight table: the to-dos of each T5
   section (DO FIRST = tier 0, COMING UP = tier 1, ALSO = pinned then undated) come in
   the order the T5 test expects, with and without weights.
@@ -203,7 +203,7 @@ def write_history(fx: dict, owner: str, overrides: dict[str, int] | None = None)
 # ------------------------------------------------------------------------ T5 day
 class T5Day:
     """The T5 host test's day (``scripts/fixtures/t5_weights_day.json``, a verbatim copy
-    of odysseus-sound's ``firmware/pda/test/fixtures/insight_eval_day.json``: a PDA feed
+    of Athena's ``firmware/pda/test/fixtures/insight_eval_day.json``: a PDA feed
     with ``todos``, ``calendar``, ``weights`` and the T5's expected plan) as hub inputs."""
 
     def __init__(self, feed: dict):
@@ -272,7 +272,7 @@ def hub_sections(cands: list[dict], kind: str = "todo") -> dict[str, list[str]]:
 
 def t5_rules(feed: dict, table: dict[str, int] | None) -> dict[str, list[str]]:
     """The T5's rule-based fallback for the feed's to-dos, re-implemented from the
-    published rules (odysseus-sound docs/t5-pda-plan.md §5): DO FIRST by (-w, due date,
+    published rules (Athena docs/t5-pda-plan.md §5): DO FIRST by (-w, due date,
     feed order), COMING UP by (-w, date), ALSO pinned by (-w, feed order) then undated by
     (-w, feed order); undated shopping lists left out; at most 5 per section. Titles."""
     from src import today_insight as ti

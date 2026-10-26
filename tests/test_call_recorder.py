@@ -154,7 +154,7 @@ def test_forward_chunk_posts_to_the_mcp_upload_route(monkeypatch):
     (400, "sequence must be >= 0", 400),
     (413, "chunk too large", 413),
     (500, "", 502),
-    (502, "odysseus-sound's ingest API is not reachable at http://127.0.0.1:8000", 502),
+    (502, "Athena's ingest API is not reachable at http://127.0.0.1:8000", 502),
 ])
 def test_forward_chunk_module_errors(monkeypatch, status, detail, expect):
     monkeypatch.setattr(rec, "datetime", _FixedDatetime)
@@ -175,10 +175,10 @@ def test_old_module_says_update(monkeypatch):
 
     with pytest.raises(rec.RecorderError) as e:
         run(rec.forward_chunk(CFG, **fwd(), transport=httpx.MockTransport(old)))
-    assert e.value.status == 502 and "update odysseus-sound" in e.value.message
+    assert e.value.status == 502 and "update Athena" in e.value.message
     with pytest.raises(rec.RecorderError) as e:
         run(rec.end_session(CFG, "call-1", transport=httpx.MockTransport(old)))
-    assert "update odysseus-sound" in e.value.message
+    assert "update Athena" in e.value.message
 
 
 def test_forward_chunk_unreachable(monkeypatch, caplog):
@@ -189,7 +189,7 @@ def test_forward_chunk_unreachable(monkeypatch, caplog):
 
     with pytest.raises(rec.RecorderError) as e:
         run(rec.forward_chunk(CFG, **fwd(), transport=httpx.MockTransport(down)))
-    assert (e.value.status, e.value.message) == (502, "odysseus-sound is not reachable")
+    assert (e.value.status, e.value.message) == (502, "Athena is not reachable")
     assert TOKEN not in caplog.text
 
 
@@ -237,7 +237,7 @@ def test_forward_reads():
     with pytest.raises(rec.RecorderError) as e:
         run(rec.forward(CFG, "GET", "/x", transport=httpx.MockTransport(
             lambda r: httpx.Response(404, text="Not Found"))))
-    assert "update odysseus-sound" in e.value.message
+    assert "update Athena" in e.value.message
     with pytest.raises(rec.RecorderError) as e:
         run(rec.forward(CFG, "GET", "/x", transport=Module(status=401, body={}).transport))
     assert e.value.status == 502

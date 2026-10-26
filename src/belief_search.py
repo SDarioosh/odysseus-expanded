@@ -547,7 +547,7 @@ _ATTRIBUTE_QUESTIONS = (
     r"\bwhen(?:['’]s|\s+is|\s+was)\s+__S__(?:['’]s)?\s+birthday\s*[?.!]*$",
     r"\bwhen\s+(?:was|were)\s+__S__\s+born\b",
     # allergy: yes/no questions and "allergies"; "What is <person> allergic to?" is left
-    # to the module tools (an odysseus-sound bakeoff question)
+    # to the module tools (an Athena bakeoff question)
     r"^\s*(?:am|is|are)\s+__S__\s+allergic\b",
     r"\b(?:does|do)\s+__S__\s+have\s+(?:any\s+)?allerg",
     r"\b__S__(?:['’]s)?\s+allergies\b",

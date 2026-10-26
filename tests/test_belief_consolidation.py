@@ -66,6 +66,16 @@ def test_same_claim_in_nearly_the_same_words(a, b):
 ])
 def test_different_claims_stay_apart(a, b):
     assert not bc.same_claim(a, b)
+    assert not bc.same_rewording(a, b)  # one source's reworded item: still apart
+
+
+@pytest.mark.parametrize("a,b", [
+    ("shahyah owns a carbureted motorcycle with no computer on it",
+     "shahyah owns a carbureted motorcycle that has no computer"),
+    ("robin has a rabbit called luna", "robin has a rabbit that is called luna"),
+])
+def test_a_rewording_in_other_glue_words(a, b):
+    assert bc.same_rewording(a, b) and not bc.same_claim(a, b)
 
 
 # ------------------------------------------------------------------ the merge

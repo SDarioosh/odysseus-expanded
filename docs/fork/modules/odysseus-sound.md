@@ -1,4 +1,4 @@
-# Module: odysseus-sound
+# Module: Athena (formerly odysseus-sound)
 
 - Repo: [SDarioosh/barvis-sound](https://github.com/SDarioosh/barvis-sound) (renamed from
   `barvis-ai`; older docs call it "convo-ai"). Default branch `main`.
@@ -13,7 +13,7 @@ name `convo`. Don't rename them.
 ## What it provides
 
 Wearables record conversations (Amazfit T-Rex 3 Pro watch app now; a XIAO ESP32-S3
-pendant planned; an Omi pendant later). The odysseus-sound server on the owner's machine
+pendant planned; an Omi pendant later). The Athena server on the owner's machine
 detects speech (Silero VAD), transcribes (whisper.cpp), identifies speakers, splits
 recordings into conversations, and summarizes them with the local LLM (title, summary,
 key points, action items, people, topics, facts, daily digest). Everything is stored in
@@ -91,7 +91,7 @@ CONVO_MCP_TOKEN=... CONVO_MCP_HOST=172.17.0.1 .venv/bin/convo-server mcp --http 
 ```
 
 On the owner's server `odysseus-deploy deploy` runs this as a background service
-(odysseus-sound's `server/scripts/deploy.sh`, settings in `server/.env`;
+(Athena's `server/scripts/deploy.sh`, settings in `server/.env`;
 [../deploy.md](../deploy.md#one-command-setup-once)).
 
 Then add an HTTP server named `convo` with URL
@@ -117,10 +117,10 @@ Then, per [../modules.md](../modules.md#registering-a-module-in-odysseus):
 ## Slash skill: `/sound`
 
 - Skill **`sound`**, server **`convo`**: `/sound <question>` gives that one message
-  odysseus-sound's 13 tools (plus `ask_user`/`update_plan`) and nothing else. `/context
+  Athena's 13 tools (plus `ask_user`/`update_plan`) and nothing else. `/context
   <question>` does the same for every trusted module (today only `convo`).
 - The skill's procedure is `INSTRUCTIONS` from `server/convo_server/mcp_server.py`, the
-  same text as the Custom preset. odysseus-sound owns it: change it there, update the
+  same text as the Custom preset. Athena owns it: change it there, update the
   preset, rerun `modules_setup.py`.
 - Needed because with every Odysseus tool on and "Auto", a plain recording question
   is routed to built-ins (calendar, files) and never sees a convo tool. Sandbox
@@ -140,7 +140,7 @@ Then, per [../modules.md](../modules.md#registering-a-module-in-odysseus):
 
 ## Action items in Odysseus
 
-odysseus-sound stays the source of truth for action items. Since 2026-10-20 (owner's
+Athena stays the source of truth for action items. Since 2026-10-20 (owner's
 decision, replacing "no copies" of 2026-10-19) Odysseus also **files** them where they
 belong, so voice notes land in the hub's own calendar and to-dos. Since 2026-10-21 only
 **explicit** voice-note items are filed by default; a reflective voice note ("stop
@@ -151,6 +151,13 @@ prioritizing side projects…") gives suggestions, not four to-dos.
 | `explicit` (default) | filed when explicit (below); the others are suggestions, with one push per pass: "Suggested from your voice note" and their short titles | suggestions |
 | `auto` | all filed (the behaviour of 2026-10-20) | suggestions |
 | `off` | not filed; "new action item" pushes only (the behaviour before filing) | pushes only |
+
+What counts as a spoken command is the module's: Athena catches to-do, list and note
+commands in code even when its model lists no item, with fillers or "can you" before
+them, several in one sentence, and lists said line by line ("Make a to-do list. Get
+eggs. Fix the car."); a comma list for a named list ("add eggs, milk and bread to my
+shopping list") is one line each. Phrasings: Athena's `server/README.md`; its
+`server/eval/voice_commands.py` checks ~100 fictional voice notes against these rules.
 
 An item is **explicit** when the module says so: `list_action_items format=json` rows
 carry `explicit` (true when the item has a due date or time, a `list_name`, kind
@@ -200,7 +207,11 @@ Where a filed item goes:
   moved elsewhere) the empty list is archived at once, unless it is pinned. Tapping **Add to to-dos** on such a
   suggestion puts it there too.
 - **Notes.** Voice notes only, and only on an explicit command ("create a note",
-  "make a note", "note that", "add to my … notes"); a plain statement makes no note.
+  "make a note", "note that", "note:", "note to self", "new note:", "add to my notes:",
+  "add to my … notes"); a plain statement makes no note. Named notes may also be said
+  without the word "notes" right after the command ("make a note in voice recorder that
+  the case needs to be 3 mm bigger" → a line in "Voice recorder notes"; "… under car,
+  …", "add to my car note: …").
   A note with a `list_name` (`hardware`) is added as a line to the open note titled
   with that name, with or without "notes" ("Hardware notes", "hardware"); if there is
   none, Odysseus creates "Hardware notes". The same line isn't added twice. Once filed
@@ -267,7 +278,9 @@ what is confirmed. The built-in task **Module Facts** (`src/module_facts.py`, ho
 posts nothing to chat) calls `list_facts` with `{"format": "json", "limit": 1000}` (every
 current fact; 1000 is the JSON mode's cap, so no fact is cut off and mistaken for
 retired), which returns `{"facts": [{"id", "subject", "about" (owner/person/other),
-"fact", "times_said", "days", "first_said", "last_said", "link", "confirmed"}]}`.
+"fact", "times_said", "days", "first_said", "last_said", "link", "confirmed"}]}`, and
+from MCP 0.11.0 `kind`, `conversation_id` and `quote` (the transcript line), which label
+and group the facts on the review page ([beliefs.md](../beliefs.md#the-athena-facts-job)).
 
 - **Evidence per fact**: source `odysseus-sound`, source id = the fact id, the fact text,
   the signed transcript link, `first_said`/`last_said` as seen dates, `times_said`/`days`
@@ -369,7 +382,7 @@ conversation (device `computer`, kind `conversation`).
   `localhost`.
 - **Settings:** none. It uses the URL and `?access_token=` of the MCP server named
   `convo` (`SOUND_MODULE_SERVER`) in Settings → MCP. Without that server, or with a
-  module older than MCP 0.8.0, the page says what to fix ("update odysseus-sound").
+  module older than MCP 0.8.0, the page says what to fix ("update Athena").
   Optional: `SOUND_MODULE_CALL_DEVICE` (default `computer`).
 - Code: `src/call_recorder.py`, routes in `routes/sound_module_routes.py`,
   `static/call-recorder.html`, `static/js/callRecorder.js`; test
@@ -397,7 +410,7 @@ transcript links) never leaves the module.
 So the MCP token can add recordings. Odysseus finds the module from the `convo` server's
 URL (`/mcp` stripped) and its `access_token` (`src/call_recorder.py`); Odysseus' HTTP MCP
 settings have no header field, so the query token is the only place it is. A module that
-answers 404 on these routes is older than 0.8.0: Odysseus says "update odysseus-sound".
+answers 404 on these routes is older than 0.8.0: Odysseus says "update Athena".
 
 ## Pairing a phone
 
@@ -438,7 +451,7 @@ Odysseus only.
 - The direct mode (module URL plus ingest token) stays in the relay as a fallback.
 - Code: `src/phone_pairing.py`, `routes/sound_relay_routes.py`,
   `static/phone-pairing.html`, `static/js/phonePairing.js`; test
-  `tests/test_sound_relay.py`. Relay side: odysseus-sound's `android-relay` README.
+  `tests/test_sound_relay.py`. Relay side: Athena's `android-relay` README.
 
 ## Summary model in Settings
 
@@ -450,13 +463,13 @@ model:
   chat summaries use it first; blank falls back to the Utility Model, then the chat model
   (`src/task_endpoint.py`). Helpers that call the Utility Model directly (compaction,
   titles, calendar and notes helpers) keep using the Utility Model.
-- **Conversation summaries (odysseus-sound)**: the model the module's own LLM server uses
+- **Conversation summaries (Athena)**: the model the module's own LLM server uses
   for summaries, through `GET`/`PUT /api/fork/summary-model` → the module's
   `/settings/llm`. The list is what that LLM server's `GET /models` returns; the default
   is the module's `CONVO_LLM_MODEL`. Only the model name is sent: the module's LLM server
   (`CONVO_LLM_BASE_URL`) stays what its `.env` says. The choice is stored in the module
   and used from the next summary on, also after a restart. A module without the route
-  shows "update odysseus-sound".
+  shows "update Athena".
 
 - Code: `routes/summary_model_routes.py`, `static/js/forkBackgroundModels.js`; test
   `tests/test_summary_model_routes.py`. Module side: `server/convo_server/llm_settings.py`.
@@ -472,7 +485,7 @@ is a candidate (`loop:<id>`); an older module without `with` gives no loops. Det
 
 ## Eval and current score
 
-- Script: `server/eval/bakeoff.py` in odysseus-sound. Seed fictional data first with
+- Script: `server/eval/bakeoff.py` in Athena. Seed fictional data first with
   `server/scripts/seed_demo.py` using the same `CONVO_DATA_DIR`.
 - 21 questions; a question passes when the frontend called a convo tool, cited a link to
   the right conversation, and the answer has the expected fact.
@@ -505,7 +518,7 @@ is a candidate (`loop:<id>`); an older module without `with` gives no loops. Det
 
 **Target: ≥ 15/20.** Remaining failures: answers with the right fact but no transcript
 link, and 2 replies that were just "Done." because the model returned empty text after
-its tool calls. Full analysis: odysseus-sound
+its tool calls. Full analysis: Athena
 [docs/frontend-decision.md](https://github.com/SDarioosh/barvis-sound/blob/main/docs/frontend-decision.md).
 
 ## Known gaps
@@ -514,5 +527,5 @@ its tool calls. Full analysis: odysseus-sound
   Odysseus tool is on ([../roadmap.md](../roadmap.md)).
 - A malformed date argument (e.g. `'2026-09-30”,'` from the 4B sandbox model) makes
   `search_conversations` raise instead of returning a readable error, so Odysseus only
-  sees `exit_code=1` and the model reports a vague failure. An odysseus-sound fix, listed
+  sees `exit_code=1` and the model reports a vague failure. An Athena fix, listed
   under "Next" in SDarioosh/Barvis#9.

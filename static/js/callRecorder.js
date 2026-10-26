@@ -1,7 +1,7 @@
 // Fork: "Record a call" page (static/call-recorder.html). Captures a meeting's audio
 // (a tab, a window or the screen, shared with audio, plus the microphone), mixes it,
 // and records one self-contained 30-second WebM/Opus file at a time. Each piece goes to
-// routes/sound_module_routes.py, which forwards it to odysseus-sound's ingest API
+// routes/sound_module_routes.py, which forwards it to Athena's ingest API
 // (src/call_recorder.py). Pieces upload one by one, in order, and retry until they are
 // sent; the module ends a session after long silence or its maximum length, and the page
 // then continues in a new session.
@@ -78,7 +78,7 @@ function render() {
   if (recording) ui.state.textContent = lastError ? `Recording. ${lastError}` : 'Recording.';
   else if (rec) ui.state.textContent = 'Finishing: sending the last pieces…';
   else if (!lastError) ui.state.textContent = sentCount ? 'Done. The conversation appears in ' +
-    'Conversations once odysseus-sound has processed it.' : 'Not recording.';
+    'Conversations once Athena has processed it.' : 'Not recording.';
 }
 
 // ------------------------------------------------------------------ uploads
@@ -96,7 +96,7 @@ async function post(path, body) {
 
 function retryable(status) {
   // 401: logged out (log in again in another tab; the pieces wait here).
-  // 502/503/504: odysseus-sound or Odysseus not reachable or not set up yet.
+  // 502/503/504: Athena or Odysseus not reachable or not set up yet.
   return status === 0 || status === 401 || status === 408 || status === 429 || status >= 500;
 }
 
@@ -310,9 +310,9 @@ async function finish() {
     try {
       const res = await post(`/api/modules/sound/record/${encodeURIComponent(sessionId)}/end`, null);
       if (res.status !== 200) lastError = `Sent, but couldn't end the session (${res.data.detail ||
-        `HTTP ${res.status}`}); odysseus-sound ends it by itself after a few minutes.`;
+        `HTTP ${res.status}`}); Athena ends it by itself after a few minutes.`;
     } catch (e) {
-      lastError = 'Sent, but couldn\'t end the session; odysseus-sound ends it by itself after a few minutes.';
+      lastError = 'Sent, but couldn\'t end the session; Athena ends it by itself after a few minutes.';
     }
   }
   rec = null;
@@ -341,7 +341,7 @@ async function init() {
     const data = await res.json();
     if (!res.ok) throw new Error(data.detail || `HTTP ${res.status}`);
     if (!data.configured) {
-      notice(`Call recording isn't available: ${data.problem || 'odysseus-sound is not connected.'}`);
+      notice(`Call recording isn't available: ${data.problem || 'Athena is not connected.'}`);
     } else {
       ready = true;
     }

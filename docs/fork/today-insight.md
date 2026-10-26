@@ -23,7 +23,7 @@ built-ins. A run that finds nothing changed leaves no Activity entry.
 | Calendar event occurrences from today 00:00 local to +7 days, not cancelled, not ended | the owner's calendars: events starting in the window (`_checkin_calendar_events`, as the check-in uses) and every recurring series, expanded with the calendar route's own `_expand_rrule` (`routes/calendar_routes.py`, skipped dates honoured): occurrence uid, summary, start, end, all-day, location, importance, event type |
 | Open items of to-do notes | notes of type `checklist`, `todo`, `goal`, not archived; each item with its index, the note's title, pinned flag, due date and label. Calendar-reminder notes are left out (the event is already a candidate) |
 | Memory | `MemoryManager(DATA_DIR).load(owner)`: entries of category `preference`, `contact`, `fact`, and every entry with `source: "odysseus-sound"`; at most 40, most used first, then newest. A trailing ` (source: <link>)` (memory copies of module facts carry one) is cut off: it cost ~1,700 prompt tokens and says nothing to the model |
-| odysseus-sound | when its MCP server (`MODULE_ACTION_ITEMS_SERVER`, default `convo`) is connected: `get_daily_digest {"date": today}` and `list_action_items {"status": "open", "format": "json"}`. Items already filed into to-dos or the calendar by the Module Action Items task are left out (they are candidates already). A failed call or a disconnected module leaves that input out |
+| Athena | when its MCP server (`MODULE_ACTION_ITEMS_SERVER`, default `convo`) is connected: `get_daily_digest {"date": today}` and `list_action_items {"status": "open", "format": "json"}`. Items already filed into to-dos or the calendar by the Module Action Items task are left out (they are candidates already). A failed call or a disconnected module leaves that input out |
 
 The owner's day and time come from the task's crew timezone (`_resolve_task_timezone`),
 else the owner's personal assistant's timezone, else the server's.
@@ -114,7 +114,7 @@ it. `votes` are 👍/👎 from the page, kept when the insight is rewritten late
 | `POST /api/insight/refresh` | admin session | starts writing it now in the background, even when the inputs didn't change, and answers 202 `{"status": "started" \| "running", "generated": <current insight's generated or null>}` at once (a model call outlasts the 45 s request timeout) |
 | `GET /today` | session | the page |
 
-`insight:read` is in `ALLOWED_SCOPES` and in Admin → Tokens. odysseus-sound's phone and PC
+`insight:read` is in `ALLOWED_SCOPES` and in Admin → Tokens. Athena's phone and PC
 relays fetch it with the Odysseus token for the T5 feed (stage 0.5); give that token
 `insight:read` next to `todos:read`.
 
@@ -171,7 +171,7 @@ off, as in incognito).
 |---|---|---|
 | `TODAY_INSIGHT_ENABLED` | `on` | `off` makes every run a no-op (the stored insight stays readable) |
 | `TODAY_INSIGHT_SKIP_LISTS` | `Shopping,Groceries,Grocery` | list titles left out unless dated |
-| `MODULE_ACTION_ITEMS_SERVER` | `convo` | the odysseus-sound MCP server |
+| `MODULE_ACTION_ITEMS_SERVER` | `convo` | the Athena MCP server |
 | `TODAY_INSIGHT_PUSH` | `off` | `on` pushes today's insight to the phone once a day ([Push](#push)) |
 | interval | every 15 min | the task's schedule in Tasks |
 
@@ -203,7 +203,7 @@ hook.
 The candidates the model sees (at most 30 to-dos and events) are sorted in code by
 `(tier, -weight, date, time, input order)` (`order_candidates` in `src/today_insight.py`).
 This order is published: the T5 PDA's rule-based fallback (no insight for today) follows
-the same rules ([odysseus-sound `docs/t5-pda-plan.md`](https://github.com/SDarioosh/barvis-sound/blob/main/docs/t5-pda-plan.md) §5).
+the same rules ([Athena `docs/t5-pda-plan.md`](https://github.com/SDarioosh/barvis-sound/blob/main/docs/t5-pda-plan.md) §5).
 
 | tier | items | within the tier |
 |---|---|---|
@@ -263,7 +263,7 @@ inputs are older than the owner's tick.
 | outcome | set when |
 |---|---|
 | `open` | shown, not done yet. A `done` that is un-ticked the same day goes back to `open`. |
-| `done` | a to-do's line is ticked (on any surface: notes, chat, T5, phone), or an open loop's action item is among odysseus-sound's done items. Events and plans are never done. |
+| `done` | a to-do's line is ticked (on any surface: notes, chat, T5, phone), or an open loop's action item is among Athena's done items. Events and plans are never done. |
 | `moved` | a to-do's note got a later due date, or an event now starts on a later day than when it was shown. |
 | `gone` | the note or line was deleted, the event was cancelled or isn't in the calendar window any more, or the loop's action item is in neither the open nor the done items. |
 | `dismissed`, `promoted` | the owner's "Not today" and "↑ first" (`via: "today"`). The pass never overwrites them, except `promoted` → `done`. Marking a `done` item changes nothing (the route answers 200 with the item as it is). An open loop dismissed with **Not a task** also has `not_task: true` (cleared by Undo), so the log shows which extractions were wrong. |
@@ -317,7 +317,7 @@ open their conversation; plans link to `/beliefs`.
 
 Open loops also have **Not a task**, for an action item that was never a to-do (a quick
 errand the summary model picked up, like "I'll move my truck"). The page sets the item to
-`dismissed` in odysseus-sound (`POST /api/modules/sound/action-items/{id}`, the module's
+`dismissed` in Athena (`POST /api/modules/sound/action-items/{id}`, the module's
 `update_action_item`), so it isn't an open loop again on later days, then posts
 `dismissed` with `not_task: true` to hide it today. Its row under "Not today" says "Not a
 task"; Undo reopens the module item and clears the mark. The outcome route answers 400 for
@@ -562,7 +562,7 @@ and every expected value, with the weights worked out by hand in `_weights_by_ha
 `scripts/fixtures/t5_weights_day.json`.
 
 **Shared with the T5.** `scripts/fixtures/t5_weights_day.json` is a verbatim copy of
-odysseus-sound's `firmware/pda/test/fixtures/insight_eval_day.json`, the day its PDA host
+Athena's `firmware/pda/test/fixtures/insight_eval_day.json`, the day its PDA host
 test uses for the rule-based fallback: a feed with `todos`, `calendar`, `weights` and the
 T5's expected plan, `expected` (with the weights) and `expected_without_weights`. The
 `t5_day` case turns the feed's notes into hub candidates (`todo_candidates`,

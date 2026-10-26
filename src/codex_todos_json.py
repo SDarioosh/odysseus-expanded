@@ -2,7 +2,7 @@
 
 The Codex todo route answers with the chat-model text of ``manage_notes``:
 one line per note, without checklist items. That suits an LLM, but a device
-client (odysseus-sound's T5 PDA, through its phone relay) needs the same data
+client (Athena's T5 PDA, through its phone relay) needs the same data
 the notes UI shows: ids, titles, items with their done flags, due dates. The
 UI's own ``/api/notes`` routes refuse API tokens on purpose, so this gives
 token clients a read-only, structured view behind the existing

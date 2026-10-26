@@ -21221,6 +21221,9 @@ async def stream_agent_loop(
         ),
         delegated_credential=bool(delegated_credential),
     )
+    # Fork: this chat's Auto/Ask choice for the approval gate (src/auto_mode.py)
+    from src.auto_mode import bind_run as _fork_bind_auto_mode
+    _fork_bind_auto_mode(run_security, owner=owner, session_id=session_id)
     _has_tui_host_bridge = _tui_host_bridge_is_usable(client_runtime_context)
     if (
         _has_tui_host_bridge
@@ -25541,6 +25544,9 @@ async def stream_agent_loop(
                 f"data:{approved_image['mimeType']};base64,{approved_image['data']}"
             )
         yield "data: " + json.dumps(approved_event) + "\n\n"
+        # Fork: a failed approved web read continues the turn (src/web_read_recovery.py)
+        from src.web_read_recovery import recover_failed_web_read
+        approved_result, _fork_web_read_recovered = recover_failed_web_read(approved.tool_name, approved_result)
         if approved.tool_name == "host_shell" and _is_host_bridge_failure_result(approved_result):
             # Approval continuations are new HTTP requests, so the normal
             # per-turn bridge-failure flag does not survive from the original
@@ -25555,7 +25561,7 @@ async def stream_agent_loop(
             )
             _approved_read_completed = True
             _approved_result_injected = True
-        elif not tool_result_is_successful(approved_result) and (
+        elif not _fork_web_read_recovered and not tool_result_is_successful(approved_result) and (
             approved_result.get("error")
             or approved_result.get("blocked")
             or approved_result.get("approval_required")
@@ -26020,6 +26026,8 @@ async def stream_agent_loop(
                 if round_num == 1
                 else _round_compaction_state
             ),
+            # Fork: keep the turn's thinking switch for the primary model (tests/test_agent_thinking_switch.py)
+            "thinking_mode": _route_state.get("thinking_mode"),
         }
         if round_num == 1 and not _approved_result_injected:
             _active_route_state["request_messages"] = _initial_route_request_messages

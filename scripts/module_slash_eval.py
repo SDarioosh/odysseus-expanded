@@ -1,7 +1,7 @@
 #!/usr/bin/env python3
 """Fork: run a module's bakeoff with every question sent as a slash command.
 
-Wraps odysseus-sound's ``server/eval/bakeoff.py --frontend odysseus`` without changing
+Wraps Athena's ``server/eval/bakeoff.py --frontend odysseus`` without changing
 it: each question is turned into the message ``/<skill> <question>`` would send
 (``POST /api/skills/<skill>/invoke``), then sent through bakeoff's Odysseus client.
 Scoring and the results file are bakeoff's own (``eval/results/odysseus.jsonl``).
@@ -15,7 +15,7 @@ fictional seed data (seed_demo.py, 2026-10-16 is a Friday).
 Per question it prints the Odysseus log's approvals and ``tools_sent=`` counts when
 ``--log`` points at the Odysseus log.
 
-Usage, from odysseus-sound's ``server/`` directory:
+Usage, from Athena's ``server/`` directory:
     ODYSSEUS_URL=http://127.0.0.1:7010 ODYSSEUS_PASSWORD_FILE=<file> \
       .venv/bin/python <odysseus fork>/scripts/module_slash_eval.py --skill sound \
       [--log <odysseus log>] [--extra] -- [bakeoff args, e.g. --only 1 4 16]
@@ -46,7 +46,7 @@ def main(argv: list[str] | None = None) -> int:
     args = ap.parse_args(argv)
 
     sys.path.insert(0, str(args.bakeoff.resolve().parent))
-    import bakeoff  # odysseus-sound's eval script, unmodified
+    import bakeoff  # Athena's eval script, unmodified
 
     if args.extra:
         bakeoff.QUESTIONS.append(EXTRA)

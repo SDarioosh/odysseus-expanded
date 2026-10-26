@@ -422,3 +422,12 @@ def test_owner_fact_in_a_note_and_a_conversation_confirms(db):
     (belief,) = ledger.list_beliefs("alice")
     assert (belief["status"], belief["confirmed_by"]) == ("confirmed", "rule")
     assert {e["source"] for e in belief["evidence"]} == {"notes", "odysseus-sound"}
+
+
+def test_handwritten_notes_are_skipped():
+    """Handwriting goes to Athena (src/ink_notes.py); counting it here too would double it."""
+    from types import SimpleNamespace
+
+    note = SimpleNamespace(label="handwritten", title="Remind Sarah that the dentist moved to Friday",
+                           content="", items=None, source="user", due_date=None, note_type="note")
+    assert ne.skip_reason(note) == "handwritten"

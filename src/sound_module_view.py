@@ -1,4 +1,4 @@
-"""Fork: data for the odysseus-sound page (conversations, "who is this?" cards).
+"""Fork: data for the Athena page (conversations, "who is this?" cards).
 
 Everything comes from the module's MCP tools (``search_conversations``,
 ``get_conversation``, ``get_transcript``, ``list_unnamed_speakers``, ``name_speaker``,
@@ -421,7 +421,7 @@ async def conversations(call: CallTool, *, query: str = "", person: str = "",
                         limit: int = 30) -> list[dict]:
     args: dict[str, Any] = {"query": query, "person": person, "since": since,
                             "until": until, "limit": max(1, min(int(limit), 50))}
-    if kind in ("note", "conversation"):  # odysseus-sound >= kind filter; "" = both
+    if kind in ("note", "conversation"):  # Athena >= kind filter; "" = both
         args["kind"] = kind
     text = await call("search_conversations", args)
     return as_dicts(parse_conversations(text))
