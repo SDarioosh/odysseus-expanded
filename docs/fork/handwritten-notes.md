@@ -286,6 +286,12 @@ As planned, with these details settled while building it:
   Android pens and as 32 on pens with an eraser end; both erase while held, also when
   pressed or released mid-stroke. A barrel press while the pen hovers doesn't erase
   until the tip touches.
+- **Android (found on the Lenovo Tab Plus):** the Write view has one visible canvas, opaque
+  and desynchronized; the pages are drawn off-screen and copied in under the stroke. A
+  transparent desynchronized canvas over another showed the page black while writing,
+  because Chrome moves it to a hardware overlay that ignores transparency. The view also
+  opts out of upstream's swipe-down-to-close for sheets (`data-no-swipe-dismiss`): the
+  pen fires touch events, and a downward stroke closed Write.
 - **Render:** the hub draws the same smoothed curve as the canvas, and highlighter
   marks are laid down as one layer on both, so overlaps don't get darker.
 - **Offline start: not yet.** The idle-time import is in, but it doesn't put Write in

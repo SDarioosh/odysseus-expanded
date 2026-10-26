@@ -442,15 +442,23 @@ export function mountInk(root, options = {}) {
     el('div', { class: 'ink-group' }, undoBtn, redoBtn, ruledBtn, addPageBtn),
     status);
   const stage = el('div', { class: 'ink-stage' });
-  const base = el('canvas', { class: 'ink-canvas ink-base', 'aria-hidden': 'true' });
+  // One visible canvas, opaque and desynchronized (low latency). The pages are drawn
+  // off-screen on `base` and copied in, with the stroke being drawn on top. A
+  // transparent desynchronized canvas over another canvas showed black on Android
+  // while writing: Chrome moves it to a hardware overlay that ignores transparency.
+  const base = document.createElement('canvas');
   const live = el('canvas', { class: 'ink-canvas ink-live', 'aria-label': 'Writing area' });
-  stage.append(base, live);
+  stage.append(live);
   editor.append(bar, stage);
+  // Upstream's mobile sheets close when swiped down from anywhere in a window that
+  // is scrolled to the top (static/js/ui.js), and the pen fires touch events too: a
+  // downward stroke closed Write. Only the window's header keeps that swipe.
+  wrap.setAttribute('data-no-swipe-dismiss', '');
 
   const bctx = base.getContext('2d');
   let lctx = null;
-  try { lctx = live.getContext('2d', { desynchronized: true }); } catch (_) { lctx = null; }
-  if (!lctx) lctx = live.getContext('2d');
+  try { lctx = live.getContext('2d', { desynchronized: true, alpha: false }); } catch (_) { lctx = null; }
+  if (!lctx) lctx = live.getContext('2d', { alpha: false });
 
   function iconBtn(icon, label, onclick) {
     const b = el('button', { type: 'button', class: 'bs-btn', title: label, 'aria-label': label, onclick });
@@ -493,11 +501,11 @@ export function mountInk(root, options = {}) {
     for (const c of [base, live]) {
       c.width = Math.round(cssW * dpr);
       c.height = Math.round(cssH * dpr);
-      c.style.width = `${cssW}px`;
-      c.style.height = `${cssH}px`;
     }
+    live.style.width = `${cssW}px`;
+    live.style.height = `${cssH}px`;
     clampScroll();
-    render();
+    renderNow(); // resizing cleared the canvases: draw now, not a frame later (no flash)
   }
 
   // ------------------------------------------------------------ render
@@ -515,8 +523,10 @@ export function mountInk(root, options = {}) {
   function renderNow() {
     const ctx = bctx;
     ctx.setTransform(dpr, 0, 0, dpr, 0, 0);
-    ctx.clearRect(0, 0, cssW, cssH);
-    if (!state.note) return;
+    // Opaque: the stage's own background (a theme color) around the pages.
+    ctx.fillStyle = getComputedStyle(stage).backgroundColor || '#808080';
+    ctx.fillRect(0, 0, cssW, cssH);
+    if (!state.note) { present(); return; }
     const k = scale();
     const top = state.sy;
     const bottom = state.sy + cssH / k;
@@ -584,11 +594,14 @@ export function mountInk(root, options = {}) {
       for (const st of page.strokes) if (!st.pen.highlighter) drawStroke(ctx, st, map, k);
       ctx.restore();
     }
+    present();
   }
 
-  function renderLive() {
+  // The visible canvas: the pages, then the stroke being drawn (or the eraser ring).
+  function present() {
+    lctx.setTransform(1, 0, 0, 1, 0, 0);
+    lctx.drawImage(base, 0, 0);
     lctx.setTransform(dpr, 0, 0, dpr, 0, 0);
-    lctx.clearRect(0, 0, cssW, cssH);
     const lv = state.live;
     if (!lv) return;
     const y0 = pageTop(lv.pageIndex);
@@ -605,6 +618,8 @@ export function mountInk(root, options = {}) {
     }
     drawStroke(lctx, lv.stroke, (p) => toScreen(p[0], p[1] + y0), scale());
   }
+
+  const renderLive = present;
 
   // ------------------------------------------------------------- input
   function currentPen() {
@@ -1288,6 +1303,7 @@ export function mountInk(root, options = {}) {
     _router: router,
     _persist: () => persist(),
     _clamp: () => clampScroll(),
+    _base: base,
     _deleteLocal: deleteLocal,
     _timers: () => timers.length,
     strokeCount: () => (state.note ? state.note.pages.reduce((n, p) => n + p.strokes.length, 0) : 0),

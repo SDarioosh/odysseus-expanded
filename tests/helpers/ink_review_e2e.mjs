@@ -186,8 +186,13 @@ await check('f13_conflict_mid_stroke', async () => {
     fire('pointerdown', 'pen', 2, 150, 400, { buttons: 1 });
     fire('pointermove', 'pen', 2, 200, 420, { buttons: 1 });
     await settle(600);
-    const liveCleared = (() => { const c = canvas(); const d = c.getContext('2d').getImageData(0, 0, c.width, c.height).data;
-      for (let i = 3; i < d.length; i += 4) if (d[i]) return false; return true; })();
+    // Nothing of the dropped stroke is left: the visible canvas is just the pages.
+    const liveCleared = (() => {
+      const a = canvas().getContext('2d').getImageData(0, 0, canvas().width, canvas().height).data;
+      const b = view._base.getContext('2d').getImageData(0, 0, view._base.width, view._base.height).data;
+      for (let i = 0; i < a.length; i++) if (Math.abs(a[i] - b[i]) > 2) return false;
+      return true;
+    })();
     fire('pointermove', 'pen', 2, 260, 420, { buttons: 1 });
     fire('pointerup', 'pen', 2, 260, 420, { buttons: 0 });
     await settle(50);
@@ -256,7 +261,7 @@ await check('f15_highlighter_overlap', async () => {
     stroke('pen', 2, [[150, 300], [450, 300]]);
     stroke('pen', 2, [[300, 300], [600, 300]]);
     await settle(100);
-    const c = document.querySelector('.ink-base');
+    const c = canvas();
     const ctx = c.getContext('2d');
     const dpr = c.width / c.getBoundingClientRect().width;
     const px = (x, y) => [...ctx.getImageData(Math.round(x * dpr), Math.round(y * dpr), 1, 1).data];
@@ -330,6 +335,30 @@ await check('f13d_newer_local_edit_wins', async () => {
   });
   await page.close();
   return { ok: got.title !== 'Desktop' && got.strokes === 2 && got.hubStrokes === 2 && got.puts < 8, ...got };
+});
+
+// The black page while writing (Android): the visible canvas is opaque and shows the
+// page under the stroke being drawn, so a hardware overlay has nothing to show black.
+await check('opaque_canvas_while_writing', async () => {
+  const page = await openPage(browser, { user: 'nia' });
+  await newNote(page);
+  const got = await page.evaluate(async () => {
+    await settle(50);
+    fire('pointerdown', 'pen', 2, 200, 300, { buttons: 1 });
+    fire('pointermove', 'pen', 2, 300, 320, { buttons: 1 });
+    const c = canvas();
+    const dpr = c.width / c.getBoundingClientRect().width;
+    const px = (x, y) => [...c.getContext('2d').getImageData(Math.round(x * dpr), Math.round(y * dpr), 1, 1).data];
+    const attrs = c.getContext('2d').getContextAttributes ? c.getContext('2d').getContextAttributes() : {};
+    const out = { paper: px(600, 500), stroke: px(250, 310), alpha: attrs.alpha, desync: attrs.desynchronized,
+      canvases: document.querySelectorAll('.ink-root canvas').length,
+      noSwipe: document.querySelector('.ink-root').hasAttribute('data-no-swipe-dismiss') };
+    fire('pointerup', 'pen', 2, 300, 320, { buttons: 0 });
+    return out;
+  });
+  await page.close();
+  const white = got.paper.slice(0, 3).every((v) => v > 240) && got.paper[3] === 255;
+  return { ok: white && got.stroke[0] < 120 && got.alpha === false && got.canvases === 1 && got.noSwipe, ...got };
 });
 
 await browser.close();
