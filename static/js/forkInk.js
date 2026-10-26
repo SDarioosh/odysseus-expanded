@@ -464,8 +464,8 @@ export function mountInk(root, options = {}) {
   // than the one shown is dropped (a slow GET must not undo a newer transcribe answer).
   let trAsked = 0;
   let trTaken = 0;
-  // H4: the note being sent to Athena (one at a time), and the last answer to show.
-  let sendingId = null;
+  // H4: the notes being sent to Athena (one send per note), and the last answer to show.
+  const sendingIds = new Set();
   let athenaMsg = null;       // { noteId, text, error, link, key }: shown while `key` holds
   const syncing = new Map();  // note id -> { promise, again }
   let timers = [];
@@ -1579,10 +1579,13 @@ export function mountInk(root, options = {}) {
     tArea.dataset.key = key;
     tArea.readOnly = pending; // the model's text is on its way
     updateHighlight();
+    // While the note is sent to Athena its text stays as it is (typing is kept as a draft).
+    const sending = sendingIds.has(state.note.id);
     tTranscribe.textContent = tp && (tp.status === 'machine' || tp.status === 'reviewed') ? 'Transcribe again' : 'Transcribe';
-    tTranscribe.disabled = pending || !inkOf(page);
-    tSave.disabled = pending || !tr || tr.missing || !tp;
+    tTranscribe.disabled = pending || sending || !inkOf(page);
+    tSave.disabled = pending || sending || !tr || tr.missing || !tp;
     tRestore.hidden = !(tp && tp.previous && tp.previous.text);
+    tRestore.disabled = sending;
     renderSend();
     if (message) { setTState(message, true); return; }
     const unsaved = draft != null && draft !== (tp ? tp.text : '') ? ' Edits not saved yet.' : '';
@@ -1620,7 +1623,7 @@ export function mountInk(root, options = {}) {
 
   function renderSend() {
     const a = tr && !tr.missing && tr.noteId === state.note.id ? tr.athena : null;
-    const busy = sendingId === state.note.id || !!(a && a.sending);
+    const busy = sendingIds.has(state.note.id) || !!(a && a.sending);
     const unsaved = a ? unsavedPages() : [];
     const waiting = (a && a.waiting) || [];
     let line = '';
@@ -1647,10 +1650,13 @@ export function mountInk(root, options = {}) {
       line = 'Not sent to Athena yet.';
       tSend.disabled = false;
     } else line = 'Nothing to send yet: review a page first.';
-    const msg = athenaMsg && athenaMsg.noteId === state.note.id && athenaMsg.key === athenaKey(a) ? athenaMsg : null;
-    if (msg && !busy) { line = msg.text; error = !!msg.error; }
+    // The last Send's answer, while Athena's state is the one it describes; pages waiting
+    // or edits not saved yet are said instead.
+    const quiet = !busy && !waiting.length && !unsaved.length;
+    const msg = quiet && athenaMsg && athenaMsg.noteId === state.note.id && athenaMsg.key === athenaKey(a) ? athenaMsg : null;
+    if (msg) { line = msg.text; error = !!msg.error; }
     tAthena.append(line);
-    const link = msg && !busy ? msg.link : (a.state === 'sent' && !busy && !waiting.length ? a.transcript_link : null);
+    const link = msg ? msg.link : (a.state === 'sent' && quiet ? a.transcript_link : null);
     if (link && /^https?:\/\//.test(link)) {
       tAthena.append(' ', el('a', { href: link, target: '_blank', rel: 'noopener', text: 'Open in Athena' }));
     }
@@ -1658,11 +1664,11 @@ export function mountInk(root, options = {}) {
   }
 
   async function sendToAthena() {
-    if (!state.note || state.view !== 'text' || state.live || sendingId) return;
+    if (!state.note || state.view !== 'text' || state.live || sendingIds.has(state.note.id)) return;
     const my = nav;
     const db = store;
     const id = state.note.id;
-    sendingId = id;
+    sendingIds.add(id);
     athenaMsg = null;
     renderText();
     const say = (text, error, link = null) => {
@@ -1674,12 +1680,13 @@ export function mountInk(root, options = {}) {
         return;
       }
       if (!current(my, id, db)) return;
-      const seq = ++trAsked;
       let res = null;
       try { res = await api(`${API}/${enc(id)}/send`, { method: 'POST', body: '{}' }); } catch (_) { res = null; }
       if (!current(my, id, db)) return; // another note, screen or user meanwhile
       if (res && res.ok) {
-        takeTranscripts(id, res.body, seq);
+        // The hub made this answer after the send, so it is newer than any transcripts
+        // read that finished while the send was in flight: numbered on arrival.
+        takeTranscripts(id, res.body, ++trAsked);
         const sent = (res.body && res.body.sent) || {};
         const words = { created: 'Sent to Athena.', replaced: 'Sent again: Athena replaced the note.',
           unchanged: 'Athena already had this text.', deleted: 'Removed from Athena: the note has no text now.',
@@ -1688,7 +1695,7 @@ export function mountInk(root, options = {}) {
       } else if (!res) say('Not sent: the hub is not reachable. Try again when it is back.', true);
       else say(`Not sent: ${(res.body && res.body.detail) || `the hub said ${res.status}`}`, true);
     } finally {
-      if (sendingId === id) sendingId = null;
+      if (db === store) sendingIds.delete(id);
       if (current(my, id, db)) renderText();
     }
   }
@@ -1711,7 +1718,7 @@ export function mountInk(root, options = {}) {
     const key = tArea.dataset.key;
     if (!key || !key.startsWith(`${state.note.id}:`)) return;
     updateHighlight();
-    queueMicrotask(() => { if (state.note && state.view === 'text') renderSend(); });
+    queueMicrotask(() => { if (state.note && state.view === 'text') renderText(); });
     const db = store;
     const tp = trPage(key.slice(state.note.id.length + 1));
     if (tp && tArea.value === tp.text) { // back to the hub's text: nothing to keep
@@ -1775,7 +1782,7 @@ export function mountInk(root, options = {}) {
   function restorePrevious() {
     const page = state.note && state.note.pages[state.textPage];
     const tp = page && trPage(page.id);
-    if (!tp || !tp.previous || tArea.readOnly) return;
+    if (!tp || !tp.previous || tArea.readOnly || sendingIds.has(state.note.id)) return;
     tArea.value = tp.previous.text;
     tArea.dispatchEvent(new Event('input'));
     renderText();
@@ -1831,7 +1838,7 @@ export function mountInk(root, options = {}) {
   }
 
   async function transcribeCurrent() {
-    if (!state.note || state.live || state.view !== 'text') return;
+    if (!state.note || state.live || state.view !== 'text' || sendingIds.has(state.note.id)) return;
     const id = state.note.id;
     const page = state.note.pages[state.textPage];
     const tp = trPage(page.id);
@@ -1850,7 +1857,7 @@ export function mountInk(root, options = {}) {
   }
 
   async function saveReview() {
-    if (!state.note || state.view !== 'text') return;
+    if (!state.note || state.view !== 'text' || sendingIds.has(state.note.id)) return;
     const my = nav;
     const db = store;
     const id = state.note.id;
@@ -1868,6 +1875,7 @@ export function mountInk(root, options = {}) {
     if (res && res.ok) {
       await dropDraft(key, text);
       if (current(my, id, db)) {
+        if (athenaMsg && athenaMsg.noteId === id) athenaMsg = null; // the text changed since that Send
         takeTranscripts(id, res.body, seq);
         renderText();
         if (tArea.dataset.key === key && !drafts.has(key)) setTState('Reviewed and saved in the note. It stays in the hub.');
@@ -2109,6 +2117,8 @@ export function mountInk(root, options = {}) {
     syncing.clear();
     drafts.clear(); // the last user's text never shows for this one
     tr = null;
+    sendingIds.clear(); // the last user's sends answer to nobody here
+    athenaMsg = null;
     edited.clear();
     if (state.note) {
       state.live = null;
