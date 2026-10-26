@@ -521,3 +521,220 @@ def test_send_route_auth(env):
     assert client_for("bob").delete(f"/api/ink/notes/{note_id}").status_code == 404
     assert client_for("alice").post("/api/ink/notes/short/send").status_code == 404
     assert env.requests == []
+
+
+# ------------------------------------------------- QC review of H4 (PR 95), one per finding
+def _resave(note_id, pages, owner="alice", edited_at=None):
+    """Save ``pages`` (sidecar pages or new ones) as the note's strokes, like the Write view."""
+    body = [{k: p[k] for k in ("id", "width", "height", "strokes")} for p in pages]
+    ink.save(owner, note_id, {"ruled": True, "pages": body,
+                              "edited_at": edited_at or int(time.time() * 1000)})
+
+
+def test_qc01_erased_page_sends_nothing_of_its_old_text(env):
+    note_id = reviewed(texts=("Secret text on page 1 that I will erase", "Kept text on page 2"))
+    send(note_id)
+    pages = sidecar(note_id)["pages"]
+    _resave(note_id, [{**pages[0], "strokes": []}, pages[1]])
+    asyncio.run(tr.start("alice", note_id, only_changed=True, reader=("m", None)))
+    out = tr.transcripts("alice", note_id)
+    assert out["pages"][0]["status"] == "none" and out["pages"][0]["text"] == ""
+    assert out["pages"][0]["previous"]["text"].startswith("Secret")  # can still be restored
+    assert out["athena"]["waiting"] == [] and out["athena"]["state"] == "changed"
+    assert send(note_id)["sent"]["result"] == "replaced"
+    assert env.posts()[-1]["text"] == "Kept text on page 2"
+
+
+def test_qc02_timeout_while_the_note_is_deleted_still_retracts_it(env, monkeypatch):
+    note_id = reviewed()
+    answer = env.__call__
+
+    def handler(request):
+        response = answer(request)  # Athena stores it ...
+        if request.method == "POST":
+            ink.delete("alice", note_id)  # ... the owner deletes the note meanwhile ...
+            raise httpx.ReadTimeout("late", request=request)  # ... and the answer is lost
+        return response
+    monkeypatch.setattr(athena, "TRANSPORT", httpx.MockTransport(handler))
+    with pytest.raises(ink.InkError) as err:
+        send(note_id)
+    assert err.value.status == 502
+    assert f"hub-note:{note_id}" not in env.notes  # retracted right after the send
+    assert sidecar(note_id) is None
+    assert ink.is_deleted("alice", note_id)
+
+
+def test_qc02_timeout_while_athena_is_down_retracts_on_the_sweep(env, monkeypatch):
+    note_id = reviewed()
+    answer = env.__call__
+
+    def handler(request):
+        response = answer(request)
+        if request.method == "POST":
+            ink.delete("alice", note_id)
+            env.down = True  # the DELETE right after fails too
+            raise httpx.ReadTimeout("late", request=request)
+        return response
+    monkeypatch.setattr(athena, "TRANSPORT", httpx.MockTransport(handler))
+    with pytest.raises(ink.InkError):
+        send(note_id)
+    assert sidecar(note_id)["athena"]["maybe_sent"] is True
+    assert ink.sweep("alice") == []  # kept: Athena may hold it
+    env.down = False
+    assert asyncio.run(athena.sweep("alice"))["retracted"] == 1
+    assert f"hub-note:{note_id}" not in env.notes and sidecar(note_id) is None
+
+
+def test_qc02_refused_send_of_a_deleted_note_asks_athena_nothing(env):
+    note_id = reviewed()
+    env.answer = (413, {"detail": "too large"})
+    with pytest.raises(ink.InkError):
+        send(note_id)
+    assert not sidecar(note_id)["athena"].get("maybe_sent")
+    env.answer = None
+    ink.delete_note("alice", note_id)
+    assert ink.sweep("alice") == [note_id]  # Athena refused it: nothing to retract
+    assert env.deletes() == []
+
+
+def test_qc02_success_while_the_note_is_deleted_retracts_it(env, monkeypatch):
+    note_id = reviewed()
+    answer = env.__call__
+
+    def handler(request):
+        response = answer(request)
+        if request.method == "POST":
+            ink.delete("alice", note_id)
+        return response
+    monkeypatch.setattr(athena, "TRANSPORT", httpx.MockTransport(handler))
+    with pytest.raises(ink.InkError) as err:
+        send(note_id)
+    assert err.value.status == 404
+    assert env.deletes() == [f"hub-note:{note_id}"]
+    assert f"hub-note:{note_id}" not in env.notes and sidecar(note_id) is None
+
+
+def test_qc02_crash_mid_send_is_retracted_after_the_grace_time(env):
+    note_id = reviewed()
+    stored = sidecar(note_id)
+    stored["athena"]["sending"] = 1_000.0  # the hub died during this send
+    ink._write_json(ink.sidecar_path("alice", note_id), stored)
+    ink.delete_note("alice", note_id)
+    assert asyncio.run(athena.sweep("alice", clock=lambda: 1_100.0))["retracted"] == 0
+    stats = asyncio.run(athena.sweep("alice", clock=lambda: 1_000.0 + athena.SEND_GRACE_SECONDS))
+    assert stats["retracted"] == 1 and sidecar(note_id) is None
+
+
+def test_qc05_new_writing_on_a_sent_note_is_changed(env):
+    note_id = reviewed(texts=("Buy milk",))
+    send(note_id)
+    stored = sidecar(note_id)
+    stored["pages"][0]["strokes"].append(word(400, "s2"))
+    ink._write_json(ink.sidecar_path("alice", note_id), stored)
+    assert ink.list_notes("alice")[0]["athena"] == "changed"  # before it is read again
+    assert tr.transcripts("alice", note_id)["athena"]["state"] == "changed"
+    stored = sidecar(note_id)
+    tr._keep_reviewed(stored["pages"][0]["transcript"])
+    stored["pages"][0]["transcript"].update(status="machine", text="Buy milk\nCall mom",
+                                            strokes_hash=tr.writing_hash(stored["pages"][0]))
+    ink._write_json(ink.sidecar_path("alice", note_id), stored)
+    view = tr.transcripts("alice", note_id)["athena"]  # read again, not reviewed yet
+    assert view["state"] == "changed" and view["waiting"] == [
+        {"page": 1, "why": "machine text to check"}]
+    assert ink.list_notes("alice")[0]["athena"] == "changed"
+
+
+def test_qc06_single_user_mode_sweeps_every_owner(env):
+    note_id = reviewed()  # written while the hub had users
+    send(note_id)
+    ink.delete_note("alice", note_id)  # deleted in the Notes window
+    assert ink.list_notes(None) == []
+    stats = asyncio.run(athena.sweep(None))
+    assert stats["retracted"] == 1
+    assert f"hub-note:{note_id}" not in env.notes and sidecar(note_id) is None
+
+
+def test_qc07_highlighting_a_reviewed_page_keeps_its_review(env):
+    note_id = reviewed(texts=("Buy milk",))
+    stored = sidecar(note_id)
+    p0 = stored["pages"][0]
+    assert tr.writing_hash(p0) == ink.strokes_hash(p0)  # no highlighter: reviews stay valid
+    p0["strokes"].append({**word(150, "h1"), "pen": {**PEN, "highlighter": True}})
+    ink._write_json(ink.sidecar_path("alice", note_id), stored)
+    p0 = sidecar(note_id)["pages"][0]
+    assert tr.writing_hash(p0) != ink.strokes_hash(p0)
+    assert not tr.needs_transcription(p0)
+    out = tr.transcripts("alice", note_id)
+    assert not out["pages"][0]["changed"] and out["athena"]["waiting"] == []
+    assert send(note_id)["sent"]["result"] == "created"
+
+
+def test_qc07_highlighter_left_alone_on_a_page_clears_its_text(env):
+    note_id = reviewed(texts=("Buy milk",))
+    hl = {**word(150, "h1"), "pen": {**PEN, "highlighter": True}}
+    _resave(note_id, [{**sidecar(note_id)["pages"][0], "strokes": [hl]}])
+    p0 = sidecar(note_id)["pages"][0]
+    assert not tr.has_ink(p0) and tr.needs_transcription(p0)  # the writing was erased
+
+
+def test_qc09_failed_first_send_does_not_fix_written_at(env):
+    note_id = new_note(pages=[page("p0", at=1_700_000_000_000)])  # 2023-11-14
+    tr.save_review("alice", note_id, "p0", "Draft")
+    env.down = True
+    with pytest.raises(ink.InkError):
+        send(note_id)
+    env.down = False
+    assert sidecar(note_id)["athena"].get("written_at") is None
+    _resave(note_id, [page("p0", at=FIRST_STROKE_MS)])  # rewritten on 2026-09-21
+    tr.save_review("alice", note_id, "p0", "New text")
+    send(note_id)
+    assert env.posts()[-1]["written_at"] == "2026-09-21T14:13:20Z"
+    assert sidecar(note_id)["athena"]["written_at"] == FIRST_STROKE_MS // 1000
+
+
+def test_qc10_a_stroke_from_an_unset_clock_is_left_out(env):
+    stored = {"pages": [{"strokes": [{"at": 1000}, {"at": True}, {"at": FIRST_STROKE_MS}]}]}
+    assert athena._first_written(stored) == FIRST_STROKE_MS // 1000
+    assert athena._first_written({"pages": [{"strokes": [{"at": 1000}]}]}) is None
+
+
+def test_qc11_owner_lock_is_the_folder_lock():
+    for owner in ("Alice Smith", "_x", "a" * 80, "alice"):
+        assert ink._lock(owner) is ink._lock(ink._owner_dir_name(owner))
+
+
+@pytest.mark.parametrize("configured", [
+    "https://hub.example.ts.net/?pwa=1", "https://hub.example.ts.net/#home",
+    "HTTPS://hub.example.ts.net", "https://hub.example.ts.net/"])
+def test_qc12_public_url_is_normalized(env, monkeypatch, configured):
+    monkeypatch.setattr("src.settings.get_setting", lambda key, default=None: configured)
+    link = athena.note_url(athena.hub_base(), "n1")
+    assert link == f"{HUB}/#open=notes&note=n1"
+    assert athena.check_link(link) is None
+
+
+def test_qc12_unusable_public_url_falls_back_to_the_request(env, monkeypatch):
+    monkeypatch.setattr("src.settings.get_setting", lambda key, default=None: "hub.example.ts.net")
+    assert athena.hub_base("http://100.64.0.7:7010/") == "http://100.64.0.7:7010"
+    assert athena.hub_base(None) == "hub.example.ts.net"  # nothing usable: Send says so
+    monkeypatch.setattr("src.settings.get_setting", lambda key, default=None: "")
+    monkeypatch.setenv("APP_PUBLIC_URL", "http://hub.lan:7010/sub/")
+    assert athena.hub_base("http://127.0.0.1:7010/") == "http://hub.lan:7010/sub"
+
+
+def _content(note_id):
+    db = cdb.SessionLocal()
+    try:
+        return db.query(cdb.Note).filter(cdb.Note.id == note_id).first().content
+    finally:
+        db.close()
+
+
+def test_qc13_removing_or_moving_pages_updates_the_note_content(env):
+    note_id = reviewed(texts=("Page 1", "Page 2", "Page 3"))
+    assert _content(note_id) == "Page 1\n\nPage 2\n\nPage 3"
+    pages = sidecar(note_id)["pages"]
+    _resave(note_id, [pages[2], pages[0]], edited_at=5000)
+    assert _content(note_id) == "Page 3\n\nPage 1"
+    _resave(note_id, [pages[2], pages[0]] + [page("p9", lines=())], edited_at=6000)
+    assert _content(note_id) == "Page 3\n\nPage 1"

@@ -12,10 +12,10 @@ Per page, the sidecar's ``transcript`` is::
 
 ``status`` is ``none`` -> ``pending`` -> ``machine`` (model output, not reviewed) or
 ``failed``; saving reviewed text makes it ``reviewed``. A page whose strokes no longer
-hash to ``strokes_hash`` has changed since its text was made and needs transcribing
-again. Nothing here sends text anywhere: review only writes the hub note's ``content``
-through the adapter in ``src/ink_notes.py``; only Send (``src/ink_athena.py``, H4) sends
-reviewed text to Athena.
+hash to ``strokes_hash`` (:func:`writing_hash`, the highlighter left out) has changed
+since its text was made and needs transcribing again. Nothing here sends text anywhere:
+review only writes the hub note's ``content`` through the adapter in
+``src/ink_notes.py``; only Send (``src/ink_athena.py``, H4) sends reviewed text to Athena.
 
 How a page is read:
 
@@ -100,6 +100,13 @@ def _ink_strokes(page: dict[str, Any]) -> list[dict[str, Any]]:
 
 def has_ink(page: dict[str, Any]) -> bool:
     return bool(_ink_strokes(page))
+
+
+def writing_hash(page: dict[str, Any]) -> str:
+    """Hash of the page's writing: its strokes without the highlighter, which the model
+    never sees, so highlighting a reviewed page doesn't ask for a new transcription or
+    review. The same as ``ink.strokes_hash`` for a page without highlighter strokes."""
+    return ink.strokes_hash({**page, "strokes": _ink_strokes(page)})
 
 
 def _extents(page: dict[str, Any]) -> list[tuple[float, float]]:
@@ -436,7 +443,7 @@ def _status(t: dict[str, Any]) -> str:
 def _stale_run(page: dict[str, Any], t: dict[str, Any]) -> bool:
     """The page is pending, but its strokes changed after the run took it (strokes drawn
     while it was read): a new run may take it over."""
-    return t.get("reading") not in (None, ink.strokes_hash(page))
+    return t.get("reading") not in (None, writing_hash(page))
 
 
 def needs_transcription(page: dict[str, Any]) -> bool:
@@ -447,9 +454,9 @@ def needs_transcription(page: dict[str, Any]) -> bool:
     if status == "pending":
         return _stale_run(page, t)
     if not has_ink(page):  # its ink was erased: clear what was read from it, once
-        return (t.get("strokes_hash") not in (None, ink.strokes_hash(page))
+        return (t.get("strokes_hash") not in (None, writing_hash(page))
                 and (bool(t.get("text")) or status != "none"))
-    return status in ("none", "failed") or t.get("strokes_hash") != ink.strokes_hash(page)
+    return status in ("none", "failed") or t.get("strokes_hash") != writing_hash(page)
 
 
 def page_view(page: dict[str, Any], index: int) -> dict[str, Any]:
@@ -460,7 +467,7 @@ def page_view(page: dict[str, Any], index: int) -> dict[str, Any]:
     if status == "failed" and t.get("status") == "pending":
         error = "Interrupted (the hub restarted): transcribe again."
     text = t.get("text") or ""
-    changed = status in ("machine", "reviewed") and t.get("strokes_hash") != ink.strokes_hash(page)
+    changed = status in ("machine", "reviewed") and t.get("strokes_hash") != writing_hash(page)
     out = {"id": page.get("id"), "index": index, "status": status, "text": text,
            "model": t.get("model"), "at": t.get("at"),
            "error": error if status == "failed" else None, "ink": has_ink(page),
@@ -561,7 +568,7 @@ def _prepare(owner: str | None, note_id: str, page_ids: list[str] | None,
         for page in empty:
             t = _transcript(page)
             _keep_reviewed(t)
-            t.update(text="", model=None, status="none", strokes_hash=ink.strokes_hash(page),
+            t.update(text="", model=None, status="none", strokes_hash=writing_hash(page),
                      at=now(), error=None, job=None)
             t.pop("reading", None)
         job = uuid.uuid4().hex if work else None
@@ -569,7 +576,7 @@ def _prepare(owner: str | None, note_id: str, page_ids: list[str] | None,
         for page in work:
             t = _transcript(page)
             _keep_reviewed(t)
-            t.update(status="pending", job=job, error=None, reading=ink.strokes_hash(page))
+            t.update(status="pending", job=job, error=None, reading=writing_hash(page))
             snapshot.append(json.loads(json.dumps(page)))
         if job:
             _RUNNING.add(job)
@@ -637,7 +644,7 @@ def _store_result(store: str | None, note_id: str, page: dict[str, Any], job: st
             t.update(status="failed", error=error, job=None)
         else:
             t.update(text=text, model=model, status="machine",
-                     strokes_hash=ink.strokes_hash(page), at=now(), error=None, job=None)
+                     strokes_hash=writing_hash(page), at=now(), error=None, job=None)
         ink._write_json(ink.sidecar_path(store, note_id), stored)
 
 
@@ -657,7 +664,7 @@ def save_review(owner: str | None, note_id: str, page_id: str, text: Any,
         if page is None:
             raise ink.InkError("Page not found", 404)
         t = _transcript(page)
-        t.update(text=clean_text(text), status="reviewed", strokes_hash=ink.strokes_hash(page),
+        t.update(text=clean_text(text), status="reviewed", strokes_hash=writing_hash(page),
                  at=now(), error=None, job=None)
         t.pop("previous", None)
         t.pop("reading", None)
