@@ -215,9 +215,9 @@ def test_source_edit_follows_or_moves(data):
 def test_source_rewording_keeps_the_owners_decision(data):
     """Athena re-summarized a conversation and reworded a fact under the same id: the
     owner's confirmed (or dismissed) belief keeps it, no second belief in memory."""
-    bike = "Shahyah owns a carbureted motorcycle with no computer on it."
-    reworded = "Shahyah owns a carbureted motorcycle that has no computer."
-    person = {"about": "person", "subject": "Shahyah"}
+    bike = "Marisol owns a carbureted motorcycle with no computer on it."
+    reworded = "Marisol owns a carbureted motorcycle that has no computer."
+    person = {"about": "person", "subject": "Marisol"}
     ei.submit("alice", [ev("odysseus-sound", "7", bike, **person)], now=T0)
     ei.confirm("alice", only()["id"], now=T0)
     ei.submit("alice", [ev("odysseus-sound", "7", reworded, source_confirmed=True, **person)],
