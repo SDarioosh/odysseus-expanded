@@ -50,3 +50,32 @@
 .ink-root .ink-canvas { position: absolute; inset: 0; display: block; }
 .ink-root .ink-live { touch-action: none; user-select: none; -webkit-user-select: none;
                       -webkit-touch-callout: none; cursor: crosshair; }
+
+/* H2: the Write / Text tabs, the Text tab (page above, transcript below) and the
+   Needs review list. */
+.ink-root .ink-tab[aria-selected="true"] { border-color: var(--fg); }
+.ink-root .ink-group[hidden], .ink-root .ink-stage[hidden], .ink-root .ink-text[hidden],
+.ink-root .bs-btn[hidden] { display: none; }
+.ink-root .ink-text { display: flex; flex-direction: column; flex: 1; min-height: 0; gap: 8px; padding: 8px 10px; }
+.ink-root .ink-trow { display: flex; flex-wrap: wrap; gap: 6px; align-items: center; }
+.ink-root .ink-trow .bs-btn { height: 34px; min-width: 34px; }
+.ink-root .ink-tspacer { flex: 1; }
+.ink-root .ink-tstate.error { color: var(--red); }
+.ink-root .ink-tfigure { flex: 0 1 auto; max-height: 46%; min-height: 80px; overflow: auto;
+                         border: 1px solid var(--border); border-radius: 4px; background: #fff; }
+.ink-root .ink-timage { display: block; }
+.ink-root .ink-tedit { position: relative; flex: 1; min-height: 140px; }
+.ink-root .ink-thl, .ink-root .ink-tarea {
+  position: absolute; inset: 0; margin: 0; box-sizing: border-box; padding: 10px;
+  border: 1px solid var(--border); border-radius: 4px; font: inherit; font-size: 15px; line-height: 1.5;
+  white-space: pre-wrap; overflow-wrap: break-word; word-break: normal; tab-size: 4;
+  overflow-y: scroll; scrollbar-gutter: stable; letter-spacing: normal;
+}
+.ink-root .ink-thl { color: transparent; background: var(--bg); pointer-events: none; overflow: hidden; }
+.ink-root .ink-thl mark { color: transparent; border-radius: 2px;
+                          background: color-mix(in srgb, var(--red) 35%, transparent); }
+.ink-root .ink-tarea { background: transparent; color: var(--fg); resize: none; outline: none; }
+.ink-root .ink-tarea:focus { border-color: var(--fg); }
+.ink-root .ink-tarea[readonly] { opacity: 0.7; }
+.ink-root .ink-review { margin: 0 0 10px; display: flex; flex-direction: column; gap: 6px; align-items: flex-start; }
+.ink-root .ink-review-item { height: auto; min-height: 34px; text-align: left; white-space: normal; }
