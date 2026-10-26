@@ -42,6 +42,7 @@ import io
 import json
 import logging
 import re
+import time
 import uuid
 import weakref
 from typing import Any, Awaitable, Callable
@@ -564,8 +565,11 @@ async def _run(store: str | None, note_id: str, job: str,
     model, read = reader
     try:
         for page in pages:
+            started = time.monotonic()
             try:
                 text, error = await read_page(page, read), None
+                logger.info("ink transcribe: page read in %.1f s (%d characters)",
+                            time.monotonic() - started, len(text))
                 model = getattr(read, "answered_by", None) or model
             except asyncio.CancelledError:
                 raise
