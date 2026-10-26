@@ -145,3 +145,16 @@ def test_note_link_opens_the_note_in_the_app(env):
     assert re.match(js_regex, hash_part)
     renderer = (REPO / "static/js/chatRenderer.js").read_text()
     assert "#open=notes&note=" in renderer  # upstream's click handler for these links
+
+
+def test_write_view_opts_out_of_upstreams_swipe_to_dismiss():
+    """Upstream's mobile sheets close on a downward swipe from anywhere in a window
+    scrolled to the top (static/js/ui.js), and Android pens fire touch events: without
+    the opt-out, a downward stroke closed Write. Fails if upstream drops the hook."""
+    ui = (REPO / "static/js/ui.js").read_text()
+    start = ui.index("document.addEventListener('touchstart', (e) => {\n    // Match .modal-content")
+    swipe_start = ui[start:start + 2500]
+    # The guard itself (not the comment above it): closest(... [data-no-swipe-dismiss] ...)) return;
+    assert re.search(r"closest\([^)]*\[data-no-swipe-dismiss\][^)]*\)\) return;", swipe_start)
+    ink = (REPO / "static/js/forkInk.js").read_text()
+    assert "wrap.setAttribute('data-no-swipe-dismiss', '')" in ink

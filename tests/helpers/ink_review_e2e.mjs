@@ -1,7 +1,7 @@
 // Fork: browser checks for the Write view (static/js/forkInk.js), one per finding of the
 // PR 88 QC review that needs a real browser. Each check asserts the correct behaviour.
 // Prints one JSON line {name: {ok, detail}}; "SKIP <reason>" without a browser.
-// Run by tests/test_ink_palm_rejection.py. The h2_* checks cover the H2 Text tab.
+// Run by tests/test_ink_view_review.py.
 import { launch, openPage } from './ink_view_harness.mjs';
 
 const { browser, skip } = await launch();
@@ -186,8 +186,13 @@ await check('f13_conflict_mid_stroke', async () => {
     fire('pointerdown', 'pen', 2, 150, 400, { buttons: 1 });
     fire('pointermove', 'pen', 2, 200, 420, { buttons: 1 });
     await settle(600);
-    const liveCleared = (() => { const c = canvas(); const d = c.getContext('2d').getImageData(0, 0, c.width, c.height).data;
-      for (let i = 3; i < d.length; i += 4) if (d[i]) return false; return true; })();
+    // Nothing of the dropped stroke is left: the visible canvas is just the pages.
+    const liveCleared = (() => {
+      const a = canvas().getContext('2d').getImageData(0, 0, canvas().width, canvas().height).data;
+      const b = view._base.getContext('2d').getImageData(0, 0, view._base.width, view._base.height).data;
+      for (let i = 0; i < a.length; i++) if (Math.abs(a[i] - b[i]) > 2) return false;
+      return true;
+    })();
     fire('pointermove', 'pen', 2, 260, 420, { buttons: 1 });
     fire('pointerup', 'pen', 2, 260, 420, { buttons: 0 });
     await settle(50);
@@ -256,7 +261,7 @@ await check('f15_highlighter_overlap', async () => {
     stroke('pen', 2, [[150, 300], [450, 300]]);
     stroke('pen', 2, [[300, 300], [600, 300]]);
     await settle(100);
-    const c = document.querySelector('.ink-base');
+    const c = canvas();
     const ctx = c.getContext('2d');
     const dpr = c.width / c.getBoundingClientRect().width;
     const px = (x, y) => [...ctx.getImageData(Math.round(x * dpr), Math.round(y * dpr), 1, 1).data];
@@ -330,6 +335,107 @@ await check('f13d_newer_local_edit_wins', async () => {
   });
   await page.close();
   return { ok: got.title !== 'Desktop' && got.strokes === 2 && got.hubStrokes === 2 && got.puts < 8, ...got };
+});
+
+// The black page while writing (Android): the visible canvas is opaque and shows the
+// page under the stroke being drawn, so a hardware overlay has nothing to show black.
+await check('opaque_canvas_while_writing', async () => {
+  const page = await openPage(browser, { user: 'nia' });
+  await newNote(page);
+  const got = await page.evaluate(async () => {
+    await settle(50);
+    fire('pointerdown', 'pen', 2, 200, 300, { buttons: 1 });
+    fire('pointermove', 'pen', 2, 300, 320, { buttons: 1 });
+    const c = canvas();
+    const dpr = c.width / c.getBoundingClientRect().width;
+    const px = (x, y) => [...c.getContext('2d').getImageData(Math.round(x * dpr), Math.round(y * dpr), 1, 1).data];
+    const attrs = c.getContext('2d').getContextAttributes ? c.getContext('2d').getContextAttributes() : {};
+    const out = { paper: px(600, 500), stroke: px(250, 310), alpha: attrs.alpha, desync: attrs.desynchronized,
+      canvases: document.querySelectorAll('.ink-root .ink-stage canvas').length, // the Text tab's page image is not in the stage
+      noSwipe: document.querySelector('.ink-root').hasAttribute('data-no-swipe-dismiss') };
+    fire('pointerup', 'pen', 2, 300, 320, { buttons: 0 });
+    return out;
+  });
+  await page.close();
+  const white = got.paper.slice(0, 3).every((v) => v > 240) && got.paper[3] === 255;
+  return { ok: white && got.stroke[0] < 120 && got.alpha === false && got.canvases === 1 && got.noSwipe, ...got };
+});
+
+// Drawn in pieces (pen) and in boxes (eraser, highlighter), the screen must match a
+// full redraw of the note: no leftovers of the open end, the prediction or the ring.
+await check('incremental_matches_full_redraw', async () => {
+  const page = await openPage(browser, { user: 'ola' });
+  await newNote(page);
+  const got = await page.evaluate(async () => {
+    const c = canvas();
+    const zig = (x0, y0, n, dx, dy) => Array.from({ length: n }, (_, i) => [x0 + i * dx, y0 + (i % 2 ? dy : 0)]);
+    for (let line = 0; line < 6; line++) stroke('pen', 2, zig(80, 120 + line * 40, 40, 12, 14));
+    document.querySelector('[data-pen="highlighter"]').click();
+    stroke('pen', 2, [[70, 160], [300, 165], [520, 160]]);
+    document.querySelector('[data-pen="red"]').click();
+    stroke('pen', 2, zig(100, 420, 60, 8, 30));
+    stroke('pen', 2, [[150, 100], [155, 150], [160, 175]], { buttons: 32 });   // barrel: erase across two lines
+    stroke('pen', 2, [[400, 110], [380, 260]], { buttons: 32 });
+    await settle(100);
+    const read = () => c.getContext('2d').getImageData(0, 0, c.width, c.height).data;
+    const shown = read();
+    view.fit();                       // a full redraw of the same note and view
+    await settle(100);
+    const full = read();
+    let diff = 0;
+    for (let i = 0; i < shown.length; i += 4) {
+      if (Math.abs(shown[i] - full[i]) + Math.abs(shown[i + 1] - full[i + 1]) + Math.abs(shown[i + 2] - full[i + 2]) > 12) diff++;
+    }
+    return { diff, strokes: view.strokeCount(), errors: window.errors.slice() };
+  });
+  await page.close();
+  return { ok: got.diff < 30 && got.strokes >= 3 && !got.errors.length, ...got };
+});
+
+// Predicted points are drawn ahead of the pen and taken back on the next update: after
+// the stroke, nothing of them is left (they were never part of the stroke).
+await check('prediction_leaves_nothing', async () => {
+  const page = await openPage(browser, { user: 'pia' });
+  await newNote(page);
+  const got = await page.evaluate(async () => {
+    const c = canvas();
+    const r = c.getBoundingClientRect();
+    const ev = (type, x, y, buttons, ahead) => {
+      const e = new PointerEvent(type, { bubbles: true, cancelable: true, pointerType: 'pen', pointerId: 4,
+        clientX: r.left + x, clientY: r.top + y, buttons, button: type === 'pointermove' ? -1 : 0 });
+      // Fake predictions far ahead and off to the side: a leftover would be obvious.
+      if (ahead) Object.defineProperty(e, 'getPredictedEvents', { value: () => [
+        { clientX: r.left + x + 40, clientY: r.top + y + 60, timeStamp: e.timeStamp },
+        { clientX: r.left + x + 80, clientY: r.top + y + 120, timeStamp: e.timeStamp }] });
+      c.dispatchEvent(e);
+    };
+    ev('pointerdown', 100, 200, 1, false);
+    let sawAhead = false;
+    for (let i = 1; i <= 30; i++) {
+      ev('pointermove', 100 + i * 10, 200 + (i % 2) * 6, 1, true);
+      if (i === 15) {
+        // mid-stroke: the prediction is on screen 80 px ahead, below the pen
+        const d = c.getContext('2d').getImageData(0, 0, c.width, c.height);
+        const dpr = c.width / r.width;
+        const at = (x, y) => d.data[(Math.round(y * dpr) * c.width + Math.round(x * dpr)) * 4];
+        sawAhead = at(100 + 15 * 10 + 40, 200 + 6 + 60) < 120 || at(100 + 15 * 10 + 20, 206 + 30) < 120;
+      }
+    }
+    ev('pointerup', 400, 200, 0, false);
+    await settle(100);
+    const read = () => c.getContext('2d').getImageData(0, 0, c.width, c.height).data;
+    const shown = read();
+    view.fit();
+    await settle(100);
+    const full = read();
+    let diff = 0;
+    for (let i = 0; i < shown.length; i += 4) {
+      if (Math.abs(shown[i] - full[i]) + Math.abs(shown[i + 1] - full[i + 1]) + Math.abs(shown[i + 2] - full[i + 2]) > 12) diff++;
+    }
+    return { sawAhead, diff, points: view._state.note.pages[0].strokes[0].points.length };
+  });
+  await page.close();
+  return { ok: got.sawAhead && got.diff < 30 && got.points === 31, ...got };
 });
 
 // ------------------------------------------------ H2: the Text tab (transcription, review)
