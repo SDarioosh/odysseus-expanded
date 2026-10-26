@@ -21,7 +21,7 @@ described as a switch that turns something off, the read rejects `0`, `false`,
 `no` and `off` and treats everything else as on. The `Default` column is the
 value the code falls back to when the variable is unset, quoted from the source.
 
-The source tree reads **118** `ODYSSEUS_*` variables: 82 an operator may want to set, and 36 that are internal - sentinels, fixture switches, capture hooks and development tooling. The internal ones are listed too, in their own section, so this page can be checked against the source mechanically.
+The source tree reads **121** `ODYSSEUS_*` variables: 84 an operator may want to set, and 37 that are internal - sentinels, fixture switches, capture hooks and development tooling. The internal ones are listed too, in their own section, so this page can be checked against the source mechanically.
 
 > This page is generated. Edit `scripts/generate_env_reference.py` and
 > re-run it; `tests/test_env_reference.py` enforces that the committed page
@@ -75,6 +75,8 @@ The source tree reads **118** `ODYSSEUS_*` variables: 82 an operator may want to
 | `ODYSSEUS_MAX_VISUAL_EVIDENCE_FRAMES` | `'3'` | `src/agent_loop.py` | How many video frames one tool result may contribute. Clamped to 1-8. |
 | `ODYSSEUS_MAX_VISUAL_EVIDENCE_IMAGES` | `'1'` | `src/agent_loop.py` | How many images one tool result may contribute to the model turn. Clamped to 1-8. |
 | `ODYSSEUS_MCP_ALLOWED_COMMANDS` | `''` | `src/agent_tools/admin_tools.py` | Security-relevant. Comma-separated allowlist of MCP launcher basenames the agent may start. Empty by default, and the deny list still wins. |
+| `ODYSSEUS_PERSONAL_READ_GRANTS` | `'1'` | `src/personal_read_grants.py` | Fork. On by default; `0`/`false` stops granting read-only access to the owner's contacts, calendar, tasks, notes and memory on every turn (`src/personal_read_grants.py`). |
+| `ODYSSEUS_PERSONAL_STORE_ESCALATION` | `'1'` | `src/personal_store_escalation.py` | Fork. On by default; `0`/`false` keeps chat-mode lookups in the owner's personal stores in chat mode instead of running them in agent mode (`src/personal_store_escalation.py`). |
 | `ODYSSEUS_PYTHON_TOOL_SITE_PACKAGES` | `''` | `src/agent_runtime/process_resources.py` (+1 more) | Security-relevant. Absolute package roots, separated by the platform path separator, exposed to the sandboxed Python tool. Empty exposes none. |
 | `ODYSSEUS_SCRIPT_HOST` | `'localhost'` | `src/builtin_actions.py` | Default host for the run-script action. `localhost`, `127.0.0.1`, `local` and empty run locally; any other value runs over SSH. |
 | `ODYSSEUS_TOOL_APPROVAL_GATE` | `'1'` | `src/tool_capabilities.py` | Security-relevant. On by default: after external content enters a run, tools that execute code, mutate state or cause external side effects need a separate approval. Set to 0 to opt out. |
@@ -238,6 +240,7 @@ Listed for completeness. Setting one of these on a real install is either a no-o
 | `ODYSSEUS_TEST_STATIC_ORIGIN` | *unset* | `scripts/css_snapshot.py` (+3 more) | Origin an already-running static server is serving the repository from, so snapshot tooling reuses it instead of starting its own. |
 | `ODYSSEUS_TEST_STATIC_PORT` | *unset* | `tests/conftest.py` | Fixed port for the test suite's static server. Unset takes an ephemeral port, which is what keeps parallel runs from colliding. |
 | `ODYSSEUS_TINY_MODEL_PATH` | *unset* | `scripts/odysseus_related_flow_audit.py` | Path to a local compact model GGUF file used in Cookbook serve lifecycle audit flows. |
+| `ODYSSEUS_USER` | `'admin'` | `scripts/belief_eval.py` | Fork. The account `scripts/belief_eval.py --chat` signs in as; defaults to `admin`. |
 
 ### Build and release metadata
 
@@ -266,7 +269,7 @@ reads three ways, because no single pattern covers the codebase:
   lines, so one read lives inside a string literal.
 
 The three passes are not redundancy. A line-based grep for a direct
-`os.environ.get("ODYSSEUS_...` call finds 87 of the 118 variables on this
+`os.environ.get("ODYSSEUS_...` call finds 90 of the 121 variables on this
 page. What it misses is reads through an env-reader helper, reads whose call
 spans more than one line, reads whose variable name is held in a module
 constant, and reads through a mapping passed in as an argument - which is the
