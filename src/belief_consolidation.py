@@ -16,7 +16,7 @@ Two parts:
 * **The fork's own pass merges near-duplicates in the ledger, one source at a time.**
   :func:`consolidate` looks at one owner's tentative and confirmed beliefs whose
   evidence all comes from one source, and merges two of them when they are about the
-  same subject, in the same category, say the same thing in nearly the same words
+  same subject, say the same thing in nearly the same words
   (every word that differs is a filler word or another form of the same word; no
   different negation or number) and don't differ in their structured attribute/value.
   The merged belief's evidence moves to the kept one with its source ids and links,
@@ -194,11 +194,13 @@ def _candidates(db, owner: str, source: str) -> tuple[list, dict[int, int]]:
 
 
 def plan_merges(rows: list, counts: Mapping[int, int]) -> list[tuple[int, int]]:
-    """``[(keep_id, drop_id)]``: within each (subject, about, category) group, the
-    beliefs in keep order; each one joins the first kept belief it repeats."""
+    """``[(keep_id, drop_id)]``: within each (subject, about) group, the beliefs in keep
+    order; each one joins the first kept belief it repeats. The category is not part of
+    the group: two near-identical claims can carry different labels (a preference word
+    guessed before the source sent fact kinds, a kind after), and the kept one's stays."""
     groups: dict[tuple, list] = {}
     for row in rows:
-        groups.setdefault((row["subject_id"], row["about"], row["category"]), []).append(row)
+        groups.setdefault((row["subject_id"], row["about"]), []).append(row)
     merges: list[tuple[int, int]] = []
     for group in groups.values():
         if len(group) < 2:

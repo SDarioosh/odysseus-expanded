@@ -68,18 +68,35 @@ def test_shortcut_data_matches_the_windows():
     const s = await import('{(_JS / "forkModuleShortcuts.js").as_posix()}');
     console.log(JSON.stringify(s));
     """)
-    assert got["FORK_SHORTCUT_ACTIONS"] == ["open_conversations", "open_today"]
+    assert got["FORK_SHORTCUT_ACTIONS"] == ["open_conversations", "open_today", "open_write"]
     # unbound by default, like upstream's other open-tool shortcuts
-    assert got["FORK_SHORTCUT_DEFAULTS"] == {"open_conversations": "", "open_today": ""}
+    assert got["FORK_SHORTCUT_DEFAULTS"] == {
+        "open_conversations": "", "open_today": "", "open_write": ""}
     assert got["FORK_SHORTCUT_BUTTONS"] == {
-        "open_conversations": "tool-sound-module-btn", "open_today": "tool-today-insight-btn"}
+        "open_conversations": "tool-sound-module-btn", "open_today": "tool-today-insight-btn",
+        "open_write": "tool-ink-btn"}
     assert got["FORK_WINDOW_TRIGGERS"] == {
-        "fork-sound-modal": "tool-sound-module-btn", "fork-today-modal": "tool-today-insight-btn"}
+        "fork-sound-modal": "tool-sound-module-btn", "fork-today-modal": "tool-today-insight-btn",
+        "fork-ink-modal": "tool-ink-btn"}
+    assert got["FORK_OPEN_TARGETS"] == {
+        "conversations": ["tool-sound-module-btn", "rail-sound-module"],
+        "today": ["tool-today-insight-btn", "rail-today-insight"],
+        "write": ["tool-ink-btn", "rail-ink"],
+        "ink": ["tool-ink-btn", "rail-ink"],
+        "handwriting": ["tool-ink-btn", "rail-ink"],
+    }
     windows = (_JS / "forkModuleWindows.js").read_text()
+    index = (_REPO / "static" / "index.html").read_text()
     for window_id, button in got["FORK_WINDOW_TRIGGERS"].items():
         assert f"id: '{window_id}'" in windows
         assert f"sidebarBtn: '{button}'" in windows
-        assert f'id="{button}"' in (_REPO / "static" / "index.html").read_text()
+        # Write's sidebar entry is added by forkModuleWindows.js, not by index.html.
+        if button == "tool-ink-btn":
+            assert f'id="{button}"' not in index
+        else:
+            assert f'id="{button}"' in index
+    for _name, (button, rail) in got["FORK_OPEN_TARGETS"].items():
+        assert f"railBtn: '{rail}'" in windows
 
 
 def test_hooks_are_in_place():
@@ -92,8 +109,8 @@ def test_hooks_are_in_place():
     for name in ("DEFAULTS", "ICONS", "LABELS", "ACTIONS"):
         assert f"..._forkShortcuts.FORK_SHORTCUT_{name}" in settings
     slash = (_JS / "slashCommands.js").read_text()
-    assert "conversations: ['tool-sound-module-btn', 'rail-sound-module']" in slash
-    assert "today: ['tool-today-insight-btn', 'rail-today-insight']" in slash
+    assert "import { FORK_OPEN_TARGETS } from './forkModuleShortcuts.js';" in slash
+    assert "...FORK_OPEN_TARGETS, // Fork:" in slash
 
 
 def test_standalone_pages_mount_the_shared_views():

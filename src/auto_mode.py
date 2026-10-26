@@ -14,16 +14,25 @@ admin picked Ask). In Auto the gate lets these through without asking:
 
 * tools whose only effects are reads (web reads, workspace reads, the owner's
   own stores, asking the user), as classified in ``src/tool_capabilities.py``;
-* ``web_fetch`` of a URL that can't carry data the model picked:
+* ``web_fetch`` of a URL that can't carry data the model picked, or only a short
+  path to a site the search chose:
   - a URL in the owner's own message (or a page on the same site, with no
     query string; on GitHub only inside the same owner/repo), or
-  - a URL that came back verbatim in a tool result (a search hit, a link on a
-    fetched page), on a public host name (no IP address, no local name).
+  - a URL that came back in a tool result (a search hit, a link on a fetched
+    page), on a public host name (no IP address, no local name). ``www.`` and a
+    trailing ``/`` don't count as a difference, or
+  - a page with no query string on a site a web search returned in this run
+    (on GitHub only inside the same owner/repo). Search hits often carry
+    ``?variant=`` or a ``/collections/`` path, and the model asks for the clean
+    product page; that page was asked for approval although its site was a hit.
+    Only the ranked hits count, not links inside pages, so a page can't add a
+    site (such as a request catcher) that any path on it would then reach.
 * ``calculate``, the calculator below: arithmetic only, no code, no network.
 
 Everything else keeps asking: email, notes/tasks/calendar writes, deletes,
 terminal and code, file writes, admin changes, unknown tools, and a fetch of a
-URL the model made up. Token-driven (delegated) runs never get auto mode.
+URL the model made up on a site no search returned. Token-driven (delegated) runs
+never get auto mode.
 
 Upstream lets the browser, ``pdf_extract`` and ``youtube_tool`` open any address
 after outside content, because the run can't load new private data at that
@@ -144,7 +153,7 @@ _MAX_URLS = 2000
 def _state(ctx) -> dict:
     state = getattr(ctx, "_fork_auto_urls", None)
     if state is None:
-        state = {"user": set(), "result": set()}
+        state = {"user": set(), "result": set(), "search": set()}
         try:
             object.__setattr__(ctx, "_fork_auto_urls", state)
         except (AttributeError, TypeError):
@@ -223,9 +232,36 @@ def observe_messages(ctx, messages: Iterable[dict]) -> None:
             _add(state["user"], _urls_in(text, bare=True))
 
 
-def observe_tool_result(ctx, result: Any) -> None:
+# web_search appends its ranked hits as ``<!-- SOURCES:[{"url": ...}] -->`` at the
+# very end. Page text quoted earlier in the output could imitate the marker, so
+# only the final block counts.
+_SOURCES_RE = re.compile(r"<!-- SOURCES:(\[[^\n]*\]) -->\s*\Z")
+# Longer paths on a search site still ask: a long path can carry data.
+_MAX_SEARCH_SITE_PATH = 200
+
+
+def _search_hits(result: dict) -> set[str]:
+    hits: set[str] = set()
+    match = _SOURCES_RE.search(str(result.get("output") or ""))
+    if match is None:
+        return hits
+    try:
+        items = json.loads(match.group(1))
+    except (TypeError, ValueError):
+        return hits
+    for item in items if isinstance(items, list) else ():
+        url = normalize_url(item.get("url") if isinstance(item, dict) else None)
+        if url and public_host(_host(url)):
+            hits.add(url)
+    return hits
+
+
+def observe_tool_result(ctx, result: Any, tool_name: Any = None) -> None:
     if isinstance(result, dict):
-        _add(_state(ctx)["result"], _urls_in(_text_of(result), bare=False))
+        state = _state(ctx)
+        _add(state["result"], _urls_in(_text_of(result), bare=False))
+        if tool_name == "web_search":
+            _add(state.setdefault("search", set()), _search_hits(result))
 
 
 def _host(url: str) -> str:
@@ -265,16 +301,32 @@ def same_site(url: str, owner_url: str) -> bool:
     return scope[:len(owner_scope)] == owner_scope
 
 
+def _loose(url: str) -> str:
+    """``url`` without ``www.`` and a trailing ``/``: the same page either way."""
+    parts = urlsplit(url)
+    netloc = parts.netloc[4:] if parts.netloc.startswith("www.") else parts.netloc
+    path = parts.path.rstrip("/") or "/"
+    query = f"?{parts.query}" if parts.query else ""
+    return f"{netloc}{path}{query}"
+
+
 def fetch_url_allowed(ctx, url: str) -> bool:
     normalized = normalize_url(url)
     if normalized is None:
         return False
     state = _state(ctx)
-    if normalized in state["user"]:
+    loose = _loose(normalized)
+    if normalized in state["user"] or loose in {_loose(u) for u in state["user"]}:
         return True
-    if not urlsplit(normalized).query and any(same_site(normalized, u) for u in state["user"]):
+    parts = urlsplit(normalized)
+    if not parts.query and any(same_site(normalized, u) for u in state["user"]):
         return True
-    return normalized in state["result"] and public_host(_host(normalized))
+    if not public_host(_host(normalized)):
+        return False
+    if normalized in state["result"] or loose in {_loose(u) for u in state["result"]}:
+        return True
+    return (not parts.query and len(parts.path) <= _MAX_SEARCH_SITE_PATH
+            and any(same_site(normalized, u) for u in state.get("search", ())))
 
 
 def fetch_urls(content: Any) -> list[str] | None:

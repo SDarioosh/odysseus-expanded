@@ -152,6 +152,13 @@ prioritizing side projects…") gives suggestions, not four to-dos.
 | `auto` | all filed (the behaviour of 2026-10-20) | suggestions |
 | `off` | not filed; "new action item" pushes only (the behaviour before filing) | pushes only |
 
+What counts as a spoken command is the module's: Athena catches to-do, list and note
+commands in code even when its model lists no item, with fillers or "can you" before
+them, several in one sentence, and lists said line by line ("Make a to-do list. Get
+eggs. Fix the car."); a comma list for a named list ("add eggs, milk and bread to my
+shopping list") is one line each. Phrasings: Athena's `server/README.md`; its
+`server/eval/voice_commands.py` checks ~100 fictional voice notes against these rules.
+
 An item is **explicit** when the module says so: `list_action_items format=json` rows
 carry `explicit` (true when the item has a due date or time, a `list_name`, kind
 `reminder` or `event`, or the voice note used a command word). With an older module
@@ -200,7 +207,11 @@ Where a filed item goes:
   moved elsewhere) the empty list is archived at once, unless it is pinned. Tapping **Add to to-dos** on such a
   suggestion puts it there too.
 - **Notes.** Voice notes only, and only on an explicit command ("create a note",
-  "make a note", "note that", "add to my … notes"); a plain statement makes no note.
+  "make a note", "note that", "note:", "note to self", "new note:", "add to my notes:",
+  "add to my … notes"); a plain statement makes no note. Named notes may also be said
+  without the word "notes" right after the command ("make a note in voice recorder that
+  the case needs to be 3 mm bigger" → a line in "Voice recorder notes"; "… under car,
+  …", "add to my car note: …").
   A note with a `list_name` (`hardware`) is added as a line to the open note titled
   with that name, with or without "notes" ("Hardware notes", "hardware"); if there is
   none, Odysseus creates "Hardware notes". The same line isn't added twice. Once filed
@@ -267,8 +278,10 @@ what is confirmed. The built-in task **Module Facts** (`src/module_facts.py`, ho
 posts nothing to chat) calls `list_facts` with `{"format": "json", "limit": 1000}` (every
 current fact; 1000 is the JSON mode's cap, so no fact is cut off and mistaken for
 retired), which returns `{"facts": [{"id", "subject", "about" (owner/person/other),
-"fact", "times_said", "days", "first_said", "last_said", "link", "confirmed",
-"valid_until"}]}` (`valid_until`: MCP 0.11.0, additive).
+"fact", "times_said", "days", "first_said", "last_said", "link", "confirmed"}]}`, and
+from MCP 0.11.0 `kind`, `conversation_id` and `quote` (the transcript line), which label
+and group the facts on the review page ([beliefs.md](../beliefs.md#the-athena-facts-job)),
+and from MCP 0.13.0 `valid_until` (additive).
 
 - **Evidence per fact**: source `odysseus-sound`, source id = the fact id, the fact text,
   the signed transcript link, `first_said`/`last_said` as seen dates, `times_said`/`days`
@@ -280,7 +293,7 @@ retired), which returns `{"facts": [{"id", "subject", "about" (owner/person/othe
   "has a meeting with the Meshtastic team on Tuesday at 11 a.m." is worth keeping; null
   for lasting facts) travels as `Evidence.valid_until`. The belief goes `stale` the day
   after and leaves memory, even while the module still returns the fact. A module older
-  than 0.11.0 sends none: nothing ends early.
+  than 0.13.0 sends none: nothing ends early.
 - **Confirmed beliefs become memories**: confirmed by the module's flag, by a second
   source saying the same thing (`BELIEF_CONFIRM_SOURCES`), by enough sightings on enough
   days, or by the owner. One memory per belief, for the task's owner: text = the fact
