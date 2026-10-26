@@ -86,7 +86,7 @@ their tests (`tests/test_mcp_trust.py`,
 `tests/test_call_recorder.py`, `tests/test_sound_relay.py`, `tests/test_insight_outcomes.py`,
 `tests/test_insight_weights.py`, `tests/test_insight_push.py`, `tests/test_insight_routines.py`,
 `tests/test_insight_inputs.py`, `tests/test_insight_eval.py`, `tests/test_summary_model_routes.py`,
-`tests/test_belief_consolidation.py`, `tests/test_module_fact_kinds.py`, `tests/test_belief_forget.py`, `tests/test_belief_move.py`, `tests/test_auto_mode.py`, `tests/test_web_read_recovery.py`, `tests/test_fork_resume_fallback.py`, `tests/test_ink_notes.py`, `tests/test_ink_routes.py`, `tests/test_ink_upstream_contract.py`, `tests/test_ink_palm_rejection.py`), and the hooks listed in [FORK.md](FORK.md).
+`tests/test_belief_consolidation.py`, `tests/test_module_fact_kinds.py`, `tests/test_belief_forget.py`, `tests/test_belief_move.py`, `tests/test_auto_mode.py`, `tests/test_web_read_recovery.py`, `tests/test_fork_resume_fallback.py`, `tests/test_ink_notes.py`, `tests/test_ink_routes.py`, `tests/test_ink_upstream_contract.py`, `tests/test_ink_palm_rejection.py`, `tests/test_ink_perf.py`), and the hooks listed in [FORK.md](FORK.md).
 
 ## Fork rules (merge-friendly)
 

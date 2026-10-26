@@ -9,8 +9,9 @@
 //   thin/medium width, pressure ignored. A stroke eraser; the pen's barrel button
 //   erases while held, when Chrome reports it. Unlimited undo/redo on strokes.
 // - Strokes are points [x, y, t] in page units (a page is PAGE_W wide), so zoom and
-//   rotation keep them aligned. getCoalescedEvents() and a desynchronized 2D context
-//   for the stroke being drawn.
+//   rotation keep them aligned. Low latency: pointerrawupdate where Chrome sends it,
+//   getCoalescedEvents(), Chrome's predicted points drawn ahead of the pen, one opaque
+//   desynchronized canvas, and only what changed is redrawn (see "render").
 // - Autosave every AUTOSAVE_MS and when the app is hidden: IndexedDB first, then the
 //   hub (PUT /api/ink/notes/<id>, routes/ink_routes.py). Notes that couldn't reach the
 //   hub wait in IndexedDB and sync later. Last edit wins: when the hub has a newer
@@ -125,6 +126,9 @@ export function createInputRouter(handlers, clock = () => performance.now()) {
 
   function move(e) {
     seenPen(e);
+    // Chrome sends pointerrawupdate as soon as a sample arrives, pointermove only at the
+    // next frame: once raw updates come for the stroke being drawn, the moves are skipped.
+    if (draw && e.pointerId === draw.id && e.type === 'pointermove' && draw.raw) return 'draw';
     if (muted.has(e.pointerId)) {
       if (!((e.buttons || 0) & 1)) muted.delete(e.pointerId); // lifted (hovering again)
       return 'ignored';
@@ -172,6 +176,10 @@ export function createInputRouter(handlers, clock = () => performance.now()) {
     switch (e.type) {
       case 'pointerdown': return down(e);
       case 'pointermove': return move(e);
+      case 'pointerrawupdate':
+        if (draw && e.pointerId === draw.id) { draw.raw = true; return move(e); }
+        seenPen(e);
+        return 'hover';
       case 'pointerup':
       case 'pointercancel':
       // Android system gestures (back swipe, notification shade) and dialogs can take
@@ -364,6 +372,36 @@ function distToSegment(px, py, ax, ay, bx, by) {
   return Math.hypot(px - (ax + t * dx), py - (ay + t * dy));
 }
 
+export const unionBox = (a, b) => (!a ? b : !b ? a : {
+  x0: Math.min(a.x0, b.x0), y0: Math.min(a.y0, b.y0), x1: Math.max(a.x1, b.x1), y1: Math.max(a.y1, b.y1) });
+
+function segmentsCross(ax, ay, bx, by, cx, cy, dx, dy) {
+  const d1 = (dx - cx) * (ay - cy) - (dy - cy) * (ax - cx);
+  const d2 = (dx - cx) * (by - cy) - (dy - cy) * (bx - cx);
+  const d3 = (bx - ax) * (cy - ay) - (by - ay) * (cx - ax);
+  const d4 = (bx - ax) * (dy - ay) - (by - ay) * (dx - ax);
+  return ((d1 > 0) !== (d2 > 0)) && ((d3 > 0) !== (d4 > 0));
+}
+
+// Shortest distance between segments AB and CD.
+function segmentDistance(ax, ay, bx, by, cx, cy, dx, dy) {
+  if (segmentsCross(ax, ay, bx, by, cx, cy, dx, dy)) return 0;
+  return Math.min(distToSegment(ax, ay, cx, cy, dx, dy), distToSegment(bx, by, cx, cy, dx, dy),
+    distToSegment(cx, cy, ax, ay, bx, by), distToSegment(dx, dy, ax, ay, bx, by));
+}
+
+// Whether an eraser of `radius` moving from (ax, ay) to (bx, by) touches the stroke:
+// testing the path, not only its end, so a fast eraser doesn't jump over strokes.
+export function strokeHitPath(stroke, ax, ay, bx, by, radius) {
+  const r = radius + stroke.pen.width / 2;
+  const pts = stroke.points;
+  if (pts.length === 1) return distToSegment(pts[0][0], pts[0][1], ax, ay, bx, by) <= r;
+  for (let i = 1; i < pts.length; i++) {
+    if (segmentDistance(ax, ay, bx, by, pts[i - 1][0], pts[i - 1][1], pts[i][0], pts[i][1]) <= r) return true;
+  }
+  return false;
+}
+
 export function strokeHit(stroke, x, y, radius) {
   const r = radius + stroke.pen.width / 2;
   const pts = stroke.points;
@@ -509,10 +547,30 @@ export function mountInk(root, options = {}) {
   }
 
   // ------------------------------------------------------------ render
+  // The pages are drawn on `base` off-screen and copied to the visible canvas. Only what
+  // changed is redrawn: everything after a scroll, zoom, undo or page change; a box
+  // around the strokes the eraser took or a new highlighter mark; nothing at all for a
+  // finished ink stroke (it is drawn straight onto the pages). The stroke being drawn
+  // goes on the visible canvas only, a piece at a time.
   let frame = 0;
-  function render() {
+  let dirty = null;              // null, 'all', or a screen box {x0, y0, x1, y1}
+  let bg = '#808080';
+
+  function render() { dirty = 'all'; schedule(); }
+  function renderBox(box) {
+    if (!box || dirty === 'all') return;
+    dirty = unionBox(dirty, box);
+    schedule();
+  }
+  function schedule() {
     if (frame) return;
-    frame = requestAnimationFrame(() => { frame = 0; renderNow(); });
+    frame = requestAnimationFrame(() => {
+      frame = 0;
+      const d = dirty;
+      dirty = null;
+      if (d === 'all') renderNow();
+      else if (d) renderPart(d);
+    });
   }
 
   // Highlighter strokes are drawn opaque on their own layer, which is then laid on the
@@ -520,106 +578,295 @@ export function mountInk(root, options = {}) {
   const marks = document.createElement('canvas');
   const mctx = marks.getContext('2d');
 
-  function renderNow() {
-    const ctx = bctx;
-    ctx.setTransform(dpr, 0, 0, dpr, 0, 0);
-    // Opaque: the stage's own background (a theme color) around the pages.
-    ctx.fillStyle = getComputedStyle(stage).backgroundColor || '#808080';
-    ctx.fillRect(0, 0, cssW, cssH);
-    if (!state.note) { present(); return; }
+  // A stroke's box in page units, ink width included (strokes don't change once drawn).
+  const boxes = new WeakMap();
+  function bboxOf(st) {
+    let b = boxes.get(st);
+    if (b && b.n === st.points.length) return b;
+    let x0 = Infinity; let y0 = Infinity; let x1 = -Infinity; let y1 = -Infinity;
+    for (const [x, y] of st.points) {
+      if (x < x0) x0 = x; if (x > x1) x1 = x;
+      if (y < y0) y0 = y; if (y > y1) y1 = y;
+    }
+    const pad = st.pen.width / 2;
+    b = { x0: x0 - pad, y0: y0 - pad, x1: x1 + pad, y1: y1 + pad, n: st.points.length };
+    boxes.set(st, b);
+    return b;
+  }
+  // A page-unit box on the page whose top is at y0, as a screen box (with a margin).
+  function screenBox(b, y0, margin = 2) {
+    const [ax, ay] = toScreen(b.x0, b.y0 + y0);
+    const [bx, by] = toScreen(b.x1, b.y1 + y0);
+    return { x0: ax - margin, y0: ay - margin, x1: bx + margin, y1: by + margin };
+  }
+  const meets = (a, b) => !(a.x1 < b.x0 || a.x0 > b.x1 || a.y1 < b.y0 || a.y0 > b.y1);
+
+  function visiblePages(box) {
     const k = scale();
-    const top = state.sy;
-    const bottom = state.sy + cssH / k;
-    const visible = [];
+    const out = [];
     state.note.pages.forEach((page, i) => {
       const y0 = pageTop(i);
-      if (y0 > bottom || y0 + page.height < top) return;
-      visible.push([page, i, y0]);
+      const [px, py] = toScreen(0, y0);
+      const rect = { x0: px, y0: py, x1: px + page.width * k, y1: py + page.height * k };
+      if (rect.y1 < 0 || rect.y0 > cssH) return;
+      if (box && !meets(rect, box)) return;
+      out.push([page, i, y0, rect]);
     });
-    const clipTo = (c, y0, page) => {
-      const [px, py] = toScreen(0, y0);
-      c.beginPath();
-      c.rect(px, py, page.width * k, page.height * k);
-      c.clip();
-    };
-    for (const [page, , y0] of visible) {
-      const [px, py] = toScreen(0, y0);
-      const pw = page.width * k;
-      const ph = page.height * k;
+    return out;
+  }
+  const clipRect = (c, r) => { c.beginPath(); c.rect(r.x0, r.y0, r.x1 - r.x0, r.y1 - r.y0); c.clip(); };
+  // A box on whole device pixels: a redraw clipped to a box with fractional edges blends
+  // the old and new pixels at the edge, which left a faint line around the box.
+  const snapBox = (b) => ({ x0: Math.floor(b.x0 * dpr) / dpr, y0: Math.floor(b.y0 * dpr) / dpr,
+    x1: Math.ceil(b.x1 * dpr) / dpr, y1: Math.ceil(b.y1 * dpr) / dpr });
+
+  // Draw the pages into `base`: all of it, or only inside `box`.
+  function drawScene(box) {
+    const ctx = bctx;
+    ctx.save();
+    ctx.setTransform(dpr, 0, 0, dpr, 0, 0);
+    if (box) clipRect(ctx, box);
+    ctx.fillStyle = bg;
+    ctx.fillRect(0, 0, cssW, cssH);
+    if (!state.note) { ctx.restore(); return; }
+    const k = scale();
+    const pages = visiblePages(box);
+    const wanted = (st, y0) => !box || meets(screenBox(bboxOf(st), y0), box);
+    for (const [page, , , rect] of pages) {
       ctx.save();
       ctx.fillStyle = '#ffffff';
       ctx.shadowColor = 'rgba(0,0,0,0.18)';
       ctx.shadowBlur = 6;
-      ctx.fillRect(px, py, pw, ph);
+      ctx.fillRect(rect.x0, rect.y0, rect.x1 - rect.x0, rect.y1 - rect.y0);
       ctx.restore();
       if (state.note.ruled) {
         ctx.save();
-        clipTo(ctx, y0, page);
+        clipRect(ctx, rect);
         ctx.strokeStyle = '#d6e0ea';
         ctx.lineWidth = 1;
         for (let ry = RULE_TOP; ry < page.height - 30; ry += RULE_STEP) {
-          const sy = Math.round(py + ry * k) + 0.5;
+          const sy = Math.round(rect.y0 + ry * k) + 0.5;
           ctx.beginPath();
-          ctx.moveTo(px, sy);
-          ctx.lineTo(px + pw, sy);
+          ctx.moveTo(rect.x0, sy);
+          ctx.lineTo(rect.x1, sy);
           ctx.stroke();
         }
         ctx.restore();
       }
     }
-    if (visible.some(([page]) => page.strokes.some((st) => st.pen.highlighter))) {
+    const hl = pages.map(([page, , y0, rect]) => [page.strokes.filter((st) => st.pen.highlighter && wanted(st, y0)), y0, rect]);
+    if (hl.some(([list]) => list.length)) {
       if (marks.width !== base.width || marks.height !== base.height) {
         marks.width = base.width;
         marks.height = base.height;
       }
+      mctx.save();
       mctx.setTransform(dpr, 0, 0, dpr, 0, 0);
+      if (box) clipRect(mctx, box);
       mctx.clearRect(0, 0, cssW, cssH);
-      for (const [page, , y0] of visible) {
+      for (const [list, y0, rect] of hl) {
         mctx.save();
-        clipTo(mctx, y0, page);
+        clipRect(mctx, rect);
         const map = (p) => toScreen(p[0], p[1] + y0);
-        for (const st of page.strokes) if (st.pen.highlighter) drawStroke(mctx, st, map, k, { opaque: true });
+        for (const st of list) drawStroke(mctx, st, map, k, { opaque: true });
         mctx.restore();
       }
+      mctx.restore();
       ctx.save();
-      ctx.setTransform(1, 0, 0, 1, 0, 0);
+      ctx.setTransform(1, 0, 0, 1, 0, 0); // the clip set above still applies
       ctx.globalAlpha = HIGHLIGHT_ALPHA;
       ctx.drawImage(marks, 0, 0);
       ctx.restore();
     }
-    for (const [page, , y0] of visible) {
+    for (const [page, , y0, rect] of pages) {
       ctx.save();
-      clipTo(ctx, y0, page);
+      clipRect(ctx, rect);
       const map = (p) => toScreen(p[0], p[1] + y0);
-      for (const st of page.strokes) if (!st.pen.highlighter) drawStroke(ctx, st, map, k);
+      for (const st of page.strokes) if (!st.pen.highlighter && wanted(st, y0)) drawStroke(ctx, st, map, k);
       ctx.restore();
     }
+    ctx.restore();
+  }
+
+  function renderNow() {
+    // Opaque: the stage's own background (a theme color) around the pages.
+    bg = getComputedStyle(stage).backgroundColor || bg;
+    dirty = null;
+    drawScene(null);
     present();
   }
 
-  // The visible canvas: the pages, then the stroke being drawn (or the eraser ring).
+  function renderPart(rough) {
+    const box = snapBox(rough);
+    drawScene(box);
+    presentBox(box);
+    const lv = state.live;
+    if (!lv) return;
+    if (lv.eraser) { if (lv.ringBox) drawRing(lv); return; }
+    // The stroke being drawn, where the box covered it.
+    lctx.save();
+    lctx.setTransform(dpr, 0, 0, dpr, 0, 0);
+    clipRect(lctx, box);
+    clipRect(lctx, pageRect(lv.pageIndex));
+    drawStroke(lctx, lv.stroke, liveMap(lv), scale());
+    lctx.restore();
+  }
+
+  // Copy a screen box of the pages onto the visible canvas.
+  function presentBox(box) {
+    if (!box) return;
+    const x = Math.max(0, Math.floor(box.x0 * dpr) - 1);
+    const y = Math.max(0, Math.floor(box.y0 * dpr) - 1);
+    const x1 = Math.min(live.width, Math.ceil(box.x1 * dpr) + 1);
+    const y1 = Math.min(live.height, Math.ceil(box.y1 * dpr) + 1);
+    if (x1 <= x || y1 <= y) return;
+    lctx.save();
+    lctx.setTransform(1, 0, 0, 1, 0, 0);
+    lctx.drawImage(base, x, y, x1 - x, y1 - y, x, y, x1 - x, y1 - y);
+    lctx.restore();
+  }
+
+  // The whole visible canvas: the pages, then the stroke being drawn (or the eraser ring).
   function present() {
     lctx.setTransform(1, 0, 0, 1, 0, 0);
     lctx.drawImage(base, 0, 0);
     lctx.setTransform(dpr, 0, 0, dpr, 0, 0);
     const lv = state.live;
     if (!lv) return;
-    const y0 = pageTop(lv.pageIndex);
-    if (lv.eraser) {
-      const last = lv.cursor;
-      if (!last) return;
-      const [x, y] = toScreen(last[0], last[1] + y0);
-      lctx.beginPath();
-      lctx.arc(x, y, ERASER_PX, 0, Math.PI * 2);
-      lctx.strokeStyle = 'rgba(120,120,120,0.9)';
-      lctx.lineWidth = 1;
-      lctx.stroke();
-      return;
-    }
-    drawStroke(lctx, lv.stroke, (p) => toScreen(p[0], p[1] + y0), scale());
+    if (lv.eraser) { if (lv.cursor) drawRing(lv); return; }
+    lctx.save();
+    clipRect(lctx, pageRect(lv.pageIndex));
+    drawStroke(lctx, lv.stroke, liveMap(lv), scale());
+    lctx.restore();
+    // Everything drawn so far is in place; the end of it stays open (see liveInk).
+    const pts = lv.stroke.points;
+    lv.drawn = Math.max(0, pts.length - 2);
+    lv.tailBox = pts.length ? pointsBox(pts.slice(-3), lv) : null;
   }
 
-  const renderLive = present;
+  function pageRect(i) {
+    const page = state.note.pages[i];
+    const k = scale();
+    const [px, py] = toScreen(0, pageTop(i));
+    return { x0: px, y0: py, x1: px + page.width * k, y1: py + page.height * k };
+  }
+  const liveMap = (lv) => { const y0 = pageTop(lv.pageIndex); return (p) => toScreen(p[0], p[1] + y0); };
+  // Screen box around page points of the live stroke, ink width included.
+  function pointsBox(pts, lv) {
+    const map = liveMap(lv);
+    let x0 = Infinity; let y0 = Infinity; let x1 = -Infinity; let y1 = -Infinity;
+    for (const p of pts) {
+      const [x, y] = map(p);
+      if (x < x0) x0 = x; if (x > x1) x1 = x;
+      if (y < y0) y0 = y; if (y > y1) y1 = y;
+    }
+    const pad = (lv.stroke ? lv.stroke.pen.width * scale() : 0) / 2 + 2;
+    return { x0: x0 - pad, y0: y0 - pad, x1: x1 + pad, y1: y1 + pad };
+  }
+
+  // The stroke being drawn, on the visible canvas. A curve piece through point i ends
+  // at the middle of points i and i+1, so with n points pieces 1..n-2 are final; they
+  // are drawn once. The end (a line to the last point, then the points Chrome predicts
+  // the pen will reach next) is drawn each time and taken back the next time: the
+  // pages under it are copied in again and the final pieces it covered redrawn.
+  function liveInk(lv, predicted) {
+    const st = lv.stroke;
+    const pts = st.points;
+    const n = pts.length;
+    if (!n) return;
+    const map = liveMap(lv);
+    const k = scale();
+    const page = pageRect(lv.pageIndex);
+    const style = (c, alpha) => {
+      c.lineCap = 'round';
+      c.lineJoin = 'round';
+      c.strokeStyle = st.pen.color;
+      c.lineWidth = Math.max(0.6, st.pen.width * k);
+      c.globalAlpha = alpha;
+    };
+    if (st.pen.highlighter) {
+      // See-through: the whole mark is drawn again over the pages it covers.
+      const box = pointsBox(pts.concat(predicted), lv);
+      presentBox(unionBox(box, lv.tailBox));
+      lctx.save();
+      lctx.setTransform(dpr, 0, 0, dpr, 0, 0);
+      clipRect(lctx, page);
+      style(lctx, HIGHLIGHT_ALPHA);
+      strokePath(lctx, pts.concat(predicted), map);
+      lctx.stroke();
+      lctx.restore();
+      lv.tailBox = box;
+      return;
+    }
+    const endOf = (i) => {
+      if (i <= 0) return map(pts[0]);
+      const [ax, ay] = map(pts[i]);
+      const [bx, by] = map(pts[i + 1]);
+      return [(ax + bx) / 2, (ay + by) / 2];
+    };
+    const pieces = (from, to) => {
+      if (to < from) return;
+      const [sx, sy] = endOf(from - 1);
+      lctx.beginPath();
+      lctx.moveTo(sx, sy);
+      for (let i = from; i <= to; i++) {
+        const [ax, ay] = map(pts[i]);
+        const [bx, by] = map(pts[i + 1]);
+        lctx.quadraticCurveTo(ax, ay, (ax + bx) / 2, (ay + by) / 2);
+      }
+      lctx.stroke();
+    };
+    const done = lv.drawn || 0;
+    if (lv.tailBox) presentBox(lv.tailBox);
+    lctx.save();
+    lctx.setTransform(dpr, 0, 0, dpr, 0, 0);
+    clipRect(lctx, page);
+    style(lctx, 1);
+    if (lv.tailBox && done > 0) {
+      // The final pieces under the end just taken back.
+      lctx.save();
+      clipRect(lctx, lv.tailBox);
+      pieces(Math.max(1, done - 8), done);
+      lctx.restore();
+    }
+    const last = Math.max(0, n - 2);
+    pieces(done + 1, last);
+    lv.drawn = last;
+    // The open end: to the last point, then ahead.
+    const tail = [endOf(last), map(pts[n - 1]), ...predicted.map(map)];
+    lctx.beginPath();
+    lctx.moveTo(tail[0][0], tail[0][1]);
+    if (n === 1 && !predicted.length) lctx.lineTo(tail[0][0] + 0.01, tail[0][1]);
+    for (const [x, y] of tail.slice(1)) lctx.lineTo(x, y);
+    lctx.stroke();
+    lctx.restore();
+    let x0 = Infinity; let y0 = Infinity; let x1 = -Infinity; let y1 = -Infinity;
+    for (const [x, y] of tail) {
+      if (x < x0) x0 = x; if (x > x1) x1 = x;
+      if (y < y0) y0 = y; if (y > y1) y1 = y;
+    }
+    const pad = (st.pen.width * k) / 2 + 2;
+    lv.tailBox = { x0: x0 - pad, y0: y0 - pad, x1: x1 + pad, y1: y1 + pad };
+  }
+
+  // The eraser ring under the pen; the previous one is taken back first.
+  function drawRing(lv) {
+    if (!lv.cursor) return;
+    const [x, y] = toScreen(lv.cursor[0], lv.cursor[1] + pageTop(lv.pageIndex));
+    lctx.save();
+    lctx.setTransform(dpr, 0, 0, dpr, 0, 0);
+    lctx.beginPath();
+    lctx.arc(x, y, ERASER_PX, 0, Math.PI * 2);
+    lctx.strokeStyle = 'rgba(120,120,120,0.9)';
+    lctx.lineWidth = 1;
+    lctx.stroke();
+    lctx.restore();
+    lv.ringBox = { x0: x - ERASER_PX - 2, y0: y - ERASER_PX - 2, x1: x + ERASER_PX + 2, y1: y + ERASER_PX + 2 };
+  }
+  function liveEraser(lv) {
+    if (lv.ringBox) presentBox(lv.ringBox);
+    drawRing(lv);
+  }
 
   // ------------------------------------------------------------- input
   function currentPen() {
@@ -645,18 +892,35 @@ export function mountInk(root, options = {}) {
     return [Math.round(cx * 10) / 10, Math.round(cy * 10) / 10, Math.max(0, Math.round(e.timeStamp - lv.t0))];
   }
 
-  function eraseAt(lv, p) {
+  // Where Chrome predicts the pen will be next (a few ms ahead), as page points. Only
+  // drawn, never stored.
+  function predictedOf(e, lv) {
+    let list = [];
+    try { list = typeof e.getPredictedEvents === 'function' ? e.getPredictedEvents() : []; } catch (_) { list = []; }
+    return (list || []).slice(0, 3).map((ev) => pointOf(ev, lv));
+  }
+
+  // Remove the strokes the eraser touched on its way from `from` to `p` (page units).
+  // Strokes whose box is nowhere near are skipped without looking at their points.
+  function eraseAt(lv, p, from) {
     const page = state.note.pages[lv.pageIndex];
     const r = ERASER_PX / scale();
-    let hit = false;
+    const a = from || p;
+    const near = { x0: Math.min(a[0], p[0]) - r, y0: Math.min(a[1], p[1]) - r,
+      x1: Math.max(a[0], p[0]) + r, y1: Math.max(a[1], p[1]) + r };
+    const y0 = pageTop(lv.pageIndex);
+    let box = null;
     for (let i = page.strokes.length - 1; i >= 0; i--) {
-      if (strokeHit(page.strokes[i], p[0], p[1], r)) {
-        lv.removed.push({ pageId: page.id, index: i, stroke: page.strokes[i] });
+      const st = page.strokes[i];
+      const b = bboxOf(st);
+      if (!meets(b, near)) continue;
+      if (strokeHitPath(st, a[0], a[1], p[0], p[1], r)) {
+        lv.removed.push({ pageId: page.id, index: i, stroke: st });
         page.strokes.splice(i, 1);
-        hit = true;
+        box = unionBox(box, screenBox(b, y0));
       }
     }
-    if (hit) render();
+    if (box) renderBox(box);
   }
 
   const notePoints = () => state.note.pages.reduce(
@@ -675,12 +939,19 @@ export function mountInk(root, options = {}) {
       }
     }
     const lv = { pageIndex, eraser: isEraser, t0: e.timeStamp, removed: [], cursor: null,
+      drawn: 0, tailBox: null, ringBox: null,
       stroke: isEraser ? null : { id: shortId(), pen: currentPen(), at: Date.now(), points: [] } };
     state.live = lv;
     const p = pointOf(e, lv);
-    if (isEraser) { lv.cursor = p; eraseAt(lv, p); } else lv.stroke.points.push(p);
     syncTools();
-    renderLive();
+    if (isEraser) {
+      lv.cursor = p;
+      eraseAt(lv, p, null);
+      liveEraser(lv);
+    } else {
+      lv.stroke.points.push(p);
+      liveInk(lv, []);
+    }
   }
 
   // Commit the stroke being drawn (or the strokes the eraser took) as one undo step.
@@ -690,14 +961,28 @@ export function mountInk(root, options = {}) {
     state.live = null;
     if (lv && lv.eraser) {
       if (lv.removed.length) pushAction({ type: 'erase', removed: lv.removed });
+      presentBox(lv.ringBox);
     } else if (lv && lv.stroke.points.length && !(dropShort && lv.stroke.points.length <= 2)) {
       const page = state.note.pages[lv.pageIndex];
-      page.strokes.push(lv.stroke);
-      pushAction({ type: 'add', pageId: page.id, stroke: lv.stroke });
-      render();
+      const st = lv.stroke;
+      page.strokes.push(st);
+      const box = unionBox(screenBox(bboxOf(st), pageTop(lv.pageIndex)), lv.tailBox);
+      if (st.pen.highlighter) {
+        renderBox(box); // goes under the ink: redraw that part of the page
+      } else {
+        // Ink goes on top: draw it onto the pages, then show that part of them.
+        bctx.save();
+        bctx.setTransform(dpr, 0, 0, dpr, 0, 0);
+        clipRect(bctx, pageRect(lv.pageIndex));
+        drawStroke(bctx, st, liveMap(lv), scale());
+        bctx.restore();
+        presentBox(box);
+      }
+      pushAction({ type: 'add', pageId: page.id, stroke: st });
+    } else if (lv && lv.stroke && lv.stroke.points.length) {
+      presentBox(unionBox(pointsBox(lv.stroke.points, lv), lv.tailBox)); // dropped
     }
     syncTools();
-    renderLive();
   }
 
   const router = createInputRouter({
@@ -706,29 +991,40 @@ export function mountInk(root, options = {}) {
       startLive(e, eraser);
     },
     drawMove(e) {
-      const lv = state.live;
-      if (!lv) return;
+      if (!state.live) return;
       let events = typeof e.getCoalescedEvents === 'function' ? e.getCoalescedEvents() : [];
       if (!events || !events.length) events = [e];
       for (const ev of events) {
         const cur = state.live;
+        if (!cur) return;
+        if (cur.eraser) {
+          const before = cur.pageIndex;
+          const p = pointOf(ev, cur);
+          eraseAt(cur, p, before === cur.pageIndex ? cur.cursor : null);
+          cur.cursor = p;
+          continue;
+        }
         const p = pointOf(ev, cur);
-        if (cur.eraser) { cur.cursor = p; eraseAt(cur, p); continue; }
         const pts = cur.stroke.points;
         const last = pts[pts.length - 1];
         if (last && Math.abs(last[0] - p[0]) < 0.3 && Math.abs(last[1] - p[1]) < 0.3) continue;
         if (pts.length >= MAX_STROKE_POINTS) {
           // A very long stroke goes on as a new one, from the same point.
           const { pageIndex, t0 } = cur;
+          liveInk(cur, []);
           endLive();
-          state.live = { pageIndex, eraser: false, t0, removed: [], cursor: null,
+          state.live = { pageIndex, eraser: false, t0, removed: [], cursor: null, drawn: 0,
+            tailBox: null, ringBox: null,
             stroke: { id: shortId(), pen: { ...cur.stroke.pen }, at: Date.now(), points: [last] } };
           state.live.stroke.points.push(p);
           continue;
         }
         pts.push(p);
       }
-      renderLive();
+      const cur = state.live;
+      if (!cur) return;
+      if (cur.eraser) liveEraser(cur);
+      else liveInk(cur, predictedOf(e, cur));
     },
     drawEnd() { endLive(); },
     drawSwitch(e, { eraser }) {
@@ -762,8 +1058,8 @@ export function mountInk(root, options = {}) {
     render();
   }
 
-  for (const type of ['pointerdown', 'pointermove', 'pointerup', 'pointercancel', 'lostpointercapture',
-    'pointerover', 'pointerenter', 'pointerleave', 'pointerout']) {
+  for (const type of ['pointerdown', 'pointermove', 'pointerrawupdate', 'pointerup', 'pointercancel',
+    'lostpointercapture', 'pointerover', 'pointerenter', 'pointerleave', 'pointerout']) {
     live.addEventListener(type, (e) => {
       const what = router.handle(e);
       if (what === 'draw' || what === 'gesture' || (type === 'pointerdown' && e.pointerType === 'touch')) {
@@ -1035,7 +1331,7 @@ export function mountInk(root, options = {}) {
       state.zoom = 1;
       state.sy = -PAGE_GAP;
     }
-    renderLive();
+    render(); // a different note: draw it all (resize below draws at once when sized)
     titleInput.value = note.title || '';
     listView.hidden = true;
     editor.hidden = false;

@@ -264,7 +264,7 @@ def test_write_view_review_findings_in_a_browser():
     got = _review_e2e()
     failed = {name: r["detail"] for name, r in got.items() if not r["ok"]}
     assert not failed, failed
-    assert len(got) == 16
+    assert len(got) == 18
 
 
 @pytest.mark.skipif(not _HAS_NODE, reason="node binary not on PATH")

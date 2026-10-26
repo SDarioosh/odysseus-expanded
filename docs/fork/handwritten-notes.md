@@ -292,6 +292,13 @@ As planned, with these details settled while building it:
   because Chrome moves it to a hardware overlay that ignores transparency. The view also
   opts out of upstream's swipe-down-to-close for sheets (`data-no-swipe-dismiss`): the
   pen fires touch events, and a downward stroke closed Write.
+- **Speed:** only what changed is redrawn. The stroke being drawn is added a piece at a
+  time; a finished ink stroke is drawn onto the pages; the eraser and a new
+  highlighter mark redraw a box around them. The eraser skips strokes whose box is
+  nowhere near and tests the path between samples. `pointerrawupdate` and Chrome's
+  predicted points cut the gap behind a fast pen. On a dense page (1,500 strokes, CPU
+  4x slower) the eraser went from about 220 ms to under 10 ms a frame
+  (`tests/helpers/ink_perf.mjs`, `tests/test_ink_perf.py`).
 - **Render:** the hub draws the same smoothed curve as the canvas, and highlighter
   marks are laid down as one layer on both, so overlaps don't get darker.
 - **Offline start: not yet.** The idle-time import is in, but it doesn't put Write in
