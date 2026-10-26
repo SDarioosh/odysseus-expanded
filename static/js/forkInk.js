@@ -1336,6 +1336,7 @@ export function mountInk(root, options = {}) {
       }
     } else if (res.status === 410) {
       await db.del('notes', id);
+      await dropNoteDrafts(id, db);
       if (isOpen()) {
         state.live = null;
         router.reset();
@@ -1587,9 +1588,17 @@ export function mountInk(root, options = {}) {
     if (!state.note || state.view !== 'text') return;
     const key = tArea.dataset.key;
     if (!key || !key.startsWith(`${state.note.id}:`)) return;
-    drafts.set(key, tArea.value);
     updateHighlight();
     const db = store;
+    const tp = trPage(key.slice(state.note.id.length + 1));
+    if (tp && tArea.value === tp.text) { // back to the hub's text: nothing to keep
+      clearTimeout(draftTimers.get(key));
+      draftTimers.delete(key);
+      drafts.delete(key);
+      Promise.resolve(db.del('drafts', key)).catch(() => {});
+      return;
+    }
+    drafts.set(key, tArea.value);
     const text = tArea.value;
     clearTimeout(draftTimers.get(key));
     draftTimers.set(key, setTimeout(() => {
@@ -1609,6 +1618,20 @@ export function mountInk(root, options = {}) {
       if (r && typeof r.id === 'string' && r.id.startsWith(`${noteId}:`) && !drafts.has(r.id)) drafts.set(r.id, r.text);
     }
     if (state.note && state.note.id === noteId) renderText();
+  }
+
+  // A note gone from this device: its drafts go too.
+  async function dropNoteDrafts(noteId, db = store) {
+    const mine = (k) => typeof k === 'string' && k.startsWith(`${noteId}:`);
+    if (db === store) {
+      for (const k of [...drafts.keys()]) if (mine(k)) drafts.delete(k);
+      for (const [k, t] of [...draftTimers]) if (mine(k)) { clearTimeout(t); draftTimers.delete(k); }
+    }
+    let rows = [];
+    try { rows = (await db.all('drafts')) || []; } catch (_) { rows = []; }
+    for (const r of rows) {
+      if (r && mine(r.id)) { try { await db.del('drafts', r.id); } catch (_) { /* memory only */ } }
+    }
   }
 
   async function dropDraft(key, text) {
@@ -1847,6 +1870,7 @@ export function mountInk(root, options = {}) {
       await store.del('notes', id);
       await store.put('deletes', { id });
     } catch (_) { /* memory only */ }
+    await dropNoteDrafts(id);
   }
 
   async function deleteNote(id, title) {
@@ -1898,7 +1922,7 @@ export function mountInk(root, options = {}) {
       // the list was asked for may just be missing from it.
       const gone = (n) => n.synced && !remoteIds.has(n.id) && !((n.synced_at || 0) >= asked);
       for (const n of local) {
-        if (gone(n)) { try { await db.del('notes', n.id); } catch (_) { /* */ } }
+        if (gone(n)) { try { await db.del('notes', n.id); } catch (_) { /* */ } await dropNoteDrafts(n.id, db); }
       }
       local = local.filter((n) => !gone(n));
       for (const n of remote) byId.set(n.id, { ...n, waiting: false });
@@ -1907,7 +1931,8 @@ export function mountInk(root, options = {}) {
       const known = byId.get(n.id);
       if (!known || !n.synced) {
         byId.set(n.id, { id: n.id, title: n.title, image_url: n.image_url || (known && known.image_url),
-          edited_at: n.edited_at, pages: n.pages.length, waiting: !n.synced, blocked: n.blocked });
+          edited_at: n.edited_at, pages: n.pages.length, waiting: !n.synced, blocked: n.blocked,
+          transcripts: known && known.transcripts });
       }
     }
     const items = [...byId.values()].sort((a, b) => (b.edited_at || 0) - (a.edited_at || 0)
@@ -2008,6 +2033,7 @@ export function mountInk(root, options = {}) {
     suspended = true;
     router.release();
     flush();
+    if (state.note) autoTranscribe([...edited]); // like Back: read the pages changed
     clearTimeout(pollTimer);
     pollTimer = 0;
     timers.forEach(clearInterval);
@@ -2036,6 +2062,7 @@ export function mountInk(root, options = {}) {
         }
       } else if (res.status === 404) {
         await store.del('notes', id);
+        await dropNoteDrafts(id);
         state.note = null;
         return showList('This note was deleted elsewhere.');
       }

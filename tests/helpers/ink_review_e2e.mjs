@@ -766,5 +766,90 @@ await check('qc_o5_old_transcripts_answer_is_dropped', async () => {
   return { ok, st };
 });
 
+// O-8 (1). Typing a page's text back to what the hub has keeps no draft, so a later
+// transcription shows.
+await check('qc_o8_no_op_draft_is_dropped', async () => {
+  const page = await openPage(browser, { user: 'qa2' });
+  await newNote(page);
+  await page.evaluate((pts) => stroke('pen', 2, pts), line(200));
+  await textTab(page);
+  await waitText(page, () => document.querySelector('.ink-tarea').value.includes('Line one'));
+  const original = (await textState(page)).text;
+  await typeText(page, original + ' x');
+  await page.waitForTimeout(600);
+  const kept = (await idbDrafts(page, 'qa2')).length;
+  await typeText(page, original);
+  await page.waitForTimeout(600);
+  const left = (await idbDrafts(page, 'qa2')).length;
+  await page.evaluate(() => { hub.read = () => 'New words after more ink'; });
+  await inkTab(page);
+  await page.evaluate((pts) => stroke('pen', 2, pts), line(300));
+  await textTab(page);
+  let shown = true;
+  try { await waitText(page, () => document.querySelector('.ink-tarea').value.includes('New words'), 3000); } catch (_) { shown = false; }
+  const st = await textState(page);
+  await page.close();
+  return { ok: kept === 1 && left === 0 && shown && !/not saved/.test(st.state), kept, left, shown, st };
+});
+
+// O-8 (3). A note with edits not synced yet keeps its "to review" pages in the list.
+await check('qc_o8_list_keeps_review_of_unsynced_note', async () => {
+  const page = await openPage(browser, { user: 'qa3' });
+  await newNote(page);
+  await page.evaluate((pts) => stroke('pen', 2, pts), line(200));
+  await page.evaluate(async () => {
+    await view.flush(); await settle(300);
+    const n = Object.values(hub.notes)[0];
+    await fetch('/api/ink/notes/' + n.note_id + '/transcribe', { method: 'POST', body: '{}' });
+    await settle(400);
+    hub.answer['PUT /api/ink/notes/' + n.note_id] = { status: 500, body: {} };  // stays unsynced
+  });
+  await page.evaluate((pts) => stroke('pen', 2, pts), line(300));
+  await page.click('[aria-label="All notes"]');
+  await page.waitForSelector('.ink-card');
+  await page.waitForTimeout(300);
+  const got = await page.evaluate(() => ({ items: document.querySelectorAll('.ink-review-item').length,
+    meta: document.querySelector('.ink-card .bs-meta').textContent }));
+  await page.close();
+  return { ok: got.items === 1 && /1 to review/.test(got.meta) && /waiting to sync/.test(got.meta), ...got };
+});
+
+// O-8 (4). Closing the Write window reads the pages changed, like Back does.
+await check('qc_o8_closing_write_reads_changed_pages', async () => {
+  const page = await openPage(browser, { user: 'qa4' });
+  await newNote(page);
+  await page.evaluate((pts) => stroke('pen', 2, pts), line(200));
+  const calls = await page.evaluate(async () => {
+    view.suspend();
+    await settle(600);
+    const out = (hub.transcribeCalls || []).slice();
+    view.resume();
+    return out;
+  });
+  await page.close();
+  return { ok: calls.length === 1 && calls[0].only_changed && calls[0].pages.length === 1, calls };
+});
+
+// O-8 (5). Deleting a note drops its drafts on the device.
+await check('qc_o8_delete_drops_drafts', async () => {
+  const page = await openPage(browser, { user: 'qa5' });
+  await newNote(page);
+  await page.evaluate((pts) => stroke('pen', 2, pts), line(200));
+  await textTab(page);
+  await waitText(page, () => document.querySelector('.ink-tarea').value.includes('Line one'));
+  await typeText(page, 'a draft never saved');
+  await page.waitForTimeout(600);
+  const before = (await idbDrafts(page, 'qa5')).length;
+  await page.click('[aria-label="All notes"]');
+  await page.waitForSelector('.ink-card');
+  page.on('dialog', (d) => d.accept());
+  await page.evaluate(() => document.querySelector('.ink-card .bs-icon-btn').click());
+  await page.waitForTimeout(600);
+  const after = (await idbDrafts(page, 'qa5')).length;
+  const notes = await page.evaluate(() => Object.keys(hub.notes).length);
+  await page.close();
+  return { ok: before === 1 && after === 0 && notes === 0, before, after, notes };
+});
+
 await browser.close();
 console.log(JSON.stringify(results));
