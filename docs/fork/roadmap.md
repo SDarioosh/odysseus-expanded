@@ -74,8 +74,9 @@ _Last updated: 2026-10-22_
    ([upstream-sync.md](upstream-sync.md#sending-fixes-upstream)); weekly syncs.
 
 9. **Handwritten notes** (scoped, not built). Write with a stylus on a tablet in the
-   PWA, keep the strokes, transcribe with a local vision model and feed the text to the
-   belief ledger through Notes Evidence. Plan, model options and open questions:
+   PWA (Lenovo Tab Plus), keep the strokes, transcribe with the server's vision model,
+   review each page by hand, and send the text to Athena as a written note (replaced
+   when the note is edited). Plan, phases and open questions:
    [handwritten-notes.md](handwritten-notes.md).
 
 10. **Auto/Ask choice syncs across devices** (planned, not built). The message box's
