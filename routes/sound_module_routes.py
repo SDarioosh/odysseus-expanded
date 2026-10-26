@@ -1,4 +1,4 @@
-"""Fork: the odysseus-sound page (conversations and "who is this?" cards).
+"""Fork: the Athena page (conversations and "who is this?" cards).
 
 ``GET /modules/sound`` serves ``static/sound-module.html`` (the former ``/barvis/sound``
 redirects there); its script calls:
@@ -13,19 +13,29 @@ redirects there); its script calls:
 * ``POST /api/modules/sound/name-speaker``   {conversation_id, speaker_label, name}
 * ``GET  /api/modules/sound/action-items``   (status), with where each item was filed
 * ``POST /api/modules/sound/action-items/{id}`` {status}
-* ``POST /api/modules/sound/action-items/{id}/file`` {target: calendar|todo}: Add to
-  calendar / to-dos (a conversation's suggestion)
+* ``POST /api/modules/sound/action-items/{id}/file`` {target: calendar|todo|note}: Add
+  to calendar / to-dos / notes (a suggestion, or a note whose filing failed)
 * ``POST /api/modules/sound/action-items/{id}/move`` {kind, due_date?, due_time?,
   list_name?}: Move to calendar / to-dos / a to-do list, Change time
 * ``GET  /api/modules/sound/todo-lists``: the owner's to-do list titles (the list picker)
 * ``POST /api/modules/sound/action-items/{id}/undo``: remove the Odysseus entry, dismiss
+* ``POST /api/modules/sound/unfile-todos`` {apply?, ids?, all?}: the one-off clean-up of to-dos
+  filed one per voice-note item (``unfile_auto_todos``; a dry run unless ``apply``;
+  ``scripts/unfile_voice_note_todos.py`` calls it)
+
+``GET /modules/sound/record`` serves ``static/call-recorder.html`` ("Record a call"); its
+script calls ``GET /api/modules/sound/record/config``, ``POST /api/modules/sound/record/chunk``
+(multipart: audio, session_id, sequence, timestamp, codec) and
+``POST /api/modules/sound/record/{session_id}/end``. Those forward to the upload routes
+of the module's MCP HTTP server (the connected ``convo`` server's URL and token), not its
+MCP tools (``src/call_recorder.py``).
 
 Action items are read live from the module, the source of truth; Done/Dismiss call its
 ``update_action_item``. Filing into the Odysseus calendar and to-dos (and the record of
 what went where) is ``src/module_action_items.py``; the last three routes call its
 ``file_item`` / ``move_item`` / ``unfile_item`` and answer with the item as it is now.
 
-All of them go through the module's MCP tools (``src/sound_module_view.py``); the module's
+All the others go through the module's MCP tools (``src/sound_module_view.py``); the module's
 database is never touched. Admin only: the data is the owner's recordings, and the MCP
 server is admin-configured. Naming a speaker from a card is the user's explicit action,
 so it doesn't go through the chat approval card.
@@ -36,13 +46,23 @@ from __future__ import annotations
 import inspect
 import logging
 import os
-from typing import Any
+from typing import Annotated, Any
 
-from fastapi import APIRouter, Depends, HTTPException, Request
+from fastapi import (
+    APIRouter,
+    Depends,
+    File,
+    Form,
+    Header,
+    HTTPException,
+    Request,
+    UploadFile,
+)
 from fastapi.responses import RedirectResponse
 from pydantic import BaseModel, Field
 
 from core.middleware import require_admin
+from src import call_recorder as recorder
 from src import sound_module_view as view
 from src.auth_helpers import effective_user
 
@@ -57,7 +77,7 @@ class ItemStatus(BaseModel):
 
 
 class FileItem(BaseModel):
-    target: str = Field(pattern="^(calendar|todo)$")
+    target: str = Field(pattern="^(calendar|todo|note)$")
 
 
 class MoveItem(BaseModel):
@@ -65,6 +85,12 @@ class MoveItem(BaseModel):
     due_date: str | None = Field(default=None, max_length=10)  # YYYY-MM-DD or "none"
     due_time: str | None = Field(default=None, max_length=5)  # HH:MM or "none"
     list_name: str | None = Field(default=None, max_length=60)  # a to-do list or "none"
+
+
+class UnfileTodos(BaseModel):
+    apply: bool = False
+    ids: list[int] | None = Field(default=None, max_length=500)
+    all: bool = False  # also entries filed in explicit mode or from the page
 
 
 class NameSpeaker(BaseModel):
@@ -89,13 +115,13 @@ def _caller() -> view.CallTool:
     manager = get_mcp_manager()
     server_id = view.server_id(manager, key) if manager is not None else None
     if server_id is None:
-        raise HTTPException(503, f"The odysseus-sound MCP server ({key!r}) is not connected.")
+        raise HTTPException(503, f"The Athena MCP server ({key!r}) is not connected.")
 
     async def call(tool: str, args: dict) -> str:
         res = await manager.call_tool(f"mcp__{server_id}__{tool}", args)
         if res.get("exit_code") or res.get("error"):
-            logger.warning("odysseus-sound %s failed: %s", tool, res.get("error") or res.get("stderr"))
-            raise HTTPException(502, f"odysseus-sound {tool} failed")
+            logger.warning("Athena %s failed: %s", tool, res.get("error") or res.get("stderr"))
+            raise HTTPException(502, f"Athena {tool} failed")
         return res.get("stdout") or ""
 
     return call
@@ -128,7 +154,7 @@ async def _filed_state(owner: str) -> dict:
             return {}
         return (await _maybe_await(fn(owner))) or {}
     except Exception as e:  # noqa: BLE001 -- the list still shows without it
-        logger.warning("odysseus-sound filed state unavailable: %s", e)
+        logger.warning("Athena filed state unavailable: %s", e)
         return {}
 
 
@@ -150,7 +176,7 @@ async def _filing_call(what: str, coro) -> Any:
     except LookupError as e:
         raise HTTPException(404, str(e)) from e
     except Exception as e:  # logged; the page shows a short error
-        logger.warning("odysseus-sound %s failed: %s", what, e)
+        logger.warning("Athena %s failed: %s", what, e)
         raise HTTPException(502, f"Could not {what} the action item.") from e
 
 
@@ -259,7 +285,7 @@ def setup_sound_module_routes() -> APIRouter:
         if view.filed_for(await _filed_state(owner), item_id):
             raise HTTPException(409, f"Action item #{item_id} is filed already; move it instead.")
         filed = await _filing_call("file", mai.file_item(owner, row, call, target=body.target))
-        where = "calendar" if body.target == "calendar" else "to-dos"
+        where = {"calendar": "calendar", "note": "notes"}.get(body.target, "to-dos")
         return {"ok": True, "message": f"Added to {where}.", "filed": filed,
                 "item": await _item_now(call, owner, item_id)}
 
@@ -301,10 +327,75 @@ def setup_sound_module_routes() -> APIRouter:
         return {"ok": True, "message": "Undone: removed from Odysseus and dismissed.",
                 "result": result, "item": await _item_now(call, owner, item_id)}
 
+    @router.post("/api/modules/sound/unfile-todos", dependencies=[Depends(require_admin)])
+    async def unfile_todos(body: UnfileTodos, request: Request) -> dict[str, Any]:
+        """List (dry run) or remove the single to-dos filed from voice notes."""
+        from src import module_action_items as mai
+
+        fn = getattr(mai, "unfile_auto_todos", None)
+        if fn is None:
+            raise HTTPException(503, "This Odysseus can't clean up filed to-dos.")
+        only = set(body.ids) if body.ids is not None else None
+        result = await _filing_call("clean up", fn(_owner(request), _caller(),
+                                                   apply=body.apply, only=only,
+                                                   include_all=body.all))
+        return {"ok": True, **result}
+
     @router.post("/api/modules/sound/action-items/{item_id}",
                  dependencies=[Depends(require_admin)])
     async def set_action_item(item_id: int, body: ItemStatus) -> dict[str, Any]:
         message = await view.set_action_item(_caller(), item_id, body.status)
         return {"ok": message.startswith("Action item"), "message": message}
 
+    # ------------------------------------------------ record a call (src/call_recorder.py)
+    @router.get("/modules/sound/record")
+    async def record_page(request: Request):
+        from src.app_helpers import serve_html_with_nonce
+        from src.constants import BASE_DIR
+
+        return serve_html_with_nonce(request, os.path.join(BASE_DIR, "static/call-recorder.html"))
+
+    @router.get("/api/modules/sound/record/config", dependencies=[Depends(require_admin)])
+    async def record_config() -> dict[str, Any]:
+        return {**recorder.status(), "device": recorder.device(),
+                "max_bytes": recorder.MAX_CHUNK_BYTES}
+
+    @router.post("/api/modules/sound/record/chunk", dependencies=[Depends(require_admin)])
+    async def record_chunk(
+        audio: Annotated[UploadFile, File()],
+        session_id: Annotated[str, Form()],
+        sequence: Annotated[int, Form()],
+        timestamp: Annotated[str, Form()],
+        codec: Annotated[str, Form()] = "webm",
+        x_odysseus_recorder: Annotated[str | None, Header()] = None,
+    ) -> dict[str, Any]:
+        _recorder_header(x_odysseus_recorder)
+        data = await audio.read(recorder.MAX_CHUNK_BYTES + 1)
+        try:
+            out = await recorder.forward_chunk(recorder.resolve(), data=data,
+                                               session_id=session_id, sequence=sequence,
+                                               timestamp=timestamp, codec=codec,
+                                               device_name=recorder.device())
+            return {"ok": out["ok"], "stop": out["stop"], "reason": out["reason"]}
+        except recorder.RecorderError as exc:
+            raise HTTPException(exc.status, exc.message) from None
+
+    @router.post("/api/modules/sound/record/{session_id}/end",
+                 dependencies=[Depends(require_admin)])
+    async def record_end(session_id: str,
+                         x_odysseus_recorder: Annotated[str | None, Header()] = None
+                         ) -> dict[str, Any]:
+        _recorder_header(x_odysseus_recorder)
+        try:
+            return await recorder.end_session(recorder.resolve(), session_id)
+        except recorder.RecorderError as exc:
+            raise HTTPException(exc.status, exc.message) from None
+
     return router
+
+
+def _recorder_header(value: str | None) -> None:
+    # A custom header makes these uploads preflighted, so another site can't post audio
+    # into the owner's recordings with a plain form (the session cookie is also SameSite).
+    if value != "1":
+        raise HTTPException(400, "missing X-Odysseus-Recorder header")

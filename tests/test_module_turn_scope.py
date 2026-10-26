@@ -98,6 +98,7 @@ def _scoped(message, families=None, manager=None):
     "Did anyone mention a marathon?",
     "What did I promise Ben?",
     "What did Dr. Patel tell me to avoid?",
+    "Did my doctor tell me to rest?",
     "Which book did Jonas recommend?",
     "When is my next dentist appointment?",
     "How much will my rent be from January?",
@@ -113,6 +114,9 @@ def test_conversation_questions_are_cues(message):
     "Write a python function that reverses a list",
     "Translate good morning into Spanish",
     "Summarize this article for me",
+    "tell me why",
+    "Tell me why the sky is blue",
+    "tell me a joke",
 ])
 def test_general_questions_are_not_cues(message):
     assert not module_cue(message, frozenset({"Alice"}))

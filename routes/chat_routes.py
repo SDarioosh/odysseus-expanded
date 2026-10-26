@@ -2502,6 +2502,9 @@ def setup_chat_routes(
         # actually get bash enabled.
         allow_bash = form_data.get("allow_bash") or (body or {}).get("allow_bash")
         allow_web_search = form_data.get("allow_web_search") or (body or {}).get("allow_web_search")
+        # Fork: this chat's Auto/Ask choice from the composer button (src/auto_mode.py)
+        from src.auto_mode import CHAT_MODE_FIELD, remember_chat_mode
+        remember_chat_mode(effective_user(request), session, form_data.get(CHAT_MODE_FIELD) or (body or {}).get(CHAT_MODE_FIELD))
         use_rag = form_data.get("use_rag")
         search_context = form_data.get("search_context")  # pre-fetched web search results (compare mode)
         compare_mode = str(form_data.get("compare_mode", "")).lower() == "true"
@@ -2643,6 +2646,11 @@ def setup_chat_routes(
         # shell disabled).
         auto_escalated = False
         _tool_intent = _classify_tool_intent(message) if isinstance(message, str) else None
+        # Fork: chat-mode how/why questions are answered, not run (src/chat_mode_scope.py)
+        from src.chat_mode_scope import keep_chat_for_question
+        if chat_mode == "chat" and keep_chat_for_question(message, _tool_intent):
+            logger.info("chat stays chat: %s matched a how/why question", _tool_intent.reason)
+            _tool_intent = None
         # The opt-in trained-tools route owns its complete conversation loop.
         # Do not make each follow-up earn Agent mode again through the legacy
         # lexical intent classifier: that recreated the same per-turn RAG gate
@@ -3582,6 +3590,9 @@ def setup_chat_routes(
         # Fork: read-only actions of the personal-store tools on every turn (src/personal_read_grants.py)
         from src.personal_read_grants import with_personal_store_reads
         _request_authority = with_personal_store_reads(_request_authority)
+        # Fork: the calculator on every turn while the chat is in Auto (src/auto_mode.py)
+        from src.auto_mode import with_calculator_grant
+        _request_authority = with_calculator_grant(_request_authority, session_id=session)
         if exact_tool_approval is not None:
             from src.agent_runtime.authority import RequestAuthority
             _request_authority = (
@@ -3727,6 +3738,9 @@ def setup_chat_routes(
             # Fork: a slash-invoked skill pins its requires_toolsets for this message (src/skill_invocation.py)
             from src.skill_invocation import pin_skill_contract
             _turn_contract = pin_skill_contract(_turn_contract, message=message, owner=_user, schemas=_contract_schemas, policy=_contract_policy)
+            # Fork: offer the calculator next to the turn's tools in Auto (src/auto_mode.py)
+            from src.auto_mode import with_calculator_offer
+            _turn_contract = with_calculator_offer(_turn_contract, owner=_user, session_id=session)
             _request_authority = _request_authority.restrict(_contract_policy)
             # Resolution already applies user, owner, and global policy. An
             # admitted tool must not later be rejected by the stale

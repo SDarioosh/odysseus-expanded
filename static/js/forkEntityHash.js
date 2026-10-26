@@ -1,6 +1,6 @@
 // Fork: open a calendar event or a note named in the URL hash on page load.
 // Loaded by one hook in static/index.html. Used by links from the
-// odysseus-sound page and its phone pushes ("In calendar", "In to-dos").
+// Athena page and its phone pushes ("In calendar", "In to-dos").
 //
 // Upstream opens `#event-<uid>` and `#open=notes&note=<id>` only when such a
 // link is clicked inside the app (document-level click handler in

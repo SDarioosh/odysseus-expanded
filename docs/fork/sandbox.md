@@ -14,7 +14,7 @@ Hugging Face, npm and GitHub reachable; `cmake`, `gcc`, `ffmpeg`, Node 22, Pytho
 | Use the sandbox for | Leave to the owner's server |
 |---|---|
 | Unit tests, lint, everything with fakes | the real model (`qwen3.5-35b` on the RTX 3060) |
-| Running the whole chain: seed data → odysseus-sound → MCP → Odysseus → eval | the score that counts (target ≥ 15/20) |
+| Running the whole chain: seed data → Athena → MCP → Odysseus → eval | the score that counts (target ≥ 15/20) |
 | Before/after comparisons on the same small model | real devices, real audio, Tailscale |
 | Reproducing bugs in gating, routing, MCP, links | anything touching production (port 7000) |
 
@@ -28,7 +28,7 @@ sandbox runs only with other sandbox runs.
 - STT: whisper.cpp `ggml-base.en.bin` (~148 MB).
 
 Speed on 4 CPUs: ~60 tokens/s prompt processing, ~7 tokens/s generation. Seeding the 8
-demo conversations takes ~8 min. One eval question takes ~10–110 s with
+demo conversations took ~8 min (10 conversations since 2026-10-22: ~20 min). One eval question takes ~10–110 s with
 `--frontend raw` and ~1.5–6 min with `--frontend odysseus`. Run a few questions, not all
 20.
 
@@ -62,7 +62,7 @@ setsid nohup $SBX/whisper.cpp/build/bin/whisper-server -m $SBX/models/ggml-base.
   --host 127.0.0.1 --port 8178 -t 2 > $SBX/logs/whisper.log 2>&1 < /dev/null &
 ```
 
-### odysseus-sound
+### Athena
 
 ```bash
 cat > $SBX/convo.env <<'EOF'
@@ -124,15 +124,25 @@ curl -s -b $J -X POST $B/api/model-endpoints -F name=sandbox-llama \
   -F base_url=http://127.0.0.1:8082/v1 -F supports_tools=true
 curl -s -b $J -X POST $B/api/mcp/servers -F name=convo -F transport=http \
   -F "url=http://127.0.0.1:8001/mcp?access_token=$CONVO_MCP_TOKEN"
-# --trim: the tool set of all earlier sandbox runs; see "All Odysseus tools on" for why
-venv/bin/python scripts/modules_setup.py --url http://$B --password-file $SBX/admin.txt --trim
 INSTR=$(cd $SOUND/server && .venv/bin/python -c \
   "import json; from convo_server.mcp_server import INSTRUCTIONS; print(json.dumps(INSTRUCTIONS))")
 curl -s -b $J -X POST $B/api/presets/custom -H 'content-type: application/json' \
   -d "{\"system_prompt\": $INSTR, \"temperature\": 0.3, \"max_tokens\": 2048}"
+# after the Custom preset: setup copies its text into the /sound skill (an empty
+# preset leaves the skill without instructions)
+# --trim: the tool set of all earlier sandbox runs; see "All Odysseus tools on" for why
+venv/bin/python scripts/modules_setup.py --url http://$B --password-file $SBX/admin.txt --trim
 ```
 
 ## Run the eval
+
+**Question numbers moved (2026-10-22).** `server/eval/bakeoff.py` has gained questions
+since the runs below: the Maria question is now
+**9** ("What did Maria ask me to do last week?"), and 21 is "What was my latest voice note about?"; 22 no longer exists. Scores of
+`--only 1 4 16 21` before and after that change are not comparable. Q4 ("next
+appointment") depends on the date: the seeded appointment is on 2026-10-21, so from
+2026-10-22 on it has no future answer. Compare runs only when made on the same day with
+the same bakeoff.
 
 ```bash
 cd $SOUND/server && . $SBX/convo.env
@@ -205,7 +215,7 @@ odysseus frontend). `tools_sent` is the `[agent-debug]` count on the first round
   "Friday" to 2026-10-16.
 - E: Q16 made no tool call; Q4 searched but answered "not found"; Q21 cited the right
   conversation but left out the keyword (Rosa/train). Same tools as D, different
-  procedure text (`/context`'s generic one vs odysseus-sound's `INSTRUCTIONS`), so with
+  procedure text (`/context`'s generic one vs Athena's `INSTRUCTIONS`), so with
   a 4B model the wording matters; small runs also vary (Q1 here started with "Model
   request failed", finding 5, and still passed).
 - A first ran right after the others and failed in ~1 s per question: llama-server had
@@ -232,7 +242,7 @@ ODYSSEUS_URL=http://127.0.0.1:7010 ODYSSEUS_PASSWORD_FILE=$SBX/admin.txt \
 Setup C (every tool on, "Auto", no slash command), questions 1, 4, 13, 16 and 20 (the
 "Mars" question must answer without a citation). Run 1 had the fork routing
 (`src/module_turn_scope.py`) plus a fork "Sources:" footer; run 2 dropped the footer and
-added one sentence to odysseus-sound's `INSTRUCTIONS` (search before saying "I don't
+added one sentence to Athena's `INSTRUCTIONS` (search before saying "I don't
 know"; Custom preset updated). Chat mode = `ODYSSEUS_MODE=chat`, what the web UI sends with
 the agent toggle off.
 
@@ -259,7 +269,7 @@ cd $SOUND/server && for m in agent chat; do ODYSSEUS_MODE=$m ODYSSEUS_URL=http:/
 `/sound Show me the transcript of the Leipzig offsite planning meeting on 2026-10-18`,
 sent through Odysseus (`--trim`, "Regular tools"), against a fictional 60-line meeting
 added to the seed for this test (the demo conversations are 4–7 lines). Before:
-odysseus-sound `main`; after: one time per line, 100 lines a page, and "give the link and
+Athena `main`; after: one time per line, 100 lines a page, and "give the link and
 a short summary" in the result, tool description and `INSTRUCTIONS`
 (SDarioosh/barvis-sound, branch `claude/sharp-sagan-yfcl39`). Token counts from the
 llama-server log. This sandbox ran at ~3 tokens/s generation, ~25 tokens/s prompt.
@@ -273,10 +283,31 @@ Questions 1, 4, 16, 22 with `/sound` after the change: 3/4. Question 4 (dentist)
 fails on `main` in this sandbox (0/1, the model only calls `list_action_items`), so it
 isn't caused by this change.
 
+### Complete forget (4.2), 2026-10-23
+
+Same stack (Qwen3-4B, `seed_demo.py`, 10 conversations), Odysseus on this fork's 4.2
+branch with `modules_setup.py --trim`, questions 1, 9, 16 on the same day:
+
+| Athena | tools | score | Q1 | Q9 | Q16 |
+|---|---|---|---|---|---|
+| `main` (MCP 0.9.0) | 14 | 1/3 | no tool call | pass | `list_facts`, no answer |
+| 4.2 branch (MCP 0.10.0, `erase_fact`) | 15 | 2/3 | pass (`search_transcripts`) | pass | `list_facts` + `search_conversations`, no answer |
+
+The new tool is only called on Forget; the difference is small-model noise (Q1 varied
+between runs before too). End to end on the same stack: Forget on the fictional belief
+"Jonas is allergic to peanuts" answered `propagated.erased = 1`; in the module the line
+"No thanks, I'm allergic to peanuts, remember?" read `[forgotten]`, the conversation's
+notes were hidden, both full-text indexes had no "peanut" match, and within a minute
+the worker's model rewrote the notes (only the key point "Jonas is allergic to peanuts
+and declined the satay" was dropped, the rest kept word for word). The erased line's
+words were no longer in `convo.db*`, nor "peanut" anywhere in `beliefs.db*`; the export
+had no "peanut"; the next facts run reported the fact gone and the belief stayed
+rejected and erased.
+
 ## Findings from the first sandbox run
 
 These are real bugs, not sandbox quirks. 1–3 and 5 are bugs in Odysseus or the fork (tracked in
-[roadmap.md](roadmap.md)); 4 is an odysseus-sound bug (tracked in its `PROGRESS.md`).
+[roadmap.md](roadmap.md)); 4 is an Athena bug (tracked in its `PROGRESS.md`).
 
 1. **Fixed: HTTP MCP servers lose their annotations.** `_connect_http` in
    `src/mcp_manager.py` stored each tool without `annotations` (the stdio and SSE paths
@@ -298,7 +329,7 @@ These are real bugs, not sandbox quirks. 1–3 and 5 are bugs in Odysseus or the
    `tests/test_mcp_stdio_owner.py`. Upstream issue to file.
 3. **Empty answers:** some Odysseus replies are empty after tool calls (question 16 in the
    HTTP run). That matches the "Done." replies in the server eval.
-4. **odysseus-sound: failed summaries are never retried.** If llama-server is down when a
+4. **Athena: failed summaries are never retried.** If llama-server is down when a
    conversation is summarized, it is marked `failed`, and `convo-server summarize-pending`
    only retries `pending` conversations (`Pipeline.summarize_pending`). The conversation
    keeps its transcript but never gets a summary, title or action items.
@@ -316,7 +347,7 @@ answers, devices or deployment has a **Server verification** section listing:
 - the commands to run, for example:
   - restart the isolated test instance (`~/.hermes/cache/scratch/barvis-run.sh`, port 7010);
   - `python scripts/modules_setup.py --url http://127.0.0.1:7010 --password-file <file>`;
-  - `python eval/bakeoff.py --frontend odysseus` in odysseus-sound `server/`;
+  - `python eval/bakeoff.py --frontend odysseus` in Athena `server/`;
 - the result to expect (e.g. "score ≥ previous 9/20");
 - anything that needs a real device, with the steps.
 

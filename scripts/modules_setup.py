@@ -25,7 +25,7 @@ ships paused), which files voice-note action items into the calendar and to-dos 
 pushes them to the phone; ``--no-action-items`` leaves it alone. (It logs a warning at
 run time when the module's CONVO_TIMEZONE isn't Odysseus' timezone.)
 
-Slash-command skills: ``/sound <question>`` offers odysseus-sound's tools for that
+Slash-command skills: ``/sound <question>`` offers Athena's tools for that
 one message, and ``/context <question>`` the tools of every trusted module. This
 script creates or updates those skills through the skills API (source
 ``managed``, so they need no skill audit; see src/skill_invocation.py):

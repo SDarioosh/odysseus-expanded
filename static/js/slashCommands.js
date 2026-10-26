@@ -23,6 +23,7 @@ import cookbookModule from './cookbook.js';
 import { EVAL_PROMPTS } from './compare/index.js?v=20260909mobilepaneaddscroll1';
 import { PROVIDER_DEVICE_FLOWS, formatDeviceFlowError, runProviderDeviceFlow } from './providerDeviceFlow.js';
 import { getSettings } from './appConfig.js';
+import { FORK_OPEN_TARGETS } from './forkModuleShortcuts.js'; // Fork: fork windows' /open targets (static/js/forkModuleShortcuts.js)
 
 // ── Module state ──────────────────────────────────────────────────────
 
@@ -1384,6 +1385,7 @@ async function _cmdOpen(args, ctx) {
       research: ['tool-research-btn', 'rail-research'],
       compare: ['tool-compare-btn', 'rail-compare'],
       theme: ['tool-theme-btn', 'rail-theme'],
+      ...FORK_OPEN_TARGETS, // Fork: fork windows (static/js/forkModuleShortcuts.js)
     };
     const ids = targets[target];
     if (ids && clickFirst(...ids)) return true;

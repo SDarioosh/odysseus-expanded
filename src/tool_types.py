@@ -30,3 +30,4 @@ TOOL_TAGS = {
     "list_cookbook_servers", "edit_image", "trigger_research", "manage_research",
     "app_api",
 } | BUILTIN_EMAIL_TOOLS
+TOOL_TAGS |= {"calculate"}  # Fork: calculator tool (src/auto_mode.py)

@@ -278,6 +278,18 @@ HOUSEKEEPING_DEFAULTS = {
 # Fork: seed the module action-item sync task (src/module_action_items.py)
 from src.module_action_items import register_housekeeping as _fork_housekeeping  # noqa: E402
 _fork_housekeeping(HOUSEKEEPING_DEFAULTS)
+# Fork: seed the module facts -> memory task (src/module_facts.py)
+from src.module_facts import register_housekeeping as _fork_facts_housekeeping  # noqa: E402
+_fork_facts_housekeeping(HOUSEKEEPING_DEFAULTS)
+# Fork: seed the Today insight task (src/today_insight.py)
+from src.today_insight import register_housekeeping as _fork_today_housekeeping  # noqa: E402
+_fork_today_housekeeping(HOUSEKEEPING_DEFAULTS)
+# Fork: seed the Notes Evidence task (src/notes_evidence.py)
+from src.notes_evidence import register_housekeeping as _fork_notes_housekeeping  # noqa: E402
+_fork_notes_housekeeping(HOUSEKEEPING_DEFAULTS)
+# Fork: seed the Belief Structure task (src/belief_structure.py)
+from src.belief_structure import register_housekeeping as _fork_structure_housekeeping  # noqa: E402
+_fork_structure_housekeeping(HOUSEKEEPING_DEFAULTS)
 
 RETIRED_HOUSEKEEPING_ACTIONS = frozenset({
     "tidy_calendar",
@@ -357,6 +369,36 @@ def _normalize_chat_endpoint(url: str) -> str:
         # reverts to the 404 this fixes, so make the silent revert visible.
         logger.debug("task endpoint normalization failed for %r; using as-is", url, exc_info=True)
         return url
+
+
+def _resolve_research_settings(get_setting_fn):
+    """Resolve the scheduled-research settings with crash-proof fallbacks.
+
+    A hand-edited or agent-written data/settings.json can hold non-numeric
+    values for the research_* keys; the bare int() reads previously raised
+    inside TaskScheduler._execute_research_task and killed every scheduled
+    research run until settings.json was fixed by hand (#5049).
+    src/research_handler.py already guards the same reads defensively —
+    this mirrors that for the scheduler. Valid values pass through
+    unchanged (numeric strings like "4096" still parse).
+    """
+    try:
+        max_tokens = int(get_setting_fn("research_max_tokens", 8192))
+    except (TypeError, ValueError, OverflowError):
+        max_tokens = 8192
+    try:
+        extraction_timeout = int(
+            get_setting_fn("research_extraction_timeout_seconds", 90) or 90
+        )
+    except (TypeError, ValueError, OverflowError):
+        extraction_timeout = 90
+    try:
+        extraction_concurrency = int(
+            get_setting_fn("research_extraction_concurrency", 3) or 3
+        )
+    except (TypeError, ValueError, OverflowError):
+        extraction_concurrency = 3
+    return max_tokens, extraction_timeout, extraction_concurrency
 
 
 class TaskScheduler:
@@ -1330,7 +1372,11 @@ class TaskScheduler:
         authority = authority.restrict(disabled_tools=get_setting("disabled_tools", []) or ())
         operation = task_operation(task.task_type, task.action, task.prompt)
         if operation is None or not authority.permits(operation):
-            return "Scheduled action has no matching server request authority.", False
+            # Fork: re-seal a built-in task's broken authority, else say why (src/builtin_task_authority.py)
+            from src.builtin_task_authority import recover
+            authority, why = recover(task, get_setting("disabled_tools", []) or ())
+            if authority is None:
+                return f"Scheduled action has no matching server request authority ({why}).", False
 
         action_fn = BUILTIN_ACTIONS.get(task.action)
         if not action_fn:
@@ -2191,9 +2237,9 @@ class TaskScheduler:
             pass
         endpoint_url = _normalize_chat_endpoint(endpoint_url)
 
-        max_tokens = int(get_setting("research_max_tokens", 8192))
-        extraction_timeout = int(get_setting("research_extraction_timeout_seconds", 90) or 90)
-        extraction_concurrency = int(get_setting("research_extraction_concurrency", 3) or 3)
+        max_tokens, extraction_timeout, extraction_concurrency = (
+            _resolve_research_settings(get_setting)
+        )
 
         researcher = DeepResearcher(
             llm_endpoint=endpoint_url,
@@ -2839,3 +2885,14 @@ class TaskScheduler:
 
 # Fork: the action-item sync posts nothing to the assistant chat (src/module_action_items.py)
 TaskScheduler._SILENT_ACTIONS = TaskScheduler._SILENT_ACTIONS | {"barvis_sync_action_items"}
+# Fork: the facts sync posts nothing to the assistant chat (src/module_facts.py)
+TaskScheduler._SILENT_ACTIONS = TaskScheduler._SILENT_ACTIONS | {"module_sync_facts"}
+# Fork: the Today insight posts nothing to chat and queues for the model (src/today_insight.py)
+TaskScheduler._SILENT_ACTIONS = TaskScheduler._SILENT_ACTIONS | {"today_insight"}
+TaskScheduler._MODEL_BACKED_ACTIONS = TaskScheduler._MODEL_BACKED_ACTIONS | {"today_insight"}
+# Fork: notes evidence posts nothing to chat and queues for the model (src/notes_evidence.py)
+TaskScheduler._SILENT_ACTIONS = TaskScheduler._SILENT_ACTIONS | {"notes_evidence"}
+TaskScheduler._MODEL_BACKED_ACTIONS = TaskScheduler._MODEL_BACKED_ACTIONS | {"notes_evidence"}
+# Fork: belief structure posts nothing to chat and queues for the model (src/belief_structure.py)
+TaskScheduler._SILENT_ACTIONS = TaskScheduler._SILENT_ACTIONS | {"belief_structure"}
+TaskScheduler._MODEL_BACKED_ACTIONS = TaskScheduler._MODEL_BACKED_ACTIONS | {"belief_structure"}

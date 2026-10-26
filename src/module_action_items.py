@@ -1,6 +1,6 @@
-"""Fork: phone notifications for odysseus-sound action items and the daily digest.
+"""Fork: phone notifications for Athena action items and the daily digest.
 
-Action items stay in the module (odysseus-sound is the only source; the owner chose a live
+Action items stay in the module (Athena is the only source; the owner chose a live
 view over copies). A built-in scheduled task ("Module Action Items", every 15 minutes)
 reads them through the module's MCP tools and pushes, through Odysseus' reminder
 dispatcher on the ntfy channel:
@@ -11,7 +11,7 @@ dispatcher on the ntfy channel:
 Odysseus never opens the module's database and keeps no copy of the items: the only state
 is which item ids and days were already pushed (``<DATA_DIR>/barvis_action_items_*.json``;
 the file name is kept from the fork's former name so existing state carries over).
-The live list (tick done / dismiss) is on the odysseus-sound page, ``/modules/sound``.
+The live list (tick done / dismiss) is on the Athena page, ``/modules/sound``.
 
 Settings (environment; the former ``BARVIS_*`` names are still read as a fallback):
 
@@ -19,10 +19,16 @@ Settings (environment; the former ``BARVIS_*`` names are still read as a fallbac
 * ``MODULE_NOTIFY_CHANNEL``: ``ntfy`` (default), ``browser`` or ``off``.
 * ``MODULE_DIGEST_HOUR``: local hour after which the daily pushes go out (default 8;
   ``off`` = no daily pushes).
-* ``MODULE_FILE_ITEMS``: ``auto`` (default) or ``off``. ``off`` keeps the behaviour above
-  exactly (text result, "new action item" pushes, nothing filed).
+* ``MODULE_FILE_ITEMS``: ``explicit`` (default), ``auto`` or ``off``. ``off`` keeps the
+  behaviour above exactly (text result, "new action item" pushes, nothing filed).
+  ``auto`` files every new voice-note item. ``explicit`` files a voice-note item only
+  when it is explicit (``is_explicit``: the module's ``explicit`` field, or for an older
+  module a due date or time, a ``list_name``, kind reminder / event / note, or a command
+  word such as "remind me", "to-do", "task", "add ... to my ... list"); the other
+  voice-note items become suggestions like conversation items (one push per pass,
+  "Suggested from your voice note", with their short titles; nothing filed).
 
-Filing (``MODULE_FILE_ITEMS=auto``, every 5 minutes): the task reads the items as JSON
+Filing (every 5 minutes): the task reads the items as JSON
 (``list_action_items {"status": "all", "format": "json"}``) and files new open items from
 voice notes into Odysseus itself: events into the default calendar (``do_manage_calendar``,
 idempotent uid, 30-minute reminder when timed), tasks and reminders into to-dos
@@ -39,6 +45,23 @@ open checklist / to-do note whose title is that name ("Shopping", "shopping list
 new one titled with it. The line carries the due date in its text (a line has no
 reminder). Its status follows the line: ticked -> done, removed -> dismissed, list
 archived -> done; Undo and moving the item remove the line only.
+"Voice notes" list: a voice-note task without a due date and without a ``list_name`` is
+one line (its short ``title``) on the to-do list "Voice notes" (made if missing), not a
+to-do of its own; the named-list rules above apply. A dated task or a reminder keeps a
+to-do of its own, titled with the short ``title`` (the module's, else the start of the
+text), its one checklist line the full text. ``unfile_auto_todos`` (route
+``POST /api/modules/sound/unfile-todos``, script ``scripts/unfile_voice_note_todos.py``)
+removes the single undated to-dos filed per non-explicit voice-note item before this
+(never a dated to-do or a reminder; entries record ``filed_mode``). A "Voice notes" list
+emptied by Undo or a move is archived (``_archive_if_empty``).
+Notes: an item of kind ``note`` (the owner said "create a note ..." in a voice note)
+becomes an Odysseus note (type ``note``) titled with its ``note_title``, its text and the
+source line as content. With a ``list_name`` ("add to my hardware notes ..." ->
+``hardware``) it is added as a line ("- <text>") to that note instead: the open note
+whose title is that name ("Hardware notes", "hardware"), or a new one titled
+"Hardware notes". A filed note is marked done in the module right away (a note is no
+to-do; it leaves the open lists); status isn't synced after that. Undo / dismissing it
+from the page removes the note or the line.
 An older module that answers with text instead of JSON gets the old behaviour.
 """
 
@@ -69,12 +92,13 @@ HOUSEKEEPING_DEFAULT = {
              "old_cron_expressions": ["*/15 * * * *"],
              "legacy_names": ["Barvis Action Items"]},
 }
-INFO = ("File odysseus-sound action items from voice notes into the calendar and to-dos, "
+INFO = ("File Athena action items from voice notes into the calendar, to-dos and "
+        "notes, "
         "keep their status in step, and push what was filed, items due today and the "
         "daily digest to the phone via ntfy. Reads them through the module's MCP tools.")
 MAX_PUSHED_ITEMS = 5
 
-# One line of odysseus-sound's list_action_items result, e.g.
+# One line of Athena's list_action_items result, e.g.
 # - #12 [open] Send Alice the spreadsheet (owner Me) due 2026-09-19 (Friday) — from
 #   "Q4 budget" 2026-09-15 10:00 http://host:8000/view/abc?sig=...#t=40
 _LINE = re.compile(
@@ -242,8 +266,9 @@ async def sync(owner: str, call: CallTool, *, now: datetime | None = None) -> di
         return await _sync_text(owner, call, now=now)
     rows = parse_items_json(await call("list_action_items", {"status": "all", "format": "json"}))
     if rows is None:  # an older module: text only, so the old behaviour (nothing filed)
-        logger.info("odysseus-sound answered list_action_items with text; not filing")
+        logger.info("Athena answered list_action_items with text; not filing")
         return await _sync_text(owner, call, now=now)
+    rows = [r for r in rows if r.get("mine") is not False]  # someone else's to-do isn't ours
     async with _lock(owner):
         return await _sync_json(owner, call, rows, now=now)
 
@@ -273,7 +298,8 @@ async def _sync_text(owner: str, call: CallTool, *, now: datetime | None = None
 
 # ------------------------------------------------------------------------- filing
 KINDS = {"task", "event", "reminder"}
-TARGETS = {"calendar", "todo"}
+NOTE_KIND = "note"  # "create a note ..." in a voice note: filed into Odysseus notes
+TARGETS = {"calendar", "todo", "note"}
 CLOSED = {"done", "dismissed"}
 REMINDER_MINUTES = 30
 DEFAULT_EVENT_MINUTES = 60
@@ -281,10 +307,66 @@ MAX_FILE_ATTEMPTS = 3
 _LOCKS: dict[str, asyncio.Lock] = {}
 
 
+FILE_MODES = ("explicit", "auto", "off")
+VOICE_LIST = "Voice notes"  # the one to-do list for undated voice-note tasks
+TITLE_MAX = 60
+# An older module sends no ``explicit``: these words in the item's text make it explicit.
+_COMMAND = re.compile(
+    r"\bremind\s+me\b|\bto-?dos?\b|\btasks?\b|\badd\b.*\bto\s+(?:my|the|our)\b.*\blist\b",
+    re.IGNORECASE)
+
+
 def file_mode() -> str:
-    """``MODULE_FILE_ITEMS``: ``auto`` (default) or ``off``."""
-    return "off" if _env("FILE_ITEMS", "auto").lower() in {"off", "no", "false", "0"} \
-        else "auto"
+    """``MODULE_FILE_ITEMS``: ``explicit`` (default), ``auto`` (``all``) or ``off``."""
+    value = _env("FILE_ITEMS", "explicit").lower()
+    if value in {"off", "no", "false", "0"}:
+        return "off"
+    return "auto" if value in {"auto", "all"} else "explicit"
+
+
+def is_explicit(item: dict) -> bool:
+    """Did the owner clearly ask for this to be filed? The module's ``explicit`` field;
+    an older module's row: a due date or time, a list, kind reminder / event, or a
+    command word. Notes are made only on a command, so they always are."""
+    if item.get("kind") == NOTE_KIND:
+        return True
+    if isinstance(item.get("explicit"), bool):
+        return item["explicit"]
+    return bool(_ymd(item.get("due_date")) or _hhmm(item.get("due_time"))
+                or list_title(item.get("list_name"))
+                or item.get("kind") in {"reminder", "event"}
+                or _COMMAND.search(str(item.get("text") or "")))
+
+
+def item_title(item: dict) -> str:
+    """The short title (at most 60 characters): the module's ``title``, else the start of
+    the text, cut at a word."""
+    for value in (item.get("title"), item.get("text")):
+        text = re.sub(r"\s+", " ", str(value or "")).strip()
+        if text:
+            break
+    else:
+        return f"Action item #{item.get('id')}"
+    if len(text) <= TITLE_MAX:
+        return text
+    cut = text[:TITLE_MAX - 1]
+    if " " in cut and text[TITLE_MAX - 1] != " ":
+        cut = cut.rsplit(" ", 1)[0]
+    return cut.rstrip(" ,;:.-–—") + "…"
+
+
+def _on_voice_list(item: dict) -> bool:
+    """A voice-note task with no date and no list: a line on the "Voice notes" list."""
+    return (item.get("conversation_kind") == "note"
+            and str(item.get("kind") or "task") == "task"
+            and not _ymd(item.get("due_date")) and not list_title(item.get("list_name")))
+
+
+def _placed(item: dict, target: str) -> dict:
+    """``item`` as it is filed: an undated voice-note task gets the "Voice notes" list."""
+    if target == "todo" and _on_voice_list(item):
+        return {**item, "list_name": VOICE_LIST}
+    return item
 
 
 def _lock(owner: str) -> asyncio.Lock:
@@ -326,7 +408,7 @@ def _zone(name: str | None) -> tzinfo:
         try:
             return ZoneInfo(str(name))
         except (ValueError, KeyError, OSError):
-            logger.warning("odysseus-sound timezone %r is unknown; using Odysseus'", name)
+            logger.warning("Athena timezone %r is unknown; using Odysseus'", name)
     from src.user_time import user_timezone
 
     return user_timezone()
@@ -354,7 +436,7 @@ def _warn_timezone(state: dict, name: str | None, now_utc: datetime) -> None:
         return
     key = f"{name}|{hub}"
     if state.get("tz_warned") != key:
-        logger.warning("odysseus-sound times are in %s but Odysseus runs in %s; filed items "
+        logger.warning("Athena times are in %s but Odysseus runs in %s; filed items "
                        "keep the module's wall time (converted). Set CONVO_TIMEZONE to match.",
                        name, hub)
         state["tz_warned"] = key
@@ -382,7 +464,9 @@ def _ymd(value: Any) -> str | None:
 
 
 def default_target(item: dict) -> str:
-    """Events with a date go to the calendar; everything else to to-dos."""
+    """Notes go to notes, events with a date to the calendar, everything else to to-dos."""
+    if item.get("kind") == NOTE_KIND:
+        return "note"
     return "calendar" if item.get("kind") == "event" and _ymd(item.get("due_date")) else "todo"
 
 
@@ -395,15 +479,18 @@ def _source_line(item: dict) -> str:
 
 
 def open_url(target: str, ref: str) -> str:
+    """Calendar events by uid; to-dos, lists and notes are all Odysseus notes."""
     return f"/#event-{ref}" if target == "calendar" else f"/#open=notes&note={ref}"
 
 
 async def _file_one(owner: str, item: dict, target: str, *, rev: int = 0,
                     now_utc: datetime | None = None) -> dict:
-    """Create the Odysseus calendar event or to-do for ``item``; the ``filed`` entry."""
+    """Create the Odysseus calendar event, to-do or note for ``item``; the ``filed``
+    entry."""
     from src.tools.calendar import do_manage_calendar
     from src.tools.notes import do_manage_notes
 
+    item = _placed(item, target)
     text = str(item.get("text") or "").strip() or f"Action item #{item['id']}"
     day, clock = _ymd(item.get("due_date")), _hhmm(item.get("due_time"))
     zone_name = _valid_zone(item.get("timezone"))
@@ -430,12 +517,15 @@ async def _file_one(owner: str, item: dict, target: str, *, rev: int = 0,
             raise RuntimeError(f"calendar: {res.get('error') or 'no event created'}")
         ref = res["uid"]
     elif target == "todo" and list_title(item.get("list_name")):
+        line = item_title(item) if list_key(item["list_name"]) == list_key(VOICE_LIST) \
+            else text
         return {"kind": str(item.get("kind") or "task"), "target": target,
-                **await _add_to_list(owner, item, text),
+                **await _add_to_list(owner, item, line),
                 "at": _aware_utc(now_utc).isoformat(timespec="seconds"), "rev": rev,
                 "module": "open", "hub": "open"}
     elif target == "todo":
-        args = {"action": "add", "note_type": "todo", "title": text,
+        # short title, the full text as its one line
+        args = {"action": "add", "note_type": "todo", "title": item_title(item),
                 "checklist_items": [{"text": text, "done": False}], "label": LABEL,
                 "content": _source_line(item)}
         if day:
@@ -447,11 +537,128 @@ async def _file_one(owner: str, item: dict, target: str, *, rev: int = 0,
         if res.get("error") or not res.get("note_id"):
             raise RuntimeError(f"to-dos: {res.get('error') or 'no to-do created'}")
         ref = res["note_id"]
+    elif target == "note" and notes_title(item.get("list_name")):
+        return {"kind": str(item.get("kind") or NOTE_KIND), "target": target,
+                **await _add_to_notes(owner, item, text),
+                "at": _aware_utc(now_utc).isoformat(timespec="seconds"), "rev": rev,
+                "module": "open", "hub": "open"}
+    elif target == "note":
+        title = _note_title(item, text)
+        res = await do_manage_notes(json.dumps({
+            "action": "add", "note_type": "note", "title": title, "label": LABEL,
+            "content": f"{text}\n\n{_source_line(item)}"}), owner=owner or None)
+        if res.get("error") or not res.get("note_id"):
+            raise RuntimeError(f"notes: {res.get('error') or 'no note created'}")
+        ref = res["note_id"]
     else:
-        raise ValueError("target must be calendar or todo")
+        raise ValueError("target must be calendar, todo or note")
     return {"kind": str(item.get("kind") or "task"), "target": target, "ref": ref,
             "at": _aware_utc(now_utc).isoformat(timespec="seconds"), "rev": rev,
             "module": "open", "hub": "open"}
+
+
+# ------------------------------------------------------------------------ notes
+_NOTES_WORDS = re.compile(r"^(?:my|the|our)\s+|\s+notes?$", re.IGNORECASE)
+
+
+def _note_title(item: dict, text: str) -> str:
+    """The module's title for the note, else the start of its text."""
+    title = re.sub(r"\s+", " ", str(item.get("note_title") or "").strip())
+    if title:
+        return title[:80]
+    words = text.split()
+    return " ".join(words[:8]) + (" …" if len(words) > 8 else "")
+
+
+def notes_key(name: Any) -> str:
+    """"My Hardware notes" and "hardware" are the same notes."""
+    key = re.sub(r"\s+", " ", str(name or "").strip().lower())
+    for _ in range(2):
+        key = _NOTES_WORDS.sub("", key).strip()
+    return "" if key in {"note", "notes", "none"} else key
+
+
+def notes_title(name: Any) -> str | None:
+    """The title new notes get ("hardware" -> "Hardware notes"); None for no usable name."""
+    key = notes_key(name)
+    if not key or len(key) > 60:
+        return None
+    text = re.sub(r"\s+", " ", str(name).strip())
+    for _ in range(2):
+        text = _NOTES_WORDS.sub("", text).strip()
+    return f"{text[:1].upper()}{text[1:]} notes"
+
+
+def find_notes(owner: str, name: Any):
+    """The owner's open note (type note) called ``name``, with or without "notes"."""
+    from core.database import Note, SessionLocal
+
+    key = notes_key(name)
+    if not key:
+        return None
+    db = SessionLocal()
+    try:
+        q = db.query(Note).filter(Note.archived == False,  # noqa: E712
+                                  Note.note_type == "note")
+        if owner:
+            q = q.filter(Note.owner == owner)
+        for n in q.order_by(Note.updated_at.desc()).limit(500).all():
+            if notes_key(n.title) == key:
+                db.expunge(n)
+                return n
+        return None
+    finally:
+        db.close()
+
+
+def _block_index(content: Any, block: str) -> int | None:
+    lines = str(content or "").split("\n")
+    want = _norm_line(block)
+    return next((i for i, ln in enumerate(lines) if _norm_line(ln) == want), None)
+
+
+async def _add_to_notes(owner: str, item: dict, text: str) -> dict:
+    """Add ``item`` as a line to its named notes (made if missing); the entry's ``ref``
+    (note id), ``block`` (the line) and ``notes`` (title). The same line isn't added
+    twice."""
+    from src.tools.notes import do_manage_notes
+
+    name = notes_title(item.get("list_name"))
+    block = f"- {text}"
+    note = find_notes(owner, name)
+    if note is None:
+        res = await do_manage_notes(json.dumps({
+            "action": "add", "note_type": "note", "title": name, "label": LABEL,
+            "content": block}), owner=owner or None)
+        if res.get("error") or not res.get("note_id"):
+            raise RuntimeError(f"notes: {res.get('error') or 'no note created'}")
+        return {"ref": res["note_id"], "block": block, "notes": name}
+    if _block_index(note.content, block) is None:
+        content = str(note.content or "").rstrip()
+        res = await do_manage_notes(json.dumps({
+            "action": "update", "id": note.id,
+            "content": f"{content}\n{block}" if content else block}), owner=owner or None)
+        if res.get("error"):
+            raise RuntimeError(f"notes: {res['error']}")
+    return {"ref": note.id, "block": block, "notes": (note.title or name).strip()}
+
+
+async def _remove_block(owner: str, ref: str, block: str) -> None:
+    """Take one line out of a note, keeping the rest as it is."""
+    from src.tools.notes import do_manage_notes
+
+    note = _note(owner, ref)
+    if note is None:
+        return
+    lines = str(note.content or "").split("\n")
+    i = _block_index(note.content, block)
+    if i is None:
+        return
+    lines.pop(i)
+    res = await do_manage_notes(json.dumps({"action": "update", "id": ref,
+                                            "content": "\n".join(lines)}), owner=owner or None)
+    if res.get("error"):
+        raise RuntimeError(f"notes: {res['error']}")
 
 
 # ------------------------------------------------------------------ named to-do lists
@@ -506,8 +713,12 @@ def todo_lists(owner: str) -> list[str]:
     out, seen = [], set()
     for n in _lists(owner):
         key, items = list_key(n.title), _note_items(n)
-        single = len(items) <= 1 and all(_norm_line(i.get("text")) == _norm_line(n.title)
-                                         for i in items)
+        # a filed dated to-do's title is the short title, its line the full text
+        single = len(items) <= 1 and (
+            all(_norm_line(i.get("text")) == _norm_line(n.title) for i in items)
+            or (n.label == LABEL and len(items) == 1 and (
+                bool(n.due_date)
+                or _norm_line(n.title) == _norm_line(item_title(items[0])))))
         if key and key not in seen and not single:
             seen.add(key)
             out.append(n.title.strip())
@@ -593,7 +804,25 @@ async def _change_line(owner: str, ref: str, line: str, *, done: bool | None = N
                                             "checklist_items": items}), owner=owner or None)
     if res.get("error"):
         raise RuntimeError(f"to-dos: {res['error']}")
+    if remove and not items and list_key(note.title) == list_key(VOICE_LIST):
+        await _archive_if_empty(owner, ref)
     return True
+
+
+async def _archive_if_empty(owner: str, ref: str) -> None:
+    """The "Voice notes" list whose last line was taken off is archived (unless pinned);
+    the next undated task starts a new one. Finished lists wait for
+    src/checklist_auto_archive.py; an empty one would stay forever."""
+    from src.checklist_auto_archive import is_empty
+    from src.tools.notes import do_manage_notes
+
+    note = _note(owner, ref)
+    if note is None or not is_empty(note):
+        return
+    res = await do_manage_notes(json.dumps({"action": "update", "id": ref, "archived": True}),
+                                owner=owner or None)
+    if res.get("error"):
+        raise RuntimeError(f"to-dos: {res['error']}")
 
 
 def _note(owner: str, ref: str):
@@ -640,6 +869,15 @@ def hub_status(owner: str, entry: dict, *, now_utc: datetime | None = None,
                zone: str | None = None) -> str:
     """Where the filed copy stands: open, done (ticked/archived/over) or dismissed (gone)."""
     now_utc = _aware_utc(now_utc)
+    if entry["target"] == "note":
+        note = _note(owner, entry["ref"])
+        if note is None:
+            return "dismissed"
+        if note.archived:
+            return "done"
+        if "block" in entry and _block_index(note.content, entry["block"]) is None:
+            return "dismissed"
+        return "open"
     if entry["target"] == "todo":
         note = _note(owner, entry["ref"])
         if note is None:
@@ -699,6 +937,9 @@ async def _remove_entry(owner: str, entry: dict, *, archive: bool) -> None:
         if res.get("error"):
             raise RuntimeError(f"calendar: {res['error']}")
         return
+    if "block" in entry:  # take the line out of the notes; the note itself stays
+        await _remove_block(owner, entry["ref"], entry["block"])
+        return
     if "line" in entry:  # take the line off the list; the list itself stays
         await _change_line(owner, entry["ref"], entry["line"], remove=True)
         return
@@ -724,6 +965,14 @@ async def _sync_status(owner: str, call: CallTool, item_id: int, entry: dict,
     if entry.get("undone") or row is None:
         return 0
     module = str(row.get("status") or "open")
+    if entry["target"] == "note":  # a filed note is done in the module, nothing more
+        if module == "open" and entry.get("module") != "done":  # marking it failed
+            await _set_module_status(call, item_id, "done")
+            entry["module"] = "done"
+            return 1
+        if module != "open":  # the row of this pass may predate the "done" just set
+            entry["module"] = module
+        return 0
     zone = row.get("timezone")
     last_module, last_hub = entry.get("module", "open"), entry.get("hub", "open")
     hub = hub_status(owner, entry, now_utc=now_utc, zone=zone)
@@ -757,10 +1006,17 @@ def _when_label(item: dict) -> str:
 
 
 def _filed_line(item: dict, target: str) -> str:
+    item = _placed(item, target)
     text = str(item.get("text") or "").strip()
+    if target == "todo" and not (list_title(item.get("list_name"))
+                                 and list_key(item["list_name"]) != list_key(VOICE_LIST)):
+        text = item_title(item)  # a to-do of its own, or a line on "Voice notes"
     when = _when_label(item)
     if target == "calendar":
         line = f"📅 {text}" + (f" · {when}" if when else "") + " → Calendar"
+    elif target == "note":
+        name = notes_title(item.get("list_name"))
+        line = f"📝 {text}" + (f" → {name}" if name else " → Notes")
     else:
         icon = "⏰" if item.get("kind") == "reminder" else "☑️"
         name = list_title(item.get("list_name"))
@@ -776,7 +1032,17 @@ def _filed_message(filed: list[tuple[dict, str]]) -> tuple[str, str]:
              else f"Filed {len(filed)} items from your voice notes")
     lines = [_filed_line(item, target) for item, target in filed[:MAX_PUSHED_ITEMS]]
     if len(filed) > MAX_PUSHED_ITEMS:
-        lines.append(f"... and {len(filed) - MAX_PUSHED_ITEMS} more on the odysseus-sound page")
+        lines.append(f"... and {len(filed) - MAX_PUSHED_ITEMS} more on the Athena page")
+    return title, "\n".join(lines)
+
+
+def _suggested_message(items: list[dict]) -> tuple[str, str]:
+    title = ("Suggested from your voice note" if len(items) == 1
+             else f"{len(items)} suggestions from your voice notes")
+    lines = [f"💡 {item_title(item)}" for item in items[:MAX_PUSHED_ITEMS]]
+    if len(items) > MAX_PUSHED_ITEMS:
+        lines.append(f"... and {len(items) - MAX_PUSHED_ITEMS} more")
+    lines.append("Add or dismiss them on the Athena page.")
     return title, "\n".join(lines)
 
 
@@ -835,17 +1101,23 @@ async def _sync_json(owner: str, call: CallTool, rows: list[dict], *,
     stats["new"] = sum(1 for r in new if r.get("status") == "open")
     retry = set()
     newly: list[tuple[dict, str]] = []
+    suggested: list[dict] = []
+    explicit_only = file_mode() == "explicit"
     for row in new if not first_run else []:
         key = str(row["id"])
         if (row.get("status") != "open" or row.get("conversation_kind") != "note"
                 or key in filed or _created_before(row, state.get("file_since"))):
             continue
+        if explicit_only and not is_explicit(row):  # waits on the page, like conversations
+            suggested.append(row)
+            continue
         target = default_target(row)
         try:
             filed[key] = await _file_one(owner, row, target, now_utc=now_utc)
+            filed[key]["filed_mode"] = file_mode()  # the clean-up leaves these alone
         except Exception as e:  # keep it unseen, try again next pass (a few times)
             attempts[key] = attempts.get(key, 0) + 1
-            logger.warning("filing odysseus-sound item #%s failed (%s/%s): %s", key,
+            logger.warning("filing Athena item #%s failed (%s/%s): %s", key,
                            attempts[key], MAX_FILE_ATTEMPTS, e)
             if attempts[key] < MAX_FILE_ATTEMPTS:
                 retry.add(row["id"])
@@ -853,6 +1125,12 @@ async def _sync_json(owner: str, call: CallTool, rows: list[dict], *,
         attempts.pop(key, None)
         newly.append((row, target))
         stats["filed"] += 1
+        if target == "note":  # a note is no to-do: done in the module (retried below)
+            try:
+                await _set_module_status(call, row["id"], "done")
+                filed[key]["module"] = "done"
+            except Exception as e:
+                logger.warning("marking Athena note #%s done failed: %s", key, e)
     state["seen"] = sorted((seen | set(by_id)) - retry)
     save_state(owner, state)
 
@@ -861,12 +1139,16 @@ async def _sync_json(owner: str, call: CallTool, rows: list[dict], *,
             stats["synced"] += await _sync_status(owner, call, int(key), entry,
                                                   by_id.get(int(key)), now_utc)
         except Exception as e:  # the next pass sees the same difference and retries
-            logger.warning("status sync for odysseus-sound item #%s failed: %s", key, e)
+            logger.warning("status sync for Athena item #%s failed: %s", key, e)
     save_state(owner, state)
 
     if newly:
         title, body = _filed_message(newly)
         key = "module-filed-" + "-".join(str(r["id"]) for r, _ in newly[:20])
+        stats["pushed"] += int(await push(owner, title, body, key))
+    if suggested:
+        title, body = _suggested_message(suggested)
+        key = "module-suggested-" + "-".join(str(r["id"]) for r in suggested[:20])
         stats["pushed"] += int(await push(owner, title, body, key))
 
     def due_today(today: str) -> list[ActionItem]:
@@ -882,7 +1164,7 @@ async def _sync_json(owner: str, call: CallTool, rows: list[dict], *,
 async def _find_row(call: CallTool, item_id: int) -> dict:
     rows = parse_items_json(await call("list_action_items", {"status": "all", "format": "json"}))
     if rows is None:
-        raise RuntimeError("this odysseus-sound version can't list items as JSON; update it")
+        raise RuntimeError("this Athena version can't list items as JSON; update it")
     for row in rows:
         if row["id"] == int(item_id):
             return row
@@ -894,26 +1176,33 @@ def _public(entry: dict) -> dict:
            "open_url": open_url(entry["target"], entry["ref"])}
     if entry.get("list"):
         out["list"] = entry["list"]
+    if entry.get("notes"):
+        out["notes"] = entry["notes"]
     return out
 
 
 async def file_item(owner: str, item: dict, call: CallTool, *,
                     target: str | None = None) -> dict:
-    """File one item now ("Add to calendar" / "Add to to-dos" on a suggestion).
+    """File one item now ("Add to calendar" / "Add to to-dos" / "Add to notes" on a
+    suggestion).
 
     ``item`` is the module's JSON row. ``target`` defaults from its kind. An earlier
-    Odysseus entry for the item is replaced; a closed item is reopened in the module.
-    Returns ``{"target", "ref", "open_url"}``.
+    Odysseus entry for the item is replaced; a closed item is reopened in the module, and
+    an item filed as a note is marked done there. Returns ``{"target", "ref",
+    "open_url"}``.
     """
     item = {**item, "id": int(item["id"])}
     target = target or default_target(item)
     if target not in TARGETS:
-        raise ValueError("target must be calendar or todo")
+        raise ValueError("target must be calendar, todo or note")
     async with _lock(owner):
         state = load_state(owner)
         entry = await _refile(owner, state, item, target)
-        if str(item.get("status") or "open") != "open":
-            await _set_module_status(call, item["id"], "open")
+        status = "done" if target == "note" else "open"
+        if str(item.get("status") or "open") != status:
+            await _set_module_status(call, item["id"], status)
+        entry["module"] = status
+        save_state(owner, state)
         return _public(entry)
 
 
@@ -928,6 +1217,7 @@ async def _refile(owner: str, state: dict, item: dict, target: str) -> dict:
         old.update(undone=True, module="dismissed", hub="dismissed")
         save_state(owner, state)
     entry = await _file_one(owner, item, target, rev=(old.get("rev", 0) + 1) if old else 0)
+    entry["filed_mode"] = "page"  # the owner's tap (Add / Move): never cleaned up
     filed[key] = entry
     state["seen"] = sorted(set(state.get("seen", [])) | {item["id"]})
     save_state(owner, state)
@@ -935,7 +1225,8 @@ async def _refile(owner: str, state: dict, item: dict, target: str) -> dict:
 
 
 async def unfile_item(owner: str, item_id: int, call: CallTool) -> dict:
-    """Undo: remove the event / archive the to-do and dismiss the item in the module.
+    """Undo: remove the event / archive the to-do or note (or take its line off the list or
+    notes) and dismiss the item in the module.
     The item stays recorded as filed, so the task never files it again."""
     async with _lock(owner):
         state = load_state(owner)
@@ -948,6 +1239,84 @@ async def unfile_item(owner: str, item_id: int, call: CallTool) -> dict:
                      undone_at=_aware_utc(None).isoformat(timespec="seconds"))
         save_state(owner, state)
         return {"ok": True, "target": entry["target"], "ref": entry["ref"]}
+
+
+def _cleanup_entry(entry: dict, row: dict | None, include_all: bool) -> str | None:
+    """How a filed entry came to be one of the to-dos filed one per voice-note item, or
+    None. Never a list line or a reminder, nor an item that is explicit now; entries filed
+    in ``explicit`` mode or from the page only with ``include_all``."""
+    if (entry.get("undone") or entry.get("target") != "todo" or "line" in entry
+            or "block" in entry or not entry.get("ref") or row is None
+            or row.get("conversation_kind") != "note" or entry.get("kind") == "reminder"
+            or is_explicit(row)):
+        return None
+    mode = entry.get("filed_mode")
+    if mode in {"explicit", "page"} and not include_all:
+        return None
+    return {None: "filed before explicit filing", "auto": "filed in auto mode"}.get(
+        mode, f"filed in {mode} mode (all)")
+
+
+def _single_undated_todo(note) -> bool:
+    """A filed to-do of its own still in Odysseus: one line, no due date, no reminder."""
+    return (note is not None and not note.archived and note.label == LABEL
+            and note.note_type == "todo" and len(_note_items(note)) <= 1
+            and not note.due_date and (note.repeat or "none") == "none")
+
+
+async def unfile_auto_todos(owner: str, call: CallTool, *, apply: bool = False,
+                            only: set[int] | None = None, include_all: bool = False) -> dict:
+    """Clean-up for the to-dos filed one per voice-note item before ``explicit`` filing
+    and the "Voice notes" list: filed to-dos of their own (label ``odysseus-sound``, one
+    checklist line, no due date, no reminder) of voice-note items that are not explicit
+    now. Entries filed in ``explicit`` mode or from the page are left out unless
+    ``include_all``. With ``apply`` each is deleted and its item, when still open,
+    dismissed in the module; the item stays recorded as filed (undone), so it is never
+    filed again. ``only``: just these item ids. Returns ``{"apply", "todos": [{"id",
+    "title", "text", "status", "ref", "why"}], "removed"}``; ``why`` lists the reasons
+    it qualifies."""
+    from src.tools.notes import do_manage_notes
+
+    rows = parse_items_json(await call("list_action_items",
+                                       {"status": "all", "format": "json"}))
+    if rows is None:
+        raise RuntimeError("this Athena version can't list items as JSON; update it")
+    by_id = {r["id"]: r for r in rows}
+    async with _lock(owner):
+        state = load_state(owner)
+        found = []
+        for key, entry in sorted(state.get("filed", {}).items(), key=lambda kv: int(kv[0])):
+            if only is not None and int(key) not in only:
+                continue
+            row = by_id.get(int(key))
+            how = _cleanup_entry(entry, row, include_all)
+            if how is None:
+                continue
+            note = _note(owner, entry["ref"])
+            if _single_undated_todo(note):
+                why = [how, "not explicit now", "a to-do of its own",
+                       "no due date or reminder"]
+                found.append((int(key), entry, row, note, why))
+        out = {"apply": bool(apply), "removed": 0, "todos": [
+            {"id": i, "title": note.title or "", "text": str(row.get("text") or ""),
+             "status": str(row.get("status") or "open"), "ref": entry["ref"], "why": why}
+            for i, entry, row, note, why in found]}
+        if not apply:
+            return out
+        for item_id, entry, row, _, _ in found:
+            res = await do_manage_notes(json.dumps({"action": "delete", "id": entry["ref"]}),
+                                        owner=owner or None)
+            if res.get("error"):
+                raise RuntimeError(f"to-dos: {res['error']}")
+            module = str(row.get("status") or "open")
+            if module == "open":
+                await _set_module_status(call, item_id, "dismissed")
+                module = "dismissed"
+            entry.update(undone=True, module=module, hub="dismissed",
+                         undone_at=_aware_utc(None).isoformat(timespec="seconds"))
+            save_state(owner, state)
+            out["removed"] += 1
+        return out
 
 
 async def move_item(owner: str, item_id: int, call: CallTool, *, kind: str,

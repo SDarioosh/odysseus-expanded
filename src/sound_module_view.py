@@ -1,4 +1,4 @@
-"""Fork: data for the odysseus-sound page (conversations, "who is this?" cards).
+"""Fork: data for the Athena page (conversations, "who is this?" cards).
 
 Everything comes from the module's MCP tools (``search_conversations``,
 ``get_conversation``, ``get_transcript``, ``list_unnamed_speakers``, ``name_speaker``,
@@ -36,6 +36,9 @@ _UNCLEAR = " [time unclear]"
 _DUE_PARTS = re.compile(
     r"^(?P<date>\d{4}-\d{2}-\d{2})(?: (?P<time>\d{2}:\d{2}))?(?: \((?P<said>.*)\))?$")
 KINDS = ("task", "event", "reminder")
+# an item may also be a note ("create a note ..."), filed into Odysseus notes; it can't
+# be moved to that kind
+ITEM_KINDS = (*KINDS, "note")
 _DATE = re.compile(r"^\d{4}-\d{2}-\d{2}$")
 _TIME = re.compile(r"^(?:[01]\d|2[0-3]):[0-5]\d$")
 # the last " due ": the item text itself may say "due" ("Confirm the due date")
@@ -100,7 +103,7 @@ class ActionItem:
     conversation_title: str
     when: str  # "YYYY-MM-DD HH:MM" of the conversation
     link: str
-    kind: str = "task"  # task | event | reminder
+    kind: str = "task"  # task | event | reminder | note
     due_date: str | None = None  # YYYY-MM-DD, local to ``timezone``
     due_time: str | None = None  # HH:MM 24 h
     time_unclear: bool = False
@@ -110,8 +113,9 @@ class ActionItem:
     location: str | None = None
     timezone: str | None = None
     created_at: str | None = None
-    list_name: str | None = None  # the to-do list the user named ("shopping")
-    filed: dict | None = None  # {"target", "ref", "open_url", "list"?}; see merge_filed
+    list_name: str | None = None  # the to-do list (or, for a note, the notes) named
+    note_title: str | None = None  # a note's title
+    filed: dict | None = None  # {"target", "ref", "open_url", "list"?, "notes"?}
 
 
 @dataclass
@@ -229,7 +233,7 @@ def item_from_json(row: dict) -> ActionItem | None:
         item_id = int(row["id"])
     except (KeyError, TypeError, ValueError):
         return None
-    kind = row.get("kind") if row.get("kind") in KINDS else "task"
+    kind = row.get("kind") if row.get("kind") in ITEM_KINDS else "task"
     status = row.get("status") if row.get("status") in {"open", "done", "dismissed"} else "open"
     due_date = _text(row.get("due_date"))
     due_time = _text(row.get("due_time"))
@@ -247,7 +251,8 @@ def item_from_json(row: dict) -> ActionItem | None:
         voice_note=row.get("conversation_kind") == "note",
         conversation_id=_text(row.get("conversation_id")), duration_minutes=duration,
         location=_text(row.get("location")), timezone=_text(row.get("timezone")),
-        created_at=_text(row.get("created_at")), list_name=_text(row.get("list_name")))
+        created_at=_text(row.get("created_at")), list_name=_text(row.get("list_name")),
+        note_title=_text(row.get("note_title")))
 
 
 def parse_action_items_result(text: str) -> list[ActionItem]:
@@ -258,7 +263,9 @@ def parse_action_items_result(text: str) -> list[ActionItem]:
         return parse_action_items(text)
     if not isinstance(rows, list):
         return parse_action_items(text)
-    return [i for r in rows if isinstance(r, dict) and (i := item_from_json(r))]
+    # ``mine`` is false when the module says someone else owns the item
+    return [i for r in rows if isinstance(r, dict) and r.get("mine") is not False
+            and (i := item_from_json(r))]
 
 
 def open_url(target: str, ref: Any) -> str | None:
@@ -268,7 +275,7 @@ def open_url(target: str, ref: Any) -> str | None:
         return None
     if target == "calendar":
         return f"/#event-{ref}"
-    if target == "todo":
+    if target in ("todo", "note"):
         return f"/#open=notes&note={ref}"
     return None
 
@@ -279,7 +286,7 @@ def filed_for(filed: dict | None, item_id: int) -> dict | None:
     Keys may be int or str (JSON state); an entry marked undone/removed isn't "filed"."""
     filed = filed or {}
     entry = filed.get(item_id, filed.get(str(item_id)))
-    if (not isinstance(entry, dict) or entry.get("target") not in {"calendar", "todo"}
+    if (not isinstance(entry, dict) or entry.get("target") not in {"calendar", "todo", "note"}
             or entry.get("undone") or entry.get("removed")):
         return None
     target = entry["target"]
@@ -287,6 +294,8 @@ def filed_for(filed: dict | None, item_id: int) -> dict | None:
            "open_url": entry.get("open_url") or open_url(target, entry.get("ref"))}
     if entry.get("list"):
         out["list"] = str(entry["list"])
+    if entry.get("notes"):
+        out["notes"] = str(entry["notes"])
     return out
 
 
@@ -412,7 +421,7 @@ async def conversations(call: CallTool, *, query: str = "", person: str = "",
                         limit: int = 30) -> list[dict]:
     args: dict[str, Any] = {"query": query, "person": person, "since": since,
                             "until": until, "limit": max(1, min(int(limit), 50))}
-    if kind in ("note", "conversation"):  # odysseus-sound >= kind filter; "" = both
+    if kind in ("note", "conversation"):  # Athena >= kind filter; "" = both
         args["kind"] = kind
     text = await call("search_conversations", args)
     return as_dicts(parse_conversations(text))
@@ -520,8 +529,8 @@ def check_item_id(item_id: int) -> int:
 
 
 def check_target(target: str) -> str:
-    if target not in {"calendar", "todo"}:
-        raise ValueError("target must be calendar or todo")
+    if target not in {"calendar", "todo", "note"}:
+        raise ValueError("target must be calendar, todo or note")
     return target
 
 

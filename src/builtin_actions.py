@@ -615,6 +615,9 @@ async def action_consolidate_memory(owner: str, **kwargs) -> Tuple[str, bool]:
             for mem in all_memories:
                 memory_groups.setdefault(_memory_owner(mem), []).append(mem)
 
+        # Fork: memories with provenance are left to the ledger's pass (src/belief_consolidation.py)
+        from src.belief_consolidation import without_sourced
+        memory_groups = {o: without_sourced(g) for o, g in memory_groups.items()}
         memory_groups = {group_owner: group for group_owner, group in memory_groups.items() if group}
         if not memory_groups:
             raise TaskNoop("no memories to consolidate")
@@ -3587,3 +3590,15 @@ BUILTIN_ACTION_INFO = {
 # Fork: module action items -> ntfy (src/module_action_items.py)
 from src.module_action_items import register_builtin_action as _fork_register  # noqa: E402
 _fork_register(BUILTIN_ACTIONS, BUILTIN_ACTION_INFO)
+# Fork: Athena facts -> Odysseus memory (src/module_facts.py)
+from src.module_facts import register_builtin_action as _fork_register_facts  # noqa: E402
+_fork_register_facts(BUILTIN_ACTIONS, BUILTIN_ACTION_INFO)
+# Fork: daily Today insight (src/today_insight.py)
+from src.today_insight import register_builtin_action as _fork_today_register  # noqa: E402
+_fork_today_register(BUILTIN_ACTIONS, BUILTIN_ACTION_INFO)
+# Fork: owner's notes -> belief ledger (src/notes_evidence.py)
+from src.notes_evidence import register_builtin_action as _fork_notes_register  # noqa: E402
+_fork_notes_register(BUILTIN_ACTIONS, BUILTIN_ACTION_INFO)
+# Fork: structure for confirmed beliefs (src/belief_structure.py)
+from src.belief_structure import register_builtin_action as _fork_structure_register  # noqa: E402
+_fork_structure_register(BUILTIN_ACTIONS, BUILTIN_ACTION_INFO)

@@ -6089,6 +6089,8 @@ import { invalidateSettings } from './appConfig.js';
       // never attach the recovery reader to the wrong conversation.
       if (sessionId && sessionModule.getCurrentSessionId() !== sessionId) return;
       const resumed = await resumeStream(sessionId, holder || null);
+      // Fork: a run that ended while away shows its saved answer (static/js/forkResumeFallback.js)
+      if (!resumed && await import('./forkResumeFallback.js').then((m) => m.reloadEndedRun({ apiBase: API_BASE, sessionModule, sessionId }), () => false)) return;
       if (!resumed && holder && holder.isConnected) {
         const body = holder.querySelector('.body');
         if (body) typewriterInto(body, 'Connection lost. The existing run could not be resumed.');
@@ -6928,13 +6930,6 @@ import { invalidateSettings } from './appConfig.js';
             }, 200);
           }
         });
-      }
-      // Smooth viewport resize when keyboard opens/closes
-      if (window.visualViewport) {
-        window.visualViewport.addEventListener('resize', () => {
-          document.documentElement.style.setProperty('--vh', window.visualViewport.height + 'px');
-        });
-        document.documentElement.style.setProperty('--vh', window.visualViewport.height + 'px');
       }
     }
 

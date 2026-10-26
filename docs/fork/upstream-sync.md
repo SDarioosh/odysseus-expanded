@@ -11,6 +11,20 @@ The fork merges upstream `dev` into `barvis` **weekly** so each merge stays smal
 
 Agents never push to `dev` or `barvis` directly; the sync is a PR like any other.
 
+## History before the first sync
+
+The fork was imported on 2026-10-19 as snapshots of upstream `dev` at `9712a54`
+(2026-10-16), without upstream's history, so `barvis` and `upstream/dev` had no common
+ancestor and `git merge upstream/dev` refused to run. The first sync PR (2026-10-23)
+recorded that base once, keeping the fork's files unchanged:
+
+```bash
+git merge -s ours --allow-unrelated-histories 9712a54
+```
+
+Since then `git merge-base origin/barvis upstream/dev` finds the last synced upstream
+commit and the weekly merge below works as is. Don't repeat that step.
+
 ## Weekly merge
 
 ```bash
@@ -44,6 +58,19 @@ Merge, don't rebase: `barvis` is shared history.
   move most.
 - `src/tool_capabilities.py`: hook in `ToolRunSecurityContext`.
 - `src/mcp_manager.py`: one line in `_connect_http` that keeps tool `annotations`.
+- `src/task_scheduler.py`: the `register_housekeeping` hooks after `HOUSEKEEPING_DEFAULTS`
+  and the built-in task authority hook in `_execute_action`.
+- `static/index.html`: the fork's sidebar links (Conversations, Today, and the other
+  module pages).
+
+Before merging, list the files both sides changed since the last sync; those are where
+conflicts can happen:
+
+```bash
+base=$(git merge-base origin/barvis upstream/dev)
+comm -12 <(git diff --name-only "$base" origin/barvis | sort) \
+         <(git diff --name-only "$base" upstream/dev | sort)
+```
 
 Find every hook with `git grep -n "mcp_trust"` (and `git grep -n "# Fork:"` for newer
 hooks; before 2026-10-19 they were tagged `# Barvis:`). The full list is the "Changes from
@@ -74,7 +101,7 @@ When resolving:
    (`tests/test_null_owner_gates.py`, `tests/test_runtime_evidence_contract.py`).
 3. Bring up the sandbox stack ([sandbox.md](sandbox.md)) on the merged code and re-run
    `scripts/modules_setup.py` against it. Check that module servers still connect.
-4. Run each module's eval in the sandbox (odysseus-sound:
+4. Run each module's eval in the sandbox (Athena:
    `server/eval/bakeoff.py --frontend odysseus --only 1 4 16`) and compare with the last
    sandbox run. Put both numbers in the PR.
 5. Add a Server verification section: restart the server's test instance, re-run

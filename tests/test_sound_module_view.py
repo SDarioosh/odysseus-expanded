@@ -1,4 +1,6 @@
 """Fork: odysseus-sound page data from the module's MCP tools (src/sound_module_view.py)."""
+import json
+
 import pytest
 from fastapi import FastAPI
 from fastapi.testclient import TestClient
@@ -558,3 +560,77 @@ def test_check_list_name_and_json_list():
     assert item.list_name == "shopping"
     assert view.filed_for({5: {"target": "todo", "ref": "n1", "list": "Shopping"}}, 5) == {
         "target": "todo", "ref": "n1", "open_url": "/#open=notes&note=n1", "list": "Shopping"}
+
+
+def test_note_items_and_filed_notes():
+    item = view.item_from_json({"id": 6, "text": "Battery is 3 mm", "kind": "note",
+                                "note_title": "Battery", "list_name": "hardware"})
+    assert (item.kind, item.note_title, item.list_name) == ("note", "Battery", "hardware")
+    assert view.filed_for({6: {"target": "note", "ref": "n2", "notes": "Hardware notes"}},
+                          6) == {"target": "note", "ref": "n2",
+                                 "open_url": "/#open=notes&note=n2",
+                                 "notes": "Hardware notes"}
+    assert view.check_target("note") == "note"
+    with pytest.raises(ValueError):  # nothing is moved to a note
+        view.check_move("note", None, None)
+
+
+def test_file_as_note_route(filing):
+    r = filing.post("/api/modules/sound/action-items/13/file", json={"target": "note"})
+    assert r.status_code == 200 and r.json()["message"] == "Added to notes."
+    assert ("file", "", 13, "note") in filing.filing_calls
+
+
+def test_unfile_todos_route(client, monkeypatch):
+    from src import module_action_items as mai
+
+    calls = []
+
+    async def unfile_auto_todos(owner, call, *, apply=False, only=None, include_all=False):
+        calls.append((owner, apply, only, include_all))
+        return {"apply": apply, "removed": 1 if apply else 0,
+                "todos": [{"id": 12, "title": "Call Mom", "text": "Call Mom",
+                           "status": "open", "ref": "note-1"}]}
+
+    monkeypatch.setattr(mai, "unfile_auto_todos", unfile_auto_todos)
+    r = client.post("/api/modules/sound/unfile-todos", json={})
+    assert r.status_code == 200 and r.json()["todos"][0]["id"] == 12
+    assert r.json()["removed"] == 0 and calls[-1] == ("", False, None, False)
+    r = client.post("/api/modules/sound/unfile-todos",
+                    json={"apply": True, "ids": [12], "all": True})
+    assert r.json()["removed"] == 1 and calls[-1] == ("", True, {12}, True)
+    client.manager._connections = {}
+    assert client.post("/api/modules/sound/unfile-todos", json={}).status_code == 503
+
+
+def test_unfile_script_reports_through_the_route():
+    import httpx
+
+    from scripts import unfile_voice_note_todos as script
+
+    seen = []
+
+    def handler(request):
+        seen.append((request.url.path, request.content))
+        return httpx.Response(200, json={"ok": True, "apply": True, "removed": 1, "todos": [
+            {"id": 12, "title": "Call Mom", "text": "Call Mom", "status": "open",
+             "ref": "n"}]})
+
+    args = script.parse_args(["--apply", "--only", "12", "--all"])
+    with httpx.Client(base_url="http://hub", transport=httpx.MockTransport(handler)) as c:
+        assert script.run(c, args) == 0
+    assert seen == [("/api/modules/sound/unfile-todos", b'{"apply":true,"ids":[12],"all":true}')]
+    assert script.report({"apply": False, "todos": [
+        {"id": 12, "title": "Call Mom", "status": "open",
+         "why": ["filed before explicit filing", "not explicit now"]}]}).splitlines() == [
+        "1 to-dos would be removed (run again with --apply):",
+        "- #12 [open] Call Mom (filed before explicit filing; not explicit now)"]
+    assert script.parse_args([]).apply is False
+
+
+def test_parse_action_items_result_skips_other_peoples_items():
+    rows = [{"id": 1, "text": "Buy milk", "mine": True},
+            {"id": 2, "text": "Let Shahyah know how it goes", "owner": "Hayden", "mine": False},
+            {"id": 3, "text": "Call Mom"}]  # an older module sends no flag
+    items = view.parse_action_items_result(json.dumps(rows))
+    assert [i.id for i in items] == [1, 3]

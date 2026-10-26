@@ -1,5 +1,5 @@
 <!DOCTYPE html>
-<html lang="en">
+<html lang="en" class="fm-page">
 <head>
   <meta charset="utf-8">
   <meta name="viewport" content="width=device-width, initial-scale=1">
@@ -42,169 +42,28 @@
   })();
   </script>
   <link rel="stylesheet" href="/static/css/00-tokens.css?v=20260929csssplit">
+  <!-- Fork: same look as the Conversations window in the main app (static/js/forkModuleWindows.js) -->
+  <link rel="stylesheet" href="/static/css/fork-modules.css">
   <style>
-    /* Fork: odysseus-sound page. Colors, font and spacing come from the Odysseus
-       tokens in 00-tokens.css plus the saved theme applied above; nothing here
-       introduces new color values. */
-    /* 00-tokens.css gives html and body the app's fixed, non-scrolling layout
-       (height 100%, overflow hidden, overscroll-behavior none). This page scrolls the
-       window instead: html and body grow with the content and are not scroll boxes,
-       so no element with overscroll-behavior: none can swallow a scroll (it did on
-       a Mac trackpad in Chromium browsers). */
-    html, body { height: auto; overflow: visible; overscroll-behavior: auto; }
-    body { background: var(--bg); color: var(--fg); margin: 0; display: block;
-           min-height: 100vh;
-           font-family: var(--font-family, 'Fira Code', monospace); }
-    .bs-wrap { max-width: 860px; margin: 0 auto; padding: 16px; }
-    .bs-top { display: flex; align-items: center; gap: 10px; margin-bottom: 14px; }
-    .bs-top h1 { font-size: 1.1rem; font-weight: 600; margin: 0; flex: 1; }
-    .bs-top a { color: var(--fg); opacity: 0.7; text-decoration: none; }
-    .bs-top a:hover { opacity: 1; }
-    .bs-tabs { display: flex; gap: 4px; border-bottom: 1px solid var(--border); margin-bottom: 14px;
-               overflow-x: auto; }
-    .bs-tab { background: none; border: none; border-bottom: 2px solid transparent; color: var(--fg);
-              font: inherit; font-size: 0.88rem; padding: 8px 12px; margin-bottom: -1px; cursor: pointer;
-              opacity: 0.65; white-space: nowrap; min-height: 36px; }
-    .bs-tab:hover { opacity: 1; }
-    .bs-tab[aria-selected="true"] { opacity: 1; border-bottom-color: var(--red); font-weight: 600; }
-    .bs-section { margin: 18px 0 8px; font-size: 0.85rem; text-transform: uppercase;
-                  letter-spacing: 0.06em; opacity: 0.6; }
-    .bs-card { background: var(--panel); border: 1px solid var(--border); border-radius: 8px;
-               padding: 12px 14px; margin-bottom: 10px; }
-    .bs-card h2 { font-size: 0.95rem; margin: 0 0 4px; font-weight: 600; }
-    .bs-meta { font-size: 0.8rem; opacity: 0.65; }
-    .bs-summary { margin: 6px 0 0; font-size: 0.88rem; line-height: 1.45; }
-    .bs-quote { display: block; margin: 6px 0; padding: 4px 8px; border-left: 2px solid var(--border);
-                color: var(--fg); text-decoration: none; font-size: 0.86rem; }
-    .bs-quote:hover { border-left-color: var(--red); }
-    .bs-row { display: flex; flex-wrap: wrap; gap: 8px; align-items: center; margin-top: 8px; }
-    .bs-input { background: var(--input-bg, var(--bg)); color: var(--fg);
-                border: 1px solid var(--input-border, var(--border));
-                border-radius: 6px; padding: 6px 8px; font: inherit; font-size: 0.85rem;
-                min-width: 0; }
-    .bs-btn { background: transparent; color: var(--fg); border: 1px solid var(--border);
-              border-radius: 6px; padding: 6px 10px; font: inherit; font-size: 0.85rem;
-              cursor: pointer; }
-    .bs-btn:hover { border-color: var(--fg); }
-    .bs-btn.primary { border-color: var(--red); color: var(--red); }
-    .bs-btn:disabled { opacity: 0.4; cursor: default; }
-    .bs-filters { display: grid; grid-template-columns: 2fr 1fr 1fr 1fr auto; gap: 8px; }
-    .bs-empty, .bs-status { font-size: 0.85rem; opacity: 0.7; padding: 6px 0; }
-    .bs-status.error { color: var(--red); opacity: 1; }
-    .bs-link { color: var(--fg); display: inline-flex; align-items: center; gap: 4px; }
-    .bs-btn, .bs-link { min-height: 36px; box-sizing: border-box; }
-    .bs-link { padding: 0 2px; }
-    a.bs-btn { display: inline-flex; align-items: center; text-decoration: none; }
-    /* reader: one conversation, its detail and transcript (#c=<id>) */
-    .bs-reader-top { display: flex; flex-wrap: wrap; gap: 8px; align-items: center; margin-bottom: 10px; }
-    .bs-reader-top h2 { font-size: 1rem; margin: 0; font-weight: 600; flex: 1 1 200px; min-width: 0;
-                        overflow-wrap: anywhere; }
-    .bs-list { margin: 6px 0 0; padding-left: 20px; font-size: 0.88rem; line-height: 1.45; }
-    .bs-list li { margin: 3px 0; }
-    .bs-small { font-size: 0.78rem; opacity: 0.7; color: var(--fg); margin-left: 4px; white-space: nowrap; }
-    .bs-small:hover { opacity: 1; }
-    .bs-sub { margin: 12px 0 2px; font-size: 0.78rem; text-transform: uppercase; letter-spacing: 0.05em;
-              opacity: 0.6; }
-    .bs-lines { background: var(--panel); border: 1px solid var(--border); border-radius: 8px;
-                padding: 4px 0; }
-    .bs-line { display: grid; grid-template-columns: 4.6em 9em 1fr; gap: 8px; padding: 6px 12px;
-               font-size: 0.88rem; line-height: 1.45; align-items: baseline; }
-    .bs-line + .bs-line { border-top: 1px solid color-mix(in srgb, var(--border) 40%, transparent); }
-    .bs-time { font-size: 0.78rem; opacity: 0.6; color: var(--fg); text-decoration: none;
-               font-variant-numeric: tabular-nums; }
-    .bs-time:hover { opacity: 1; text-decoration: underline; }
-    .bs-spk { background: none; border: none; padding: 0; font: inherit; font-weight: 600;
-              color: var(--fg); cursor: pointer; text-align: left; overflow-wrap: anywhere;
-              text-decoration: underline dotted; text-underline-offset: 3px; min-height: 28px; }
-    .bs-spk:hover, .bs-spk[aria-expanded="true"] { color: var(--red); }
-    .bs-text { overflow-wrap: anywhere; }
-    .bs-lines > .bs-status { padding: 6px 12px; }
-    .bs-edit { grid-column: 1 / -1; background: var(--bg); border: 1px solid var(--border);
-               border-radius: 6px; padding: 8px 10px; margin-top: 4px; }
-    .bs-edit .bs-input { flex: 1 1 160px; min-height: 36px; }
-    .bs-notice { background: var(--panel); border: 1px solid var(--border); border-left: 3px solid var(--red);
-                 border-radius: 6px; padding: 8px 10px; margin: 8px 0; font-size: 0.86rem; }
-    /* action items: kind icon, when, where it was filed, actions */
-    .bs-item-title { display: flex; gap: 8px; align-items: baseline; overflow-wrap: anywhere; }
-    .bs-kind { flex: none; display: inline-flex; align-items: center; opacity: 0.7; }
-    .bs-facts { margin-top: 2px; font-size: 0.85rem; }
-    .bs-due { font-variant-numeric: tabular-nums; }
-    .bs-chip { display: inline-flex; align-items: center; border: 1px solid var(--border);
-               border-radius: 999px; padding: 1px 8px; font-size: 0.76rem; color: var(--fg);
-               text-decoration: none; white-space: nowrap; }
-    a.bs-chip:hover { border-color: var(--fg); }
-    .bs-chip.warn { border-color: var(--red); color: var(--red); }
-    .bs-item .bs-meta { overflow-wrap: anywhere; margin-top: 4px; }
-    .bs-msg:empty { display: none; }
-    .bs-msg.error { color: var(--red); opacity: 1; }
-    .bs-field { display: inline-flex; flex-direction: column; gap: 2px; }
-    .bs-time-edit { margin-top: 8px; align-items: flex-end; }
-    .bs-time-edit .bs-input { flex: none; min-height: 36px; }
-    .bs-list-edit { margin-top: 8px; align-items: flex-end; }
-    .bs-list-edit .bs-field { flex: 1 1 200px; }
-    .bs-list-edit .bs-input { flex: none; width: 100%; min-height: 36px; }
-    .bs-wide { flex-basis: 100%; }
-    .bs-gone { opacity: 0.75; }
-    .bs-item-group + .bs-item-group { margin-top: 6px; }
-    @media (max-width: 640px) {
-      .bs-actions .bs-btn { flex: 1 1 calc(50% - 8px); }
-      .bs-time-edit .bs-field { flex: 1 1 calc(50% - 8px); }
-      .bs-time-edit .bs-input { width: 100%; }
-      .bs-time-edit .bs-btn { flex: 1 1 calc(50% - 8px); }
-      .bs-filters { grid-template-columns: 1fr 1fr; }
-      .bs-line { grid-template-columns: auto 1fr; gap: 2px 10px; padding: 8px 12px; }
-      .bs-line .bs-text { grid-column: 1 / -1; }
-    }
+    @font-face { font-family: 'Inter'; font-weight: 400; font-style: normal; font-display: swap; src: url('/static/fonts/Inter-Regular.woff2') format('woff2'); }
+    @font-face { font-family: 'Inter'; font-weight: 600; font-style: normal; font-display: swap; src: url('/static/fonts/Inter-SemiBold.woff2') format('woff2'); }
   </style>
 </head>
 <body>
-  <div class="bs-wrap">
-    <div class="bs-top">
-      <a href="/" title="Back to Odysseus">
+  <div class="fm-page-wrap">
+    <div class="fm-page-top">
+      <a href="/" title="Back to Odysseus" aria-label="Back to Odysseus">
         <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"
           stroke-linecap="round" stroke-linejoin="round"><polyline points="15 18 9 12 15 6"/></svg>
       </a>
-      <h1>Conversations</h1>
-      <button type="button" class="bs-btn" id="bs-refresh">Refresh</button>
+      <h1><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"
+        stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="9" y="2" width="6" height="12" rx="3"/><path d="M5 10a7 7 0 0 0 14 0"/><line x1="12" y1="17" x2="12" y2="22"/></svg>Conversations</h1>
     </div>
-
-    <div id="bs-home">
-    <div class="bs-tabs" role="tablist" aria-label="Conversations sections">
-      <button type="button" class="bs-tab" role="tab" id="bs-tab-conversations" data-tab="conversations"
-        aria-controls="bs-panel-conversations" aria-selected="true">Conversations</button>
-      <button type="button" class="bs-tab" role="tab" id="bs-tab-items" data-tab="items"
-        aria-controls="bs-panel-items" aria-selected="false" tabindex="-1">Action items</button>
-      <button type="button" class="bs-tab" role="tab" id="bs-tab-who" data-tab="who"
-        aria-controls="bs-panel-who" aria-selected="false" tabindex="-1">Who is this?</button>
-    </div>
-
-    <div role="tabpanel" id="bs-panel-conversations" aria-labelledby="bs-tab-conversations">
-    <form class="bs-filters" id="bs-filter">
-      <input class="bs-input" name="query" placeholder="Words" aria-label="Words">
-      <input class="bs-input" name="person" placeholder="Person" aria-label="Person">
-      <input class="bs-input" name="since" type="date" aria-label="From">
-      <input class="bs-input" name="until" type="date" aria-label="To">
-      <select class="bs-input" name="kind" aria-label="Type">
-        <option value="">All recordings</option>
-        <option value="conversation">Conversations</option>
-        <option value="note">Voice notes</option>
-      </select>
-      <button type="submit" class="bs-btn">Search</button>
-    </form>
-    <div id="bs-list"><div class="bs-status">Loading…</div></div>
-    </div>
-
-    <div role="tabpanel" id="bs-panel-items" aria-labelledby="bs-tab-items" hidden>
-    <div id="bs-items"><div class="bs-status">Loading…</div></div>
-    </div>
-
-    <div role="tabpanel" id="bs-panel-who" aria-labelledby="bs-tab-who" hidden>
-    <div id="bs-who"><div class="bs-status">Loading…</div></div>
-    </div>
-    </div>
-
-    <div id="bs-reader" hidden></div>
+    <div id="fm-view"></div>
   </div>
-  <script type="module" src="/static/js/soundModule.js"></script>
+  <script type="module" nonce="{{CSP_NONCE}}">
+    import { mountSoundModule } from '/static/js/soundModule.js';
+    mountSoundModule(document.getElementById('fm-view'));
+  </script>
 </body>
 </html>

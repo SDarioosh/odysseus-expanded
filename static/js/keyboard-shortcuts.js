@@ -4,6 +4,7 @@
 
 import { IS_MAC, isAltGrEvent } from './platform.js';
 import { getSettings } from './appConfig.js';
+import { FORK_SHORTCUT_DEFAULTS, FORK_SHORTCUT_BUTTONS, FORK_WINDOW_TRIGGERS } from './forkModuleShortcuts.js'; // Fork: module windows (static/js/forkModuleShortcuts.js)
 
 const _defaultKeybinds = {
   search: 'ctrl+k', toggle_sidebar: 'ctrl+alt+b', new_session: 'ctrl+alt+n',
@@ -14,6 +15,7 @@ const _defaultKeybinds = {
   open_calendar: 'ctrl+alt+c', open_compare: '', open_cookbook: '',
   open_research: '', open_gallery: '', open_library: '', open_memory: '',
   open_skills: '', open_notes: '', open_tasks: '', open_theme: '',
+  ...FORK_SHORTCUT_DEFAULTS, // Fork: Open Conversations / Today (static/js/forkModuleShortcuts.js)
 };
 
 export function _matchesCombo(e, combo, isMac = IS_MAC) {
@@ -116,6 +118,7 @@ export function initKeyboardShortcuts(modules) {
     'compare-model-overlay':  'tool-compare-btn',
     'calendar-modal':         'tool-calendar-btn',
     'email-lib-modal':        'email-section-title',
+    ...FORK_WINDOW_TRIGGERS, // Fork: module windows (static/js/forkModuleShortcuts.js)
   };
   let _lastWindow = 'settings-modal';
 
@@ -275,6 +278,7 @@ export function initKeyboardShortcuts(modules) {
       open_notes:    'tool-notes-btn',
       open_tasks:    'tool-tasks-btn',
       open_theme:    'tool-theme-btn',
+      ...FORK_SHORTCUT_BUTTONS, // Fork: module windows (static/js/forkModuleShortcuts.js)
     };
     for (const action in _toolBtns) {
       if (_matchesCombo(e, kb[action])) {

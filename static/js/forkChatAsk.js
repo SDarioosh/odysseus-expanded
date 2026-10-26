@@ -21,6 +21,10 @@ function _takeAskParam() {
   try {
     history.replaceState(history.state, '', url.pathname + url.search + url.hash);
   } catch (_) { /* ignore */ }
+  return _clean(raw);
+}
+
+function _clean(raw) {
   if (raw.length > MAX_ASK_CHARS) return '';
   // One line only: a line break in the composer can submit on some mobile
   // paths, and the composer is a single prompt anyway.
@@ -77,7 +81,16 @@ function _fill(text) {
 }
 
 async function _run() {
-  const text = _takeAskParam();
+  await _prefill(_takeAskParam());
+}
+
+/** Opens a new chat with `text` in the composer, like `/?ask=` but without a page load.
+ *  Used by the module windows (static/js/forkModuleWindows.js). Never sends. */
+export function askInChat(text) {
+  return _prefill(_clean(String(text || '')));
+}
+
+async function _prefill(text) {
   if (!text.trim()) return;
   if (!await _waitFor(_appReady, READY_TIMEOUT_MS)) return;
   if (!await _ensureNewChat()) return;

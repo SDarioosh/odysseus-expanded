@@ -1,0 +1,134 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <title>Pair a phone — Odysseus</title>
+  <meta name="theme-color" content="#282c34">
+  <link rel="icon" href="/static/icon.ico">
+  <script nonce="{{CSP_NONCE}}">
+  // Fork: apply the theme the owner picked in Odysseus (saved in localStorage
+  // as 'odysseus-theme'), like the early script in index.html and login.html.
+  // theme.js isn't imported: it boots the whole settings UI.
+  (function () {
+    try {
+      var t = JSON.parse(localStorage.getItem('odysseus-theme'));
+      var s = document.documentElement.style;
+      if (t && t.colors) {
+        var c = t.colors;
+        s.setProperty('--bg', c.bg);
+        s.setProperty('--fg', c.fg);
+        s.setProperty('--panel', c.panel);
+        s.setProperty('--border', c.border);
+        if (c.red) s.setProperty('--red', c.red);
+        var a = c.advanced || {};
+        if (a.inputBg) s.setProperty('--input-bg', a.inputBg);
+        if (a.inputBorder) s.setProperty('--input-border', a.inputBorder);
+        var m = document.querySelector('meta[name="theme-color"]');
+        if (m && c.bg) m.setAttribute('content', c.bg);
+      }
+      // Same names as FONT_MAP in static/js/theme.js; unknown fonts keep the default.
+      var fonts = {
+        mono: "'Fira Code', monospace",
+        sans: "system-ui, -apple-system, 'Segoe UI', sans-serif",
+        serif: "Georgia, 'Times New Roman', serif",
+        opendyslexic: "'OpenDyslexic', sans-serif"
+      };
+      if (t && t.font && fonts[t.font]) s.setProperty('--font-family', fonts[t.font]);
+      if (t && t.density && t.density !== 'comfortable') {
+        document.documentElement.classList.add('density-' + t.density);
+      }
+    } catch (e) { /* no saved theme: keep the defaults */ }
+  })();
+  </script>
+  <link rel="stylesheet" href="/static/css/00-tokens.css?v=20260929csssplit">
+  <style>
+    /* Fork: "Pair a phone" page (src/phone_pairing.py). Same tokens and classes as the
+       "Record a call" page; nothing here introduces new color values. */
+    html, body { height: auto; overflow: visible; overscroll-behavior: auto; }
+    body { background: var(--bg); color: var(--fg); margin: 0; display: block;
+           min-height: 100vh;
+           font-family: var(--font-family, 'Fira Code', monospace); }
+    .bs-wrap { max-width: 860px; margin: 0 auto; padding: 16px; }
+    .bs-top { display: flex; align-items: center; gap: 10px; margin-bottom: 14px; }
+    .bs-top h1 { font-size: 1.1rem; font-weight: 600; margin: 0; flex: 1; }
+    .bs-top a { color: var(--fg); opacity: 0.7; text-decoration: none; }
+    .bs-top a:hover { opacity: 1; }
+    .bs-card { background: var(--panel); border: 1px solid var(--border); border-radius: 8px;
+               padding: 12px 14px; margin-bottom: 10px; }
+    .bs-meta { font-size: 0.8rem; opacity: 0.65; }
+    .bs-text { font-size: 0.88rem; line-height: 1.45; margin: 6px 0 0; }
+    .bs-text.pp-first { margin-top: 0; }
+    .bs-list { margin: 6px 0 0; padding-left: 20px; font-size: 0.88rem; line-height: 1.45; }
+    .bs-list li { margin: 3px 0; }
+    .bs-row { display: flex; flex-wrap: wrap; gap: 8px; align-items: center; margin-top: 10px; }
+    .bs-btn { background: transparent; color: var(--fg); border: 1px solid var(--border);
+              border-radius: 6px; padding: 6px 10px; font: inherit; font-size: 0.85rem;
+              cursor: pointer; min-height: 36px; box-sizing: border-box; }
+    .bs-btn:hover { border-color: var(--fg); }
+    .bs-btn.primary { border-color: var(--red); color: var(--red); }
+    .bs-btn:disabled { opacity: 0.4; cursor: default; }
+    a.bs-btn { display: inline-flex; align-items: center; text-decoration: none; }
+    .bs-input { background: var(--input-bg, var(--bg)); color: var(--fg);
+                border: 1px solid var(--input-border, var(--border)); border-radius: 6px;
+                padding: 6px 8px; font: inherit; font-size: 0.88rem; min-height: 36px;
+                box-sizing: border-box; flex: 1 1 18em; min-width: 0; }
+    .bs-notice { background: var(--panel); border: 1px solid var(--border); border-left: 3px solid var(--red);
+                 border-radius: 6px; padding: 8px 10px; margin: 8px 0; font-size: 0.86rem; }
+    .bs-notice:empty { display: none; }
+    .pp-qr { display: flex; flex-wrap: wrap; gap: 16px; align-items: flex-start; margin-top: 10px; }
+    .pp-qr img { width: 240px; height: 240px; image-rendering: pixelated; background: #fff;
+                 border-radius: 6px; }
+    .pp-qr[hidden] { display: none; }
+    .pp-link { font-size: 0.75rem; word-break: break-all; opacity: 0.8; user-select: all; }
+    .pp-state { font-weight: 600; }
+  </style>
+</head>
+<body>
+  <div class="bs-wrap">
+    <div class="bs-top">
+      <a href="/modules/sound" title="Back to Conversations">
+        <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"
+          stroke-linecap="round" stroke-linejoin="round"><polyline points="15 18 9 12 15 6"/></svg>
+      </a>
+      <h1>Pair a phone</h1>
+    </div>
+
+    <div class="bs-card">
+      <p class="bs-text pp-first">Sets up the Athena relay app on a phone in one step: it
+        then uploads the watch's recordings and syncs the T5 through Odysseus.</p>
+      <ul class="bs-list">
+        <li>In the relay app: <b>Settings → Pair with Odysseus</b>, then scan this code.</li>
+        <li>The code works once and for 10 minutes. It doesn't contain a password: the phone
+          trades it for its own API token, named "Phone relay" with the date.</li>
+        <li>Each phone's token is listed in Settings → API tokens; revoke it there to unpair
+          that phone.</li>
+      </ul>
+    </div>
+
+    <div id="pp-notice" class="bs-notice" role="alert"></div>
+
+    <div class="bs-card">
+      <label class="bs-meta" for="pp-url">Odysseus address the phone uses (over Tailscale,
+        e.g. https://odysseus.tail1234.ts.net)</label>
+      <div class="bs-row">
+        <input class="bs-input" id="pp-url" type="url" autocomplete="off" spellcheck="false">
+        <button type="button" class="bs-btn primary" id="pp-create">Show pairing code</button>
+      </div>
+      <div class="pp-qr" id="pp-qr" hidden>
+        <img id="pp-img" alt="Pairing QR code">
+        <div>
+          <div class="pp-state" id="pp-state">Waiting for the phone…</div>
+          <div class="bs-meta" id="pp-expiry"></div>
+          <p class="bs-text">Can't scan? Copy this link and paste it in the app:</p>
+          <div class="pp-link" id="pp-link"></div>
+          <div class="bs-row">
+            <button type="button" class="bs-btn" id="pp-copy">Copy link</button>
+          </div>
+        </div>
+      </div>
+    </div>
+  </div>
+  <script type="module" src="/static/js/phonePairing.js"></script>
+</body>
+</html>

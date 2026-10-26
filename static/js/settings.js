@@ -27,6 +27,7 @@ import { isAltGrEvent } from './platform.js';
 import { bindMenuDismiss } from './escMenuStack.js';
 import { invalidateSettings } from './appConfig.js';
 import { SEARCH_PROVIDER_LOGOS as _SEARCH_PROVIDER_LOGOS } from './searchProviderIcons.js';
+import * as _forkShortcuts from './forkModuleShortcuts.js'; // Fork: Open Conversations / Today (static/js/forkModuleShortcuts.js)
 
 let initialized = false;
 let modalEl = null;
@@ -1410,6 +1411,7 @@ const SHORTCUT_DEFAULTS = {
   open_notes:     '',
   open_tasks:     '',
   open_theme:     '',
+  ..._forkShortcuts.FORK_SHORTCUT_DEFAULTS, // Fork (static/js/forkModuleShortcuts.js)
 };
 
 const SHORTCUT_ICONS = {
@@ -1434,6 +1436,7 @@ const SHORTCUT_ICONS = {
   open_notes:     '<svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M5 3h10l4 4v14H5z"/><path d="M15 3v5h5"/><path d="M8 17.5 15.5 10l2.5 2.5L10.5 20H8z"/></svg>',
   open_tasks:     '<svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><rect x="3" y="4" width="18" height="18" rx="2"/><line x1="16" y1="2" x2="16" y2="6"/><line x1="8" y1="2" x2="8" y2="6"/><line x1="3" y1="10" x2="21" y2="10"/><path d="M9 16l2 2 4-4"/></svg>',
   open_theme:     '<svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><circle cx="12" cy="12" r="10"/><path d="M12 2a10 10 0 0 0 0 20 5 5 0 0 0 5-5 3 3 0 0 0-3-3h-2a3 3 0 0 1-3-3 5 5 0 0 1 5-5"/></svg>',
+  ..._forkShortcuts.FORK_SHORTCUT_ICONS, // Fork (static/js/forkModuleShortcuts.js)
 };
 
 const SHORTCUT_LABELS = {
@@ -1458,13 +1461,14 @@ const SHORTCUT_LABELS = {
   open_notes:     'Open Notes',
   open_tasks:     'Open Tasks',
   open_theme:     'Open Theme',
+  ..._forkShortcuts.FORK_SHORTCUT_LABELS, // Fork (static/js/forkModuleShortcuts.js)
 };
 
 const SHORTCUT_CATEGORIES = [
   { name: 'Navigation', keys: ['search', 'toggle_sidebar', 'focus_input', 'settings'] },
   { name: 'Sessions', keys: ['new_session', 'fav_session', 'delete_session'] },
   { name: 'Tools', keys: ['incognito', 'tts', 'cancel'] },
-  { name: 'Open Tools', keys: ['open_calendar', 'open_compare', 'open_cookbook', 'open_research', 'open_gallery', 'open_library', 'open_memory', 'open_skills', 'open_notes', 'open_tasks', 'open_theme'] },
+  { name: 'Open Tools', keys: ['open_calendar', 'open_compare', 'open_cookbook', 'open_research', 'open_gallery', 'open_library', 'open_memory', 'open_skills', 'open_notes', 'open_tasks', 'open_theme', ..._forkShortcuts.FORK_SHORTCUT_ACTIONS] }, // Fork: + module windows (static/js/forkModuleShortcuts.js)
 ];
 
 function _formatKeyCaps(combo) {

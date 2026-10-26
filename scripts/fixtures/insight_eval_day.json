@@ -1,0 +1,98 @@
+{
+ "_about": "Fictional fixture for scripts/insight_eval.py (Today insight rule order and weights); the T5 PDA's own day is scripts/fixtures/t5_weights_day.json. All names and items are made up. Notes are listed in feed order (pinned first). An item's index is its position in the note's items ('i').",
+ "version": 1,
+ "today": "2026-10-22",
+ "now": "2026-10-22T08:00:00Z",
+ "timezone": "UTC",
+ "notes": [
+  {"id": "note-ideas", "title": "Home ideas", "note_type": "checklist", "pinned": true, "due_date": null,
+   "items": [{"i": 0, "text": "Sketch the new bookshelf", "done": false}]},
+  {"id": "note-errands", "title": "Errands", "note_type": "checklist", "pinned": false, "due_date": "2026-10-19",
+   "items": [{"i": 0, "text": "Return the library books", "done": false},
+             {"i": 1, "text": "Pick up the dry cleaning", "done": true}]},
+  {"id": "note-home", "title": "Home", "note_type": "checklist", "pinned": false, "due_date": "2026-10-21",
+   "items": [{"i": 0, "text": "Book the plumber", "done": false},
+             {"i": 1, "text": "Renew the parking permit", "done": false}]},
+  {"id": "note-party", "title": "Shopping", "note_type": "checklist", "pinned": false, "due_date": "2026-10-22",
+   "items": [{"i": 0, "text": "Buy the birthday card", "done": false}]},
+  {"id": "note-work", "title": "Work", "note_type": "checklist", "pinned": false, "due_date": "2026-10-25",
+   "items": [{"i": 0, "text": "Send the Q4 deck", "done": false},
+             {"i": 1, "text": "Review the Q4 budget", "done": true},
+             {"i": 2, "text": "Book the team offsite room", "done": false}]},
+  {"id": "note-garden", "title": "Garden", "note_type": "checklist", "pinned": false, "due_date": "2026-10-23",
+   "items": [{"i": 0, "text": "Order the tulip bulbs", "done": false},
+             {"i": 1, "text": "Fix the hose reel", "done": false}]},
+  {"id": "note-groceries", "title": "Shopping", "note_type": "checklist", "pinned": false, "due_date": null,
+   "items": [{"i": 0, "text": "Oat milk", "done": false},
+             {"i": 1, "text": "Coffee beans", "done": false}]},
+  {"id": "note-reading", "title": "Reading", "note_type": "checklist", "pinned": false, "due_date": null,
+   "items": [{"i": 0, "text": "Finish the garden design book", "done": false}]},
+  {"id": "note-photos", "title": "Photos", "note_type": "checklist", "pinned": false, "due_date": null,
+   "items": [{"i": 0, "text": "Back up the holiday photos", "done": false}]},
+  {"id": "note-kickoff", "title": "Work Q1", "note_type": "checklist", "pinned": false, "due_date": "2026-11-20",
+   "items": [{"i": 0, "text": "Plan the January kickoff", "done": false}]}
+ ],
+ "events": [
+  {"uid": "ev-dentist", "summary": "Dentist check-up", "dtstart": "2026-10-22T15:00:00Z",
+   "dtend": "2026-10-22T15:30:00Z", "all_day": false, "event_type": "health", "importance": "normal"},
+  {"uid": "ev-market", "summary": "Farmers market", "dtstart": "2026-10-24T10:00:00Z",
+   "dtend": "2026-10-24T11:00:00Z", "all_day": false, "event_type": "personal", "importance": "normal"}
+ ],
+ "history": {
+  "_about": "The 28 finalized days before today (2026-09-24 .. 2026-10-21). Each entry is shown once a day on the last 'days' days of the window; its outcome that day is cycle[i % len(cycle)] (i counts from the first day it is shown). 'done': ticked in the note; 'dismissed': the owner's 'Not today'; 'ignored': still open when the day is finalized; 'gone': the line was deleted.",
+  "first_day": "2026-09-24",
+  "days": 28,
+  "items": [
+   {"ref": "todo:note-work:0", "title": "Send the Q4 deck", "days": 28, "cycle": ["done"]},
+   {"ref": "todo:note-home:0", "title": "Book the plumber", "days": 28, "cycle": ["dismissed"]},
+   {"ref": "todo:note-garden:0", "title": "Order the tulip bulbs", "days": 28, "cycle": ["done", "ignored"]},
+   {"ref": "todo:note-errands:0", "title": "Return the library books", "days": 5, "cycle": ["done"]},
+   {"ref": "todo:note-reading:0", "title": "Finish the garden design book", "days": 7, "cycle": ["ignored"]},
+   {"ref": "todo:note-photos:0", "title": "Back up the holiday photos", "days": 3, "cycle": ["gone"]}
+  ]
+ },
+ "expected": {
+  "_weights_by_hand": "to-do score = done + 2*promoted - 2*dismissed - moved - ignored/2. Work 28 shown, 28 done: score 28, rate 1. Home 28 shown, 28 dismissed: score -56, rate -2. Garden 28 shown, 14 done, 14 ignored: score 7, rate 1/4. Errands 5 shown, 5 done (below MIN_SHOWN 6). Reading 7 shown, 7 ignored: score -7/2, rate -1/2. Photos: gone, never counted. Base over all to-dos: shown 96, score -39/2, base -13/64. weight = clamp(round_half_away(3*(rate - base)), -3, 3): Work 3*(77/64)=3.61 -> 4 -> 3; Home 3*(-115/64)=-5.39 -> -5 -> -3; Garden 3*(29/64)=1.36 -> 1; Reading 3*(-19/64)=-0.89 -> -1; Errands 0 (shown 5 < 6); note_type:checklist covers every to-do, so its rate is the base: 0.",
+  "base_todo": "-13/64",
+  "keys": {
+   "list:note-work": {"weight": 3, "shown": 28, "done": 28, "promoted": 0, "dismissed": 0, "moved": 0, "ignored": 0},
+   "list:note-home": {"weight": -3, "shown": 28, "done": 0, "promoted": 0, "dismissed": 28, "moved": 0, "ignored": 0},
+   "list:note-garden": {"weight": 1, "shown": 28, "done": 14, "promoted": 0, "dismissed": 0, "moved": 0, "ignored": 14},
+   "list:note-errands": {"weight": 0, "shown": 5, "done": 5, "promoted": 0, "dismissed": 0, "moved": 0, "ignored": 0},
+   "list:note-reading": {"weight": -1, "shown": 7, "done": 0, "promoted": 0, "dismissed": 0, "moved": 0, "ignored": 7},
+   "note_type:checklist": {"weight": 0, "shown": 96, "done": 47, "promoted": 0, "dismissed": 28, "moved": 0, "ignored": 21}
+  },
+  "min_shown_gate": {"_about": "The same history with the Errands item shown on 6 days: its weight is no longer held at 0 (base -37/194; 3*(1+37/194)=3.57 -> 4 -> 3).",
+                     "ref": "todo:note-errands:0", "days": 6, "key": "list:note-errands", "weight": 3},
+  "rule_order": [
+   "todo:note-errands:0", "todo:note-home:0", "todo:note-home:1", "todo:note-party:0", "event:ev-dentist",
+   "todo:note-garden:0", "todo:note-garden:1", "event:ev-market", "todo:note-work:0", "todo:note-work:2",
+   "todo:note-ideas:0",
+   "todo:note-reading:0", "todo:note-photos:0",
+   "todo:note-kickoff:0"
+  ],
+  "rule_tiers": [0, 0, 0, 0, 0, 1, 1, 1, 1, 1, 2, 3, 3, 4],
+  "dropped": ["todo:note-groceries:0", "todo:note-groceries:1", "todo:note-errands:1", "todo:note-work:1"],
+  "cap": {"limit": 4, "order": ["todo:note-errands:0", "todo:note-home:0", "todo:note-home:1", "todo:note-party:0"]},
+  "weighted_order": [
+   "todo:note-errands:0", "todo:note-party:0", "event:ev-dentist", "todo:note-home:0", "todo:note-home:1",
+   "todo:note-work:0", "todo:note-work:2", "todo:note-garden:0", "todo:note-garden:1", "event:ev-market",
+   "todo:note-ideas:0",
+   "todo:note-photos:0", "todo:note-reading:0",
+   "todo:note-kickoff:0"
+  ],
+  "t5_table": {"list:note-home": -3, "list:note-work": 3, "list:note-garden": 1, "list:note-reading": -1},
+  "owner_marks": {
+   "insight": {"focus": ["todo:note-errands:0", "todo:note-party:0", "event:ev-dentist"],
+               "coming_up": ["todo:note-work:0", "todo:note-garden:0", "event:ev-market"],
+               "also": ["todo:note-ideas:0", "todo:note-photos:0"]},
+   "not_today": "todo:note-party:0",
+   "first": "todo:note-garden:0",
+   "focus_after": ["todo:note-garden:0", "todo:note-errands:0", "event:ev-dentist"],
+   "coming_up_after": ["todo:note-work:0", "event:ev-market"]
+  },
+  "reset_key": "list:note-work"
+ },
+ "weights": {"version": 1, "date": "2026-10-22",
+             "weights": {"list:note-home": -3, "list:note-work": 3, "list:note-garden": 1, "list:note-reading": -1}}
+}

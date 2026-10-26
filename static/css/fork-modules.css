@@ -1,0 +1,215 @@
+/* Fork: shared look of the module views (Athena Conversations, Today).
+   Used by their Odysseus windows (static/js/forkModuleWindows.js) and by the
+   standalone pages (static/sound-module.html, static/today.html). Mirrors the
+   built-in tool windows: Inter type like .modal-content, tabs like .memory-tab,
+   cards like .admin-card, buttons like .memory-toolbar-btn. Colors are only the
+   Odysseus theme tokens (--bg, --fg, --panel, --border, --red, --input-*). */
+
+.fm-root {
+  color: var(--fg);
+  font-family: 'Inter', -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif;
+  font-size: 13px;
+  letter-spacing: -0.015em;
+  line-height: 1.45;
+}
+.fm-root *, .fm-root *::before, .fm-root *::after { box-sizing: border-box; }
+
+/* ---- toolbar: tabs on the left, refresh on the right (like the Memory window) */
+.fm-root .bs-bar { display: flex; align-items: flex-end; gap: 8px; border-bottom: 1px solid var(--border);
+                   margin-bottom: 10px; position: sticky; top: 0; z-index: 2; background: var(--bg); }
+.fm-root .bs-tabs { display: flex; gap: 0; overflow-x: auto; flex: 1; min-width: 0; scrollbar-width: none; }
+.fm-root .bs-bar-end { display: flex; gap: 6px; align-items: center; padding-bottom: 5px; flex: none; }
+.fm-root .bs-tab { background: none; border: none; border-bottom: 2px solid transparent; color: var(--fg);
+                   font: inherit; font-size: 12px; padding: 8px 14px; cursor: pointer; opacity: 0.5;
+                   white-space: nowrap; display: inline-flex; align-items: center; gap: 5px;
+                   transition: opacity 0.15s, border-color 0.15s, color 0.15s, background 0.15s; }
+.fm-root .bs-tab:hover { opacity: 0.8; background: color-mix(in srgb, var(--fg) 5%, transparent); }
+.fm-root .bs-tab[aria-selected="true"] { opacity: 1; color: var(--red); border-bottom-color: var(--red); }
+.fm-root .bs-tab svg { flex: none; }
+
+/* ---- text */
+.fm-root .bs-section { margin: 16px 0 6px; font-size: 11px; font-weight: 600; text-transform: uppercase;
+                       letter-spacing: 0.06em; color: color-mix(in srgb, var(--fg) 55%, transparent); }
+.fm-root .bs-sub { margin: 12px 0 2px; font-size: 11px; font-weight: 600; text-transform: uppercase;
+                   letter-spacing: 0.05em; color: color-mix(in srgb, var(--fg) 55%, transparent); }
+.fm-root .bs-meta { font-size: 11px; color: color-mix(in srgb, var(--fg) 65%, transparent); }
+.fm-root .bs-summary { margin: 6px 0 0; font-size: 13px; line-height: 1.5; }
+.fm-root .bs-empty, .fm-root .bs-status { font-size: 12px; color: color-mix(in srgb, var(--fg) 65%, transparent);
+                                          padding: 6px 0; }
+.fm-root .bs-status.error, .fm-root .bs-msg.error { color: var(--red); }
+.fm-root .bs-msg:empty { display: none; }
+.fm-root .bs-small { font-size: 11px; color: color-mix(in srgb, var(--fg) 65%, transparent); margin-left: 4px;
+                     white-space: nowrap; }
+.fm-root .bs-small:hover { color: var(--fg); }
+.fm-root .bs-list { margin: 6px 0 0; padding-left: 20px; font-size: 13px; line-height: 1.45; }
+.fm-root .bs-list li { margin: 3px 0; }
+
+/* ---- cards (like .admin-card) */
+.fm-root .bs-card { background: var(--panel); border: 1px solid var(--border); border-radius: 8px;
+                    padding: 12px; margin-bottom: 10px; }
+.fm-root .bs-card h2 { font-size: 13px; margin: 0 0 4px; font-weight: 600; letter-spacing: -0.02em; }
+.fm-root .bs-quote { display: block; margin: 6px 0; padding: 4px 8px; border-left: 2px solid var(--border);
+                     color: var(--fg); text-decoration: none; font-size: 12.5px; }
+.fm-root .bs-quote:hover { border-left-color: var(--red); }
+.fm-root .bs-notice { background: var(--panel); border: 1px solid var(--border); border-left: 3px solid var(--red);
+                      border-radius: 6px; padding: 8px 10px; margin: 8px 0; font-size: 12.5px; }
+.fm-root .bs-gone { opacity: 0.75; }
+
+/* ---- controls (like .memory-toolbar-btn / .memory-search-input) */
+.fm-root .bs-row { display: flex; flex-wrap: wrap; gap: 6px; align-items: center; margin-top: 8px; }
+.fm-root .bs-btn { background: none; color: color-mix(in srgb, var(--fg) 75%, transparent);
+                   border: 1px solid var(--border); border-radius: 6px; padding: 0 10px; height: 28px;
+                   font: inherit; font-size: 12px; cursor: pointer; white-space: nowrap;
+                   display: inline-flex; align-items: center; justify-content: center; gap: 5px;
+                   text-decoration: none; transition: border-color 0.15s, color 0.15s, background 0.15s; }
+.fm-root .bs-btn:hover { border-color: var(--fg); color: var(--fg); }
+.fm-root .bs-btn.primary, .fm-root .bs-btn[aria-pressed="true"] {
+  background: color-mix(in srgb, var(--red) 15%, transparent);
+  border-color: color-mix(in srgb, var(--red) 40%, transparent); color: var(--red); }
+.fm-root .bs-btn.primary:hover { border-color: var(--red); }
+.fm-root .bs-btn:disabled { opacity: 0.35; cursor: default; }
+.fm-root .bs-icon-btn { width: 28px; padding: 0; }
+.fm-root .bs-link { color: color-mix(in srgb, var(--fg) 75%, transparent); display: inline-flex;
+                    align-items: center; gap: 4px; font-size: 12px; height: 28px; padding: 0 2px;
+                    text-decoration: none; }
+.fm-root .bs-link:hover { color: var(--fg); text-decoration: underline; }
+.fm-root .bs-input { background: var(--input-bg, var(--bg)); color: var(--fg);
+                     border: 1px solid var(--input-border, var(--border)); border-radius: 6px;
+                     height: 28px; padding: 0 8px; font: inherit; font-size: 12px; min-width: 0; }
+.fm-root .bs-input:focus { outline: none; border-color: var(--red); }
+.fm-root .bs-filters { display: grid; grid-template-columns: 2fr 1fr 1fr 1fr auto auto; gap: 6px;
+                       margin-bottom: 10px; }
+.fm-root .bs-chip { display: inline-flex; align-items: center; border: 1px solid var(--border);
+                    border-radius: 999px; padding: 1px 8px; font-size: 11px; color: var(--fg);
+                    text-decoration: none; white-space: nowrap; }
+.fm-root a.bs-chip:hover { border-color: var(--fg); }
+.fm-root .bs-chip.warn { border-color: var(--red); color: var(--red); }
+
+/* ---- conversation reader */
+.fm-root .bs-reader-top { display: flex; flex-wrap: wrap; gap: 8px; align-items: center; margin-bottom: 10px; }
+.fm-root .bs-reader-top h2 { font-size: 14px; margin: 0; font-weight: 600; flex: 1 1 200px; min-width: 0;
+                             overflow-wrap: anywhere; letter-spacing: -0.02em; }
+.fm-root .bs-lines { background: var(--panel); border: 1px solid var(--border); border-radius: 8px; padding: 4px 0; }
+.fm-root .bs-lines > .bs-status { padding: 6px 12px; }
+.fm-root .bs-line { display: grid; grid-template-columns: 4.6em 9em 1fr; gap: 8px; padding: 6px 12px;
+                    font-size: 13px; line-height: 1.45; align-items: baseline;
+                    transition: background 0.6s; }
+.fm-root .bs-line + .bs-line { border-top: 1px solid color-mix(in srgb, var(--border) 40%, transparent); }
+.fm-root .bs-line.bs-line-focus { background: color-mix(in srgb, var(--red) 12%, transparent); }
+.fm-root .bs-time { font-size: 11px; color: color-mix(in srgb, var(--fg) 60%, transparent); text-decoration: none;
+                    font-variant-numeric: tabular-nums; }
+.fm-root .bs-time:hover { color: var(--fg); text-decoration: underline; }
+.fm-root .bs-spk { background: none; border: none; padding: 0; font: inherit; font-weight: 600;
+                   color: var(--fg); cursor: pointer; text-align: left; overflow-wrap: anywhere;
+                   text-decoration: underline dotted; text-underline-offset: 3px; min-height: 24px; }
+.fm-root .bs-spk:hover, .fm-root .bs-spk[aria-expanded="true"] { color: var(--red); }
+.fm-root .bs-text { overflow-wrap: anywhere; }
+.fm-root .bs-edit { grid-column: 1 / -1; background: var(--bg); border: 1px solid var(--border);
+                    border-radius: 6px; padding: 8px 10px; margin-top: 4px; }
+.fm-root .bs-edit .bs-input { flex: 1 1 160px; }
+
+/* ---- action items */
+.fm-root .bs-item-title { display: flex; gap: 8px; align-items: baseline; overflow-wrap: anywhere; }
+.fm-root .bs-kind { flex: none; display: inline-flex; align-items: center; opacity: 0.7; }
+.fm-root .bs-facts { margin-top: 2px; font-size: 12px; }
+.fm-root .bs-due { font-variant-numeric: tabular-nums; }
+.fm-root .bs-item .bs-meta { overflow-wrap: anywhere; margin-top: 4px; }
+.fm-root .bs-field { display: inline-flex; flex-direction: column; gap: 2px; }
+.fm-root .bs-time-edit, .fm-root .bs-list-edit { margin-top: 8px; align-items: flex-end; }
+.fm-root .bs-time-edit .bs-input { flex: none; }
+.fm-root .bs-list-edit .bs-field { flex: 1 1 200px; }
+.fm-root .bs-list-edit .bs-input { flex: none; width: 100%; }
+.fm-root .bs-wide { flex-basis: 100%; }
+.fm-root .bs-item-group + .bs-item-group { margin-top: 6px; }
+
+/* ---- Today */
+.fm-root .bs-headline { font-size: 14px; line-height: 1.5; margin: 0; }
+.fm-root .bs-items { list-style: none; margin: 0; padding: 0; }
+.fm-root .ti-item { display: flex; gap: 10px; align-items: flex-start; padding: 8px 0; }
+.fm-root .ti-item + .ti-item { border-top: 1px solid color-mix(in srgb, var(--border) 40%, transparent); }
+.fm-root .bs-tick { flex: none; width: 16px; height: 16px; margin: 2px 2px 0; accent-color: var(--red);
+                    cursor: pointer; }
+.fm-root .ti-item .bs-kind { width: 20px; justify-content: center; padding-top: 1px; }
+.fm-root .bs-body { flex: 1; min-width: 0; }
+.fm-root .bs-title { font-size: 13px; font-weight: 600; color: var(--fg); text-decoration: none;
+                     overflow-wrap: anywhere; }
+.fm-root a.bs-title:hover { text-decoration: underline; }
+.fm-root .bs-why { font-size: 12px; line-height: 1.45; color: color-mix(in srgb, var(--fg) 75%, transparent);
+                   margin-top: 2px; }
+.fm-root .bs-done .bs-title { text-decoration: line-through; opacity: 0.6; }
+
+/* ---- touch screens: bigger targets */
+@media (pointer: coarse) {
+  .fm-root .bs-btn, .fm-root .bs-input, .fm-root .bs-link { height: 36px; }
+  .fm-root .bs-icon-btn { width: 36px; }
+  .fm-root .bs-spk { min-height: 32px; }
+  .fm-root .bs-tick { width: 20px; height: 20px; }
+}
+@media (max-width: 640px) {
+  .fm-root .bs-actions .bs-btn { flex: 1 1 calc(50% - 6px); }
+  .fm-root .bs-time-edit .bs-field { flex: 1 1 calc(50% - 6px); }
+  .fm-root .bs-time-edit .bs-input { width: 100%; }
+  .fm-root .bs-time-edit .bs-btn { flex: 1 1 calc(50% - 6px); }
+  .fm-root .bs-filters { grid-template-columns: 1fr 1fr; }
+  .fm-root .bs-line { grid-template-columns: auto 1fr; gap: 2px 10px; padding: 8px 12px; }
+  .fm-root .bs-line .bs-text { grid-column: 1 / -1; }
+}
+
+/* ---- the Odysseus windows (static/js/forkModuleWindows.js) */
+@media (min-width: 769px) {
+  /* centered in the chat area, like the built-in tool windows */
+  #fork-sound-modal, #fork-today-modal, #fork-ink-modal {
+    left: calc(var(--icon-rail-w, 48px) + var(--sidebar-w, 0px));
+    width: calc(100% - (var(--icon-rail-w, 48px) + var(--sidebar-w, 0px)));
+    box-sizing: border-box;
+    transition: left 0.25s ease, width 0.25s ease;
+  }
+  .fm-modal-content { width: min(860px, 94vw); height: min(82vh, 860px); }
+  #fork-today-modal .fm-modal-content { width: min(640px, 94vw); height: min(78vh, 760px); }
+}
+.fm-modal-content { background: var(--bg); overflow: hidden; }
+.fm-modal-content .modal-header h4 { display: inline-flex; align-items: center; gap: 6px; }
+.fm-modal-body { flex: 1 1 auto; min-height: 0; overflow-y: auto; overflow-x: hidden; padding: 0 4px 8px;
+                 overscroll-behavior: contain; }
+
+/* ---- the standalone pages (/modules/sound, /today) */
+html.fm-page, html.fm-page body { height: auto; overflow: visible; overscroll-behavior: auto; }
+html.fm-page body { background: var(--bg); color: var(--fg); margin: 0; display: block; min-height: 100vh; }
+.fm-page-wrap { max-width: 860px; margin: 0 auto; padding: 12px 16px 24px; }
+.fm-page-top { display: flex; align-items: center; gap: 8px; margin-bottom: 6px;
+               font-family: 'Inter', -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif; }
+.fm-page-top h1 { margin: 0 auto 0 0; font-size: 1rem; font-weight: 600; letter-spacing: -0.03em;
+                  color: var(--red); display: inline-flex; align-items: center; gap: 6px; }
+.fm-page-top a { color: var(--fg); opacity: 0.7; text-decoration: none; display: inline-flex; }
+.fm-page-top a:hover { opacity: 1; }
+
+/* Today: outcome actions (Phase 3) */
+.fm-root .ti-actions { gap: 6px; margin-top: 4px; flex-wrap: wrap; }
+.fm-root .ti-actions .ti-act { height: 24px; padding: 0 8px; font-size: 11px; }
+.fm-root .ti-why { margin-top: 4px; font-size: 12px; line-height: 1.45; }
+.fm-root .ti-dismissed > summary { cursor: pointer; list-style: revert; }
+.fm-root .ti-dismissed .bs-title { opacity: 0.7; }
+@media (pointer: coarse) {
+  .fm-root .ti-actions .ti-act { height: 32px; padding: 0 10px; font-size: 12px; }
+}
+/* end Today: outcome actions (Phase 3) */
+/* Today: weights (Phase 3) -- static/js/todayWeights.js */
+.fm-root .tw-panel { margin-top: 16px; }
+.fm-root .tw-panel > summary { cursor: pointer; list-style-position: inside; margin: 0 0 6px; }
+.fm-root .tw-rules { margin: 0 0 8px; line-height: 1.45; }
+.fm-root .tw-table { width: 100%; border-collapse: collapse; font-size: 12px; }
+.fm-root .tw-table th { text-align: left; font-weight: 600; font-size: 11px;
+                        color: color-mix(in srgb, var(--fg) 65%, transparent); padding: 4px 6px; }
+.fm-root .tw-table td { padding: 4px 6px; border-top: 1px solid color-mix(in srgb, var(--border) 40%, transparent); }
+.fm-root .tw-table .tw-num { text-align: right; font-variant-numeric: tabular-nums; }
+.fm-root .tw-label { overflow-wrap: anywhere; }
+.fm-root .tw-scroll { overflow-x: auto; }
+.fm-root .tw-why { margin-top: 4px; font-size: 12px; }
+/* end Today: weights (Phase 3) */
+/* Today: trends (Phase 3) -- static/js/todayTrends.js */
+.fm-root .tt-panel { margin-top: 8px; }
+.fm-root .tt-table tr.tt-quiet td { opacity: 0.55; }
+.fm-root .tt-bar { display: inline-block; width: 48px; height: 6px; border-radius: 3px; vertical-align: middle;
+                   background: color-mix(in srgb, var(--border) 50%, transparent); overflow: hidden; }
+.fm-root .tt-fill { display: block; height: 100%; background: var(--red); opacity: 0.75; }
+/* end Today: trends (Phase 3) */

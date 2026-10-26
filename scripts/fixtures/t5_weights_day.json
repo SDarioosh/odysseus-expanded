@@ -1,0 +1,55 @@
+{
+  "v": 1,
+  "version": 1792479600,
+  "generated": "2026-10-20T07:00:00Z",
+  "tz": "Europe/Berlin",
+  "about": "A fictional day (Tue 20 Oct 2026, 09:00 in Berlin) for the rule order and the hub's weights (docs/t5-pda-plan.md §5): overdue, due-today, coming-up, pinned, undated, later and shopping-list to-dos with known weights. Shared with the hub's insight eval; `expected` is the T5's rule-based Today plan for it (no insight), `expected_without_weights` the same feed with no `weights`.",
+  "conversations": [],
+  "actions": [],
+  "calendar": [
+    {"id": "ev-standup", "title": "Team stand-up", "start": "2026-10-20T07:30:00Z", "end": "2026-10-20T07:45:00Z", "all_day": false},
+    {"id": "ev-dentist", "title": "Dentist check-up", "start": "2026-10-21T07:00:00Z", "end": "2026-10-21T07:30:00Z", "where": "Dr. Lindqvist", "all_day": false},
+    {"id": "ev-yoga", "title": "Yoga class", "start": "2026-10-22T16:00:00Z", "end": "2026-10-22T17:00:00Z", "all_day": false}
+  ],
+  "todos": [
+    {"id": "n-house", "title": "House", "pinned": true, "due": null, "items": [
+      {"i": 0, "text": "Fix the garden gate", "done": false},
+      {"i": 1, "text": "Clean the gutters", "done": false}]},
+    {"id": "n-garden", "title": "Garden", "pinned": true, "due": null, "items": [
+      {"i": 0, "text": "Plant the tulip bulbs", "done": false}]},
+    {"id": "n-shop", "title": "Shopping list", "pinned": true, "due": null, "items": [
+      {"i": 0, "text": "Oat milk", "done": false}]},
+    {"id": "n-taxes", "title": "Tax papers", "pinned": false, "due": "2026-10-17", "items": [
+      {"i": 0, "text": "Print the forms", "done": true},
+      {"i": 1, "text": "Find the 2025 receipts", "done": false}]},
+    {"id": "n-gift", "title": "Birthday gift for Lena", "pinned": false, "due": "2026-10-19", "items": [
+      {"i": 0, "text": "Order the book for Lena", "done": false}]},
+    {"id": "n-car", "title": "Car", "pinned": false, "due": "2026-10-20", "items": [
+      {"i": 0, "text": "Book the car service", "done": false}]},
+    {"id": "n-bills", "title": "Bills", "pinned": false, "due": "2026-10-20", "items": [
+      {"i": 0, "text": "Pay the electricity bill", "done": false}]},
+    {"id": "n-party", "title": "Office party", "pinned": false, "due": "2026-10-22", "items": [
+      {"i": 0, "text": "Buy balloons", "done": false}]},
+    {"id": "n-trip", "title": "Weekend trip", "pinned": false, "due": "2026-10-23", "items": [
+      {"i": 0, "text": "Pack the tent", "done": false}]},
+    {"id": "n-reading", "title": "Reading", "pinned": false, "due": null, "items": [
+      {"i": 0, "text": "Return the library book", "done": false}]},
+    {"id": "n-learn", "title": "Learn Spanish", "pinned": false, "due": null, "items": [
+      {"i": 0, "text": "Practise twenty minutes", "done": false}]},
+    {"id": "n-mom", "title": "Mom's birthday", "pinned": false, "due": "2026-11-08", "items": [
+      {"i": 0, "text": "Plan Mom's party", "done": false}]}
+  ],
+  "weights": {"version": 1, "date": "2026-10-20", "weights": {
+    "list:n-mom": 6, "list:n-shop": 6, "list:n-car": -3, "list:n-garden": 3, "list:n-gift": 2,
+    "list:n-learn": 2, "list:n-party": -2, "list:n-house": -1, "list:n-trip": 1}},
+  "expected": {
+    "do_first": ["Order the book for Lena", "Find the 2025 receipts", "Pay the electricity bill", "Book the car service", "Team stand-up"],
+    "coming_up": ["Pack the tent", "Dentist check-up", "Yoga class", "Buy balloons"],
+    "also": ["Plant the tulip bulbs", "Fix the garden gate", "Clean the gutters", "Practise twenty minutes", "Return the library book"]
+  },
+  "expected_without_weights": {
+    "do_first": ["Find the 2025 receipts", "Order the book for Lena", "Book the car service", "Pay the electricity bill", "Team stand-up"],
+    "coming_up": ["Dentist check-up", "Buy balloons", "Yoga class", "Pack the tent"],
+    "also": ["Fix the garden gate", "Clean the gutters", "Plant the tulip bulbs", "Return the library book", "Practise twenty minutes"]
+  }
+}

@@ -68,11 +68,12 @@ _CUE_RE = re.compile(
     r"\b("
     r"conversations?|transcripts?|recordings?|recorded|meetings?|stand-?ups?|1[:-]on[:-]1|"
     r"one-on-one|calls? with|chat(?:ted)? with|talk(?:ed|ing)? (?:to|with|about)|"
-    r"discuss(?:ed|ion)?|mention(?:ed)?|said|says?|told|tell me|ask(?:ed)? me|"
+    r"discuss(?:ed|ion)?|mention(?:ed)?|said|says?|told|ask(?:ed)? me|"
     r"promis(?:e|ed)|recommend(?:ed)?|agreed|action items?|to-?dos? from|digest|speakers?|"
     r"heard|who is taking|who's taking"
     r")\b"
-    r"|\b(?:did|has|have|was|were)\s+\w+(?:\s+\w+)?\s+"
+    # Dots allow titles: "did Dr. Patel tell".
+    r"|\b(?:did|has|have|was|were)\s+[\w.]+(?:\s+[\w.]+)?\s+"
     r"(?:say|tell|ask|mention|promise|recommend|suggest)\b"
     r"|\bmy\s+(?:next|last|mom|mum|dad|mother|father|sister|brother|wife|husband|partner|"
     r"boss|rent|lease|landlord|doctor|dentist|appointments?|plans?)\b",
