@@ -287,10 +287,23 @@ function evidenceValue(b, key) {
   return null;
 }
 
-// The kind label Athena gave the fact, else the memory category.
+// The kind label Athena gave the fact ("other" reads "fact"), else the memory category.
 function kindLabel(b) {
-  return FACT_KINDS[evidenceValue(b, 'kind')] || b.category || null;
+  const kind = evidenceValue(b, 'kind');
+  if (kind) return FACT_KINDS[kind] || 'fact';
+  return b.category || null;
 }
+
+// The kind label, unless the attribute chip already says it ("Decision: …" + "Decision").
+function cardKindLabel(b) {
+  const label = kindLabel(b);
+  if (!label || !b.attribute || !b.value) return label;
+  const attr = (ATTRIBUTE_LABEL[b.attribute] || b.attribute).toLowerCase().replace(/s$/, '');
+  return attr === label.toLowerCase().replace(/s$/, '') ? null : label;
+}
+
+// Beliefs a "Dismiss all" is working on: their buttons stay off, also after a re-render.
+const busy = new Set();
 
 function sourceRow(e) {
   const name = SOURCE_NAMES[e.source] || e.source;
@@ -480,7 +493,21 @@ async function movePanel(b, card) {
   select.focus();
 }
 
+// The subject's name on a card; it opens the subject, like a section head does.
+function subjectLabel(b) {
+  const name = b.subject_display || b.subject || 'No subject';
+  if (b.subject_id === null || b.subject_id === undefined) return el('b', { className: 'bs-who' }, name);
+  return el('button', { type: 'button', className: 'bs-who', title: 'Open this subject',
+                        onclick: () => openSubject(b.subject_id) }, name);
+}
+
 function actions(b, card, textNode) {
+  const row = actionButtons(b, card, textNode);
+  if (busy.has(b.id)) for (const x of row.querySelectorAll('button')) x.disabled = true;
+  return row;
+}
+
+function actionButtons(b, card, textNode) {
   const row = el('div', { className: 'bs-row bs-actions' });
   const confirm = (label) => button('confirm', label,
     () => act(card, `/api/beliefs/${b.id}/confirm`, {}, () => toast('Confirmed; it is in memory now.')));
@@ -514,10 +541,10 @@ function beliefCard(b, why, showSubject = false) {
     b.owner_text ? el('span', { className: 'bs-tag', title: `Originally: ${b.text}` }, 'edited') : null);
   const facts = el('div', { className: 'bs-facts' },
     b.subject_kind ? kindIcon(b.subject_kind) : null,
-    showSubject ? el('b', { className: 'bs-who' }, b.subject_display || b.subject || 'No subject') : null,
+    showSubject ? subjectLabel(b) : null,
     statusChip(b),
     attributeChip(b),
-    kindLabel(b) ? el('span', {}, kindLabel(b)) : null,
+    cardKindLabel(b) ? el('span', {}, cardKindLabel(b)) : null,
     b.first_seen ? el('span', {}, `first seen ${day(b.first_seen)}`) : null,
     b.status === 'stale'
       ? (b.last_seen ? el('span', {}, `not heard since ${day(b.last_seen)}`) : null)
@@ -574,10 +601,14 @@ function renderBeliefs() {
       if (!convs.has(conv)) convs.set(conv, []);
       convs.get(conv).push(b);
     }
-    const lastDay = (items) => items.map((b) => b.last_seen || '').sort().pop() || '';
-    const ordered = [...convs.values()].sort((a, b) => lastDay(b).localeCompare(lastDay(a)));
+    // a conversation's day is when its facts were first said (a fact said again later
+    // doesn't move it); same day: the newest beliefs (highest id) first
+    const convDay = (items) => items.map((b) => b.first_seen || b.last_seen || '').sort().pop() || '';
+    const newest = (items) => Math.max(...items.map((b) => Number(b.id) || 0));
+    const ordered = [...convs.values()].sort((a, b) =>
+      convDay(b).localeCompare(convDay(a)) || newest(b) - newest(a));
     for (const items of ordered) {
-      parts.push(conversationHead(items, lastDay(items)),
+      parts.push(conversationHead(items, convDay(items)),
         ...items.map((b) => beliefCard(b, null, true)));
     }
   }
@@ -612,6 +643,7 @@ function conversationHead(items, lastDay) {
   if (items.length > 1) {
     const btn = button('dismiss', `Dismiss all ${items.length}`, () => dismissAll(items, btn),
       'None of these is worth remembering: out of memory, transcripts untouched (can be restored)');
+    if (items.some((b) => busy.has(b.id))) btn.disabled = true;
     head.append(btn);
   }
   return head;
@@ -622,7 +654,13 @@ async function dismissAll(items, btn) {
   const n = items.length;
   if (!window.confirm(`Dismiss all ${n} beliefs from this conversation? ` +
                       'You can restore them from the Rejected tab.')) return;
+  // every button of these cards stays off until all are done (re-renders keep it so)
+  for (const b of items) busy.add(b.id);
   btn.disabled = true;
+  for (const b of items) {
+    const card = document.getElementById(`belief-${b.id}`);
+    if (card) for (const x of card.querySelectorAll('button')) x.disabled = true;
+  }
   let done = 0;
   let failed = 0;
   let missed = 0;
@@ -636,7 +674,8 @@ async function dismissAll(items, btn) {
       failed += 1;
     }
   }
-  const text = [`Dismissed ${plural(done, 'belief')}; restore from the Rejected tab.`];
+  for (const b of items) busy.delete(b.id);
+  const text = done ? [`Dismissed ${plural(done, 'belief')}; restore from the Rejected tab.`] : [];
   if (failed) text.push(`${plural(failed, 'belief')} could not be dismissed; try again.`);
   if (missed) text.push(`Athena could not be reached for ${plural(missed, 'fact')}.`);
   toast(text.join(' '), failed > 0 || missed > 0);
@@ -990,6 +1029,9 @@ async function localSearch(q) {
     ['text', (b) => `${b.shown_text || ''} ${b.text || ''}`],
     ['subject', (b) => `${b.subject_display || ''} ${b.subject || ''}`],
     ['attribute', (b) => `${ATTRIBUTE_LABEL[b.attribute] || ''} ${b.value || ''}`],
+    ['kind', (b) => kindLabel(b) || ''],
+    ['quote', (b) => (Array.isArray(b.evidence) ? b.evidence : [])
+      .map((e) => (e.payload || {}).quote || '').join(' ')],
   ];
   const hits = [];
   for (const b of Array.isArray(data.beliefs) ? data.beliefs : []) {

@@ -235,9 +235,13 @@ for the browser session), and in By status tabs Tentative / Confirmed / Stale / 
 vocabulary of [Structure](#structure-22)) and the beliefs grouped by subject (the
 subject's name opens it). On the Tentative tab, beliefs heard in an Athena conversation
 (evidence payload `conversation_id`, MCP 0.11.0) are grouped by that conversation instead,
-newest first, each card naming its subject, with **Dismiss all N** on the group (one
-confirm, then each belief is dismissed as with its own button; a toast counts them);
-other tentative beliefs follow, grouped by subject.
+newest first (by the day its facts were first said, so a fact said again later doesn't
+move an old conversation up; on the same day, the newest beliefs first), each card naming
+its subject (a button that opens it), with **Dismiss all N** on the group (one confirm,
+then each belief is dismissed as with its own button, the group's buttons stay off until
+all are done; a toast counts them); other tentative beliefs follow, grouped by subject.
+When the search route is missing, the page's own search also matches the kind and the
+quoted line.
 Each card shows the text (the owner's correction marked "edited"), its subject's kind
 icon, a status chip with how it was confirmed (by its source, by the rule, by you), the
 attribute and value when structured ("Lives in: Lisbon (since …)"), the kind Athena gave
@@ -765,7 +769,7 @@ one week and "… on long flight" the next under two fact ids, or two notes sayi
   from that one source. Never merged: beliefs the owner confirmed or corrected,
   rejected and stale beliefs, beliefs with evidence from two sources (agreement across
   sources is confirmation, rule (b), not a duplicate), other owners' beliefs.
-- **Same claim:** same subject, `about` and category; the words of the two matching keys
+- **Same claim:** same subject and `about` (the category may differ; the kept belief keeps its own); the words of the two matching keys
   may differ only in filler words (`the`, `very`, `still` …) and in another form of the
   same word (plural or third person: flight/flights, prefer/prefers). A different name,
   place, thing or tense stays apart ("a rabbit called Luna" / "… called Bruno",
@@ -804,7 +808,12 @@ sets the evidence category: `preference` for a preference, else `fact` (a fact a
 person stays `contact`); without a kind, a preference word in the text decides, as
 before, which filed requests such as "wants Bo to write a report" as preferences. `kind`,
 `quote` (≤ 300 characters) and `conversation_id` go into the evidence payload for the
-review page (`module_facts.payload`); erasing a belief clears the payload. Tests:
+review page (`module_facts.payload`); erasing a belief clears the payload, and Forget
+also removes its quoted lines from every other belief's evidence (`scrub_quotes`: facts
+said on the same line), since Athena erased that line. A belief's category follows its
+live evidence when all of it (with the belief's own `about`) agrees, also for a belief
+the owner confirmed or one with several sources, so beliefs filed before kinds existed
+are relabelled; Move uses the evidence's kind too. Tests:
 `tests/test_module_fact_kinds.py`.
 Then `reconcile_source(owner, "odysseus-sound", ids)`, `apply_decay` and one
 `sync_memory`. Result line, counts only: `facts: 12 seen, 1 new, 1 confirmed,

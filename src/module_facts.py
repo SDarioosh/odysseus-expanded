@@ -190,7 +190,7 @@ async def read_people(call: CallTool) -> list[dict] | None:
 
 
 # Athena's fact kinds (MCP 0.11.0, ``list_facts`` JSON ``kind``)
-FACT_KINDS = ("preference", "plan", "decision", "relationship", "personal", "other")
+FACT_KINDS = ledger.FACT_KINDS
 QUOTE_CHARS = 300
 
 
@@ -207,10 +207,7 @@ def category(row: dict) -> str:
     one, a preference word in the bare fact text does (words in the link don't count):
     "wants Bo to write a report" is a request, not a preference, and only the module can
     tell."""
-    kind = fact_kind(row)
-    if kind and str(row.get("about") or "").strip().lower() != "person":
-        return "preference" if kind == "preference" else "fact"
-    return ledger.category_for(row.get("about"), row.get("fact"))
+    return ledger.category_for(row.get("about"), row.get("fact"), fact_kind(row))
 
 
 def payload(row: dict) -> dict:
