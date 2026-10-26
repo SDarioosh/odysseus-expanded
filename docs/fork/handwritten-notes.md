@@ -2,8 +2,9 @@
 
 Scope and plan for writing notes with a pen on a tablet running the Odysseus web app,
 turning the handwriting into text with a local vision model, and adding that text to
-[Athena](https://github.com/SDarioosh/Athena) like a voice note. **H1 (pen capture) and H2 (transcribe and review)
-are built** (see "Built in H1" and "Built in H2" under Phases); the rest is planned.
+[Athena](https://github.com/SDarioosh/Athena) like a voice note. **H1 (pen capture), H2 (transcribe and review),
+H3 (Athena's text input, SDarioosh/Athena#108) and H4 (Send to Athena) are built** (see
+"Built in H1", "Built in H2" and "Built in H4" under Phases); H5 and H6 are planned.
 
 _Written 2026-10-22, revised 2026-10-26 with the owner's decisions (below). Items still
 open are at the end._
@@ -184,8 +185,9 @@ Every page is reviewed by the owner before its text leaves the hub.
 
 - The Write view has a **Text** tab per page: the page image above, the transcript
   below, `[?]` words highlighted, editable.
-- **Send to Athena** saves the text, sets `status = reviewed`, writes `content` on the
-  note and sends it (part 5). It is the only way text reaches Athena.
+- **Send to Athena** sends the note's reviewed text (part 5). It is the only way text
+  reaches Athena. (Built: Save review stores a page's text; Send is a separate button,
+  see "Built in H4".)
 - A "Needs review" list (pages with `status = machine`) in the Notes window.
 - Reviewed text is also the ground truth for the recognizer eval (kept local).
 - Later, once the owner trusts the model: a setting `INK_AUTO_SEND` (off by default)
@@ -377,6 +379,58 @@ As planned (`src/ink_transcribe.py`, routes on the existing ink router, a Text t
   ones), and each note card says how many pages wait. A click opens that page's text.
   It isn't in the upstream Notes window, which would need a hook there.
 
+### Built in H4
+
+As planned (`src/ink_athena.py`, a route on the ink router, Send in the Text tab of
+`static/js/forkInk.js`; no new upstream hook), with these details settled while building it:
+
+- **What is sent.** One Athena written note per hub note (open question 2's default):
+  `source_id` `hub-note:<note id>`, `text` every reviewed page in page order with a blank
+  line between pages (the same text as the note's `content`), `title` the note's title,
+  `link` the hub's absolute note URL. Through the `convo` MCP server's URL and token, the
+  path the call recorder uses (`src/call_recorder.py`).
+- **Review first.** Send works only when no page waits: machine text not reviewed, a
+  failed or running transcription, a page with writing never transcribed, or reviewed
+  text older than the page's strokes (the writing changed). The Text tab says which pages
+  wait, and also refuses while edits on a page aren't saved yet. The hub checks again.
+- **Sent state.** `athena.sent_hash` is the hash of the text Athena accepted. The Text tab
+  shows **not sent**, **sent** (the current reviewed text) or **changed since sent**;
+  the Write list says "sent to Athena" or "changed since sent to Athena".
+- **Resend is manual.** After an edit is reviewed (Save review), the tab says "Changed
+  since it was sent: Send again replaces the note in Athena". Save review never sends:
+  every send is the owner's decision, like every review. An automatic resend can come
+  with `INK_AUTO_SEND` (H6). Sending text Athena already has answers `unchanged`. A note
+  whose reviewed text became empty is removed from Athena by Send.
+- **`written_at`** is the note's first stroke (the device's clock), or the time of the
+  first send when strokes carry no time. It is stored in the sidecar on the first send
+  (`athena.written_at`), so erasing the first stroke later doesn't change it and a
+  resend of the same lines stays `unchanged`.
+- **Limits.** Checked before sending, with what is over and the biggest pages: at most
+  200,000 characters and 5,000 lines (counted as Athena counts them: empty lines left
+  out, a line over 4,000 characters counts once per 4,000). The link must pass Athena's
+  rule (http(s), at most 2,000 characters, no spaces, quotes, `( ) < > { } | \ ^`,
+  backtick or user info).
+- **The hub's address.** The `app_public_url` setting (Settings → Reminders → Public
+  URL), else `APP_PUBLIC_URL`, else the origin the browser used for Send (on the tablet,
+  the hub's Tailscale address). Setting the Public URL is recommended: a Send from a
+  browser on the server itself would otherwise link to `127.0.0.1`. A resend updates the
+  link in Athena.
+- **Deleted notes.** Deleting in Write asks Athena to remove the note at once. A note
+  deleted elsewhere (the Notes window, a tool) is found by the sweep, which runs at the
+  start of every Module Facts run (`src/module_facts.py`, hourly, also when that sync is
+  turned off) and after Write lists notes. The sidecar of a sent note stays, unseen,
+  until Athena answers `deleted` or `already`, so an unreachable Athena is asked again
+  next time; the note can't come back meanwhile (410). A send in flight
+  (`athena.sending`, up to 5 minutes) is never swept, so a late POST can't recreate a
+  note just deleted.
+- **One send at a time** per note; an answer is applied only if the same screen, note
+  and user are still shown (the H1/H2 guard).
+- **Notes Evidence** has skipped `handwritten` notes since H1.
+- **Filed to-dos** (`src/module_action_items.py`): an item filed into Odysseus (a to-do,
+  a line on a list, a calendar entry, a note) stays when its Athena item disappears
+  after a resend or a delete: `_sync_status` only follows items it still reads (a
+  missing row is skipped). Follow-up, not part of H4.
+
 ## Fork changes
 
 Goal: keep future upstream syncs cheap without giving up any feature. Ink adds **one
@@ -478,6 +532,13 @@ Steps target the test instance on `127.0.0.1:7010` with `vision_model` set to
   the UI.
 
 ## Open questions
+
+Decided by default in H4 and listed for the owner: question 2 (one Athena note per hub
+note), question 3 (`content` keeps the reviewed text; Athena #108 notes this hub copy
+keeps the words of a fact the owner later erases in Athena), and QC O-8.2 (Restore + Save
+review on a page whose writing changed marks the new strokes reviewed; with Send this
+lets text written for older strokes leave the hub, after the red "the writing changed"
+warning).
 
 1. Is `3.6-35b` already set as `vision_model` on the test instance, or does the
    llama-server for it need its `--mmproj` file added?

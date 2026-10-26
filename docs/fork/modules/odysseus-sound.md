@@ -61,6 +61,11 @@ Source: `server/convo_server/mcp_server.py` (`build_mcp`).
   `kind="note"` returns only voice notes (`"conversation"`: only the others; empty: both).
   The server `INSTRUCTIONS` tell the model to use it for "my voice notes / notes / memos";
   without it, "my latest voice notes" got the latest conversations.
+- Written notes (MCP 0.12.0, additive): a handwritten note sent from the hub's Write view
+  ([Handwritten notes](#handwritten-notes-written-notes)) is a conversation of kind `note`
+  on device `handwriting`. Text results mark it, its facts and its action items
+  `(written by hand: <link>)` instead of `(voice note)`, where `<link>` is the note in the
+  hub (`<hub>/#open=notes&note=<id>`).
 - `list_unnamed_speakers` lists voices nobody has named yet ("Speaker N") with a few
   quotes, links and the closest known voice; for "who is this?" questions and cards.
 - Dates are `YYYY-MM-DD` in `CONVO_TIMEZONE`.
@@ -252,7 +257,8 @@ Where a filed item goes:
 
 The built-in task **Module Action Items** (`src/module_action_items.py`, every 5 min)
 does all of this. It reads `list_action_items` with `format="json"` (fields in the module's
-`server/README.md`) and writes through `update_action_item` (`status`, `kind`,
+`server/README.md`; from MCP 0.12.0 each row also has `written_by_hand` and `note_link`,
+true and the hub note's URL for an item from a handwritten note, else false and null) and writes through `update_action_item` (`status`, `kind`,
 `due_date`, `due_time`, `list_name`). With an older module that returns only text it falls back to
 pushes without filing. The module's `due_date`/`due_time` are local to its
 `CONVO_TIMEZONE`; set the same timezone in Odysseus (the task logs a warning when they
@@ -281,6 +287,9 @@ retired), which returns `{"facts": [{"id", "subject", "about" (owner/person/othe
 "fact", "times_said", "days", "first_said", "last_said", "link", "confirmed"}]}`, and
 from MCP 0.11.0 `kind`, `conversation_id` and `quote` (the transcript line), which label
 and group the facts on the review page ([beliefs.md](../beliefs.md#the-athena-facts-job)).
+From MCP 0.12.0 each row also has `written_by_hand` and `note_link` (true and the hub
+note's URL for a fact from a handwritten note, else false and null); the facts job
+doesn't read them yet, and the fact's `link` is still the signed transcript link.
 
 - **Evidence per fact**: source `odysseus-sound`, source id = the fact id, the fact text,
   the signed transcript link, `first_said`/`last_said` as seen dates, `times_said`/`days`
@@ -404,13 +413,47 @@ transcript links) never leaves the module.
 |---|---|
 | `POST /ingest/chunk` | `POST /v1/ingest/chunk` (same multipart fields and answer) |
 | `POST /sessions/{id}/end` | `POST /v1/sessions/{id}/end` |
-| `GET /health`, `GET /conversations`, `GET /conversations/{id}`, `GET /conversations/{id}/transcript`, `GET /action-items`, `PATCH /action-items/{id}`, `GET /digests/{date}`, `POST /digests/{date}` | the same `/v1` routes (the phone relay's T5 sync) |
+| `POST /ingest/text` | `POST /v1/ingest/text` (MCP 0.12.0; JSON, same fields and answer: a written note, [below](#handwritten-notes-written-notes)) |
+| `DELETE /ingest/text/{source_id}` | `DELETE /v1/ingest/text/{source_id}` (MCP 0.12.0; `deleted` or `already`) |
+| `GET /health`, `GET /conversations`, `GET /conversations/{id}`, `GET /conversations/{id}/transcript`, `GET /action-items`, `PATCH /action-items/{id}`, `GET /digests/{date}`, `POST /digests/{date}` | the same `/v1` routes (the phone relay's T5 sync); from MCP 0.12.0 a conversation carries `written: {source_id, link, title}` (null for recordings) |
 | `GET /settings/llm`, `PUT /settings/llm` | the same `/v1` routes (Settings → AI Defaults: the summary model) |
 
 So the MCP token can add recordings. Odysseus finds the module from the `convo` server's
 URL (`/mcp` stripped) and its `access_token` (`src/call_recorder.py`); Odysseus' HTTP MCP
 settings have no header field, so the query token is the only place it is. A module that
 answers 404 on these routes is older than 0.8.0: Odysseus says "update Athena".
+
+## Handwritten notes (written notes)
+
+The Write view ([../handwritten-notes.md](../handwritten-notes.md), stage H4) sends a
+handwritten note's reviewed text to the module as a **written note**, through the upload
+link above (the `convo` server's URL and token; `src/ink_athena.py`, which calls
+`src/call_recorder.py`). Needs Athena with SDarioosh/Athena#108 (MCP 0.12.0); an older
+module answers 404 and the Text tab says "update Athena".
+
+- `POST /ingest/text` JSON: `source_id` `hub-note:<note id>`; `text` every reviewed page in
+  page order, a blank line between pages (the note's `content`); `written_at` the note's
+  first stroke (device clock), fixed in the sidecar on the first send so a resend of the
+  same lines is `unchanged`; `link` `<hub>/#open=notes&note=<id>`; `title` the note's title.
+  Answer `{ok, source_id, result: created|replaced|unchanged, conversation_id, lines,
+  erased_lines, transcript_link}`.
+- The module's limits are checked in the hub first, and the Text tab says what is over:
+  `text` at most 200,000 characters and 5,000 non-empty lines (a line over 4,000
+  characters counts once per 4,000), a link of at most 2,000 characters without spaces,
+  quotes, `( ) < > { } | \ ^`, backtick or user info. Text with no words isn't sent: a
+  note sent before is removed with `DELETE` instead.
+- The hub's address for `link`: Settings → Reminders → **Public URL** (`app_public_url`),
+  else `APP_PUBLIC_URL`, else the address the browser used for Send.
+- Only **Send to Athena** in the Text tab sends, and only when every page with writing is
+  reviewed for its strokes as they are now. A resend (after an edit is reviewed) replaces
+  the note; Athena keeps the ids of facts and to-dos said again and drops the others,
+  which the hourly facts job then retires in the hub.
+- A note deleted in the hub is removed from the module with `DELETE /ingest/text/{source_id}`:
+  at once from Write, otherwise by the sweep at the start of the hourly **Module Facts**
+  run and when Write lists notes. Its strokes stay until the module answers `deleted` or
+  `already`, so an unreachable module is asked again.
+- In the module, the note's `/view` page says "Written by hand" and links back to the
+  note in the hub; text results say `(written by hand: <link>)`.
 
 ## Pairing a phone
 
@@ -522,6 +565,10 @@ its tool calls. Full analysis: Athena
 [docs/frontend-decision.md](https://github.com/SDarioosh/barvis-sound/blob/main/docs/frontend-decision.md).
 
 ## Known gaps
+
+- A to-do filed from a written note (or a voice note) stays in Odysseus when its item
+  disappears from the module (a resend that drops it, or a deleted note):
+  `src/module_action_items.py` only follows status changes of items it still reads.
 
 - Plain questions (no `/sound` or `/context`) don't reach the convo tools when every
   Odysseus tool is on ([../roadmap.md](../roadmap.md)).
