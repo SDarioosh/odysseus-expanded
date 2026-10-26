@@ -278,7 +278,9 @@ what is confirmed. The built-in task **Module Facts** (`src/module_facts.py`, ho
 posts nothing to chat) calls `list_facts` with `{"format": "json", "limit": 1000}` (every
 current fact; 1000 is the JSON mode's cap, so no fact is cut off and mistaken for
 retired), which returns `{"facts": [{"id", "subject", "about" (owner/person/other),
-"fact", "times_said", "days", "first_said", "last_said", "link", "confirmed"}]}`.
+"fact", "times_said", "days", "first_said", "last_said", "link", "confirmed"}]}`, and
+from MCP 0.11.0 `kind`, `conversation_id` and `quote` (the transcript line), which label
+and group the facts on the review page ([beliefs.md](../beliefs.md#the-athena-facts-job)).
 
 - **Evidence per fact**: source `odysseus-sound`, source id = the fact id, the fact text,
   the signed transcript link, `first_said`/`last_said` as seen dates, `times_said`/`days`

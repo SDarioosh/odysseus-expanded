@@ -233,14 +233,20 @@ The page has a count per status, a search box, a **By status / By subject** togg
 for the browser session), and in By status tabs Tentative / Confirmed / Stale / Rejected
 (the tab is kept for the browser session), a subject filter, an attribute filter (the
 vocabulary of [Structure](#structure-22)) and the beliefs grouped by subject (the
-subject's name opens it).
+subject's name opens it). On the Tentative tab, beliefs heard in an Athena conversation
+(evidence payload `conversation_id`, MCP 0.11.0) are grouped by that conversation instead,
+newest first, each card naming its subject, with **Dismiss all N** on the group (one
+confirm, then each belief is dismissed as with its own button; a toast counts them);
+other tentative beliefs follow, grouped by subject.
 Each card shows the text (the owner's correction marked "edited"), its subject's kind
 icon, a status chip with how it was confirmed (by its source, by the rule, by you), the
-attribute and value when structured ("Lives in: Lisbon (since …)"), category, first and
+attribute and value when structured ("Lives in: Lisbon (since …)"), the kind Athena gave
+the fact (Preference, Plan, Decision, Relationship, Personal; else the category), first and
 last seen
 ("not heard since" for stale ones), and one line per evidence: source name, times ×
 days, the dates and a link that opens in a new tab (Athena's are signed
-transcript links). Gone evidence is marked "no longer reported".
+transcript links), then the transcript line the fact was said on (`quote`) when Athena
+sends it. Gone evidence is marked "no longer reported".
 
 | Status | Buttons |
 |---|---|
@@ -793,6 +799,13 @@ subjects ([Subjects and contacts](#subjects-and-contacts-21)) before the facts a
 submitted; a fact row's `person_id` travels as `Evidence.person_id`. A module that answers
 `list_people` with text or lacks the tool is tolerated (logged once, state
 `people_text_only`); its facts match subjects by name.
+A row's `kind` (MCP 0.11.0: preference, plan, decision, relationship, personal, other)
+sets the evidence category: `preference` for a preference, else `fact` (a fact about a
+person stays `contact`); without a kind, a preference word in the text decides, as
+before, which filed requests such as "wants Bo to write a report" as preferences. `kind`,
+`quote` (≤ 300 characters) and `conversation_id` go into the evidence payload for the
+review page (`module_facts.payload`); erasing a belief clears the payload. Tests:
+`tests/test_module_fact_kinds.py`.
 Then `reconcile_source(owner, "odysseus-sound", ids)`, `apply_decay` and one
 `sync_memory`. Result line, counts only: `facts: 12 seen, 1 new, 1 confirmed,
 0 unconfirmed, 0 gone, 0 stale; memory: 11 kept, 1 added, 0 updated, 0 removed; people:
