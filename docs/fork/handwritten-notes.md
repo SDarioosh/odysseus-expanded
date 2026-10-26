@@ -220,6 +220,12 @@ Every page is reviewed by the owner before its text leaves the hub.
 - "Send to Athena" calls `/ingest/text` through the module's MCP HTTP URL and token
   (the same way the call recorder uploads audio) with all reviewed pages of the note
   joined in order, and stores `athena.sent_hash`.
+- **Limits (QC of H2, X-1).** H2 allows 60 pages of up to 20,000 characters each, with
+  lines of any length; Athena's `/ingest/text` (H3) takes at most 200,000 characters and
+  5,000 lines, lines of at most 4,000 characters, and refuses text without words. H4
+  checks the joined text before sending and says what is over (or that no page has
+  reviewed text) instead of sending; whether Athena wraps long lines instead of refusing
+  them is settled on the Athena side.
 - **Edits:** if the owner edits strokes or text after sending, the page goes back to
   "Needs review" (re-transcribe if strokes changed). Sending again replaces the note in
   Athena. The hourly fact sync then retires facts Athena no longer returns; filed to-dos
