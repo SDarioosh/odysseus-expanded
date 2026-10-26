@@ -190,7 +190,7 @@ def test_validate_drops_a_reason_that_only_restates_the_title():
                                           "phase 4 to focus on bug fixing"},
              {"ref": "belief:2", "title": "Have Odysseus save notes as flat PNGs, transcribe "
                                           "them, and feed them into the…",
-              "text": "Shahyah plans to have Odysseus save notes as flat PNGs, transcribe "
+              "text": "Marisol plans to have Odysseus save notes as flat PNGs, transcribe "
                       "them, and feed them into the personal context system."},
              {"ref": "event:e1", "title": "Dentist"}]
     answer = {"headline": "h",

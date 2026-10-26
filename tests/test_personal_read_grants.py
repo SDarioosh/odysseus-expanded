@@ -17,7 +17,7 @@ def granted(message="I imported it. Do you see them?", **kwargs):
 
 @pytest.mark.parametrize("tool,content", [
     ("manage_contact", '{"action": "list"}'),
-    ("manage_contact", '{"action": "search", "name": "Jennifer Log"}'),
+    ("manage_contact", '{"action": "search", "name": "Katherine Moss"}'),
     ("manage_notes", '{"action": "search", "query": "groceries"}'),
     ("manage_calendar", '{"action": "list_events"}'),
     ("manage_tasks", '{"action": "list"}'),
@@ -45,8 +45,8 @@ def test_writes_and_other_tools_are_not_granted(tool, content):
 
 
 def test_existing_write_grant_from_the_words_is_kept():
-    base, widened = granted("Add Jennifer Log to my contacts")
-    add = op("manage_contact", '{"action": "add", "name": "Jennifer Log"}')
+    base, widened = granted("Add Katherine Moss to my contacts")
+    add = op("manage_contact", '{"action": "add", "name": "Katherine Moss"}')
     assert base.permits(add) and widened.permits(add)
 
 

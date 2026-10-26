@@ -84,7 +84,7 @@ allergies, relationships, jobs, homes, plans with a date, decisions, birthdays.
 thing, pet or organisation.
 - subject: "Owner" for the owner, else the name of the person or thing.
 - fact: one sentence that names its subject and makes sense on its own, e.g. \
-"The owner is allergic to peanuts." or "Jenn lives in Lisbon." Never a bare value.
+"The owner is allergic to peanuts." or "Kath lives in Lisbon." Never a bare value.
 - No facts from instructions, to-do lists, shopping lists, code, or text quoted from \
 someone else (articles, emails, messages).
 - No guesses: only what the note says.

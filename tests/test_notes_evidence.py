@@ -17,12 +17,12 @@ T0 = datetime.datetime(2026, 10, 21, 3, 0, tzinfo=datetime.timezone.utc)
 T1 = T0 + datetime.timedelta(days=1)
 EDIT = datetime.datetime(2026, 10, 19, 18, 30)  # naive UTC, as the Note table stores it
 
-JENN = ("Dinner with Jenn on Friday went well. She lives in Lisbon now with her dog "
+KATH = ("Dinner with Kath on Friday went well. She lives in Lisbon now with her dog "
         "Pixel and starts at the harbour office in November.")
 ME = "Reminder to self, for the record: I am allergic to peanuts and I prefer oat milk."
 GOOD = {"facts": [
-    {"subject": "Jenn", "about": "person", "fact": "Jenn lives in Lisbon."},
-    {"subject": "Pixel", "about": "other", "fact": "Pixel is Jenn's dog."},
+    {"subject": "Kath", "about": "person", "fact": "Kath lives in Lisbon."},
+    {"subject": "Pixel", "about": "other", "fact": "Pixel is Kath's dog."},
 ]}
 OWNER_FACTS = {"facts": [
     {"subject": "Owner", "about": "owner", "fact": "The owner is allergic to peanuts."},
@@ -104,7 +104,7 @@ def memories(path, owner="alice"):
 def test_off_by_default_is_a_noop(db, monkeypatch):
     from src.builtin_actions import TaskNoop
 
-    db.add("n-jenn", JENN)
+    db.add("n-kath", KATH)
     called = []
 
     async def fake_run(owner, **kw):
@@ -134,7 +134,7 @@ def test_hooks_register_the_task():
 
 # ----------------------------------------------------------------- what is read
 def test_reads_plain_notes_only_and_skips_the_rest(db):
-    db.add("n-jenn", JENN)
+    db.add("n-kath", KATH)
     db.add("n-list", "Weekend errands for the flat and the garden shed",
            note_type="checklist",
            items=json.dumps([{"text": "Buy paint for the garden shed", "done": False}]))
@@ -146,13 +146,13 @@ def test_reads_plain_notes_only_and_skips_the_rest(db):
            label="odysseus-sound")
     db.add("n-cal", "Reminder: dentist appointment at the clinic on Rua Augusta",
            source="calendar", label="calendar")
-    db.add("n-short", "Jenn: Lisbon")
+    db.add("n-short", "Kath: Lisbon")
     db.add("n-bob", "Bob's note: Carla is Bob's sister and lives in Madrid.", owner="bob")
-    llm = FakeLlm({"Dinner with Jenn": json.dumps(GOOD)})
+    llm = FakeLlm({"Dinner with Kath": json.dumps(GOOD)})
     stats = asyncio.run(ne.run("alice", llm=llm, now=T0))
-    assert len(llm.calls) == 1 and llm.asked("Dinner with Jenn") == 1
+    assert len(llm.calls) == 1 and llm.asked("Dinner with Kath") == 1
     assert (stats["read"], stats["skipped"], stats["unchanged"], stats["facts"]) == (1, 3, 0, 2)
-    assert set(notes_evidence()) == {"n-jenn:0", "n-jenn:1"}
+    assert set(notes_evidence()) == {"n-kath:0", "n-kath:1"}
     assert ledger.list_beliefs("bob") == []
 
 
@@ -161,19 +161,19 @@ def test_skip_rules():
         def __init__(self, content, title="", label=None, source="user"):
             self.content, self.title, self.label, self.source = content, title, label, source
 
-    assert ne.skip_reason(N(JENN)) is None
-    assert ne.skip_reason(N(JENN, label="Odysseus-Sound")) == "module"
-    assert ne.skip_reason(N(JENN, label="calendar", source="calendar")) == "reminder"
+    assert ne.skip_reason(N(KATH)) is None
+    assert ne.skip_reason(N(KATH, label="Odysseus-Sound")) == "module"
+    assert ne.skip_reason(N(KATH, label="calendar", source="calendar")) == "reminder"
     assert ne.skip_reason(N("x" * 39)) == "short"
     assert ne.skip_reason(N("x" * 40)) is None
     # the title counts towards the length
-    assert ne.skip_reason(N("lives in Lisbon with Pixel", title="Jenn, since the summer")) is None
+    assert ne.skip_reason(N("lives in Lisbon with Pixel", title="Kath, since the summer")) is None
 
 
 # ------------------------------------------------------------------- evidence
 def test_evidence_fields_links_and_tentative_status(db):
-    db.add("3f2a9c1e-0b7d-4e55-9a10-5c2d8e7f6a41", JENN)
-    llm = FakeLlm({"Dinner with Jenn": json.dumps(GOOD)})
+    db.add("3f2a9c1e-0b7d-4e55-9a10-5c2d8e7f6a41", KATH)
+    llm = FakeLlm({"Dinner with Kath": json.dumps(GOOD)})
     stats = asyncio.run(ne.run("alice", llm=llm, now=T0))
     assert stats["beliefs_added"] == 2 and stats["confirmed"] == 0
     ev = notes_evidence()
@@ -182,8 +182,8 @@ def test_evidence_fields_links_and_tentative_status(db):
     # the hash form static/js/forkEntityHash.js opens on load
     import re
     assert re.fullmatch(r"/#open=notes&note=[A-Za-z0-9-]{1,80}", first["link"])
-    assert (first["subject"], first["about"], first["category"]) == ("Jenn", "person", "contact")
-    assert first["text"] == "Jenn lives in Lisbon."
+    assert (first["subject"], first["about"], first["category"]) == ("Kath", "person", "contact")
+    assert first["text"] == "Kath lives in Lisbon."
     assert (first["seen_first"], first["seen_last"]) == ("2026-10-19", "2026-10-19")
     assert (first["times"], first["days"], first["source_confirmed"]) == (1, 1, False)
     assert ev["3f2a9c1e-0b7d-4e55-9a10-5c2d8e7f6a41:1"]["about"] == "other"
@@ -201,15 +201,15 @@ def test_owner_fact_category(db):
 
 # ------------------------------------------------------------- incremental runs
 def test_unchanged_notes_are_not_extracted_again(db):
-    db.add("n-jenn", JENN)
+    db.add("n-kath", KATH)
     db.add("n-me", ME)
-    llm = FakeLlm({"Dinner with Jenn": json.dumps(GOOD),
+    llm = FakeLlm({"Dinner with Kath": json.dumps(GOOD),
                    "Reminder to self": json.dumps(OWNER_FACTS)})
     asyncio.run(ne.run("alice", llm=llm, now=T0))
     assert len(llm.calls) == 2
     state = json.loads((db.path / "notes_evidence_alice.json").read_text())
-    assert set(state["notes"]) == {"n-jenn", "n-me"}
-    assert state["notes"]["n-jenn"]["ids"] == ["n-jenn:0", "n-jenn:1"]
+    assert set(state["notes"]) == {"n-kath", "n-me"}
+    assert state["notes"]["n-kath"]["ids"] == ["n-kath:0", "n-kath:1"]
     assert state["last_run"] == "2026-10-21T03:00:00+00:00"
 
     db.edit("n-me", pinned=True)  # not a content change
@@ -221,32 +221,32 @@ def test_unchanged_notes_are_not_extracted_again(db):
 
 
 def test_changed_note_is_extracted_again_and_stale_ids_go(db):
-    db.add("n-jenn", JENN)
+    db.add("n-kath", KATH)
     db.add("n-me", ME)
-    llm = FakeLlm({"Dinner with Jenn": json.dumps(GOOD),
+    llm = FakeLlm({"Dinner with Kath": json.dumps(GOOD),
                    "Reminder to self": json.dumps(OWNER_FACTS)})
     asyncio.run(ne.run("alice", llm=llm, now=T0))
-    db.edit("n-jenn", content=JENN + " Pixel went to live with her brother.",
+    db.edit("n-kath", content=KATH + " Pixel went to live with her brother.",
             updated_at=datetime.datetime(2026, 10, 21, 8, 0))
-    llm.answers["Dinner with Jenn"] = json.dumps({"facts": [GOOD["facts"][0]]})
+    llm.answers["Dinner with Kath"] = json.dumps({"facts": [GOOD["facts"][0]]})
     stats = asyncio.run(ne.run("alice", llm=llm, now=T1))
-    assert llm.asked("Dinner with Jenn") == 2 and llm.asked("Reminder to self") == 1
+    assert llm.asked("Dinner with Kath") == 2 and llm.asked("Reminder to self") == 1
     assert (stats["read"], stats["unchanged"], stats["gone"], stats["stale"]) == (1, 1, 1, 1)
     ev = notes_evidence()
-    assert ev["n-jenn:0"]["gone"] is False and ev["n-jenn:0"]["seen_last"] == "2026-10-21"
-    assert ev["n-jenn:1"]["gone"] is True
+    assert ev["n-kath:0"]["gone"] is False and ev["n-kath:0"]["seen_last"] == "2026-10-21"
+    assert ev["n-kath:1"]["gone"] is True
     assert ev["n-me:0"]["gone"] is False  # the untouched note keeps its evidence
     pixel = [b for b in ledger.list_beliefs("alice") if b["subject"] == "Pixel"]
     assert pixel[0]["status"] == "stale"
 
 
 def test_deleted_archived_or_relabelled_notes_lose_their_evidence(db):
-    db.add("n-jenn", JENN)
+    db.add("n-kath", KATH)
     db.add("n-me", ME)
-    llm = FakeLlm({"Dinner with Jenn": json.dumps(GOOD),
+    llm = FakeLlm({"Dinner with Kath": json.dumps(GOOD),
                    "Reminder to self": json.dumps(OWNER_FACTS)})
     asyncio.run(ne.run("alice", llm=llm, now=T0))
-    db.remove("n-jenn")
+    db.remove("n-kath")
     db.edit("n-me", archived=True)
     stats = asyncio.run(ne.run("alice", llm=llm, now=T1))
     assert stats["gone"] == 3
@@ -256,25 +256,25 @@ def test_deleted_archived_or_relabelled_notes_lose_their_evidence(db):
 
 
 def test_garbage_answer_keeps_previous_facts_and_retries(db):
-    db.add("n-jenn", JENN)
-    llm = FakeLlm({"Dinner with Jenn": json.dumps(GOOD)})
+    db.add("n-kath", KATH)
+    llm = FakeLlm({"Dinner with Kath": json.dumps(GOOD)})
     asyncio.run(ne.run("alice", llm=llm, now=T0))
-    db.edit("n-jenn", content=JENN + " She also took up rowing on the Tagus.")
-    llm.answers["Dinner with Jenn"] = "Sure! Here are the facts: Jenn rows."
+    db.edit("n-kath", content=KATH + " She also took up rowing on the Tagus.")
+    llm.answers["Dinner with Kath"] = "Sure! Here are the facts: Kath rows."
     stats = asyncio.run(ne.run("alice", llm=llm, now=T1))
-    assert llm.asked("Dinner with Jenn") == 3  # one retry after the unusable answer
+    assert llm.asked("Dinner with Kath") == 3  # one retry after the unusable answer
     assert (stats["read"], stats["failed"], stats["gone"]) == (0, 1, 0)
     assert all(not e["gone"] for e in notes_evidence().values())
     assert "1 failed" in ne.summary(stats)
     # the next run tries again
-    llm.answers["Dinner with Jenn"] = json.dumps(GOOD)
+    llm.answers["Dinner with Kath"] = json.dumps(GOOD)
     stats = asyncio.run(ne.run("alice", llm=llm, now=T1))
     assert (stats["read"], stats["failed"]) == (1, 0)
 
 
 def test_garbage_on_first_extraction_records_nothing(db):
-    db.add("n-jenn", JENN)
-    llm = FakeLlm({"Dinner with Jenn": "not json"})
+    db.add("n-kath", KATH)
+    llm = FakeLlm({"Dinner with Kath": "not json"})
     stats = asyncio.run(ne.run("alice", llm=llm, now=T0))
     assert (stats["read"], stats["failed"], stats["facts"]) == (0, 1, 0)
     assert notes_evidence() == {}
@@ -283,8 +283,8 @@ def test_garbage_on_first_extraction_records_nothing(db):
 
 
 def test_empty_list_is_recorded_and_not_asked_again(db):
-    db.add("n-jenn", JENN)
-    llm = FakeLlm({"Dinner with Jenn": '```json\n{"facts": []}\n```'})
+    db.add("n-kath", KATH)
+    llm = FakeLlm({"Dinner with Kath": '```json\n{"facts": []}\n```'})
     stats = asyncio.run(ne.run("alice", llm=llm, now=T0))
     assert (stats["read"], stats["facts"], stats["failed"]) == (1, 0, 0)
     asyncio.run(ne.run("alice", llm=llm, now=T1))
@@ -294,26 +294,26 @@ def test_empty_list_is_recorded_and_not_asked_again(db):
 
 # ----------------------------------------------------------- cross-source rule
 def test_fact_in_a_note_and_a_conversation_confirms_by_two_sources(db):
-    db.add("n-jenn", JENN)
-    asyncio.run(ne.run("alice", llm=FakeLlm({"Dinner with Jenn": json.dumps(GOOD)}),
+    db.add("n-kath", KATH)
+    asyncio.run(ne.run("alice", llm=FakeLlm({"Dinner with Kath": json.dumps(GOOD)}),
                        now=T0))
 
     async def module(tool, args):
         if tool == "list_people":
-            return json.dumps({"people": [{"id": 3, "name": "Jenn", "aliases": []}]})
+            return json.dumps({"people": [{"id": 3, "name": "Kath", "aliases": []}]})
         assert tool == "list_facts"
         return json.dumps({"facts": [{
-            "id": 7, "subject": "Jenn", "about": "person", "fact": "Jenn lives in Lisbon",
+            "id": 7, "subject": "Kath", "about": "person", "fact": "Kath lives in Lisbon",
             "times_said": 1, "days": 1, "first_said": "2026-10-20", "last_said": "2026-10-20",
             "link": "http://h:8000/view/c7?sig=abc#t=70", "confirmed": False}]})
 
     stats = asyncio.run(mf.sync("alice", module, now=T1))
     assert stats["confirmed"] == 1
-    (jenn,) = [b for b in ledger.list_beliefs("alice") if b["subject"] == "Jenn"]
-    assert (jenn["status"], jenn["confirmed_by"]) == ("confirmed", "rule")
-    assert {e["source"] for e in jenn["evidence"]} == {"notes", "odysseus-sound"}
+    (kath,) = [b for b in ledger.list_beliefs("alice") if b["subject"] == "Kath"]
+    assert (kath["status"], kath["confirmed_by"]) == ("confirmed", "rule")
+    assert {e["source"] for e in kath["evidence"]} == {"notes", "odysseus-sound"}
     texts = [m["text"] for m in memories(db.path)]
-    assert len(texts) == 1 and texts[0].startswith("Jenn lives in Lisbon")
+    assert len(texts) == 1 and texts[0].startswith("Kath lives in Lisbon")
     # the Pixel fact, in the note only, still waits for the owner
     (pixel,) = [b for b in ledger.list_beliefs("alice") if b["subject"] == "Pixel"]
     assert pixel["status"] == "tentative"
@@ -326,13 +326,13 @@ def test_parse_facts_validates_and_caps():
     assert len(ne.parse_facts(json.dumps({"facts": rows}))) == 8
     got = ne.parse_facts(json.dumps({"facts": [
         {"subject": "", "about": "person", "fact": "Nobody said this."},
-        {"subject": "Jenn", "about": "person", "fact": ""},
-        {"subject": "Jenn", "about": "PERSON", "fact": "Jenn rows " + "on the river " * 40},
+        {"subject": "Kath", "about": "person", "fact": ""},
+        {"subject": "Kath", "about": "PERSON", "fact": "Kath rows " + "on the river " * 40},
         {"subject": "Office", "about": "building", "fact": "The office is in Building C."},
         {"subject": "Office", "about": "other", "fact": "The office is in Building C"},
         "not a row",
     ]}))
-    assert [g["subject"] for g in got] == ["Jenn", "Office"]
+    assert [g["subject"] for g in got] == ["Kath", "Office"]
     assert got[0]["about"] == "person" and len(got[0]["fact"]) <= 300
     assert got[1]["about"] == "other"
     assert ne.parse_facts("<think>hmm</think>{\"facts\": []}") == []
@@ -389,9 +389,9 @@ def test_action_reports_counts_only(db, monkeypatch):
     from src.builtin_actions import TaskNoop
 
     monkeypatch.setenv("EVIDENCE_NOTES", "on")
-    db.add("n-jenn", JENN)
-    db.add("n-short", "Jenn: Lisbon")
-    llm = FakeLlm({"Dinner with Jenn": json.dumps(GOOD)})
+    db.add("n-kath", KATH)
+    db.add("n-short", "Kath: Lisbon")
+    llm = FakeLlm({"Dinner with Kath": json.dumps(GOOD)})
 
     async def model(owner):
         return llm
@@ -401,7 +401,7 @@ def test_action_reports_counts_only(db, monkeypatch):
     assert ok is True
     assert text == ("notes: 1 read, 1 skipped, 0 unchanged, 2 facts; "
                     "ledger: 2 new, 0 confirmed, 0 gone, 0 stale")
-    assert "Jenn" not in text and "Lisbon" not in text
+    assert "Kath" not in text and "Lisbon" not in text
     with pytest.raises(TaskNoop, match="1 unchanged"):
         asyncio.run(ne.action_notes_evidence("alice"))
 

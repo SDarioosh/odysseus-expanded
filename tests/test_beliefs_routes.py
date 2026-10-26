@@ -35,7 +35,7 @@ def data(tmp_path, monkeypatch):
     ledger.submit("alice", [
         ev(1, "Prefers oat milk in coffee", confirmed=True),
         ev(2, "Plays the cello"),
-        ev(3, "Lives in Lisbon with her dog Pixel", subject="Jenn", about="person"),
+        ev(3, "Lives in Lisbon with her dog Pixel", subject="Kath", about="person"),
     ], now=T0)
     ledger.submit("bob", [ev(9, "Collects vintage maps")], now=T0)
     return tmp_path
@@ -85,8 +85,8 @@ def test_list_status_and_subject_filters(client):
                                               "Lives in Lisbon with her dog Pixel"}
     got = client.get("/api/beliefs?status=confirmed").json()["beliefs"]
     assert [b["confirmed_by"] for b in got] == ["source"]
-    got = client.get("/api/beliefs?status=tentative&subject=jenn").json()["beliefs"]
-    assert [b["subject"] for b in got] == ["Jenn"]
+    got = client.get("/api/beliefs?status=tentative&subject=kath").json()["beliefs"]
+    assert [b["subject"] for b in got] == ["Kath"]
     assert len(client.get("/api/beliefs?status=all").json()["beliefs"]) == 3
     assert client.get("/api/beliefs?status=nonsense").status_code == 400
 
@@ -329,7 +329,7 @@ def test_export_downloads_the_owners_ledger_and_memories(client, monkeypatch):
     assert all(b["evidence"] and b["events"] for b in data["beliefs"])
     assert all("norm" not in b for b in data["beliefs"])
     assert data["beliefs"][0]["evidence"][0]["link"].startswith("http://h:8000/view/")
-    assert {s["display"] for s in data["subjects"]} >= {"Jenn"}
+    assert {s["display"] for s in data["subjects"]} >= {"Kath"}
     assert [m["id"] for m in data["memories"] if m["id"] == "m1"] == ["m1"]
     assert "Collects vintage maps" not in r.text  # bob's
     assert data["counts"]["beliefs"] == 3
@@ -402,7 +402,7 @@ def contacts(data, monkeypatch):
 
     book = data / "contacts.json"
     book.write_text(json.dumps({"contacts": [
-        {"uid": "uid-jenn", "name": "Jenn Okafor", "owner": "alice"},
+        {"uid": "uid-kath", "name": "Kath Okafor", "owner": "alice"},
         {"uid": "uid-arlo", "name": "Arlo Vance", "owner": "alice"},
         {"uid": "uid-wren", "name": "Wren Hale", "owner": "bob"},
     ]}))
@@ -417,28 +417,28 @@ def test_subjects_list_with_counts_kind_filter_and_stats(client):
     body = client.get("/api/beliefs/subjects").json()
     got = {s["display"]: s for s in body["subjects"]}
     assert [s["kind"] for s in body["subjects"]][0] == "owner"  # the owner first
-    assert {k: v["kind"] for k, v in got.items()} == {"Owner": "owner", "Jenn": "person"}
+    assert {k: v["kind"] for k, v in got.items()} == {"Owner": "owner", "Kath": "person"}
     assert got["Owner"]["counts"] == {"tentative": 1, "confirmed": 1, "stale": 0,
                                       "rejected": 0, "total": 2}
     assert body["stats"]["total"] == 3
     people = client.get("/api/beliefs/subjects?kind=person").json()["subjects"]
-    assert [s["display"] for s in people] == ["Jenn"]
+    assert [s["display"] for s in people] == ["Kath"]
     assert client.get("/api/beliefs/subjects?kind=robot").status_code == 400
     assert all(s["owner"] == "alice" for s in body["subjects"])
 
 
 def test_subject_detail_has_beliefs_with_structure_and_summary(client):
-    jenn = subject_ids()["Jenn"]
+    kath = subject_ids()["Kath"]
     bid = ids()["Lives in Lisbon with her dog Pixel"]
     ledger.confirm("alice", bid)
     assert ledger.apply_structure("alice", bid, "lives_in", "Lisbon", "2024-05-01")
-    ledger.submit("alice", [ev(4, "Jenn dislikes cilantro", subject="Jenn", about="person")],
+    ledger.submit("alice", [ev(4, "Kath dislikes cilantro", subject="Kath", about="person")],
                   now=T0)
-    ledger.reject("alice", ids()["Jenn dislikes cilantro"])
-    body = client.get(f"/api/beliefs/subjects/{jenn}").json()
-    assert (body["subject"]["display"], body["subject"]["kind"]) == ("Jenn", "person")
+    ledger.reject("alice", ids()["Kath dislikes cilantro"])
+    body = client.get(f"/api/beliefs/subjects/{kath}").json()
+    assert (body["subject"]["display"], body["subject"]["kind"]) == ("Kath", "person")
     assert [(b["attribute"], b["value"]) for b in body["beliefs"]] == [("lives_in", "Lisbon")]
-    assert body["summary"] == "Jenn (person). lives in: Lisbon (since 2024-05-01)."
+    assert body["summary"] == "Kath (person). lives in: Lisbon (since 2024-05-01)."
     assert body["stats"]["rejected"] == 1
     owner = subject_ids()["Owner"]
     body = client.get(f"/api/beliefs/subjects/{owner}").json()
@@ -453,23 +453,23 @@ def test_subject_404s(client):
     assert client.get("/api/beliefs/subjects/99999").status_code == 404
     assert client.get("/api/beliefs/subjects/nope").status_code == 404
     for action, body in (("kind", {"kind": "thing"}), ("rename", {"display": "X"}),
-                         ("link", {"contact_id": "uid-jenn"}), ("unlink", None)):
+                         ("link", {"contact_id": "uid-kath"}), ("unlink", None)):
         assert client.post(f"/api/beliefs/subjects/{bobs}/{action}",
                            json=body).status_code == 404
-    jenn = subject_ids()["Jenn"]
-    r = client.post("/api/beliefs/subjects/merge", json={"keep_id": jenn, "drop_id": bobs})
+    kath = subject_ids()["Kath"]
+    r = client.post("/api/beliefs/subjects/merge", json={"keep_id": kath, "drop_id": bobs})
     assert r.status_code == 404
-    r = client.post("/api/beliefs/subjects/merge", json={"keep_id": bobs, "drop_id": jenn})
+    r = client.post("/api/beliefs/subjects/merge", json={"keep_id": bobs, "drop_id": kath})
     assert r.status_code == 404
     assert subject_ids("bob") == {"Owner": bobs}
 
 
 def test_set_kind(client):
     got = subject_ids()
-    body = client.post(f"/api/beliefs/subjects/{got['Jenn']}/kind",
+    body = client.post(f"/api/beliefs/subjects/{got['Kath']}/kind",
                        json={"kind": "project"}).json()
     assert (body["kind"], body["kind_by"]) == ("project", "owner")
-    r = client.post(f"/api/beliefs/subjects/{got['Jenn']}/kind", json={"kind": "owner"})
+    r = client.post(f"/api/beliefs/subjects/{got['Kath']}/kind", json={"kind": "owner"})
     assert r.status_code == 400 and "person, project or thing" in r.json()["detail"]
     r = client.post(f"/api/beliefs/subjects/{got['Owner']}/kind", json={"kind": "person"})
     assert r.status_code == 400 and r.json()["detail"] == "the owner subject keeps its kind"
@@ -479,11 +479,11 @@ def test_rename_and_duplicate_name(client):
     ledger.submit("alice", [ev(5, "Arlo teaches pottery", subject="Arlo", about="person")],
                   now=T0)
     got = subject_ids()
-    body = client.post(f"/api/beliefs/subjects/{got['Jenn']}/rename",
-                       json={"display": "Jenn Okafor"}).json()
-    assert (body["display"], body["aliases"]) == ("Jenn Okafor", ["Jenn"])
+    body = client.post(f"/api/beliefs/subjects/{got['Kath']}/rename",
+                       json={"display": "Kath Okafor"}).json()
+    assert (body["display"], body["aliases"]) == ("Kath Okafor", ["Kath"])
     r = client.post(f"/api/beliefs/subjects/{got['Arlo']}/rename",
-                    json={"display": "jenn okafor"})
+                    json={"display": "kath okafor"})
     assert r.status_code == 400 and "already called" in r.json()["detail"]
     r = client.post(f"/api/beliefs/subjects/{got['Arlo']}/rename", json={"display": " "})
     assert r.status_code == 400
@@ -493,58 +493,58 @@ def test_link_unlink_and_contact_beliefs(client, contacts):
     ledger.submit("alice", [ev(5, "Arlo teaches pottery", subject="Arlo", about="person")],
                   now=T0)
     got = subject_ids()
-    body = client.post(f"/api/beliefs/subjects/{got['Jenn']}/link",
-                       json={"contact_id": "uid-jenn"}).json()
-    assert body["contact_id"] == "uid-jenn"
-    beliefs = client.get("/api/beliefs/contact/uid-jenn").json()
-    assert beliefs["contact_id"] == "uid-jenn"
+    body = client.post(f"/api/beliefs/subjects/{got['Kath']}/link",
+                       json={"contact_id": "uid-kath"}).json()
+    assert body["contact_id"] == "uid-kath"
+    beliefs = client.get("/api/beliefs/contact/uid-kath").json()
+    assert beliefs["contact_id"] == "uid-kath"
     assert [b["shown_text"] for b in beliefs["beliefs"]] == ["Lives in Lisbon with her dog Pixel"]
-    assert beliefs["beliefs"][0]["contact_id"] == "uid-jenn"
-    assert client.get("/api/beliefs/contact/uid-jenn?status=confirmed").json()["beliefs"] == []
+    assert beliefs["beliefs"][0]["contact_id"] == "uid-kath"
+    assert client.get("/api/beliefs/contact/uid-kath?status=confirmed").json()["beliefs"] == []
     assert client.get("/api/beliefs/contact/uid-arlo").json()["beliefs"] == []
-    assert client.get("/api/beliefs/contact/uid-jenn?status=x").status_code == 400
+    assert client.get("/api/beliefs/contact/uid-kath?status=x").status_code == 400
     # a contact links to one subject: a second link is a 400 with the ledger's message
-    r = client.post(f"/api/beliefs/subjects/{got['Arlo']}/link", json={"contact_id": "uid-jenn"})
+    r = client.post(f"/api/beliefs/subjects/{got['Arlo']}/link", json={"contact_id": "uid-kath"})
     assert r.status_code == 400 and "is linked to subject" in r.json()["detail"]
     # another owner's contact, an unknown one, or none: 400, nothing linked
     for cid in ("uid-wren", "uid-nobody", " "):
         r = client.post(f"/api/beliefs/subjects/{got['Arlo']}/link", json={"contact_id": cid})
         assert r.status_code == 400
     assert ledger.get_subject("alice", got["Arlo"])["contact_id"] is None
-    body = client.post(f"/api/beliefs/subjects/{got['Jenn']}/unlink").json()
+    body = client.post(f"/api/beliefs/subjects/{got['Kath']}/unlink").json()
     assert body["contact_id"] is None
-    assert client.get("/api/beliefs/contact/uid-jenn").json()["beliefs"] == []
+    assert client.get("/api/beliefs/contact/uid-kath").json()["beliefs"] == []
 
 
 def test_contacts_listing_is_owner_scoped_and_marks_links(client, contacts):
-    jenn = subject_ids()["Jenn"]
-    ledger.link_contact("alice", jenn, "uid-jenn")
+    kath = subject_ids()["Kath"]
+    ledger.link_contact("alice", kath, "uid-kath")
     body = client.get("/api/beliefs/contacts").json()
     assert body["contacts"] == [
         {"id": "uid-arlo", "name": "Arlo Vance", "subject_id": None},
-        {"id": "uid-jenn", "name": "Jenn Okafor", "subject_id": jenn},
+        {"id": "uid-kath", "name": "Kath Okafor", "subject_id": kath},
     ]
     body = client_for("bob").get("/api/beliefs/contacts").json()
     assert body["contacts"] == [{"id": "uid-wren", "name": "Wren Hale", "subject_id": None}]
     # bob's view of alice's contact: nothing
-    assert client_for("bob").get("/api/beliefs/contact/uid-jenn").json()["beliefs"] == []
+    assert client_for("bob").get("/api/beliefs/contact/uid-kath").json()["beliefs"] == []
 
 
 def test_merge_and_its_400s(client, contacts):
-    ledger.submit("alice", [ev(5, "Jen O. runs a bakery", subject="Jen O.", about="person")],
+    ledger.submit("alice", [ev(5, "Kat O. runs a bakery", subject="Kat O.", about="person")],
                   now=T0)
     got = subject_ids()
-    ledger.link_contact("alice", got["Jen O."], "uid-jenn")
+    ledger.link_contact("alice", got["Kat O."], "uid-kath")
     body = client.post("/api/beliefs/subjects/merge",
-                       json={"keep_id": got["Jenn"], "drop_id": got["Jen O."]}).json()
-    assert body["id"] == got["Jenn"] and body["aliases"] == ["Jen O."]
-    assert body["contact_id"] == "uid-jenn" and body["counts"]["total"] == 2
-    assert "Jen O." not in subject_ids()
+                       json={"keep_id": got["Kath"], "drop_id": got["Kat O."]}).json()
+    assert body["id"] == got["Kath"] and body["aliases"] == ["Kat O."]
+    assert body["contact_id"] == "uid-kath" and body["counts"]["total"] == 2
+    assert "Kat O." not in subject_ids()
     r = client.post("/api/beliefs/subjects/merge",
-                    json={"keep_id": got["Jenn"], "drop_id": got["Jenn"]})
+                    json={"keep_id": got["Kath"], "drop_id": got["Kath"]})
     assert r.status_code == 400 and "into itself" in r.json()["detail"]
     r = client.post("/api/beliefs/subjects/merge",
-                    json={"keep_id": got["Jenn"], "drop_id": got["Owner"]})
+                    json={"keep_id": got["Kath"], "drop_id": got["Owner"]})
     assert r.status_code == 400 and r.json()["detail"] == "the owner subject can only be kept"
     assert client.post("/api/beliefs/subjects/merge", json={}).status_code == 422
 

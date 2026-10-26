@@ -124,15 +124,15 @@ def test_person_id_wins_over_names_and_adds_the_new_name_as_alias(data):
 
 
 def test_person_id_on_evidence_joining_an_existing_belief_maps_its_subject(data):
-    ei.submit("alice", [ev("notes", "a", "Jenn lives in Lisbon", about="person",
-                           subject="Jenn")], now=T0)
-    ei.submit("alice", [module_ev(7, "Jenn lives in Lisbon", subject="Jennifer",
+    ei.submit("alice", [ev("notes", "a", "Kath lives in Lisbon", about="person",
+                           subject="Kath")], now=T0)
+    ei.submit("alice", [module_ev(7, "Kath lives in Lisbon", subject="Katherine",
                                   person_id="p3")], now=T0)
-    (jenn,) = ei.list_subjects("alice")
-    assert jenn["sources"][0]["person_id"] == "p3" and jenn["aliases"] == ["Jennifer"]
-    ei.submit("alice", [module_ev(8, "Jenn has a dog", subject="Jennifer", person_id="p3")],
+    (kath,) = ei.list_subjects("alice")
+    assert kath["sources"][0]["person_id"] == "p3" and kath["aliases"] == ["Katherine"]
+    ei.submit("alice", [module_ev(8, "Kath has a dog", subject="Katherine", person_id="p3")],
               now=T0)
-    assert belief("Jenn has a dog")["subject_id"] == jenn["id"]
+    assert belief("Kath has a dog")["subject_id"] == kath["id"]
 
 
 def test_project_inferred_from_the_subject_name(data):

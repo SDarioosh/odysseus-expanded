@@ -100,7 +100,7 @@ def with_trusted_server_tools(names: Iterable[str], manager=None,
 
     Upstream restores only the exact tools that ran earlier in a chat ("warm
     tools") on a follow-up turn. For a module server that hides its write
-    tools: after ``/sound`` searched a conversation, "Speaker 2 was Jenn" got
+    tools: after ``/sound`` searched a conversation, "Speaker 2 was Kath" got
     the search tools back but never ``name_speaker``. A trusted module is one
     surface, so a used tool brings back its server's other enabled tools.
     This only offers them: write tools still need approval, and policy,
@@ -144,7 +144,7 @@ def with_approved_tool_grant(authority, exact_approval, manager=None):
     ``allow_remaining_actions``, which lifts the approval gate), but request
     authority still admits only the one exact approved call: built-in tools
     get grants from the request text, MCP tools never do. So "Speaker 1 and 3
-    were Shahyah, speaker 2 was Jenn" renamed Speaker 1 after the owner
+    were Marisol, speaker 2 was Kath" renamed Speaker 1 after the owner
     approved, then hard-blocked the next ``name_speaker`` calls ("outside
     server request authority"). For a tool on a trusted module server only,
     the resumed task now gets a grant for that same tool. Other tools get

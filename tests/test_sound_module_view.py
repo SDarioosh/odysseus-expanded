@@ -630,7 +630,7 @@ def test_unfile_script_reports_through_the_route():
 
 def test_parse_action_items_result_skips_other_peoples_items():
     rows = [{"id": 1, "text": "Buy milk", "mine": True},
-            {"id": 2, "text": "Let Shahyah know how it goes", "owner": "Hayden", "mine": False},
+            {"id": 2, "text": "Let Marisol know how it goes", "owner": "Tobias", "mine": False},
             {"id": 3, "text": "Call Mom"}]  # an older module sends no flag
     items = view.parse_action_items_result(json.dumps(rows))
     assert [i.id for i in items] == [1, 3]

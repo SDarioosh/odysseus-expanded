@@ -2,7 +2,7 @@
 
 Upstream grants a tool only when the words of the message name it (request
 authority). For the owner's personal stores that is too strict: "notate that
-Jennifer is my fiance" or a pronoun follow-up got no grant, the model's
+Katherine is my fiance" or a pronoun follow-up got no grant, the model's
 ``manage_contact`` call was blocked as "outside server request authority", and
 a small local model could not recover.
 

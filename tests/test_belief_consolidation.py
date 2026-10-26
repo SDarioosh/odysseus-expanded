@@ -70,8 +70,8 @@ def test_different_claims_stay_apart(a, b):
 
 
 @pytest.mark.parametrize("a,b", [
-    ("shahyah owns a carbureted motorcycle with no computer on it",
-     "shahyah owns a carbureted motorcycle that has no computer"),
+    ("marisol owns a carbureted motorcycle with no computer on it",
+     "marisol owns a carbureted motorcycle that has no computer"),
     ("robin has a rabbit called luna", "robin has a rabbit that is called luna"),
 ])
 def test_a_rewording_in_other_glue_words(a, b):

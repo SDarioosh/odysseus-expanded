@@ -101,7 +101,7 @@ def copies(path, owner="alice"):
 
 BASE = [
     fact(1, "Prefers oat milk in coffee"),
-    fact(2, "Lives in Lisbon with her dog Pixel", about="person", subject="Jenn"),
+    fact(2, "Lives in Lisbon with her dog Pixel", about="person", subject="Kath"),
     fact(3, "The office moves to Building C in November", about="other", subject="Office"),
 ]
 
@@ -202,9 +202,9 @@ async def test_changed_fact_is_updated_in_place(data):
     module.facts[1] = {**module.facts[1], "link": "http://h:8000/view/c9?sig=def#t=5"}
     assert (await mf.sync("alice", module, now=T1))["memory_updated"] == 1
     # a renamed speaker moves the subject along
-    module.facts[1] = {**module.facts[1], "subject": "Jennifer"}
+    module.facts[1] = {**module.facts[1], "subject": "Katherine"}
     await mf.sync("alice", module, now=T1)
-    assert copies(data)[2]["subject"] == "Jennifer"
+    assert copies(data)[2]["subject"] == "Katherine"
 
 
 @pytest.mark.asyncio

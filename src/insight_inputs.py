@@ -169,7 +169,7 @@ def plan_title(text: str, value: Any = None) -> str:
     if not phrase:
         phrase = text
         m = PLAN_WORDS.search(text)
-        if m and m.start() <= 40:  # the subject comes first: "The owner", "Shahyah"
+        if m and m.start() <= 40:  # the subject comes first: "The owner", "Marisol"
             phrase = text[m.end():]
     phrase = phrase.strip().rstrip(".!")
     if not phrase:

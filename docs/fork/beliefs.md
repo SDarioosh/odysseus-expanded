@@ -91,8 +91,8 @@ counts = ledger.submit(owner, [
     ledger.Evidence(
         source="notes",              # the source's name, stable
         source_id="note-42:3",       # the source's own stable id for this observation
-        subject="Jenn", about="person",   # owner | person | other
-        text="Jenn lives in Lisbon",
+        subject="Kath", about="person",   # owner | person | other
+        text="Kath lives in Lisbon",
         link="/#open=notes&note=note-42",  # required: evidence without a link is skipped
         seen_first="2026-10-01", seen_last="2026-10-14",  # ISO dates or datetimes
         times=2, days=2,             # the source's totals for this observation
@@ -315,7 +315,7 @@ the ledger holds and answers `No fact #N.` That is a normal answer, not an error
 
 The owner decided (2026-10-23) that Forget, which erases the transcript lines too, is too
 strong for a belief that is only not worth keeping: something really said but true for a
-day ("Shahyah was very focused today"). **Dismiss** handles those, with no confirmation
+day ("Marisol was very focused today"). **Dismiss** handles those, with no confirmation
 prompt because it can be undone:
 
 1. `reject` here: rejected, out of memory at once, and later evidence for it stays rejected.
