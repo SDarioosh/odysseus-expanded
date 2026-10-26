@@ -222,10 +222,10 @@ Every page is reviewed by the owner before its text leaves the hub.
   joined in order, and stores `athena.sent_hash`.
 - **Limits (QC of H2, X-1).** H2 allows 60 pages of up to 20,000 characters each, with
   lines of any length; Athena's `/ingest/text` (H3) takes at most 200,000 characters and
-  5,000 lines, lines of at most 4,000 characters, and refuses text without words. H4
-  checks the joined text before sending and says what is over (or that no page has
-  reviewed text) instead of sending; whether Athena wraps long lines instead of refusing
-  them is settled on the Athena side.
+  5,000 non-empty lines, and refuses text without words (send `DELETE` instead). A line
+  over 4,000 characters is wrapped at a space by Athena (SDarioosh/Athena#110), and the
+  wrapped lines count toward the 5,000. H4 checks the joined text before sending and says
+  what is over (or that no page has reviewed text) instead of sending.
 - **Edits:** if the owner edits strokes or text after sending, the page goes back to
   "Needs review" (re-transcribe if strokes changed). Sending again replaces the note in
   Athena. The hourly fact sync then retires facts Athena no longer returns; filed to-dos
