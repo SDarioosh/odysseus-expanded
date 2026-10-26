@@ -351,7 +351,7 @@ await check('opaque_canvas_while_writing', async () => {
     const px = (x, y) => [...c.getContext('2d').getImageData(Math.round(x * dpr), Math.round(y * dpr), 1, 1).data];
     const attrs = c.getContext('2d').getContextAttributes ? c.getContext('2d').getContextAttributes() : {};
     const out = { paper: px(600, 500), stroke: px(250, 310), alpha: attrs.alpha, desync: attrs.desynchronized,
-      canvases: document.querySelectorAll('.ink-root canvas').length,
+      canvases: document.querySelectorAll('.ink-root .ink-stage canvas').length, // the Text tab's page image is not in the stage
       noSwipe: document.querySelector('.ink-root').hasAttribute('data-no-swipe-dismiss') };
     fire('pointerup', 'pen', 2, 300, 320, { buttons: 0 });
     return out;
@@ -436,6 +436,436 @@ await check('prediction_leaves_nothing', async () => {
   });
   await page.close();
   return { ok: got.sawAhead && got.diff < 30 && got.points === 31, ...got };
+});
+
+// ------------------------------------------------ H2: the Text tab (transcription, review)
+const textTab = (page) => page.evaluate(async () => { document.querySelectorAll('.ink-tab')[1].click(); await settle(50); });
+const inkTab = (page) => page.evaluate(async () => { document.querySelectorAll('.ink-tab')[0].click(); await settle(50); });
+const textState = (page) => page.evaluate(() => ({
+  view: view._state.view, page: view._state.textPage, text: document.querySelector('.ink-tarea').value,
+  state: document.querySelector('.ink-tstate').textContent, marks: document.querySelectorAll('.ink-thl mark').length,
+  readOnly: document.querySelector('.ink-tarea').readOnly }));
+const typeText = (page, text) => page.evaluate((t) => {
+  const a = document.querySelector('.ink-tarea'); a.value = t; a.dispatchEvent(new Event('input')); }, text);
+const waitText = (page, pred, ms = 3000) => page.waitForFunction(pred, null, { timeout: ms });
+
+// Writing then opening the Text tab reads the page; the machine text shows with [?]
+// marked, and Save review stores the checked text in the note.
+await check('h2_01_transcribe_and_review', async () => {
+  const page = await openPage(browser, { user: 'nia' });
+  await newNote(page);
+  await page.evaluate((pts) => stroke('pen', 2, pts), line(200));
+  await textTab(page);
+  await waitText(page, () => document.querySelector('.ink-tarea').value.includes('Line one'));
+  const machine = await textState(page);
+  const calls = await page.evaluate(() => hub.transcribeCalls);
+  // never reviewed: no Restore button on screen
+  const restoreShown = await page.evaluate(() => getComputedStyle(document.querySelector('.ink-trow .bs-btn[title^="Put back"]')).display !== 'none');
+  await typeText(page, 'Line one of page 1\nthe blue word');
+  await page.evaluate(async () => { document.querySelector('.ink-trow .bs-btn.primary').click(); await settle(700); });
+  const after = await textState(page);
+  const content = await page.evaluate(() => Object.values(hub.content)[0]);
+  const drafts = await page.evaluate(() => new Promise((resolve) => {
+    const req = indexedDB.open('fork-ink:nia');
+    req.onsuccess = () => { const g = req.result.transaction('drafts').objectStore('drafts').getAll(); g.onsuccess = () => resolve(g.result.length); };
+  }));
+  await page.close();
+  return { ok: !restoreShown && machine.marks === 1 && /unreadable/.test(machine.state) && calls.length === 1 && calls[0].only_changed
+    && content === 'Line one of page 1\nthe blue word' && /Reviewed/.test(after.state) && drafts === 0,
+  machine, calls, after, content, drafts, restoreShown };
+});
+
+// Leaving a page whose strokes changed asks the hub to read it; scrolling without
+// changes doesn't.
+await check('h2_02_auto_transcribe_on_leaving_a_page', async () => {
+  const page = await openPage(browser, { user: 'oli' });
+  await newNote(page);
+  await page.evaluate((pts) => stroke('pen', 2, pts), line(200));
+  const got = await page.evaluate(async () => {
+    document.querySelector('[aria-label="Add a page"]').click();     // scrolls to page 2
+    await settle(600);
+    const first = (hub.transcribeCalls || []).slice();
+    view._state.sy = -40; view._clamp(); window.dispatchEvent(new Event('resize'));
+    view.fit();
+    await settle(400);
+    view._state.sy = 1414; view._clamp(); view.fit();                // no change: no call
+    await settle(400);
+    return { first, all: hub.transcribeCalls || [] };
+  });
+  await page.close();
+  const p1 = got.first[0];
+  return { ok: got.first.length === 1 && p1.pages.length === 1 && p1.only_changed && got.all.length === 1, ...got };
+});
+
+// Ctrl+Z while typing in the Text tab doesn't undo strokes.
+await check('h2_03_undo_key_in_text_tab', async () => {
+  const page = await openPage(browser, { user: 'pat' });
+  await newNote(page);
+  await page.evaluate((pts) => stroke('pen', 2, pts), line(200));
+  await textTab(page);
+  await page.focus('.ink-tarea');
+  await page.keyboard.press('Control+z');
+  await page.keyboard.press('Control+y');
+  const strokes = await page.evaluate(() => view.strokeCount());
+  await page.close();
+  return { ok: strokes === 1, strokes };
+});
+
+// No tab change while the pen is down.
+await check('h2_04_no_tab_switch_mid_stroke', async () => {
+  const page = await openPage(browser, { user: 'quin' });
+  await newNote(page);
+  const got = await page.evaluate(async () => {
+    fire('pointerdown', 'pen', 2, 150, 300, { buttons: 1 });
+    fire('pointermove', 'pen', 2, 200, 310, { buttons: 1 });
+    const disabled = document.querySelectorAll('.ink-tab')[1].disabled;
+    document.querySelectorAll('.ink-tab')[1].click();
+    const viewMid = view._state.view;
+    fire('pointermove', 'pen', 2, 260, 300, { buttons: 1 });
+    fire('pointerup', 'pen', 2, 260, 300, { buttons: 0 });
+    await settle(50);
+    return { disabled, viewMid, strokes: view.strokeCount(), points: view._state.note.pages[0].strokes[0].points.length };
+  });
+  await page.close();
+  return { ok: got.disabled && got.viewMid === 'ink' && got.strokes === 1 && got.points === 3, ...got };
+});
+
+// A slow transcript answer for one note never shows in another.
+await check('h2_05_slow_answer_for_another_note_is_dropped', async () => {
+  const page = await openPage(browser, { user: 'rae' });
+  await newNote(page);
+  await page.evaluate((pts) => stroke('pen', 2, pts), line(200));
+  await textTab(page);
+  await waitText(page, () => document.querySelector('.ink-tarea').value.includes('Line one'));
+  const first = await page.evaluate(() => view._state.note.id);
+  await page.click('[aria-label="All notes"]');
+  await page.waitForSelector('.ink-card');
+  await page.evaluate(() => { hub.read = () => 'Second note text'; });
+  await page.evaluate(async () => { await view.newNote(); await settle(100); });
+  await page.evaluate((pts) => stroke('pen', 2, pts), line(300));
+  await page.evaluate(async () => { await view.flush(); await settle(200); });
+  const second = await page.evaluate(() => view._state.note.id);
+  const got = await page.evaluate(async ({ a }) => {
+    hub.delay['GET /api/ink/notes/' + a + '/transcripts'] = 500;
+    // open the first note's Text tab, then move to the second note at once
+    view.openNote(a, { textPage: 0 });
+    await settle(30);
+    document.querySelector('[aria-label="All notes"]').click();
+    await settle(50);
+    return null;
+  }, { a: first });
+  await page.waitForSelector('.ink-card');
+  await page.evaluate(async (b) => { await view.openNote(b, { textPage: 0 }); await settle(50); }, second);
+  await waitText(page, () => document.querySelector('.ink-tarea').value.includes('Second note'));
+  await page.waitForTimeout(700);
+  const now = await textState(page);
+  const id = await page.evaluate(() => view._state.note.id);
+  await page.close();
+  return { ok: id === second && now.text.includes('Second note') && !now.text.includes('Line one'), now, got };
+});
+
+// Edits not saved yet survive a reload, and only for the user who typed them.
+await check('h2_06_drafts_per_user', async () => {
+  const ctx = await browser.newContext({ viewport: { width: 1000, height: 800 } });
+  const page = await openPage(browser, { user: 'sam', context: ctx });
+  await newNote(page);
+  await page.evaluate((pts) => stroke('pen', 2, pts), line(200));
+  await textTab(page);
+  await waitText(page, () => document.querySelector('.ink-tarea').value.includes('Line one'));
+  await typeText(page, 'Private words of sam');
+  await page.waitForTimeout(600);
+  const id = await page.evaluate(() => view._state.note.id);
+  const hubState = await page.evaluate(() => JSON.stringify({ notes: hub.notes, tr: hub.tr }));
+  await page.close();
+  const again = await openPage(browser, { user: 'sam', context: ctx });
+  await again.evaluate((st) => { const s = JSON.parse(st); hub.notes = s.notes; hub.tr = s.tr; }, hubState);
+  await again.evaluate(async (nid) => { await view.openNote(nid, { textPage: 0 }); await settle(300); }, id);
+  const restored = await textState(again);
+  await again.close();
+  const other = await openPage(browser, { user: 'tia', context: ctx });
+  const leaked = await other.evaluate(() => new Promise((resolve) => {
+    const req = indexedDB.open('fork-ink:tia');
+    req.onsuccess = () => {
+      const db = req.result;
+      if (!db.objectStoreNames.contains('drafts')) { resolve(0); return; }
+      const g = db.transaction('drafts').objectStore('drafts').getAll();
+      g.onsuccess = () => resolve(g.result.length);
+    };
+  }));
+  await ctx.close();
+  return { ok: restored.text === 'Private words of sam' && /not saved/.test(restored.state) && leaked === 0, restored, leaked };
+});
+
+// The list shows pages that need review; a click opens that page's text.
+await check('h2_07_needs_review_list', async () => {
+  const page = await openPage(browser, { user: 'uma' });
+  await newNote(page);
+  await page.evaluate((pts) => stroke('pen', 2, pts), line(200));
+  await page.evaluate(async () => {
+    document.querySelector('[aria-label="Add a page"]').click(); await settle(50);
+  });
+  await page.evaluate((pts) => stroke('pen', 2, pts), line(300));
+  await page.evaluate(async () => {
+    await view.flush(); await settle(200);
+    const n = Object.values(hub.notes)[0];
+    await fetch('/api/ink/notes/' + n.note_id + '/transcribe', { method: 'POST', body: '{}' });
+    await settle(400);
+  });
+  await page.click('[aria-label="All notes"]');
+  await page.waitForSelector('.ink-review-item');
+  const items = await page.evaluate(() => [...document.querySelectorAll('.ink-review-item')].map((b) => b.textContent));
+  await page.evaluate(() => document.querySelectorAll('.ink-review-item')[1].click());
+  await page.waitForTimeout(400);
+  const st = await textState(page);
+  await page.close();
+  return { ok: items.length === 2 && /page 2/.test(items[1]) && st.view === 'text' && st.page === 1
+    && st.text.includes('page 2'), items, st };
+});
+
+// No vision model: the reason shows, nothing changes.
+await check('h2_08_no_model_message', async () => {
+  const page = await openPage(browser, { user: 'val' });
+  await newNote(page);
+  await page.evaluate((pts) => stroke('pen', 2, pts), line(200));
+  await page.evaluate(() => { hub.noModel = true; });
+  await textTab(page);
+  await page.waitForTimeout(300);
+  await page.evaluate(async () => { document.querySelector('.ink-trow .bs-btn:not(.primary):not([hidden])').click(); await settle(300); });
+  const buttons = await page.evaluate(() => [...document.querySelectorAll('.ink-trow .bs-btn')].map((b) => b.textContent));
+  await page.evaluate(async () => {
+    [...document.querySelectorAll('.ink-trow .bs-btn')].find((b) => b.textContent === 'Transcribe').click(); await settle(300); });
+  const st = await textState(page);
+  await page.close();
+  return { ok: /Settings, Vision/.test(st.state) && st.text === '', st, buttons };
+});
+
+// While Write is closed nothing polls.
+await check('h2_09_no_polling_while_closed', async () => {
+  const page = await openPage(browser, { user: 'wes' });
+  await newNote(page);
+  await page.evaluate((pts) => stroke('pen', 2, pts), line(200));
+  const got = await page.evaluate(async () => {
+    hub.readMs = 60000;                       // stays pending
+    document.querySelectorAll('.ink-tab')[1].click();
+    await settle(400);
+    view.suspend();
+    const polls = () => hub.calls.filter((c) => c.endsWith('/transcripts')).length;
+    const before = polls();
+    await settle(6000);
+    return { during: polls() - before, polledBefore: before };
+  });
+  await page.close();
+  return { ok: got.during === 0 && got.polledBefore >= 1, ...got };
+});
+
+// Transcribing a reviewed page asks first; its reviewed text can be put back.
+await check('h2_10_reviewed_text_is_kept_aside', async () => {
+  const page = await openPage(browser, { user: 'xan' });
+  await newNote(page);
+  await page.evaluate((pts) => stroke('pen', 2, pts), line(200));
+  await textTab(page);
+  await waitText(page, () => document.querySelector('.ink-tarea').value.includes('Line one'));
+  await typeText(page, 'My checked words');
+  await page.evaluate(async () => { document.querySelector('.ink-trow .bs-btn.primary').click(); await settle(200); });
+  let asked = 0;
+  page.on('dialog', (d) => { asked += 1; d.accept(); });
+  await page.evaluate(async () => {
+    [...document.querySelectorAll('.ink-trow .bs-btn')].find((b) => /Transcribe/.test(b.textContent)).click(); await settle(100); });
+  await waitText(page, () => document.querySelector('.ink-tarea').value.includes('Line one'));
+  const restoreVisible = await page.evaluate(() => getComputedStyle(document.querySelector('.ink-trow .bs-btn[title^="Put back"]')).display !== 'none');
+  await page.evaluate(async () => { document.querySelector('.ink-trow .bs-btn[title^="Put back"]').click(); await settle(50); });
+  const st = await textState(page);
+  await page.close();
+  return { ok: asked === 1 && restoreVisible && st.text === 'My checked words' && /not saved/.test(st.state), asked, restoreVisible, st };
+});
+
+// Another device's newer version arriving while in the Text tab keeps the tab and page.
+await check('h2_11_conflict_keeps_the_text_tab', async () => {
+  const page = await openPage(browser, { user: 'yul' });
+  await newNote(page);
+  await page.evaluate((pts) => stroke('pen', 2, pts), line(200));
+  await page.evaluate(async () => { await view.flush(); await settle(200); });
+  await textTab(page);
+  const got = await page.evaluate(async () => {
+    const id = view._state.note.id;
+    hub.notes[id] = { ...hub.notes[id], edited_at: Date.now() + 100000, title: 'From the desktop' };
+    view._state.dirty = true;
+    await view._persist();
+    await settle(400);
+    return { view: view._state.view, title: view._state.note.title, errors: window.errors.slice() };
+  });
+  await page.close();
+  return { ok: got.view === 'text' && got.title === 'From the desktop' && !got.errors.length, ...got };
+});
+
+// Edits on two pages in quick succession are both kept on the device.
+await check('h2_12_drafts_of_two_pages', async () => {
+  const page = await openPage(browser, { user: 'zed' });
+  await newNote(page);
+  await page.evaluate((pts) => stroke('pen', 2, pts), line(200));
+  await page.evaluate(async () => { document.querySelector('[aria-label="Add a page"]').click(); await settle(50); });
+  await page.evaluate((pts) => stroke('pen', 2, pts), line(300));
+  await textTab(page);
+  await page.waitForTimeout(300);
+  await page.evaluate(() => { view._state.textPage = 0; });
+  await page.evaluate(() => document.querySelector('[aria-label="Previous page"]').click());
+  await page.evaluate(async () => {
+    const a = document.querySelector('.ink-tarea');
+    a.value = 'first page words'; a.dispatchEvent(new Event('input'));
+    document.querySelector('[aria-label="Next page"]').click();
+    a.value = 'second page words'; a.dispatchEvent(new Event('input'));
+    await settle(800);
+  });
+  const saved = await page.evaluate(() => new Promise((resolve) => {
+    const req = indexedDB.open('fork-ink:zed');
+    req.onsuccess = () => { const g = req.result.transaction('drafts').objectStore('drafts').getAll(); g.onsuccess = () => resolve(g.result.map((d) => d.text).sort()); };
+  }));
+  await page.close();
+  return { ok: saved.length === 2 && saved[0] === 'first page words', saved };
+});
+
+// ------------------------------------------- QC bug hunt on H2 (2026-10-26), PR 92
+// docs/fork/qc-ink-h2-2026-10-26.md
+const idbDrafts = (page, user) => page.evaluate((u) => new Promise((resolve) => {
+  const req = indexedDB.open('fork-ink:' + u);
+  req.onsuccess = () => {
+    const db = req.result;
+    if (!db.objectStoreNames.contains('drafts')) { resolve([]); return; }
+    const g = db.transaction('drafts').objectStore('drafts').getAll();
+    g.onsuccess = () => resolve(g.result);
+  };
+}), user);
+
+// O-5. An older transcripts answer arriving after the transcribe answer doesn't stop
+// the Text tab from following the run.
+await check('qc_o5_old_transcripts_answer_is_dropped', async () => {
+  const page = await openPage(browser, { user: 'qa1' });
+  await newNote(page);
+  await page.evaluate((pts) => stroke('pen', 2, pts), line(200));
+  await page.evaluate(async () => { await view.flush(); await settle(300); });
+  await page.evaluate(() => {
+    // the hub answers the first GET at once (nothing read yet) but it arrives late
+    const hubFetch = window.fetch;
+    let first = true;
+    window.fetch = async (url, opts = {}) => {
+      const res = hubFetch(url, opts);
+      if (first && (opts.method || 'GET') === 'GET' && String(url).endsWith('/transcripts')) {
+        first = false;
+        const r = await res;
+        await settle(400);
+        return r;
+      }
+      return res;
+    };
+  });
+  await textTab(page);
+  let ok = true;
+  try { await waitText(page, () => document.querySelector('.ink-tarea').value.includes('Line one'), 4500); } catch (_) { ok = false; }
+  const st = await textState(page);
+  await page.close();
+  return { ok, st };
+});
+
+// O-8 (1). Typing a page's text back to what the hub has keeps no draft, so a later
+// transcription shows.
+await check('qc_o8_no_op_draft_is_dropped', async () => {
+  const page = await openPage(browser, { user: 'qa2' });
+  await newNote(page);
+  await page.evaluate((pts) => stroke('pen', 2, pts), line(200));
+  await textTab(page);
+  await waitText(page, () => document.querySelector('.ink-tarea').value.includes('Line one'));
+  const original = (await textState(page)).text;
+  await typeText(page, original + ' x');
+  await page.waitForTimeout(600);
+  const kept = (await idbDrafts(page, 'qa2')).length;
+  await typeText(page, original);
+  await page.waitForTimeout(600);
+  const left = (await idbDrafts(page, 'qa2')).length;
+  await page.evaluate(() => { hub.read = () => 'New words after more ink'; });
+  await inkTab(page);
+  await page.evaluate((pts) => stroke('pen', 2, pts), line(300));
+  await textTab(page);
+  let shown = true;
+  try { await waitText(page, () => document.querySelector('.ink-tarea').value.includes('New words'), 3000); } catch (_) { shown = false; }
+  const st = await textState(page);
+  await page.close();
+  return { ok: kept === 1 && left === 0 && shown && !/not saved/.test(st.state), kept, left, shown, st };
+});
+
+// O-8 (3). A note with edits not synced yet keeps its "to review" pages in the list.
+await check('qc_o8_list_keeps_review_of_unsynced_note', async () => {
+  const page = await openPage(browser, { user: 'qa3' });
+  await newNote(page);
+  await page.evaluate((pts) => stroke('pen', 2, pts), line(200));
+  await page.evaluate(async () => {
+    await view.flush(); await settle(300);
+    const n = Object.values(hub.notes)[0];
+    await fetch('/api/ink/notes/' + n.note_id + '/transcribe', { method: 'POST', body: '{}' });
+    await settle(400);
+    hub.answer['PUT /api/ink/notes/' + n.note_id] = { status: 500, body: {} };  // stays unsynced
+  });
+  await page.evaluate((pts) => stroke('pen', 2, pts), line(300));
+  await page.click('[aria-label="All notes"]');
+  await page.waitForSelector('.ink-card');
+  await page.waitForTimeout(300);
+  const got = await page.evaluate(() => ({ items: document.querySelectorAll('.ink-review-item').length,
+    meta: document.querySelector('.ink-card .bs-meta').textContent }));
+  await page.close();
+  return { ok: got.items === 1 && /1 to review/.test(got.meta) && /waiting to sync/.test(got.meta), ...got };
+});
+
+// O-8 (4). Closing the Write window reads the pages changed, like Back does.
+await check('qc_o8_closing_write_reads_changed_pages', async () => {
+  const page = await openPage(browser, { user: 'qa4' });
+  await newNote(page);
+  await page.evaluate((pts) => stroke('pen', 2, pts), line(200));
+  const calls = await page.evaluate(async () => {
+    view.suspend();
+    await settle(600);
+    const out = (hub.transcribeCalls || []).slice();
+    view.resume();
+    return out;
+  });
+  await page.close();
+  return { ok: calls.length === 1 && calls[0].only_changed && calls[0].pages.length === 1, calls };
+});
+
+// O-8 (5). Deleting a note drops its drafts on the device.
+await check('qc_o8_delete_drops_drafts', async () => {
+  const page = await openPage(browser, { user: 'qa5' });
+  await newNote(page);
+  await page.evaluate((pts) => stroke('pen', 2, pts), line(200));
+  await textTab(page);
+  await waitText(page, () => document.querySelector('.ink-tarea').value.includes('Line one'));
+  await typeText(page, 'a draft never saved');
+  await page.waitForTimeout(600);
+  const before = (await idbDrafts(page, 'qa5')).length;
+  await page.click('[aria-label="All notes"]');
+  await page.waitForSelector('.ink-card');
+  page.on('dialog', (d) => d.accept());
+  await page.evaluate(() => document.querySelector('.ink-card .bs-icon-btn').click());
+  await page.waitForTimeout(600);
+  const after = (await idbDrafts(page, 'qa5')).length;
+  const notes = await page.evaluate(() => Object.keys(hub.notes).length);
+  await page.close();
+  return { ok: before === 1 && after === 0 && notes === 0, before, after, notes };
+});
+
+// O-9 (2). The page image in the Text tab follows the window's size (rotation).
+await check('qc_o9_text_image_follows_resize', async () => {
+  const page = await openPage(browser, { user: 'qa6' });
+  await newNote(page);
+  await page.evaluate((pts) => stroke('pen', 2, pts), line(200));
+  await textTab(page);
+  await page.waitForTimeout(300);
+  const width = () => page.evaluate(() => parseFloat(document.querySelector('.ink-timage').style.width));
+  const before = await width();
+  await page.evaluate(() => { document.getElementById('host').style.width = '520px'; });
+  await page.waitForTimeout(400);
+  const after = await width();
+  const fits = await page.evaluate(() => document.querySelector('.ink-tfigure').clientWidth);
+  await page.close();
+  return { ok: after < before && after <= fits, before, after, fits };
 });
 
 // While the pen is down, the line on screen is whole: drawn in pieces it must match the

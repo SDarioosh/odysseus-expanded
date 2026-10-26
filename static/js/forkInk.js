@@ -18,6 +18,12 @@
 //   edit (409), its version replaces this one, and the view says so. Each signed-in
 //   user has their own IndexedDB database ("fork-ink:<user>"), so a shared browser
 //   never shows or uploads another user's notes.
+// - Stage H2 (transcription and review): a Text tab per page shows the page above its
+//   transcript, editable, with unreadable words "[?]" marked. Transcribe asks the hub's
+//   vision model (POST /api/ink/notes/<id>/transcribe, read in the background); leaving
+//   a page whose strokes changed (scrolling to another page, the Text tab, Back, the app
+//   hidden) asks for it too. Save review stores the checked text in the note. Edits not
+//   saved yet stay in IndexedDB ("drafts"). The list shows the pages that need review.
 
 export const PAGE_W = 1000;
 export const PAGE_H = 1414;
@@ -39,6 +45,8 @@ const MAX_STROKE_POINTS = 5000;     // a longer stroke continues as a new one (h
 const MAX_STROKES_PER_PAGE = 6000;
 const MAX_NOTE_POINTS = 590000;     // hub: 600,000
 const CLOSE_WAIT_MS = 4000;         // Back waits this long for the hub before listing
+const POLL_MS = 2500;               // the Text tab asks how a transcription is going
+const UNREADABLE = '[?]';
 const STYLESHEET = '/static/css/fork-ink.css';
 
 export const PENS = [
@@ -252,6 +260,7 @@ const SVG = (body) => `<svg width="14" height="14" viewBox="0 0 24 24" fill="non
   + `stroke-width="2" stroke-linecap="round" stroke-linejoin="round">${body}</svg>`;
 const ICONS = {
   back: SVG('<path d="M15 18l-6-6 6-6"/>'),
+  next: SVG('<path d="M9 18l6-6-6-6"/>'),
   undo: SVG('<path d="M9 14L4 9l5-5"/><path d="M4 9h11a5 5 0 0 1 0 10h-3"/>'),
   redo: SVG('<path d="M15 14l5-5-5-5"/><path d="M20 9H9a5 5 0 0 0 0 10h3"/>'),
   eraser: SVG('<path d="M7 21h10"/><path d="M5.5 13.5l7-7a2 2 0 0 1 2.8 0l3.2 3.2a2 2 0 0 1 0 2.8L13 18H8.5l-3-3a1 1 0 0 1 0-1.5z"/>'),
@@ -285,16 +294,18 @@ async function liveUser() {
 }
 
 function openStore(user) {
-  const memory = { notes: new Map(), deletes: new Map() };
+  const memory = { notes: new Map(), deletes: new Map(), drafts: new Map() };
   let dbp = null;
   if (globalThis.indexedDB) {
     dbp = new Promise((resolve) => {
       let req;
-      try { req = indexedDB.open(storeName(user), 1); } catch (_) { resolve(null); return; }
+      try { req = indexedDB.open(storeName(user), 2); } catch (_) { resolve(null); return; }
       req.onupgradeneeded = () => {
         const db = req.result;
         if (!db.objectStoreNames.contains('notes')) db.createObjectStore('notes', { keyPath: 'id' });
         if (!db.objectStoreNames.contains('deletes')) db.createObjectStore('deletes', { keyPath: 'id' });
+        // v2 (H2): transcript edits not saved yet, id "<note id>:<page id>"
+        if (!db.objectStoreNames.contains('drafts')) db.createObjectStore('drafts', { keyPath: 'id' });
       };
       req.onsuccess = () => resolve(req.result);
       req.onerror = () => resolve(null);
@@ -433,7 +444,21 @@ export function mountInk(root, options = {}) {
     zoom: 1,
     sx: -SIDE, sy: -PAGE_GAP, // scroll, in page units
     live: null,               // stroke being drawn: { pageIndex, stroke, eraser, removed }
+    view: 'ink',              // the editor's tab: 'ink' (Write) or 'text' (H2)
+    textPage: 0,              // the page shown in the Text tab
+    curPage: null,            // the page in the middle of the Write tab (leaving it: H2)
   };
+  // H2: transcripts of the open note as the hub has them, edits not saved yet (also in
+  // IndexedDB), and the pages changed since the hub was last asked to transcribe them.
+  let tr = null;              // { noteId, pages: Map(page id -> page view), running, missing }
+  const drafts = new Map();   // "<note id>:<page id>" -> text
+  const edited = new Set();   // page ids of the open note
+  let pollTimer = 0;
+  let autoChain = Promise.resolve();
+  // Transcript answers: each question is numbered, and an answer to an older question
+  // than the one shown is dropped (a slow GET must not undo a newer transcribe answer).
+  let trAsked = 0;
+  let trTaken = 0;
   const syncing = new Map();  // note id -> { promise, again }
   let timers = [];
   let suspended = false;
@@ -474,11 +499,17 @@ export function mountInk(root, options = {}) {
   const addPageBtn = iconBtn('page', 'Add a page', () => addPage());
   addPageBtn.append('Page');
 
+  const tabInk = el('button', { type: 'button', class: 'bs-btn ink-tab', role: 'tab', text: 'Write',
+    onclick: () => showInkTab() });
+  const tabText = el('button', { type: 'button', class: 'bs-btn ink-tab', role: 'tab', text: 'Text',
+    title: 'The text of each page: transcribe, check, save', onclick: () => showTextTab() });
+  const penGroup = el('div', { class: 'ink-group ink-pens', role: 'group', 'aria-label': 'Pens' },
+    ...penBtns, widthBtn, eraserBtn);
+  const editGroup = el('div', { class: 'ink-group' }, undoBtn, redoBtn, ruledBtn, addPageBtn);
   const bar = el('div', { class: 'ink-bar' },
     el('div', { class: 'ink-group' }, backBtn, titleInput),
-    el('div', { class: 'ink-group ink-pens', role: 'group', 'aria-label': 'Pens' }, ...penBtns, widthBtn, eraserBtn),
-    el('div', { class: 'ink-group' }, undoBtn, redoBtn, ruledBtn, addPageBtn),
-    status);
+    el('div', { class: 'ink-group ink-tabs', role: 'tablist', 'aria-label': 'View' }, tabInk, tabText),
+    penGroup, editGroup, status);
   const stage = el('div', { class: 'ink-stage' });
   // One visible canvas, opaque and desynchronized (low latency). The pages are drawn
   // off-screen on `base` and copied in, with the stroke being drawn on top. A
@@ -487,7 +518,30 @@ export function mountInk(root, options = {}) {
   const base = document.createElement('canvas');
   const live = el('canvas', { class: 'ink-canvas ink-live', 'aria-label': 'Writing area' });
   stage.append(live);
-  editor.append(bar, stage);
+
+  // H2: the Text tab, one page at a time: the page above, its transcript below.
+  const tPrev = iconBtn('back', 'Previous page', () => textGo(-1));
+  const tNext = iconBtn('next', 'Next page', () => textGo(1));
+  const tLabel = el('span', { class: 'bs-meta ink-tpage' });
+  const tState = el('div', { class: 'bs-meta ink-tstate', role: 'status', 'aria-live': 'polite' });
+  const tTranscribe = el('button', { type: 'button', class: 'bs-btn', text: 'Transcribe',
+    onclick: () => transcribeCurrent() });
+  const tRestore = el('button', { type: 'button', class: 'bs-btn', text: 'Restore reviewed text', hidden: true,
+    title: 'Put back the text you reviewed before this transcription', onclick: () => restorePrevious() });
+  const tFind = el('button', { type: 'button', class: 'bs-btn', text: 'Next [?]',
+    title: 'Select the next unreadable word', onclick: () => nextUnreadable() });
+  const tSave = el('button', { type: 'button', class: 'bs-btn primary', text: 'Save review',
+    title: 'Store this text in the note (it stays in the hub)', onclick: () => saveReview() });
+  const tImage = el('canvas', { class: 'ink-timage', role: 'img', 'aria-label': 'The handwritten page' });
+  const tFigure = el('div', { class: 'ink-tfigure' }, tImage);
+  const tHl = el('div', { class: 'ink-thl', 'aria-hidden': 'true' });
+  const tArea = el('textarea', { class: 'ink-tarea', spellcheck: 'false', 'aria-label': 'Text of this page' });
+  const tEdit = el('div', { class: 'ink-tedit' }, tHl, tArea);
+  const textPanel = el('div', { class: 'ink-text', hidden: true },
+    el('div', { class: 'ink-trow' }, tPrev, tLabel, tNext, el('span', { class: 'ink-tspacer' }),
+      tRestore, tFind, tTranscribe, tSave),
+    tState, tFigure, tEdit);
+  editor.append(bar, stage, textPanel);
   // Upstream's mobile sheets close when swiped down from anywhere in a window that
   // is scrolled to the top (static/js/ui.js), and the pen fires touch events too: a
   // downward stroke closed Write. Only the window's header keeps that swipe.
@@ -556,7 +610,7 @@ export function mountInk(root, options = {}) {
   let dirty = null;              // null, 'all', or a screen box {x0, y0, x1, y1}
   let bg = '#808080';
 
-  function render() { dirty = 'all'; schedule(); }
+  function render() { noteCurrentPage(); dirty = 'all'; schedule(); }
   function renderBox(box) {
     if (!box || dirty === 'all') return;
     dirty = unionBox(dirty, box);
@@ -1101,7 +1155,8 @@ export function mountInk(root, options = {}) {
     }
   }, { passive: false });
   wrap.addEventListener('keydown', (e) => {
-    if (state.screen !== 'editor' || e.target === titleInput) return;
+    // Not in the Text tab: Ctrl+Z there undoes typing, never strokes.
+    if (state.screen !== 'editor' || state.view !== 'ink' || e.target === titleInput) return;
     const mod = e.ctrlKey || e.metaKey;
     if (mod && e.key.toLowerCase() === 'z') { e.preventDefault(); if (e.shiftKey) redo(); else undo(); }
     else if (mod && e.key.toLowerCase() === 'y') { e.preventDefault(); redo(); }
@@ -1109,12 +1164,19 @@ export function mountInk(root, options = {}) {
 
   // ------------------------------------------------------------ undo
   function pushAction(action) {
+    touchPages(action);
     state.undo.push(action);
     state.redo = [];
     markDirty();
   }
 
   function pageById(id) { return state.note.pages.find((p) => p.id === id); }
+
+  // H2: the pages whose strokes this action changed need transcribing again.
+  function touchPages(action) {
+    if (action.type === 'add') edited.add(action.pageId);
+    else if (action.type === 'erase') for (const r of action.removed) edited.add(r.pageId);
+  }
 
   function apply(action, reverse) {
     if (action.type === 'add') {
@@ -1143,6 +1205,7 @@ export function mountInk(root, options = {}) {
     const a = state.undo.pop();
     if (!a) return;
     apply(a, true);
+    touchPages(a);
     state.redo.push(a);
     markDirty();
     render();
@@ -1153,6 +1216,7 @@ export function mountInk(root, options = {}) {
     const a = state.redo.pop();
     if (!a) return;
     apply(a, false);
+    touchPages(a);
     state.undo.push(a);
     markDirty();
     render();
@@ -1176,6 +1240,10 @@ export function mountInk(root, options = {}) {
     undoBtn.disabled = !state.undo.length || !!state.live;
     redoBtn.disabled = !state.redo.length || !!state.live;
     addPageBtn.disabled = !!(state.note && state.note.pages.length >= MAX_PAGES);
+    tabInk.setAttribute('aria-selected', String(state.view === 'ink'));
+    tabText.setAttribute('aria-selected', String(state.view === 'text'));
+    tabInk.disabled = !!state.live;
+    tabText.disabled = !!state.live; // no tab change while the pen is down
     addPageBtn.title = addPageBtn.disabled ? `A note has at most ${MAX_PAGES} pages` : 'Add a page';
   }
 
@@ -1285,6 +1353,7 @@ export function mountInk(root, options = {}) {
       }
     } else if (res.status === 410) {
       await db.del('notes', id);
+      await dropNoteDrafts(id, db);
       if (isOpen()) {
         state.live = null;
         router.reset();
@@ -1334,8 +1403,403 @@ export function mountInk(root, options = {}) {
       pages: (n.pages || []).map((p) => ({ id: p.id, width: p.width, height: p.height, strokes: p.strokes || [] })) };
   }
 
+  // ------------------------------------------------- H2: transcription and review
+  const enc = encodeURIComponent;
+  const draftKey = (noteId, pageId) => `${noteId}:${pageId}`;
+  // Still the same screen, note and user as when an answer was asked for.
+  const current = (my, id, db) => my === nav && db === store && !!state.note && state.note.id === id;
+  const trPage = (pageId) => (tr && state.note && tr.noteId === state.note.id ? tr.pages.get(pageId) : null);
+  const inkOf = (page) => page.strokes.some((st) => !st.pen.highlighter);
+
+  function applyView() {
+    const text = state.view === 'text';
+    stage.hidden = text;
+    textPanel.hidden = !text;
+    penGroup.hidden = text;
+    editGroup.hidden = text;
+    syncTools();
+    if (text) renderText();
+    else {
+      clearTimeout(pollTimer);
+      pollTimer = 0;
+      requestAnimationFrame(resize);
+      resize();
+    }
+  }
+
+  function currentPageIndex() {
+    if (!state.note) return 0;
+    return pageAt(state.sy + cssH / scale() / 2);
+  }
+
+  // Leaving a page in the Write tab (it scrolled out of the middle): read it again if
+  // its strokes changed.
+  function noteCurrentPage() {
+    if (!state.note || state.view !== 'ink' || state.live || state.screen !== 'editor') return;
+    const i = currentPageIndex();
+    if (state.curPage == null || i === state.curPage) { state.curPage = i; return; }
+    const left = state.note.pages[state.curPage];
+    state.curPage = i;
+    if (left && edited.has(left.id)) autoTranscribe([left.id]);
+  }
+
+  async function showTextTab() {
+    if (!state.note || state.live || state.view === 'text') return;
+    state.textPage = currentPageIndex();
+    state.view = 'text';
+    applyView();
+    autoTranscribe([...edited]); // leaving the writing: its changed pages are read
+    await loadTranscripts();
+  }
+
+  function showInkTab() {
+    if (!state.note || state.live || state.view === 'ink') return;
+    state.view = 'ink';
+    state.sy = pageTop(state.textPage) - PAGE_GAP / 2;
+    clampScroll();
+    state.curPage = null;
+    applyView();
+    render();
+  }
+
+  function textGo(step) {
+    if (!state.note) return;
+    state.textPage = Math.max(0, Math.min(state.note.pages.length - 1, state.textPage + step));
+    renderText();
+  }
+
+  function takeTranscripts(noteId, body, seq) {
+    if (!body || !Array.isArray(body.pages) || seq < trTaken) return;
+    trTaken = seq;
+    tr = { noteId, pages: new Map(body.pages.map((p) => [p.id, p])), running: !!body.running, missing: false };
+  }
+
+  async function loadTranscripts() {
+    if (!state.note) return;
+    const my = nav;
+    const id = state.note.id;
+    const db = store;
+    const seq = ++trAsked;
+    let res = null;
+    try { res = await api(`${API}/${enc(id)}/transcripts`); } catch (_) { res = null; }
+    if (!current(my, id, db)) return;
+    if (seq < trTaken) { schedulePoll(); return; } // a newer answer is on screen
+    let message = '';
+    if (res && res.ok) takeTranscripts(id, res.body, seq);
+    else if (res && res.status === 404) {
+      trTaken = seq;
+      tr = { noteId: id, pages: new Map(), running: false, missing: true };
+    }
+    else message = res ? `The hub said ${res.status}.` : 'The hub is not reachable: the text can be read when it is back.';
+    renderText(message);
+    schedulePoll();
+  }
+
+  function schedulePoll() {
+    clearTimeout(pollTimer);
+    pollTimer = 0;
+    if (suspended || !tr || !tr.running || state.screen !== 'editor' || state.view !== 'text') return;
+    pollTimer = setTimeout(() => {
+      pollTimer = 0;
+      if (!suspended && state.screen === 'editor' && state.view === 'text') loadTranscripts();
+    }, POLL_MS);
+  }
+
+  let imageKey = '';
+  function drawPageImage(page) {
+    const width = Math.max(200, Math.floor(tFigure.clientWidth || 600) - 2);
+    const key = `${state.note.id}:${page.id}:${width}:${page.strokes.length}:${state.note.edited_at}`;
+    if (key === imageKey) return;
+    imageKey = key;
+    const k = width / page.width;
+    const ratio = window.devicePixelRatio || 1;
+    const h = page.height * k;
+    tImage.width = Math.round(width * ratio);
+    tImage.height = Math.round(h * ratio);
+    tImage.style.width = `${width}px`;
+    tImage.style.height = `${h}px`;
+    const c = tImage.getContext('2d');
+    c.setTransform(ratio, 0, 0, ratio, 0, 0);
+    c.fillStyle = '#ffffff';
+    c.fillRect(0, 0, width, h);
+    const map = (p) => [p[0] * k, p[1] * k];
+    const hl = page.strokes.filter((st) => st.pen.highlighter);
+    if (hl.length) {
+      const m = document.createElement('canvas');
+      m.width = tImage.width;
+      m.height = tImage.height;
+      const mc = m.getContext('2d');
+      mc.setTransform(ratio, 0, 0, ratio, 0, 0);
+      for (const st of hl) drawStroke(mc, st, map, k, { opaque: true });
+      c.save();
+      c.setTransform(1, 0, 0, 1, 0, 0);
+      c.globalAlpha = HIGHLIGHT_ALPHA;
+      c.drawImage(m, 0, 0);
+      c.restore();
+    }
+    for (const st of page.strokes) if (!st.pen.highlighter) drawStroke(c, st, map, k);
+  }
+
+  function setTState(text, error = false) {
+    tState.textContent = text;
+    tState.classList.toggle('error', !!error);
+  }
+
+  function renderText(message = '') {
+    if (!state.note || state.view !== 'text') return;
+    const pages = state.note.pages;
+    state.textPage = Math.max(0, Math.min(pages.length - 1, state.textPage));
+    const page = pages[state.textPage];
+    const tp = trPage(page.id);
+    const key = draftKey(state.note.id, page.id);
+    tLabel.textContent = `Page ${state.textPage + 1} of ${pages.length}`;
+    tPrev.disabled = state.textPage === 0;
+    tNext.disabled = state.textPage >= pages.length - 1;
+    drawPageImage(page);
+    const pending = !!(tp && tp.status === 'pending');
+    const draft = drafts.get(key);
+    const want = draft != null ? draft : (tp ? tp.text : '');
+    if (tArea.dataset.key !== key || tArea.value !== want) {
+      tArea.value = want;
+      tArea.scrollTop = 0;
+    }
+    tArea.dataset.key = key;
+    tArea.readOnly = pending; // the model's text is on its way
+    updateHighlight();
+    tTranscribe.textContent = tp && (tp.status === 'machine' || tp.status === 'reviewed') ? 'Transcribe again' : 'Transcribe';
+    tTranscribe.disabled = pending || !inkOf(page);
+    tSave.disabled = pending || !tr || tr.missing || !tp;
+    tRestore.hidden = !(tp && tp.previous && tp.previous.text);
+    if (message) { setTState(message, true); return; }
+    const unsaved = draft != null && draft !== (tp ? tp.text : '') ? ' Edits not saved yet.' : '';
+    if (!tr) setTState('Loading...');
+    else if (tr.missing || !tp) setTState('This page is not on the hub yet. It is saved there first, then it can be transcribed.');
+    else if (pending) setTState('Transcribing... The model reads the page in parts, one at a time; chat goes first.');
+    else if (tp.status === 'failed') setTState(`Transcription failed: ${tp.error || 'unknown error'}${unsaved}`, true);
+    else if (!inkOf(page)) setTState(`This page has no writing.${unsaved}`);
+    else if (tp.status === 'none') setTState(`Not transcribed yet: press Transcribe, or type the text.${unsaved}`);
+    else {
+      const n = (tArea.value.match(/\[\?\]/g) || []).length;
+      const what = tp.status === 'reviewed' ? 'Reviewed.'
+        : `Machine text${tp.model ? ` (${tp.model})` : ''}: check it against the page, then Save review.`;
+      const marks = n ? ` ${n} unreadable word${n === 1 ? '' : 's'} marked [?].` : '';
+      const changed = tp.changed ? ' The writing changed since this text was made: transcribe again.' : '';
+      setTState(`${what}${marks}${changed}${unsaved}`, !!tp.changed);
+    }
+  }
+
+  // The marks behind the textarea: the same text, transparent, [?] highlighted.
+  function updateHighlight() {
+    tHl.textContent = '';
+    tArea.value.split(UNREADABLE).forEach((part, i) => {
+      if (i) tHl.append(el('mark', { text: UNREADABLE }));
+      tHl.append(document.createTextNode(part));
+    });
+    tHl.append(document.createTextNode('\n'));
+    tHl.scrollTop = tArea.scrollTop;
+    tFind.disabled = !tArea.value.includes(UNREADABLE);
+  }
+
+  const draftTimers = new Map(); // one per page: typing on the next page keeps this one
+  tArea.addEventListener('input', () => {
+    if (!state.note || state.view !== 'text') return;
+    const key = tArea.dataset.key;
+    if (!key || !key.startsWith(`${state.note.id}:`)) return;
+    updateHighlight();
+    const db = store;
+    const tp = trPage(key.slice(state.note.id.length + 1));
+    if (tp && tArea.value === tp.text) { // back to the hub's text: nothing to keep
+      clearTimeout(draftTimers.get(key));
+      draftTimers.delete(key);
+      drafts.delete(key);
+      Promise.resolve(db.del('drafts', key)).catch(() => {});
+      return;
+    }
+    drafts.set(key, tArea.value);
+    const text = tArea.value;
+    clearTimeout(draftTimers.get(key));
+    draftTimers.set(key, setTimeout(() => {
+      draftTimers.delete(key);
+      if (db !== store || drafts.get(key) !== text) return; // another user, or saved/typed since
+      Promise.resolve(db.put('drafts', { id: key, text })).catch(() => {});
+    }, 400));
+  });
+  tArea.addEventListener('scroll', () => { tHl.scrollTop = tArea.scrollTop; });
+
+  async function loadDrafts(noteId) {
+    const db = store;
+    let rows = [];
+    try { rows = (await db.all('drafts')) || []; } catch (_) { rows = []; }
+    if (db !== store) return;
+    for (const r of rows) {
+      if (r && typeof r.id === 'string' && r.id.startsWith(`${noteId}:`) && !drafts.has(r.id)) drafts.set(r.id, r.text);
+    }
+    if (state.note && state.note.id === noteId) renderText();
+  }
+
+  // A note gone from this device: its drafts go too.
+  async function dropNoteDrafts(noteId, db = store) {
+    const mine = (k) => typeof k === 'string' && k.startsWith(`${noteId}:`);
+    if (db === store) {
+      for (const k of [...drafts.keys()]) if (mine(k)) drafts.delete(k);
+      for (const [k, t] of [...draftTimers]) if (mine(k)) { clearTimeout(t); draftTimers.delete(k); }
+    }
+    let rows = [];
+    try { rows = (await db.all('drafts')) || []; } catch (_) { rows = []; }
+    for (const r of rows) {
+      if (r && mine(r.id)) { try { await db.del('drafts', r.id); } catch (_) { /* memory only */ } }
+    }
+  }
+
+  async function dropDraft(key, text) {
+    if (drafts.get(key) !== text) return; // typed more meanwhile: keep that
+    drafts.delete(key);
+    try { await store.del('drafts', key); } catch (_) { /* memory only */ }
+  }
+
+  function nextUnreadable() {
+    const v = tArea.value;
+    let i = v.indexOf(UNREADABLE, tArea.selectionEnd);
+    if (i < 0) i = v.indexOf(UNREADABLE);
+    if (i < 0) return;
+    tArea.focus();
+    tArea.setSelectionRange(i, i + UNREADABLE.length);
+  }
+
+  function restorePrevious() {
+    const page = state.note && state.note.pages[state.textPage];
+    const tp = page && trPage(page.id);
+    if (!tp || !tp.previous || tArea.readOnly) return;
+    tArea.value = tp.previous.text;
+    tArea.dispatchEvent(new Event('input'));
+    renderText();
+  }
+
+  // The hub has this note's strokes as they are here (saved and synced), or not.
+  async function pushStrokes(id) {
+    const db = store;
+    if (state.note && state.note.id === id && state.dirty && !state.live) await persist();
+    await sync(id);
+    if (db !== store) return false;
+    let local = null;
+    try { local = await db.get('notes', id); } catch (_) { local = null; }
+    return !local || !!local.synced;
+  }
+
+  // Ask the hub to read pages. 'ok', 'retry' (not reachable or not synced yet) or
+  // 'refused' (no model, not this user's note).
+  async function requestTranscribe(id, pageIds, onlyChanged, { quiet = false } = {}) {
+    const my = nav;
+    const db = store;
+    const show = (msg) => { if (!quiet && current(my, id, db)) renderText(msg); };
+    if (!(await pushStrokes(id))) { show('The writing is saved on this device but not on the hub yet: try again when it syncs.'); return 'retry'; }
+    if (db !== store) return 'retry';
+    let res = null;
+    const seq = ++trAsked;
+    try {
+      res = await api(`${API}/${enc(id)}/transcribe`, { method: 'POST',
+        body: JSON.stringify({ pages: pageIds, only_changed: onlyChanged }) });
+    } catch (_) { res = null; }
+    if (res && res.ok) {
+      if (current(my, id, db)) { takeTranscripts(id, res.body, seq); renderText(); schedulePoll(); }
+      return 'ok';
+    }
+    if (!res || (res.status >= 500 && res.status !== 503)) { show('The hub is not reachable: try again later.'); return 'retry'; }
+    show((res.body && res.body.detail) || `The hub refused (${res.status}).`);
+    return 'refused';
+  }
+
+  // Pages changed since they were last read: ask the hub once the strokes are there.
+  function autoTranscribe(pageIds) {
+    if (!state.note) return;
+    const id = state.note.id;
+    const db = store;
+    const ids = pageIds.filter((p) => edited.has(p));
+    if (!ids.length) return;
+    for (const p of ids) edited.delete(p);
+    autoChain = autoChain.then(async () => {
+      if (db !== store) return;
+      const got = await requestTranscribe(id, ids, true, { quiet: true });
+      if (got === 'retry' && db === store && state.note && state.note.id === id) for (const p of ids) edited.add(p);
+    }).catch(() => {});
+  }
+
+  async function transcribeCurrent() {
+    if (!state.note || state.live || state.view !== 'text') return;
+    const id = state.note.id;
+    const page = state.note.pages[state.textPage];
+    const tp = trPage(page.id);
+    const key = draftKey(id, page.id);
+    const draft = drafts.get(key);
+    const edits = draft != null && draft !== (tp ? tp.text : '');
+    if ((tp && tp.status === 'reviewed') || edits) {
+      const ok = await ask('Replace the text of this page with a new transcription? '
+        + 'Reviewed text can be restored until you save again.', 'Transcribe');
+      if (!ok || !state.note || state.note.id !== id) return;
+    }
+    tTranscribe.disabled = true;
+    if (draft != null) await dropDraft(key, draft);
+    edited.delete(page.id);
+    await requestTranscribe(id, [page.id], false);
+  }
+
+  async function saveReview() {
+    if (!state.note || state.view !== 'text') return;
+    const my = nav;
+    const db = store;
+    const id = state.note.id;
+    const page = state.note.pages[state.textPage];
+    const key = draftKey(id, page.id);
+    const text = tArea.value;
+    tSave.disabled = true;
+    setTState('Saving...');
+    const seq = ++trAsked;
+    let res = null;
+    try {
+      res = await api(`${API}/${enc(id)}/pages/${enc(page.id)}/transcript`, { method: 'PUT', body: JSON.stringify({ text }) });
+    } catch (_) { res = null; }
+    if (db !== store) return;
+    if (res && res.ok) {
+      await dropDraft(key, text);
+      if (current(my, id, db)) {
+        takeTranscripts(id, res.body, seq);
+        renderText();
+        if (tArea.dataset.key === key && !drafts.has(key)) setTState('Reviewed and saved in the note. It stays in the hub.');
+      }
+    } else if (current(my, id, db)) {
+      renderText(res ? `Not saved: ${(res.body && res.body.detail) || `the hub said ${res.status}`}. Your edits are kept on this device.`
+        : 'Not saved: the hub is not reachable. Your edits are kept on this device.');
+    }
+  }
+
+  function ask(message, confirmText) {
+    const ui = window.uiModule;
+    if (ui && typeof ui.styledConfirm === 'function') return ui.styledConfirm(message, { confirmText });
+    return Promise.resolve(window.confirm(message));
+  }
+
+  function reviewList(items) {
+    const rows = [];
+    for (const n of items) {
+      const t = n.transcripts;
+      if (!t) continue;
+      for (const i of t.review || []) rows.push({ n, i, what: 'check the text' });
+      for (const i of t.failed || []) rows.push({ n, i, what: 'transcription failed' });
+    }
+    if (!rows.length) return null;
+    const box = el('div', { class: 'bs-card ink-review' }, el('h2', { text: `Needs review (${rows.length})` }));
+    for (const r of rows) {
+      box.append(el('button', { type: 'button', class: 'bs-btn ink-review-item', 'data-note': r.n.id, 'data-page': String(r.i),
+        onclick: () => openNote(r.n.id, { textPage: r.i }) },
+      `${r.n.title || 'Untitled'} · page ${r.i + 1} · ${r.what}`));
+    }
+    return box;
+  }
+
   // -------------------------------------------------------------- screens
-  function openLoaded(note, { keepView = false } = {}) {
+  function openLoaded(note, { keepView = false, textPage = null } = {}) {
+    const sameOpen = state.note && state.note.id === note.id;
+    if (state.note && !sameOpen && state.screen === 'editor') autoTranscribe([...edited]); // left that note
     state.note = note;
     state.screen = 'editor';
     state.undo = [];
@@ -1347,18 +1811,31 @@ export function mountInk(root, options = {}) {
     if (!keepView) {
       state.zoom = 1;
       state.sy = -PAGE_GAP;
+      // The same note replaced by the hub's version stays on its tab and page.
+      if (!sameOpen || textPage != null) {
+        state.view = textPage == null ? 'ink' : 'text';
+        state.textPage = textPage == null ? 0 : textPage;
+      }
     }
+    // A note replaced by the hub's version (409, or changed elsewhere) keeps its
+    // transcripts and drafts; another note starts without them.
+    if (!sameOpen) {
+      tr = null;
+      edited.clear();
+      loadDrafts(note.id);
+    }
+    state.curPage = null;
     render(); // a different note: draw it all (resize below draws at once when sized)
     titleInput.value = note.title || '';
     listView.hidden = true;
     editor.hidden = false;
     syncTools();
     setStatus(note.synced ? 'Saved' : 'Saved on this device');
-    requestAnimationFrame(resize);
-    resize();
+    applyView();
+    if (state.view === 'text') loadTranscripts();
   }
 
-  async function openNote(id) {
+  async function openNote(id, { textPage = null } = {}) {
     const my = ++nav;
     const db = store;
     let local = null;
@@ -1377,7 +1854,7 @@ export function mountInk(root, options = {}) {
     }
     if (my !== nav) return;
     if (!note) { await showList('That note could not be loaded.'); return; }
-    openLoaded(note);
+    openLoaded(note, { textPage });
     if (!note.synced) sync(note.id);
   }
 
@@ -1395,6 +1872,7 @@ export function mountInk(root, options = {}) {
     const id = state.note && state.note.id;
     const my = ++nav;
     await flush();
+    autoTranscribe([...edited]); // leaving the note: read its changed pages
     // Wait a moment for the hub, so the list shows the saved note and its new image.
     const running = id && syncing.get(id);
     if (running) await Promise.race([running.promise, new Promise((r) => setTimeout(r, CLOSE_WAIT_MS))]);
@@ -1409,6 +1887,7 @@ export function mountInk(root, options = {}) {
       await store.del('notes', id);
       await store.put('deletes', { id });
     } catch (_) { /* memory only */ }
+    await dropNoteDrafts(id);
   }
 
   async function deleteNote(id, title) {
@@ -1460,7 +1939,7 @@ export function mountInk(root, options = {}) {
       // the list was asked for may just be missing from it.
       const gone = (n) => n.synced && !remoteIds.has(n.id) && !((n.synced_at || 0) >= asked);
       for (const n of local) {
-        if (gone(n)) { try { await db.del('notes', n.id); } catch (_) { /* */ } }
+        if (gone(n)) { try { await db.del('notes', n.id); } catch (_) { /* */ } await dropNoteDrafts(n.id, db); }
       }
       local = local.filter((n) => !gone(n));
       for (const n of remote) byId.set(n.id, { ...n, waiting: false });
@@ -1469,20 +1948,25 @@ export function mountInk(root, options = {}) {
       const known = byId.get(n.id);
       if (!known || !n.synced) {
         byId.set(n.id, { id: n.id, title: n.title, image_url: n.image_url || (known && known.image_url),
-          edited_at: n.edited_at, pages: n.pages.length, waiting: !n.synced, blocked: n.blocked });
+          edited_at: n.edited_at, pages: n.pages.length, waiting: !n.synced, blocked: n.blocked,
+          transcripts: known && known.transcripts });
       }
     }
     const items = [...byId.values()].sort((a, b) => (b.edited_at || 0) - (a.edited_at || 0)
       || String(b.updated_at || '').localeCompare(String(a.updated_at || '')));
     list.textContent = '';
     if (remote === null) list.append(el('div', { class: 'bs-notice', text: 'The hub is not reachable: showing the notes on this device.' }));
+    const review = reviewList(items);
+    if (review) list.before(review);
     if (!items.length) { list.append(el('div', { class: 'bs-empty', text: 'No handwritten notes yet.' })); return; }
     for (const n of items) list.append(noteCard(n));
   }
 
   function noteCard(n) {
     const when = n.edited_at ? new Date(n.edited_at) : (n.updated_at ? new Date(n.updated_at) : null);
+    const toReview = (n.transcripts && n.transcripts.review && n.transcripts.review.length) || 0;
     const meta = [n.pages ? `${n.pages} page${n.pages === 1 ? '' : 's'}` : '', when ? when.toLocaleString() : '',
+      toReview ? `${toReview} to review` : '',
       n.blocked ? `not synced: the hub refused it (${n.blocked})` : (n.waiting ? 'waiting to sync' : '')]
       .filter(Boolean).join(' · ');
     const thumb = el('div', { class: 'ink-thumb' });
@@ -1515,6 +1999,9 @@ export function mountInk(root, options = {}) {
     user = who;
     store = openStore(user);
     syncing.clear();
+    drafts.clear(); // the last user's text never shows for this one
+    tr = null;
+    edited.clear();
     if (state.note) {
       state.live = null;
       router.reset();
@@ -1530,17 +2017,30 @@ export function mountInk(root, options = {}) {
     state.dirty = true;
     await persist(true);
   }
-  const onHidden = () => { if (document.visibilityState === 'hidden') { router.release(); flush(); } };
+  const onHidden = () => {
+    if (document.visibilityState !== 'hidden') return;
+    router.release();
+    flush();
+    if (state.note) autoTranscribe([...edited]);
+  };
   const onOnline = () => flushQueue();
   document.addEventListener('visibilitychange', onHidden);
   window.addEventListener('pagehide', onHidden);
   window.addEventListener('online', onOnline);
+  // A new size (window, rotation): the Write canvas, and the Text tab's page image.
+  const onResize = () => {
+    if (state.screen !== 'editor') return;
+    resize();
+    const page = state.note && state.view === 'text' && state.note.pages[state.textPage];
+    if (page) drawPageImage(page);
+  };
   let observer = null;
   if (globalThis.ResizeObserver) {
-    observer = new ResizeObserver(() => { if (state.screen === 'editor') resize(); });
+    observer = new ResizeObserver(onResize);
     observer.observe(stage);
+    observer.observe(textPanel);
   }
-  window.addEventListener('orientationchange', resize);
+  window.addEventListener('orientationchange', onResize);
 
   // Write is open: timers and the window-wide pen listener run.
   function resume() {
@@ -1558,6 +2058,9 @@ export function mountInk(root, options = {}) {
     suspended = true;
     router.release();
     flush();
+    if (state.note) autoTranscribe([...edited]); // like Back: read the pages changed
+    clearTimeout(pollTimer);
+    pollTimer = 0;
     timers.forEach(clearInterval);
     timers = [];
     document.removeEventListener('pointermove', notePen, { capture: true });
@@ -1569,6 +2072,7 @@ export function mountInk(root, options = {}) {
   async function refresh() {
     resume();
     if (state.screen === 'list') return showList();
+    if (state.note && state.view === 'text') loadTranscripts();
     if (!state.note || state.dirty || state.live) return undefined;
     const my = nav;
     const id = state.note.id;
@@ -1583,6 +2087,7 @@ export function mountInk(root, options = {}) {
         }
       } else if (res.status === 404) {
         await store.del('notes', id);
+        await dropNoteDrafts(id);
         state.note = null;
         return showList('This note was deleted elsewhere.');
       }
@@ -1609,7 +2114,7 @@ export function mountInk(root, options = {}) {
       document.removeEventListener('visibilitychange', onHidden);
       window.removeEventListener('pagehide', onHidden);
       window.removeEventListener('online', onOnline);
-      window.removeEventListener('orientationchange', resize);
+      window.removeEventListener('orientationchange', onResize);
     },
     // For tests.
     _state: state,

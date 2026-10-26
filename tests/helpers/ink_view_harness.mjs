@@ -1,6 +1,8 @@
 // Fork: a harness for the Write view (static/js/forkInk.js) in a real Chromium, with
 // the hub's ink routes faked inside the page (window.hub), so tests can set delays,
 // failures and the signed-in user. Used by tests/helpers/ink_review_e2e.mjs.
+// H2: the fake hub also transcribes (hub.read(noteId, pageIndex) gives the text, after
+// hub.readMs; hub.noModel answers 503) and stores reviewed text (hub.content).
 import { createRequire } from 'node:module';
 import fs from 'node:fs';
 import path from 'node:path';
@@ -16,7 +18,22 @@ html,body{margin:0;height:100%}#host{width:900px;height:760px;display:flex;flex-
 <script>
   // The fake hub: notes by id, per user; options per test.
   window.hub = { user: localStorage.getItem('odysseus-auth-user') || 'alice', notes: {}, calls: [],
-    online: true, delay: {}, answer: {} };
+    online: true, delay: {}, answer: {}, tr: {}, content: {}, readMs: 200, noModel: false,
+    read: (id, i) => ['Line one of page ' + (i + 1), 'the [?] word'].join(String.fromCharCode(10)) };
+  // Transcripts as the hub keeps them: hub.tr[noteId][pageId] = {status, text, hash, ...}
+  const hashOf = (pg) => JSON.stringify(pg.strokes.map((st) => st.id));
+  const trOf = (n) => (hub.tr[n.note_id] = hub.tr[n.note_id] || {});
+  const pageViews = (n) => n.pages.map((pg, i) => {
+    const t = trOf(n)[pg.id] || { status: 'none', text: '' };
+    const ink = pg.strokes.some((st) => !st.pen.highlighter);
+    return { id: pg.id, index: i, status: t.status, text: t.text || '', model: t.model || null, at: t.at || null,
+      error: t.error || null, ink, unreadable: (t.text || '').split('[?]').length - 1,
+      changed: (t.status === 'machine' || t.status === 'reviewed') && t.hash !== hashOf(pg),
+      ...(t.previous ? { previous: t.previous } : {}) };
+  });
+  const views = (n) => { const pages = pageViews(n); return { note_id: n.note_id, pages, running: pages.some((p) => p.status === 'pending') }; };
+  const summary = (n) => { const v = pageViews(n); return { review: v.filter((p) => p.status === 'machine').map((p) => p.index),
+    failed: v.filter((p) => p.status === 'failed' && p.ink).map((p) => p.index), pending: v.filter((p) => p.status === 'pending').length }; };
   const realFetch = window.fetch.bind(window);
   window.fetch = async (url, opts = {}) => {
     const u = new URL(url, location.href);
@@ -34,7 +51,56 @@ html,body{margin:0;height:100%}#host{width:900px;height:760px;display:flex;flex-
     const mine = Object.values(hub.notes).filter((n) => n.owner === hub.user);
     if (u.pathname === '/api/ink/notes' && method === 'GET') {
       return json(200, { notes: mine.map((n) => ({ id: n.note_id, title: n.title, image_url: n.image_url,
-        pages: n.pages.length, edited_at: n.edited_at })) });
+        pages: n.pages.length, edited_at: n.edited_at, transcripts: summary(n) })) });
+    }
+    // /api/ink/notes/<id>/transcripts | transcribe | pages/<page>/transcript
+    const parts = u.pathname.split('/');
+    const sub = parts.slice(5).join('/');
+    const m = parts.length >= 6 && parts[3] === 'notes' && (sub === 'transcripts' || sub === 'transcribe'
+      || (parts.length === 8 && parts[5] === 'pages' && parts[7] === 'transcript'))
+      ? [null, parts[4], sub === 'transcripts' || sub === 'transcribe' ? sub : 'page', parts[6]] : null;
+    if (m) {
+      const n = hub.notes[decodeURIComponent(m[1])];
+      if (!n || n.owner !== hub.user) return json(404, { detail: 'Note not found' });
+      if (m[2] === 'transcripts' && method === 'GET') return json(200, views(n));
+      if (m[2] === 'transcribe' && method === 'POST') {
+        const body = JSON.parse(opts.body || '{}');
+        const want = body.pages || n.pages.map((pg) => pg.id);
+        if (want.some((pid) => !n.pages.find((pg) => pg.id === pid))) return json(404, { detail: 'Page not found' });
+        hub.transcribeCalls = (hub.transcribeCalls || []).concat([{ id: n.note_id, pages: want, only_changed: !!body.only_changed }]);
+        if (hub.noModel) return json(503, { detail: 'No vision model is set: choose one in Settings, Vision.' });
+        for (const pid of want) {
+          const pg = n.pages.find((x) => x.id === pid);
+          const t = trOf(n)[pid] || { status: 'none', text: '' };
+          const changed = t.hash !== hashOf(pg);
+          if (t.status === 'pending') continue;
+          if ((body.only_changed || !body.pages) && !(t.status === 'none' || t.status === 'failed' || changed)) continue;
+          if (!pg.strokes.length) { trOf(n)[pid] = { status: 'none', text: '', hash: hashOf(pg) }; continue; }
+          const prev = t.status === 'reviewed' && t.text ? { text: t.text, at: t.at } : t.previous;
+          const index = n.pages.indexOf(pg);
+          const hash = hashOf(pg);
+          trOf(n)[pid] = { ...t, status: 'pending', previous: prev };
+          setTimeout(() => {
+            const cur = trOf(n)[pid];
+            if (!cur || cur.status !== 'pending') return;
+            const text = hub.read(n.note_id, index);
+            trOf(n)[pid] = text === null ? { ...cur, status: 'failed', error: 'The model could not read this page: boom' }
+              : { ...cur, status: 'machine', text, model: 'fake-vl', hash, at: new Date().toISOString(), error: null };
+          }, hub.readMs);
+        }
+        return json(200, views(n));
+      }
+      if (m[3] && method === 'PUT') {
+        const pid = decodeURIComponent(m[3]);
+        const pg = n.pages.find((x) => x.id === pid);
+        if (!pg) return json(404, { detail: 'Page not found' });
+        const body = JSON.parse(opts.body || '{}');
+        if (typeof body.text !== 'string') return json(400, { detail: 'text must be a string' });
+        trOf(n)[pid] = { status: 'reviewed', text: body.text.trim(), hash: hashOf(pg), at: new Date().toISOString() };
+        hub.content[n.note_id] = n.pages.map((x) => trOf(n)[x.id]).filter((t) => t && t.status === 'reviewed' && t.text).map((t) => t.text).join(String.fromCharCode(10, 10));
+        return json(200, views(n));
+      }
+      return json(405, {});
     }
     const id = u.pathname.split('/').pop();
     const n = hub.notes[id];

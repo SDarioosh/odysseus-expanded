@@ -2,8 +2,8 @@
 
 Scope and plan for writing notes with a pen on a tablet running the Odysseus web app,
 turning the handwriting into text with a local vision model, and adding that text to
-[Athena](https://github.com/SDarioosh/Athena) like a voice note. **H1 (pen capture) is
-built** (see "Built in H1" under Phases); the rest is planned.
+[Athena](https://github.com/SDarioosh/Athena) like a voice note. **H1 (pen capture) and H2 (transcribe and review)
+are built** (see "Built in H1" and "Built in H2" under Phases); the rest is planned.
 
 _Written 2026-10-22, revised 2026-10-26 with the owner's decisions (below). Items still
 open are at the end._
@@ -220,6 +220,12 @@ Every page is reviewed by the owner before its text leaves the hub.
 - "Send to Athena" calls `/ingest/text` through the module's MCP HTTP URL and token
   (the same way the call recorder uploads audio) with all reviewed pages of the note
   joined in order, and stores `athena.sent_hash`.
+- **Limits (QC of H2, X-1).** H2 allows 60 pages of up to 20,000 characters each, with
+  lines of any length; Athena's `/ingest/text` (H3) takes at most 200,000 characters and
+  5,000 non-empty lines, and refuses text without words (send `DELETE` instead). A line
+  over 4,000 characters is wrapped at a space by Athena (SDarioosh/Athena#110), and the
+  wrapped lines count toward the 5,000. H4 checks the joined text before sending and says
+  what is over (or that no page has reviewed text) instead of sending.
 - **Edits:** if the owner edits strokes or text after sending, the page goes back to
   "Needs review" (re-transcribe if strokes changed). Sending again replaces the note in
   Athena. The hourly fact sync then retires facts Athena no longer returns; filed to-dos
@@ -310,6 +316,66 @@ As planned, with these details settled while building it:
   can't start without a connection. Once the app is open, Write keeps working offline:
   notes are saved on the device and sync when the hub is back. Making the app start
   offline needs a scope fix (open question 4); it's a general upstream bug.
+
+### Built in H2
+
+As planned (`src/ink_transcribe.py`, routes on the existing ink router, a Text tab in
+`static/js/forkInk.js`; no new upstream hook), with these details settled while building it:
+
+- **Model.** The `vision_model` setting (per user, as upstream resolves it) and its vision
+  fallbacks; when it's empty, the Utility model if it reads images (upstream's
+  `model_supports_vision`). Only endpoints on the owner's network are used
+  (`is_local_endpoint`; an endpoint marked "local" counts, so a Tailscale name works).
+  Otherwise the Transcribe button says what to set, and nothing is marked. Upstream's
+  automatic pick of a known vision model (which lists cloud models) is not used.
+- **Render and bands.** The page is drawn 1600 px wide without highlighter and ruling;
+  ink colours are kept. Strokes that overlap vertically (within 10 units) form a line
+  cluster; bands are at most 560 units (about 12 ruled lines), cut in the gaps, with up
+  to 24 units of paper around them but never into the next line. A cluster taller than
+  a band (a drawing, a margin line) is cut where the fewest strokes cross, with 30 units
+  of overlap on each side of the cut and no paper added there; lines read twice at that
+  seam (up to 3) are kept once. Ink in the 50-unit margin the hub accepts around a page
+  is cut to the paper, as in the render. A gap of 80 units or more between bands is a
+  blank line. A page without ink is cleared without a model call.
+- **Prompt and answer.** As planned, plus: keep list markers, leave out struck-through
+  words and drawings. The answer must be JSON `{text}`; code fences and words around the
+  object are tolerated, anything else gets one retry and then `failed`. Words like
+  `[illegible]` or `[unclear]` are written as `[?]`.
+- **Chat comes first, without waiting for the browser.** Upstream's background workload
+  (`workload="background"`) waits while any Odysseus tab is open (a 45 s heartbeat), so a
+  transcription the owner asked for while looking at the page would never start (seen
+  in the sandbox). Each band instead waits until no chat or agent run is generating, then
+  goes through upstream's local-model lock like any call: it never runs on the GPU at the
+  same moment as chat, and a chat that starts meanwhile waits for one band at most.
+  Bands are read one at a time across the whole hub.
+- **States.** A run marks its pages `pending` with a run id; a result is written only if
+  the page is still pending for that run, so a review saved meanwhile, a newer run or a
+  deleted note wins. A page left `pending` by a hub restart reads as `failed`
+  ("Interrupted") and is read again on the next leave. A page whose strokes changed shows
+  "the writing changed" in the Text tab. A run notes which strokes it reads; strokes
+  drawn on a page while it is read let the next leave start a new run on it, and the
+  older run's text is dropped.
+- **Reviewed text is never lost silently.** When a changed page is read again, its
+  reviewed text is kept as `transcript.previous` (**Restore reviewed text** in the Text
+  tab) until the next review. **Transcribe** on a reviewed page, or over edits not saved
+  yet, asks first.
+- **When it runs by itself:** when the Write tab's middle moves to another page and the
+  page left was changed, when the Text tab opens, on Back or opening another note, and
+  when the app is hidden. Only changed pages are read (`only_changed`), after their
+  strokes reached the hub.
+- **Note content.** Save review writes the reviewed pages' text, in page order with a
+  blank line between pages, to `content` (open question 3 still asks whether to keep
+  this). `content` changes only on Save review: a page read again keeps its old reviewed
+  text in `content` until it is reviewed again.
+- **Text tab.** One page at a time (‹ ›), the page drawn on the device (it also works for
+  strokes not synced yet), the transcript below with `[?]` highlighted behind the text,
+  **Next [?]** selects the next one to type over. Read-only while the page is being
+  read. Edits not saved yet are kept in the user's IndexedDB (`drafts`, database
+  version 2), so a reload or a dropped connection doesn't lose them; Ctrl+Z there undoes
+  typing, never strokes; no tab change while the pen is down.
+- **Needs review** is at the top of the Write list (pages with machine text, and failed
+  ones), and each note card says how many pages wait. A click opens that page's text.
+  It isn't in the upstream Notes window, which would need a hook there.
 
 ## Fork changes
 

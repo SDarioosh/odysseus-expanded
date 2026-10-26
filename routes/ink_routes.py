@@ -16,6 +16,18 @@
 * ``DELETE /api/ink/notes/{id}``: deletes the note and its strokes. 404 when it isn't
   this user's.
 
+Stage H2, transcription and review (``src/ink_transcribe.py``):
+
+* ``GET  /api/ink/notes/{id}/transcripts``: ``{"note_id", "pages": [{id, index, status,
+  text, model, at, error, ink, changed, unreadable, previous?}], "running"}``.
+* ``POST /api/ink/notes/{id}/transcribe`` ``{pages?: [page id], only_changed?}``:
+  marks the pages ``pending`` and reads them with the vision model in the background
+  (one band at a time); answers the transcripts at once. Without ``pages``, every page
+  that needs it. 503 ``{"detail"}`` when no local model can read images.
+* ``PUT  /api/ink/notes/{id}/pages/{page_id}/transcript`` ``{text}``: the owner's
+  reviewed text; status ``reviewed``, and the note's ``content`` becomes the reviewed
+  pages' text. Nothing is sent anywhere.
+
 Any signed-in user, for their own notes, like upstream's notes routes
 (``require_user``; API tokens are refused). Another user's note id is a 404.
 """
@@ -24,12 +36,14 @@ from __future__ import annotations
 
 import asyncio
 import json
+import re
 from typing import Any
 
 from fastapi import APIRouter, HTTPException, Request
 from fastapi.responses import JSONResponse
 
 from src import ink_notes as ink
+from src import ink_transcribe as tr
 from src.auth_helpers import require_user
 
 MAX_BODY = 12 * 1024 * 1024
@@ -42,6 +56,23 @@ def _owner(request: Request) -> str | None:
 def _check_id(note_id: str) -> None:
     if not ink.valid_note_id(note_id):
         raise HTTPException(404, "Note not found")
+
+
+_PAGE_ID = re.compile(r"^[A-Za-z0-9_-]{1,64}$")
+MAX_REVIEW_BODY = 256 * 1024
+
+
+async def _json_body(request: Request, limit: int) -> dict[str, Any]:
+    raw = await request.body()
+    if len(raw) > limit:
+        raise HTTPException(413, "The request is too large")
+    try:
+        body: Any = json.loads(raw or b"{}")
+    except ValueError:
+        raise HTTPException(400, "Body must be JSON") from None
+    if not isinstance(body, dict):
+        raise HTTPException(400, "Body must be an object")
+    return body
 
 
 def setup_ink_routes() -> APIRouter:
@@ -89,5 +120,41 @@ def setup_ink_routes() -> APIRouter:
         if not await asyncio.to_thread(ink.delete, owner, note_id):
             raise HTTPException(404, "Note not found")
         return {"ok": True}
+
+    @router.get("/notes/{note_id}/transcripts")
+    async def get_transcripts(request: Request, note_id: str):
+        owner = _owner(request)
+        _check_id(note_id)
+        try:
+            return await asyncio.to_thread(tr.transcripts, owner, note_id)
+        except ink.InkError as exc:
+            raise HTTPException(exc.status, str(exc)) from None
+
+    @router.post("/notes/{note_id}/transcribe")
+    async def transcribe(request: Request, note_id: str):
+        owner = _owner(request)
+        _check_id(note_id)
+        body = await _json_body(request, 64 * 1024)
+        pages = body.get("pages")
+        try:
+            return await tr.start(owner, note_id, page_ids=pages,
+                                  only_changed=bool(body.get("only_changed")))
+        except tr.NoModel as exc:
+            raise HTTPException(503, str(exc)) from None
+        except ink.InkError as exc:
+            raise HTTPException(exc.status, str(exc)) from None
+
+    @router.put("/notes/{note_id}/pages/{page_id}/transcript")
+    async def save_review(request: Request, note_id: str, page_id: str):
+        owner = _owner(request)
+        _check_id(note_id)
+        if not _PAGE_ID.match(page_id):
+            raise HTTPException(404, "Page not found")
+        body = await _json_body(request, MAX_REVIEW_BODY)
+        try:
+            return await asyncio.to_thread(tr.save_review, owner, note_id, page_id,
+                                           body.get("text"))
+        except ink.InkError as exc:
+            raise HTTPException(exc.status, str(exc)) from None
 
     return router
