@@ -400,7 +400,16 @@ def save(owner: str | None, note_id: str, body: Any, *, title: str | None = None
             raise
         if exists and title is not None:
             update_note(owner, note_id, title=title)
+        if current is not None and _page_ids(current) != _page_ids(stored):
+            # Pages removed or moved: the note's reviewed text follows them.
+            from src import ink_transcribe  # imports this module
+
+            update_note(owner, note_id, content=ink_transcribe.note_content(stored))
         return public(stored, note_title(owner, note_id))
+
+
+def _page_ids(stored: dict[str, Any]) -> list[Any]:
+    return [p.get("id") for p in stored.get("pages") or [] if isinstance(p, dict)]
 
 
 def _store_owner(owner: str | None, note_id: str) -> str | None:
@@ -480,11 +489,12 @@ def _remove_sidecar(owner: str | None, note_id: str) -> None:
 
 
 def sent_to_athena(stored: dict[str, Any] | None) -> bool:
-    """Whether Athena may hold this note (sent, or a send was started): its sidecar is
-    kept after the note is deleted until Athena confirms it removed the note
-    (``src/ink_athena.py``)."""
+    """Whether Athena may hold this note (sent, a send was started, or a send got no
+    answer): its sidecar is kept after the note is deleted until Athena confirms it
+    removed the note (``src/ink_athena.py``)."""
     athena = (stored or {}).get("athena")
-    return isinstance(athena, dict) and bool(athena.get("sent_hash") or athena.get("sending"))
+    return isinstance(athena, dict) and bool(
+        athena.get("sent_hash") or athena.get("sending") or athena.get("maybe_sent"))
 
 
 def _drop_sidecar(owner: str | None, note_id: str, stored: dict[str, Any] | None) -> None:
@@ -512,11 +522,32 @@ def delete(owner: str | None, note_id: str) -> bool:
     return True
 
 
+def owner_folders() -> list[str | None]:
+    """Every ink folder, as the owner to pass for it: a folder name is its owner's name,
+    or a hash of it (:func:`_owner_dir_name`), which maps to itself; ``_single`` (single-
+    user mode's folder) is ``None``."""
+    from src import constants  # read at call time: tests point DATA_DIR elsewhere
+
+    root = Path(constants.DATA_DIR) / "ink"
+    if not root.is_dir():
+        return []
+    return [None if p.name == "_single" else p.name
+            for p in sorted(root.iterdir()) if p.is_dir()]
+
+
 def sweep(owner: str | None) -> list[str]:
     """Remove sidecars whose note is gone (deleted in the Notes window or by a tool),
     and remember their ids so a queued save from a tablet doesn't bring them back.
     Returns the removed ids. A note sent to Athena keeps its sidecar until Athena
-    confirms it removed the note (``src/ink_athena.py`` ``sweep``)."""
+    confirms it removed the note (``src/ink_athena.py`` ``sweep``). Single-user mode
+    (``owner`` None) sees every note, so it sweeps every owner's folder."""
+    if owner is not None:
+        return sweep_folder(owner)
+    return [i for folder in owner_folders() for i in sweep_folder(folder)]
+
+
+def sweep_folder(owner: str | None) -> list[str]:
+    """:func:`sweep` for one ink folder (``owner`` None: ``_single``)."""
     with _lock(owner):  # no save, delete or tombstone write of this owner meanwhile
         ids = sidecar_ids(owner)
         if not ids:

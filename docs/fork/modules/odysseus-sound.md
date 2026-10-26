@@ -432,9 +432,9 @@ link above (the `convo` server's URL and token; `src/ink_athena.py`, which calls
 module answers 404 and the Text tab says "update Athena".
 
 - `POST /ingest/text` JSON: `source_id` `hub-note:<note id>`; `text` every reviewed page in
-  page order, a blank line between pages (the note's `content`); `written_at` the note's
-  first stroke (device clock), fixed in the sidecar on the first send so a resend of the
-  same lines is `unchanged`; `link` `<hub>/#open=notes&note=<id>`; `title` the note's title.
+  page order, a blank line between pages (text reviewed now only); `written_at` the note's
+  first stroke (device clock), fixed in the sidecar when Athena first accepts the note so
+  a resend of the same lines is `unchanged`; `link` `<hub>/#open=notes&note=<id>`; `title` the note's title.
   Answer `{ok, source_id, result: created|replaced|unchanged, conversation_id, lines,
   erased_lines, transcript_link}`.
 - The module's limits are checked in the hub first, and the Text tab says what is over:

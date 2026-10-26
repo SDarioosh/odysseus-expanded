@@ -12,26 +12,29 @@ Athena's MCP HTTP app has two plain HTTP routes for written notes, behind the MC
 * ``DELETE /ingest/text/{source_id}`` answers ``deleted`` or ``already``.
 
 One Athena note per hub note (plan open question 2, the default): ``source_id`` is
-``hub-note:<note id>``, ``text`` is every reviewed page joined in page order (the note's
-``content``, :func:`src.ink_transcribe.note_content`), ``link`` the hub's absolute note
-URL. Nothing is sent before every page with writing is reviewed for its strokes as they
-are now (the owner reviews every page by hand), and nothing is sent by itself: **Send**
-in the Text tab is the only way, also after an edit (resend replaces the note).
+``hub-note:<note id>``, ``text`` is every reviewed page joined in page order
+(:func:`note_text`), ``link`` the hub's absolute note URL. Nothing is sent before every
+page with writing is reviewed for its writing as it is now (the owner reviews every page
+by hand), and nothing is sent by itself: **Send** in the Text tab is the only way, also
+after an edit (resend replaces the note).
 
 Sidecar ``athena``::
 
     {"sent_hash",        # sha256 of the text Athena last accepted (None: never sent)
      "sent_at",          # ISO, when it accepted it
      "conversation_id",  # Athena's conversation of the note
-     "written_at",       # epoch s sent as written_at: fixed on the first send, so a
-                         # resend of the same lines is "unchanged" in Athena
-     "sending"}          # epoch s while a send is in flight (None otherwise)
+     "written_at",       # epoch s sent as written_at: fixed when Athena first accepts
+                         # the note, so a resend of the same lines is "unchanged"
+     "sending",          # epoch s while a send is in flight (None otherwise)
+     "maybe_sent"}       # True: a send failed without an answer (timeout, Athena down),
+                         # so Athena may hold the note although it never confirmed it
 
-Deleted notes: a sidecar whose note is gone and that was sent (or is being sent) stays
-until Athena answers ``deleted`` or ``already`` to the DELETE (:func:`sweep`), so an
-unreachable Athena is asked again on the next run. The sweep runs at the start of the
-hourly fact sync (``src/module_facts.py``, :func:`sweep_all`), when the Write view lists
-notes, and right after a delete in the Write view.
+Deleted notes: a sidecar whose note is gone and that was sent (or is being sent, or
+whose send got no answer) stays until Athena answers ``deleted`` or ``already`` to the
+DELETE (:func:`sweep`), so an unreachable Athena is asked again on the next run. The
+sweep runs at the start of the hourly fact sync (``src/module_facts.py``,
+:func:`sweep_all`), when the Write view lists notes, right after a delete in the Write
+view, and when a send ends on a note deleted meanwhile.
 
 The hub's base URL for ``link``: the ``app_public_url`` setting (Settings, Reminders,
 "Public URL"), else the ``APP_PUBLIC_URL`` environment variable, else the origin the
@@ -48,6 +51,7 @@ import re
 import time
 from datetime import datetime, timezone
 from typing import Any, Callable
+from urllib.parse import urlsplit, urlunsplit
 
 import httpx
 
@@ -92,9 +96,18 @@ def text_hash(text: str) -> str:
 
 
 def note_text(stored: dict[str, Any]) -> str:
-    """What is sent: the reviewed pages' text in page order, a blank line between pages
-    (the same text as the note's ``content``)."""
-    return tr.note_content(stored)
+    """What is sent: the text of the pages reviewed now, in page order, a blank line
+    between pages. Unlike the note's ``content`` (:func:`src.ink_transcribe.note_content`)
+    a page's earlier reviewed text (``previous``) is never sent: a page read again waits
+    for review anyway, and a page whose writing was erased shows no text, so it sends
+    none."""
+    parts = []
+    for page in stored.get("pages") or []:
+        t = page.get("transcript") if isinstance(page.get("transcript"), dict) else {}
+        text = t.get("text")
+        if t.get("status") == "reviewed" and isinstance(text, str) and text.strip():
+            parts.append(text.strip())
+    return "\n\n".join(parts)
 
 
 def _wrapped(line: str) -> int:
@@ -169,7 +182,7 @@ def waiting_pages(stored: dict[str, Any]) -> list[dict[str, Any]]:
         why = _WAITING.get(status)
         if why is None and status == "none" and tr.has_ink(page):
             why = "not transcribed"
-        if why is None and status == "reviewed" and t.get("strokes_hash") != ink.strokes_hash(page):
+        if why is None and status == "reviewed" and t.get("strokes_hash") != tr.writing_hash(page):
             why = "the writing changed since it was reviewed"
         if why:
             out.append({"page": i + 1, "why": why})
@@ -199,12 +212,15 @@ def _sending(a: dict[str, Any], now: float) -> bool:
 
 def state(stored: dict[str, Any]) -> str:
     """``not_sent``, ``sent`` (Athena has the current reviewed text) or ``changed``
-    (the reviewed text changed since it was sent: Send replaces it)."""
+    (the reviewed text changed since it was sent, or a page waits for review again
+    because its writing changed: Send replaces it once it is reviewed)."""
     a = stored.get("athena") if isinstance(stored.get("athena"), dict) else {}
     if not a.get("sent_hash"):
         return "not_sent"
     text = note_text(stored)
-    return "sent" if has_words(text) and a["sent_hash"] == text_hash(text) else "changed"
+    if not has_words(text) or a["sent_hash"] != text_hash(text) or waiting_pages(stored):
+        return "changed"
+    return "sent"
 
 
 def view(stored: dict[str, Any], now: float | None = None) -> dict[str, Any]:
@@ -220,16 +236,36 @@ def view(stored: dict[str, Any], now: float | None = None) -> dict[str, Any]:
 
 
 # ---------------------------------------------------------------------------- link
+def _base(url: str) -> str:
+    """``url`` as a base for :func:`note_url`: the scheme in lower case (Athena's link
+    rule is case-sensitive), no query or fragment (the note's ``#open=...`` goes last),
+    no trailing ``/``."""
+    url = (url or "").strip()
+    try:
+        parts = urlsplit(url)
+    except ValueError:
+        return url.rstrip("/")
+    if not parts.scheme or not parts.netloc:
+        return url.rstrip("/")
+    return urlunsplit((parts.scheme.lower(), parts.netloc, parts.path, "", "")).rstrip("/")
+
+
 def hub_base(request_base: str | None = None) -> str:
-    """The hub's own address, for links that leave it."""
+    """The hub's own address, for links that leave it: the first of the Public URL
+    setting, ``APP_PUBLIC_URL`` and the request's own base that makes a link Athena
+    takes (else the first one given, so the Send refusal asks for the Public URL)."""
     try:
         from src.settings import get_setting
 
         configured = (get_setting("app_public_url", "") or "").strip()
     except Exception:  # noqa: BLE001 -- settings unreadable: fall through
         configured = ""
-    base = configured or (os.environ.get("APP_PUBLIC_URL") or "").strip() or (request_base or "")
-    return base.strip().rstrip("/")
+    candidates = [_base(c) for c in (configured, os.environ.get("APP_PUBLIC_URL") or "",
+                                     request_base or "") if c and c.strip()]
+    for base in candidates:
+        if check_link(note_url(base, "00000000")) is None:
+            return base
+    return candidates[0] if candidates else ""
 
 
 def check_link(link: str) -> str | None:
@@ -253,13 +289,12 @@ def _clean_title(title: str) -> str | None:
 
 
 def _first_written(stored: dict[str, Any]) -> int | None:
-    """When the note was first written: its earliest stroke (device clock, ms)."""
-    times = [s.get("at") for p in stored.get("pages") or [] for s in p.get("strokes") or []
-             if isinstance(s.get("at"), (int, float)) and s.get("at")]
-    if not times:
-        return None
-    seconds = int(min(times) // 1000)
-    return seconds if EARLIEST <= seconds < LATEST else None
+    """When the note was first written: its earliest stroke (device clock, ms). Stroke
+    times outside 2000..2100 (a clock not set yet) are left out."""
+    times = [int(at // 1000) for p in stored.get("pages") or [] for s in p.get("strokes") or []
+             if isinstance(at := s.get("at"), (int, float)) and not isinstance(at, bool)
+             and EARLIEST <= int(at // 1000) < LATEST]
+    return min(times) if times else None
 
 
 def _iso(seconds: float) -> str:
@@ -267,10 +302,12 @@ def _iso(seconds: float) -> str:
 
 
 def _prepare(owner: str | None, note_id: str, base: str, now: float
-             ) -> tuple[str | None, dict[str, Any] | None, str | None]:
-    """Check the note and mark it ``sending``. Returns (store, payload, text hash); the
-    payload is None when the note has no words left and was sent before (it is removed
-    from Athena instead). Raises ``InkError`` with what to fix."""
+             ) -> tuple[str | None, dict[str, Any] | None, str | None, int | None]:
+    """Check the note and mark it ``sending``. Returns (store, payload, text hash,
+    written_at); the payload is None when the note has no words left and was sent before
+    (it is removed from Athena instead). ``written_at`` is stored only once Athena accepts
+    the note (:func:`_finish`), so a failed first send doesn't fix it. Raises
+    ``InkError`` with what to fix."""
     store = tr._check(owner, note_id)
     with ink._lock(store):
         stored = tr._load(store, note_id)
@@ -282,6 +319,7 @@ def _prepare(owner: str | None, note_id: str, base: str, now: float
             raise ink.InkError("This note is being sent: wait for Athena's answer.", 409)
         text = note_text(stored)
         payload: dict[str, Any] | None = None
+        written: int | None = None
         if not has_words(text):
             if not a.get("sent_hash"):
                 raise ink.InkError("No page has reviewed text yet: review a page, then send.",
@@ -297,22 +335,23 @@ def _prepare(owner: str | None, note_id: str, base: str, now: float
             written = a.get("written_at")
             if not (isinstance(written, (int, float)) and EARLIEST <= written < LATEST):
                 written = _first_written(stored) or int(now)
-            a["written_at"] = int(written)
+            written = int(written)
             payload = {"source_id": source_id(note_id), "text": text,
-                       "written_at": _iso(a["written_at"]), "link": link}
+                       "written_at": _iso(written), "link": link}
             title = _clean_title(ink.note_title(owner, note_id))
             if title:
                 payload["title"] = title
         a["sending"] = now
         ink._write_json(ink.sidecar_path(store, note_id), stored)
-    return store, payload, text_hash(text) if payload else None
+    return store, payload, text_hash(text) if payload else None, written
 
 
 def _finish(store: str | None, note_id: str, sent: dict[str, Any] | None,
-            now_iso: str) -> None:
+            now_iso: str, maybe_sent: bool = False) -> None:
     """Store what Athena accepted (``sent``; None: nothing new is in Athena) and clear
-    ``sending``. The note may have been deleted meanwhile: the sidecar is still there
-    (``sending`` kept it) and the sweep removes the note from Athena."""
+    ``sending``. ``maybe_sent``: the send got no answer, so Athena may hold the note
+    (the sidecar of a deleted note then stays until Athena confirms a DELETE). The note
+    may have been deleted meanwhile: the sidecar is still there (``sending`` kept it)."""
     with ink._lock(store):
         stored = ink.load_sidecar(store, note_id)
         if stored is None:
@@ -322,6 +361,9 @@ def _finish(store: str | None, note_id: str, sent: dict[str, Any] | None,
         if sent is not None:
             a.update(sent)
             a["sent_at"] = now_iso if sent.get("sent_hash") else None
+            a["maybe_sent"] = False
+        elif maybe_sent:
+            a["maybe_sent"] = True
         ink._write_json(ink.sidecar_path(store, note_id), stored)
 
 
@@ -364,10 +406,12 @@ async def send(owner: str | None, note_id: str, *, request_base: str | None = No
     text or a bad link, 503 Athena not set up, 502 Athena unreachable or failing)."""
     await _link()  # fail before marking anything when Athena isn't set up
     base = hub_base(request_base)
-    store, payload, digest = await asyncio.to_thread(_prepare, owner, note_id, base, clock())
+    store, payload, digest, written = await asyncio.to_thread(
+        _prepare, owner, note_id, base, clock())
     key = (store or "", note_id)
     _SENDING.add(key)
     sent: dict[str, Any] | None = None
+    maybe_sent = False  # the POST went out and no answer says Athena didn't store it
     try:
         if payload is None:
             out = await _delete(note_id, transport)
@@ -376,21 +420,29 @@ async def send(owner: str | None, note_id: str, *, request_base: str | None = No
             answer = {"result": "deleted" if out == "deleted" else "already",
                       "conversation_id": None}
         else:
+            maybe_sent = True
             status, body = await _call("POST", "/ingest/text", json=payload, transport=transport)
+            # A refusal (bad request, too large, unknown route, auth) stored nothing.
+            maybe_sent = status >= 500 or status == 200
             if status != 200 or not isinstance(body, dict):
                 raise _module_failure(status, body)
             if body.get("result") not in RESULTS or not body.get("conversation_id"):
                 raise ink.InkError("Athena sent an unreadable answer", 502)
             sent = {"sent_hash": digest, "conversation_id": str(body["conversation_id"]),
                     "transcript_link": body.get("transcript_link")
-                    if isinstance(body.get("transcript_link"), str) else None}
+                    if isinstance(body.get("transcript_link"), str) else None,
+                    "written_at": written}
             answer = {k: body.get(k) for k in ("result", "conversation_id", "lines",
                                                "erased_lines", "transcript_link")}
             logger.info("ink: note sent to Athena (%s, %s lines)", answer["result"],
                         answer.get("lines"))
     finally:
         _SENDING.discard(key)
-        await asyncio.to_thread(_finish, store, note_id, sent, ink._now_iso())
+        await asyncio.to_thread(_finish, store, note_id, sent, ink._now_iso(), maybe_sent)
+        if not await asyncio.to_thread(ink.note_id_taken, note_id):
+            # Deleted while it was being sent: take it out of Athena now (the delete
+            # couldn't while the send was in flight; the sweep retries if this fails).
+            await after_delete(store, note_id, transport=transport)
     out = await asyncio.to_thread(tr.transcripts, owner, note_id)
     return {**out, "sent": answer}
 
@@ -432,8 +484,18 @@ async def sweep(owner: str | None, *, transport: httpx.AsyncBaseTransport | None
     """Remove the sidecars of deleted notes (``ink.sweep``), and ask Athena to remove the
     ones it was sent. A sidecar goes only once Athena answered ``deleted`` or
     ``already``; when Athena can't be reached it stays for the next run. Counts:
-    ``removed`` (never sent), ``retracted``, ``kept``."""
-    removed = await asyncio.to_thread(ink.sweep, owner)
+    ``removed`` (never sent), ``retracted``, ``kept``. Single-user mode (``owner``
+    None) sees every note, so it sweeps every owner's folder (:func:`sweep_all`)."""
+    if owner is None:
+        return await sweep_all(transport=transport, clock=clock)
+    return await _sweep_folder(owner, transport=transport, clock=clock)
+
+
+async def _sweep_folder(owner: str | None, *,
+                        transport: httpx.AsyncBaseTransport | None = None,
+                        clock: Callable[[], float] = time.time) -> dict[str, int]:
+    """:func:`sweep` for one ink folder (``owner`` None: ``_single``)."""
+    removed = await asyncio.to_thread(ink.sweep_folder, owner)
     pending = await asyncio.to_thread(_pending, owner, clock())
     stats = {"removed": len(removed), "retracted": 0, "kept": 0}
     for i, note_id in enumerate(pending):
@@ -449,26 +511,13 @@ async def sweep(owner: str | None, *, transport: httpx.AsyncBaseTransport | None
     return stats
 
 
-def _owner_folders() -> list[str | None]:
-    from pathlib import Path
-
-    from src import constants
-
-    root = Path(constants.DATA_DIR) / "ink"
-    if not root.is_dir():
-        return []
-    # A folder name is its owner's name, or a hash of it (ink_notes._owner_dir_name),
-    # which maps to itself; "_single" is single-user mode's folder.
-    return [None if p.name == "_single" else p.name
-            for p in sorted(root.iterdir()) if p.is_dir()]
-
-
 async def sweep_all(*, transport: httpx.AsyncBaseTransport | None = None,
                     clock: Callable[[], float] = time.time) -> dict[str, int]:
     """:func:`sweep` for every owner's ink folder (the hourly fact sync)."""
     total = {"removed": 0, "retracted": 0, "kept": 0}
-    for owner in await asyncio.to_thread(_owner_folders):
-        for key, value in (await sweep(owner, transport=transport, clock=clock)).items():
+    for owner in await asyncio.to_thread(ink.owner_folders):
+        for key, value in (await _sweep_folder(owner, transport=transport,
+                                               clock=clock)).items():
             total[key] += value
     return total
 

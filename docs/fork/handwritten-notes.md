@@ -386,33 +386,38 @@ As planned (`src/ink_athena.py`, a route on the ink router, Send in the Text tab
 
 - **What is sent.** One Athena written note per hub note (open question 2's default):
   `source_id` `hub-note:<note id>`, `text` every reviewed page in page order with a blank
-  line between pages (the same text as the note's `content`), `title` the note's title,
+  line between pages (only text reviewed now: a page's earlier reviewed text kept for
+  Restore is never sent, so a page whose writing was erased sends nothing), `title` the
+  note's title,
   `link` the hub's absolute note URL. Through the `convo` MCP server's URL and token, the
   path the call recorder uses (`src/call_recorder.py`).
 - **Review first.** Send works only when no page waits: machine text not reviewed, a
   failed or running transcription, a page with writing never transcribed, or reviewed
-  text older than the page's strokes (the writing changed). The Text tab says which pages
+  text older than the page's writing (the writing changed; the highlighter doesn't count,
+  as the model never sees it). The Text tab says which pages
   wait, and also refuses while edits on a page aren't saved yet. The hub checks again.
 - **Sent state.** `athena.sent_hash` is the hash of the text Athena accepted. The Text tab
-  shows **not sent**, **sent** (the current reviewed text) or **changed since sent**;
-  the Write list says "sent to Athena" or "changed since sent to Athena".
+  shows **not sent**, **sent** (the current reviewed text) or **changed since sent**
+  (also while a page of a sent note waits for review again); the Write list says "sent to Athena" or "changed since sent to Athena".
 - **Resend is manual.** After an edit is reviewed (Save review), the tab says "Changed
   since it was sent: Send again replaces the note in Athena". Save review never sends:
   every send is the owner's decision, like every review. An automatic resend can come
   with `INK_AUTO_SEND` (H6). Sending text Athena already has answers `unchanged`. A note
   whose reviewed text became empty is removed from Athena by Send.
-- **`written_at`** is the note's first stroke (the device's clock), or the time of the
-  first send when strokes carry no time. It is stored in the sidecar on the first send
-  (`athena.written_at`), so erasing the first stroke later doesn't change it and a
+- **`written_at`** is the note's first stroke (the device's clock; stroke times outside
+  2000..2100 are left out), or the time of the first send when strokes carry no time. It
+  is stored in the sidecar when Athena first accepts the note (`athena.written_at`; a
+  failed send doesn't fix it), so erasing the first stroke later doesn't change it and a
   resend of the same lines stays `unchanged`.
 - **Limits.** Checked before sending, with what is over and the biggest pages: at most
   200,000 characters and 5,000 lines (counted as Athena counts them: empty lines left
   out, a line over 4,000 characters counts once per 4,000). The link must pass Athena's
   rule (http(s), at most 2,000 characters, no spaces, quotes, `( ) < > { } | \ ^`,
   backtick or user info).
-- **The hub's address.** The `app_public_url` setting (Settings → Reminders → Public
-  URL), else `APP_PUBLIC_URL`, else the origin the browser used for Send (on the tablet,
-  the hub's Tailscale address). Setting the Public URL is recommended: a Send from a
+- **The hub's address.** The first that makes a usable link of: the `app_public_url`
+  setting (Settings → Reminders → Public URL), `APP_PUBLIC_URL`, the origin the browser
+  used for Send (on the tablet, the hub's Tailscale address). The scheme is lower-cased
+  and a query or fragment dropped. Setting the Public URL is recommended: a Send from a
   browser on the server itself would otherwise link to `127.0.0.1`. A resend updates the
   link in Athena.
 - **Deleted notes.** Deleting in Write asks Athena to remove the note at once. A note
@@ -422,9 +427,14 @@ As planned (`src/ink_athena.py`, a route on the ink router, Send in the Text tab
   until Athena answers `deleted` or `already`, so an unreachable Athena is asked again
   next time; the note can't come back meanwhile (410). A send in flight
   (`athena.sending`, up to 5 minutes) is never swept, so a late POST can't recreate a
-  note just deleted.
-- **One send at a time** per note; an answer is applied only if the same screen, note
-  and user are still shown (the H1/H2 guard).
+  note just deleted; a note deleted during its send is removed from Athena when the send
+  ends, and a send that got no answer (timeout, Athena down) marks `athena.maybe_sent`
+  so the sweep still asks Athena. In single-user mode the sweep covers every owner's
+  folder.
+- **One send at a time** per note (another note can be sent meanwhile); Save review,
+  Transcribe and Restore wait for the note's send. An answer is applied only if the same
+  screen, note and user are still shown (the H1/H2 guard).
+- **Pages removed or moved** in Write update the note's `content` too.
 - **Notes Evidence** has skipped `handwritten` notes since H1.
 - **Filed to-dos** (`src/module_action_items.py`): an item filed into Odysseus (a to-do,
   a line on a list, a calendar entry, a note) stays when its Athena item disappears

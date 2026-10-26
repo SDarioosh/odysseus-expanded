@@ -21,6 +21,8 @@ html,body{margin:0;height:100%}#host{width:900px;height:760px;display:flex;flex-
   window.hub = { user: localStorage.getItem('odysseus-auth-user') || 'alice', notes: {}, calls: [],
     online: true, delay: {}, answer: {}, tr: {}, content: {}, athena: {}, sends: [], readMs: 200, noModel: false,
     read: (id, i) => ['Line one of page ' + (i + 1), 'the [?] word'].join(String.fromCharCode(10)) };
+  // openPage(..., { hubState }): the hub's notes and transcripts before the view mounts.
+  if (window.__hubSeed) Object.assign(window.hub, window.__hubSeed);
   // Transcripts as the hub keeps them: hub.tr[noteId][pageId] = {status, text, hash, ...}
   const hashOf = (pg) => JSON.stringify(pg.strokes.map((st) => st.id));
   const trOf = (n) => (hub.tr[n.note_id] = hub.tr[n.note_id] || {});
@@ -32,6 +34,7 @@ html,body{margin:0;height:100%}#host{width:900px;height:760px;display:flex;flex-
       changed: (t.status === 'machine' || t.status === 'reviewed') && t.hash !== hashOf(pg),
       ...(t.previous ? { previous: t.previous } : {}) };
   });
+  // The text Send gives Athena: pages reviewed now (src/ink_athena.py note_text).
   const contentOf = (n) => n.pages.map((x) => trOf(n)[x.id]).filter((t) => t && t.status === 'reviewed' && t.text).map((t) => t.text).join(String.fromCharCode(10, 10));
   const athenaOf = (n, pages) => {
     const waiting = pages.filter((p) => p.status === 'machine' || p.status === 'failed' || p.status === 'pending'
@@ -39,7 +42,7 @@ html,body{margin:0;height:100%}#host{width:900px;height:760px;display:flex;flex-
       .map((p) => ({ page: p.index + 1, why: p.status === 'none' ? 'not transcribed' : p.status }));
     const text = contentOf(n);
     const sent = hub.athena[n.note_id];
-    const state = sent == null ? 'not_sent' : (sent === text ? 'sent' : 'changed');
+    const state = sent == null ? 'not_sent' : (sent === text && !waiting.length ? 'sent' : 'changed');
     return { state, waiting, has_text: !!text.trim(), sending: false, sent_at: sent == null ? null : '2026-10-26T10:00:00Z',
       transcript_link: sent == null ? null : 'http://athena.local/view/c1?sig=x' };
   };
@@ -80,8 +83,12 @@ html,body{margin:0;height:100%}#host{width:900px;height:760px;display:flex;flex-
         hub.sends.push(n.note_id);
         if (v.athena.waiting.length) return json(409, { detail: 'Waiting: ' + v.athena.waiting.map((w) => 'page ' + w.page).join(', ') });
         const text = contentOf(n);
-        if (!text.trim()) return json(400, { detail: 'No page has reviewed text yet' });
         const before = hub.athena[n.note_id];
+        if (!text.trim()) {
+          if (before == null) return json(400, { detail: 'No page has reviewed text yet' });
+          delete hub.athena[n.note_id]; // a sent note with no text left leaves Athena
+          return json(200, { ...views(n), sent: { result: 'deleted', conversation_id: null } });
+        }
         hub.athena[n.note_id] = text;
         const result = before == null ? 'created' : (before === text ? 'unchanged' : 'replaced');
         return json(200, { ...views(n), sent: { result, conversation_id: 'c1', transcript_link: 'http://athena.local/view/c1?sig=x' } });
@@ -165,7 +172,7 @@ export async function launch() {
   return { browser };
 }
 
-export async function openPage(browser, { user = 'alice', context = null } = {}) {
+export async function openPage(browser, { user = 'alice', context = null, hubState = null } = {}) {
   const ctx = context || await browser.newContext({ viewport: { width: 1000, height: 800 } });
   const page = await ctx.newPage();
   await page.route('**/*', async (route) => {
@@ -180,6 +187,7 @@ export async function openPage(browser, { user = 'alice', context = null } = {})
     return route.fulfill({ status: 404, body: '' });
   });
   await page.addInitScript((u) => { localStorage.setItem('odysseus-auth-user', u); }, user);
+  if (hubState) await page.addInitScript((st) => { window.__hubSeed = JSON.parse(st); }, hubState);
   await page.goto('http://hub.test/');
   await page.waitForFunction(() => window.ready === true);
   await page.evaluate(() => {
