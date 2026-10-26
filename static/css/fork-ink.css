@@ -1,0 +1,52 @@
+/* Fork: the Write view, handwritten notes (static/js/forkInk.js). Builds on the module
+   view look in fork-modules.css (.fm-root, .bs-btn, .bs-input, .bs-card). Colors are the
+   Odysseus theme tokens; only the paper and the ink colors are fixed (they are content).
+   Full screen on a tablet (coarse pointer). */
+
+@media (min-width: 769px) {
+  #fork-ink-modal .fm-modal-content { width: min(1200px, 94vw); height: min(900px, 90vh); }
+}
+#fork-ink-modal .fm-modal-body { padding: 0; overflow: hidden; display: flex; flex-direction: column; }
+@media (pointer: coarse) {
+  #fork-ink-modal .fm-modal-content {
+    position: fixed !important; inset: 0 !important; width: 100vw !important;
+    height: 100vh !important; height: 100dvh !important; max-width: none !important;
+    max-height: none !important; border-radius: 0 !important; transform: none !important;
+  }
+}
+
+.ink-root { display: flex; flex-direction: column; flex: 1; min-height: 0; height: 100%; outline: none; }
+.ink-root .ink-list { padding: 12px; overflow-y: auto; flex: 1; min-height: 0; }
+.ink-root .ink-list[hidden], .ink-root .ink-editor[hidden] { display: none; }
+.ink-root .ink-list-head { margin: 0 0 10px; }
+.ink-root .ink-list-head .bs-meta { flex: 1; min-width: 200px; }
+.ink-root .ink-notes { display: grid; grid-template-columns: repeat(auto-fill, minmax(240px, 1fr)); gap: 10px; }
+.ink-root .ink-card { display: flex; gap: 10px; align-items: center; cursor: pointer; margin: 0; }
+.ink-root .ink-card:hover, .ink-root .ink-card:focus-visible { border-color: var(--fg); outline: none; }
+.ink-root .ink-card-text { flex: 1; min-width: 0; }
+.ink-root .ink-card-text h2 { overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.ink-root .ink-thumb { width: 56px; height: 79px; flex: none; background: #fff; border: 1px solid var(--border);
+                       border-radius: 4px; overflow: hidden; }
+.ink-root .ink-thumb img { width: 100%; height: 100%; object-fit: cover; object-position: top; display: block; }
+
+.ink-root .ink-editor { display: flex; flex-direction: column; flex: 1; min-height: 0; }
+.ink-root .ink-bar { display: flex; flex-wrap: wrap; gap: 6px 12px; align-items: center; padding: 6px 10px;
+                     border-bottom: 1px solid var(--border); background: var(--bg); }
+.ink-root .ink-group { display: flex; gap: 4px; align-items: center; }
+.ink-root .ink-title { width: 220px; max-width: 40vw; }
+.ink-root .ink-status { margin-left: auto; white-space: nowrap; overflow: hidden; text-overflow: ellipsis;
+                        max-width: 100%; }
+.ink-root .ink-status.error { color: var(--red); }
+/* Big enough to hit with a pen or a finger on the tablet. */
+.ink-root .ink-bar .bs-btn { height: 34px; min-width: 34px; }
+.ink-root .ink-pen { width: 34px; padding: 0; }
+.ink-root .ink-swatch { width: 16px; height: 16px; border-radius: 50%; background: var(--ink);
+                        border: 1px solid color-mix(in srgb, var(--fg) 25%, transparent); }
+.ink-root .ink-swatch.hl { border-radius: 3px; width: 18px; height: 12px; opacity: 0.8; }
+.ink-root .ink-width { min-width: 72px; }
+
+.ink-root .ink-stage { position: relative; flex: 1; min-height: 0; overflow: hidden;
+                       background: color-mix(in srgb, var(--fg) 6%, var(--bg)); }
+.ink-root .ink-canvas { position: absolute; inset: 0; display: block; }
+.ink-root .ink-live { touch-action: none; user-select: none; -webkit-user-select: none;
+                      -webkit-touch-callout: none; cursor: crosshair; }
