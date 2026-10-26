@@ -7,6 +7,7 @@ Per page, the sidecar's ``transcript`` is::
     {"text", "model", "status", "strokes_hash", "at",
      "error",      # why the last run failed (status ``failed``)
      "job",        # the run that will write this page (status ``pending``)
+     "reading",    # strokes_hash of the strokes that run reads (status ``pending``)
      "previous"}   # {"text", "at"}: reviewed text a new transcription replaced
 
 ``status`` is ``none`` -> ``pending`` -> ``machine`` (model output, not reviewed) or
@@ -431,13 +432,19 @@ def _status(t: dict[str, Any]) -> str:
     return status
 
 
+def _stale_run(page: dict[str, Any], t: dict[str, Any]) -> bool:
+    """The page is pending, but its strokes changed after the run took it (strokes drawn
+    while it was read): a new run may take it over."""
+    return t.get("reading") not in (None, ink.strokes_hash(page))
+
+
 def needs_transcription(page: dict[str, Any]) -> bool:
     """A page with ink whose text is missing, failed, or older than its strokes (and
-    no run is on it)."""
+    no run is on it, or the run on it reads older strokes)."""
     t = _transcript(page)
     status = _status(t)
     if status == "pending":
-        return False
+        return _stale_run(page, t)
     if not has_ink(page):  # its ink was erased: clear what was read from it, once
         return (t.get("strokes_hash") not in (None, ink.strokes_hash(page))
                 and (bool(t.get("text")) or status != "none"))
@@ -540,7 +547,8 @@ def _prepare(owner: str | None, note_id: str, page_ids: list[str] | None,
         chosen = [by_id[pid] for pid in page_ids] if page_ids is not None else stored["pages"]
         if only_changed or page_ids is None:
             chosen = [p for p in chosen if needs_transcription(p)]
-        chosen = [p for p in chosen if _status(_transcript(p)) != "pending"]
+        chosen = [p for p in chosen
+                  if _status(_transcript(p)) != "pending" or _stale_run(p, _transcript(p))]
         empty = [p for p in chosen if not has_ink(p)]
         work = [p for p in chosen if has_ink(p)]
         if work and reader is None:
@@ -550,12 +558,13 @@ def _prepare(owner: str | None, note_id: str, page_ids: list[str] | None,
             _keep_reviewed(t)
             t.update(text="", model=None, status="none", strokes_hash=ink.strokes_hash(page),
                      at=now(), error=None, job=None)
+            t.pop("reading", None)
         job = uuid.uuid4().hex if work else None
         snapshot = []
         for page in work:
             t = _transcript(page)
             _keep_reviewed(t)
-            t.update(status="pending", job=job, error=None)
+            t.update(status="pending", job=job, error=None, reading=ink.strokes_hash(page))
             snapshot.append(json.loads(json.dumps(page)))
         if job:
             _RUNNING.add(job)
@@ -618,6 +627,7 @@ def _store_result(store: str | None, note_id: str, page: dict[str, Any], job: st
         t = _transcript(target)
         if t.get("job") != job or t.get("status") != "pending":
             return
+        t.pop("reading", None)
         if text is None:
             t.update(status="failed", error=error, job=None)
         else:
@@ -645,6 +655,7 @@ def save_review(owner: str | None, note_id: str, page_id: str, text: Any,
         t.update(text=clean_text(text), status="reviewed", strokes_hash=ink.strokes_hash(page),
                  at=now(), error=None, job=None)
         t.pop("previous", None)
+        t.pop("reading", None)
         ink._write_json(ink.sidecar_path(store, note_id), stored)
         if not ink.update_note(owner, note_id, content=note_content(stored)):
             raise ink.InkError("Note not found", 404)

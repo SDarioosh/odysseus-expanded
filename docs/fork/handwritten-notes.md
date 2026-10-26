@@ -346,7 +346,9 @@ As planned (`src/ink_transcribe.py`, routes on the existing ink router, a Text t
   the page is still pending for that run, so a review saved meanwhile, a newer run or a
   deleted note wins. A page left `pending` by a hub restart reads as `failed`
   ("Interrupted") and is read again on the next leave. A page whose strokes changed shows
-  "the writing changed" in the Text tab.
+  "the writing changed" in the Text tab. A run notes which strokes it reads; strokes
+  drawn on a page while it is read let the next leave start a new run on it, and the
+  older run's text is dropped.
 - **Reviewed text is never lost silently.** When a changed page is read again, its
   reviewed text is kept as `transcript.previous` (**Restore reviewed text** in the Text
   tab) until the next review. **Transcribe** on a reviewed page, or over edits not saved

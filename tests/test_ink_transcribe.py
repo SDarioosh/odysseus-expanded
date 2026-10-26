@@ -526,6 +526,40 @@ def test_qc_o3_forced_cuts_overlap_by_overlap_and_the_seam_is_kept_once():
     assert got == "a\nb\nc\nd"
 
 
+def test_qc_o4_strokes_added_while_a_page_is_read_are_read_after(env):
+    note_id = new_note()
+
+    async def go():
+        gate = asyncio.Event()
+        old = Fake([json.dumps({"text": "old strokes"})], gate=gate)
+        await tr.start("alice", note_id, page_ids=["p0"], reader=("fake-vl", old))
+        await asyncio.to_thread(ink.save, "alice", note_id, doc(page([150, 194, 600]), edited_at=5000))
+        new = Fake([json.dumps({"text": "old strokes\nnew line"})])
+        view = await tr.start("alice", note_id, page_ids=["p0"], only_changed=True,
+                              reader=("fake-vl", new))
+        gate.set()
+        await tr.wait_idle()
+        return view, new
+
+    view, new = run(go())
+    assert view["pages"][0]["status"] == "pending" and len(new.calls) == 1
+    got = tr.transcripts("alice", note_id)["pages"][0]
+    assert (got["status"], got["text"], got["changed"]) == ("machine", "old strokes\nnew line", False)
+    # a page whose strokes didn't change while it is read is still not read twice
+    async def again():
+        gate = asyncio.Event()
+        await asyncio.to_thread(ink.save, "alice", note_id, doc(page([150, 700]), edited_at=6000))
+        await tr.start("alice", note_id, reader=("fake-vl", Fake(gate=gate)))
+        second = Fake()
+        await tr.start("alice", note_id, page_ids=["p0"], only_changed=True, reader=("fake-vl", second))
+        await tr.start("alice", note_id, page_ids=["p0"], reader=("fake-vl", second))
+        gate.set()
+        await tr.wait_idle()
+        return second
+
+    assert run(again()).calls == []
+
+
 def test_qc_o6_parse_answer_with_braces_in_the_words_around_it():
     assert tr.parse_answer('Sure! For {page 1}, here is the JSON:\n{"text": "Hello world"}') == "Hello world"
     assert tr.parse_answer('Here is the {"text"} JSON for {part 1}: {"text": "Buy milk"} {ok}') == "Buy milk"
