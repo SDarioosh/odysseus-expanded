@@ -211,6 +211,33 @@ reach port 8000.
 - The `SOUND_MODULE_API_URL` and `SOUND_MODULE_INGEST_TOKEN` settings of an earlier draft
   are gone; if you added them to `.env` or `docker-compose.override.yml`, remove them.
 
+## Host services the container needs (Proton Mail Bridge)
+
+The `odysseus` container reaches the host at `host.docker.internal`, which is the Docker
+bridge address (`172.17.0.1`). A host service listening on `0.0.0.0` (llama-server on
+port 8082) is reachable there as it is. Proton Mail Bridge listens only on `127.0.0.1`
+(IMAP 1143, SMTP 1025), so the override's `host-relay` service forwards
+`172.17.0.1:<port>` to `127.0.0.1:<port>` on the host. Nothing is opened on the LAN.
+
+Once, in the checkout's `.env` and override:
+
+```bash
+cd ~/models/odysseus
+diff docker/fork.override.yml docker-compose.override.yml   # keep any own edits: copy them over too
+cp docker/fork.override.yml docker-compose.override.yml     # adds host-relay
+echo 'HOST_RELAY_PORTS=1143,1025' >> .env
+ps -fC socat                          # the forwarders started by hand: stop them (kill <pid>)
+systemctl list-units --all | grep -i socat; crontab -l | grep socat   # and whatever starts them at boot
+odysseus-deploy deploy
+sudo docker compose logs host-relay   # "forwarding 172.17.0.1:1143 -> 127.0.0.1:1143", same for 1025
+```
+
+Email in Odysseus keeps the same server settings (`host.docker.internal`, ports 1143 and
+1025, STARTTLS). If a port is still held by a forwarder started by hand, `host-relay`
+logs `Address in use` and Docker retries until it is free. Add other loopback-only host
+services the same way (`HOST_RELAY_PORTS=1143,1025,<port>`); `HOST_RELAY_BIND` changes
+the address (default `172.17.0.1`).
+
 ## One-time setup (done 2026-10-18)
 
 How an upstream Odysseus Compose install becomes fork production. Kept for a rebuild.
