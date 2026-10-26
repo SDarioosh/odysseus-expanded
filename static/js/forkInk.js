@@ -753,31 +753,34 @@ export function mountInk(root, options = {}) {
   function renderPart(rough) {
     const box = snapBox(rough);
     drawScene(box);
-    presentBox(box);
+    const wiped = presentBox(box);
     const lv = state.live;
-    if (!lv) return;
+    if (!lv || !wiped) return;
     if (lv.eraser) { if (lv.ringBox) drawRing(lv); return; }
-    // The stroke being drawn, where the box covered it.
+    // The stroke being drawn, where the copy wiped it (exactly that box).
     lctx.save();
     lctx.setTransform(dpr, 0, 0, dpr, 0, 0);
-    clipRect(lctx, box);
+    clipRect(lctx, wiped);
     clipRect(lctx, pageRect(lv.pageIndex));
     drawStroke(lctx, lv.stroke, liveMap(lv), scale());
     lctx.restore();
   }
 
-  // Copy a screen box of the pages onto the visible canvas.
+  // Copy a screen box of the pages onto the visible canvas. Returns the box actually
+  // copied (grown to whole device pixels): whatever was on screen there is gone, so a
+  // caller redrawing on top must cover exactly that box.
   function presentBox(box) {
-    if (!box) return;
+    if (!box) return null;
     const x = Math.max(0, Math.floor(box.x0 * dpr) - 1);
     const y = Math.max(0, Math.floor(box.y0 * dpr) - 1);
     const x1 = Math.min(live.width, Math.ceil(box.x1 * dpr) + 1);
     const y1 = Math.min(live.height, Math.ceil(box.y1 * dpr) + 1);
-    if (x1 <= x || y1 <= y) return;
+    if (x1 <= x || y1 <= y) return null;
     lctx.save();
     lctx.setTransform(1, 0, 0, 1, 0, 0);
     lctx.drawImage(base, x, y, x1 - x, y1 - y, x, y, x1 - x, y1 - y);
     lctx.restore();
+    return { x0: x / dpr, y0: y / dpr, x1: x1 / dpr, y1: y1 / dpr };
   }
 
   // The whole visible canvas: the pages, then the stroke being drawn (or the eraser ring).
@@ -871,16 +874,30 @@ export function mountInk(root, options = {}) {
       lctx.stroke();
     };
     const done = lv.drawn || 0;
-    if (lv.tailBox) presentBox(lv.tailBox);
+    const wiped = lv.tailBox ? presentBox(lv.tailBox) : null;
     lctx.save();
     lctx.setTransform(dpr, 0, 0, dpr, 0, 0);
     clipRect(lctx, page);
     style(lctx, 1);
-    if (lv.tailBox && done > 0) {
-      // The final pieces under the end just taken back.
+    if (wiped && done > 0) {
+      // Taking back the open end wiped that box: redraw every final piece that crosses
+      // it, clipped to exactly the box copied (a pen sends many tiny pieces, so this
+      // can be far more than the last few).
+      const half = (st.pen.width * k) / 2 + 1;
+      const grown = { x0: wiped.x0 - half, y0: wiped.y0 - half, x1: wiped.x1 + half, y1: wiped.y1 + half };
       lctx.save();
-      clipRect(lctx, lv.tailBox);
-      pieces(Math.max(1, done - 8), done);
+      clipRect(lctx, wiped);
+      lctx.beginPath();
+      for (let i = 1; i <= done; i++) {
+        const [sx, sy] = endOf(i - 1);
+        const [ax, ay] = map(pts[i]);
+        const [ex, ey] = endOf(i);
+        if (Math.max(sx, ax, ex) < grown.x0 || Math.min(sx, ax, ex) > grown.x1
+          || Math.max(sy, ay, ey) < grown.y0 || Math.min(sy, ay, ey) > grown.y1) continue;
+        lctx.moveTo(sx, sy);
+        lctx.quadraticCurveTo(ax, ay, ex, ey);
+      }
+      lctx.stroke();
       lctx.restore();
     }
     const last = Math.max(0, n - 2);
