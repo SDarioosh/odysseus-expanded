@@ -800,7 +800,9 @@ as seen dates, `times_said`/`days` as totals and the row's `confirmed` as
 `{"confirmed": true, "format": "json", "limit": 1000}`, whose ids are the confirmed set.
 Each pass also calls `list_people {"format": "json"}` once and maps the module's people to
 subjects ([Subjects and contacts](#subjects-and-contacts-21)) before the facts are
-submitted; a fact row's `person_id` travels as `Evidence.person_id`. A module that answers
+submitted; a fact row's `person_id` travels as `Evidence.person_id`, and its
+`valid_until` (Athena MCP 0.13.0: the last day a fact about one occasion is worth
+keeping) as `Evidence.valid_until`. A module that answers
 `list_people` with text or lacks the tool is tolerated (logged once, state
 `people_text_only`); its facts match subjects by name.
 A row's `kind` (MCP 0.11.0: preference, plan, decision, relationship, personal, other)

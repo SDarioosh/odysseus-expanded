@@ -386,6 +386,33 @@ def test_evidence_carries_the_module_person_id():
     assert mf.evidence({**row, "person_id": " "}).person_id is None
 
 
+def test_evidence_carries_the_module_valid_until():
+    row = fact(1, "Has a meeting with the board on Tuesday at 2 pm")
+    assert mf.evidence(row).valid_until is None  # an older module
+    assert mf.evidence({**row, "valid_until": None}).valid_until is None
+    assert mf.evidence({**row, "valid_until": "2026-10-27"}).valid_until == "2026-10-27"
+
+
+@pytest.mark.asyncio
+async def test_belief_ends_after_its_valid_until_and_stays_ended(data):
+    meeting = {**fact(5, "Has a meeting with the board on Tuesday at 2 pm", confirmed=False,
+                      times_said=1, days=1, first_said="2026-10-20",
+                      last_said="2026-10-20"), "valid_until": "2026-10-21"}
+    module = FakeModule([meeting, *BASE], flag=True)
+    await mf.sync("alice", module, now=T0)  # on the day: still current
+    (belief,) = [b for b in ledger.list_beliefs("alice")
+                 if b["text"].startswith("Has a meeting")]
+    assert (belief["status"], belief["valid_until"]) == ("tentative", "2026-10-21")
+    later = T0 + datetime.timedelta(days=1)
+    stats = await mf.sync("alice", module, now=later)  # the module still returns it
+    assert stats["stale"] == 1
+    assert ledger.get_belief("alice", belief["id"])["status"] == "stale"
+    await mf.sync("alice", module, now=later + datetime.timedelta(hours=1))
+    assert ledger.get_belief("alice", belief["id"])["status"] == "stale"
+    others = [b for b in ledger.list_beliefs("alice") if b["id"] != belief["id"]]
+    assert {b["status"] for b in others} == {"confirmed"}
+
+
 def test_summary_has_counts_only():
     stats = {"facts": 12, "beliefs_added": 2, "confirmed": 1, "unconfirmed": 3, "gone": 0,
              "stale": 1, "memory_kept": 10, "memory_added": 1, "memory_updated": 0,

@@ -14,6 +14,9 @@ confirmed and mirrors confirmed beliefs into Odysseus memory, one memory per bel
 * A row's ``kind`` (MCP 0.11.0) sets the memory category (:func:`category`) and travels,
   with ``quote`` and ``conversation_id``, in the evidence payload for the review page
   (:func:`payload`). An older module sends none of them; nothing changes then.
+* A fact about one occasion carries the module's ``valid_until`` (the last day it is
+  worth keeping, e.g. the day of a meeting; Athena MCP 0.13.0): the belief goes stale
+  the day after (``apply_decay``), even while the module still returns the fact.
 * Facts the module no longer returns (retracted, replaced, merged) are marked gone in the
   ledger (``reconcile_source``); a belief left without live evidence goes stale and
   leaves memory unless the owner confirmed it. Then expiry runs (``apply_decay``) and
@@ -245,7 +248,8 @@ def evidence(row: dict, confirmed_ids: set[int] | None = None) -> ledger.Evidenc
         link=str(row.get("link") or ""), seen_first=str(row.get("first_said") or ""),
         seen_last=str(row.get("last_said") or ""), times=max(1, _int(row.get("times_said"))),
         days=max(1, _int(row.get("days"))), source_confirmed=confirmed,
-        category=category(row), person_id=_person_id(row), payload=payload(row) or None)
+        category=category(row), person_id=_person_id(row), payload=payload(row) or None,
+        valid_until=str(row.get("valid_until") or "").strip() or None)
 
 
 def _person_id(row: dict) -> str | None:
