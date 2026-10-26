@@ -2010,12 +2010,20 @@ export function mountInk(root, options = {}) {
   document.addEventListener('visibilitychange', onHidden);
   window.addEventListener('pagehide', onHidden);
   window.addEventListener('online', onOnline);
+  // A new size (window, rotation): the Write canvas, and the Text tab's page image.
+  const onResize = () => {
+    if (state.screen !== 'editor') return;
+    resize();
+    const page = state.note && state.view === 'text' && state.note.pages[state.textPage];
+    if (page) drawPageImage(page);
+  };
   let observer = null;
   if (globalThis.ResizeObserver) {
-    observer = new ResizeObserver(() => { if (state.screen === 'editor') resize(); });
+    observer = new ResizeObserver(onResize);
     observer.observe(stage);
+    observer.observe(textPanel);
   }
-  window.addEventListener('orientationchange', resize);
+  window.addEventListener('orientationchange', onResize);
 
   // Write is open: timers and the window-wide pen listener run.
   function resume() {
@@ -2089,7 +2097,7 @@ export function mountInk(root, options = {}) {
       document.removeEventListener('visibilitychange', onHidden);
       window.removeEventListener('pagehide', onHidden);
       window.removeEventListener('online', onOnline);
-      window.removeEventListener('orientationchange', resize);
+      window.removeEventListener('orientationchange', onResize);
     },
     // For tests.
     _state: state,

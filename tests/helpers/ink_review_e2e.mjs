@@ -851,5 +851,22 @@ await check('qc_o8_delete_drops_drafts', async () => {
   return { ok: before === 1 && after === 0 && notes === 0, before, after, notes };
 });
 
+// O-9 (2). The page image in the Text tab follows the window's size (rotation).
+await check('qc_o9_text_image_follows_resize', async () => {
+  const page = await openPage(browser, { user: 'qa6' });
+  await newNote(page);
+  await page.evaluate((pts) => stroke('pen', 2, pts), line(200));
+  await textTab(page);
+  await page.waitForTimeout(300);
+  const width = () => page.evaluate(() => parseFloat(document.querySelector('.ink-timage').style.width));
+  const before = await width();
+  await page.evaluate(() => { document.getElementById('host').style.width = '520px'; });
+  await page.waitForTimeout(400);
+  const after = await width();
+  const fits = await page.evaluate(() => document.querySelector('.ink-tfigure').clientWidth);
+  await page.close();
+  return { ok: after < before && after <= fits, before, after, fits };
+});
+
 await browser.close();
 console.log(JSON.stringify(results));
