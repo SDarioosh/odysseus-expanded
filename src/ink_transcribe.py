@@ -14,7 +14,8 @@ Per page, the sidecar's ``transcript`` is::
 ``failed``; saving reviewed text makes it ``reviewed``. A page whose strokes no longer
 hash to ``strokes_hash`` has changed since its text was made and needs transcribing
 again. Nothing here sends text anywhere: review only writes the hub note's ``content``
-through the adapter in ``src/ink_notes.py`` (H4 sends reviewed text to Athena).
+through the adapter in ``src/ink_notes.py``; only Send (``src/ink_athena.py``, H4) sends
+reviewed text to Athena.
 
 How a page is read:
 
@@ -501,13 +502,17 @@ def _load(store: str | None, note_id: str) -> dict[str, Any]:
 
 
 def transcripts(owner: str | None, note_id: str) -> dict[str, Any]:
-    """``{"pages": [page_view...], "running": bool}`` for the owner's note."""
+    """``{"pages": [page_view...], "running": bool, "athena": {...}}`` for the owner's
+    note (``athena``: ``src/ink_athena.py`` ``view``)."""
     store = _check(owner, note_id)
     with ink._lock(store):
         stored = _load(store, note_id)
     pages = [page_view(p, i) for i, p in enumerate(stored["pages"])]
+    from src import ink_athena  # H4: sent / changed / not sent, pages waiting (imports this)
+
     return {"note_id": note_id, "pages": pages,
-            "running": any(p["status"] == "pending" for p in pages)}
+            "running": any(p["status"] == "pending" for p in pages),
+            "athena": ink_athena.view(stored)}
 
 
 async def start(owner: str | None, note_id: str, *, page_ids: list[str] | None = None,

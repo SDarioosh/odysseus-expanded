@@ -24,6 +24,11 @@
 //   a page whose strokes changed (scrolling to another page, the Text tab, Back, the app
 //   hidden) asks for it too. Save review stores the checked text in the note. Edits not
 //   saved yet stay in IndexedDB ("drafts"). The list shows the pages that need review.
+// - Stage H4 (into Athena): Send to Athena in the Text tab sends the note's reviewed text
+//   (POST /api/ink/notes/<id>/send, src/ink_athena.py). It works only when no page with
+//   writing waits for review, and says which pages wait. The tab shows not sent / sent /
+//   changed since sent; after an edit is reviewed, Send again replaces the note in Athena
+//   (never by itself).
 
 export const PAGE_W = 1000;
 export const PAGE_H = 1414;
@@ -459,6 +464,9 @@ export function mountInk(root, options = {}) {
   // than the one shown is dropped (a slow GET must not undo a newer transcribe answer).
   let trAsked = 0;
   let trTaken = 0;
+  // H4: the note being sent to Athena (one at a time), and the last answer to show.
+  let sendingId = null;
+  let athenaMsg = null;       // { noteId, text, error, link, key }: shown while `key` holds
   const syncing = new Map();  // note id -> { promise, again }
   let timers = [];
   let suspended = false;
@@ -532,6 +540,10 @@ export function mountInk(root, options = {}) {
     title: 'Select the next unreadable word', onclick: () => nextUnreadable() });
   const tSave = el('button', { type: 'button', class: 'bs-btn primary', text: 'Save review',
     title: 'Store this text in the note (it stays in the hub)', onclick: () => saveReview() });
+  // H4: send the reviewed text of every page to Athena.
+  const tSend = el('button', { type: 'button', class: 'bs-btn ink-send', text: 'Send to Athena',
+    title: 'Send the reviewed text of every page to Athena (replaces what Athena has)', onclick: () => sendToAthena() });
+  const tAthena = el('div', { class: 'bs-meta ink-athena', role: 'status', 'aria-live': 'polite' });
   const tImage = el('canvas', { class: 'ink-timage', role: 'img', 'aria-label': 'The handwritten page' });
   const tFigure = el('div', { class: 'ink-tfigure' }, tImage);
   const tHl = el('div', { class: 'ink-thl', 'aria-hidden': 'true' });
@@ -539,8 +551,8 @@ export function mountInk(root, options = {}) {
   const tEdit = el('div', { class: 'ink-tedit' }, tHl, tArea);
   const textPanel = el('div', { class: 'ink-text', hidden: true },
     el('div', { class: 'ink-trow' }, tPrev, tLabel, tNext, el('span', { class: 'ink-tspacer' }),
-      tRestore, tFind, tTranscribe, tSave),
-    tState, tFigure, tEdit);
+      tRestore, tFind, tTranscribe, tSave, tSend),
+    tState, tAthena, tFigure, tEdit);
   editor.append(bar, stage, textPanel);
   // Upstream's mobile sheets close when swiped down from anywhere in a window that
   // is scrolled to the top (static/js/ui.js), and the pen fires touch events too: a
@@ -1471,7 +1483,8 @@ export function mountInk(root, options = {}) {
   function takeTranscripts(noteId, body, seq) {
     if (!body || !Array.isArray(body.pages) || seq < trTaken) return;
     trTaken = seq;
-    tr = { noteId, pages: new Map(body.pages.map((p) => [p.id, p])), running: !!body.running, missing: false };
+    tr = { noteId, pages: new Map(body.pages.map((p) => [p.id, p])), running: !!body.running, missing: false,
+      athena: body.athena || null };
   }
 
   async function loadTranscripts() {
@@ -1570,6 +1583,7 @@ export function mountInk(root, options = {}) {
     tTranscribe.disabled = pending || !inkOf(page);
     tSave.disabled = pending || !tr || tr.missing || !tp;
     tRestore.hidden = !(tp && tp.previous && tp.previous.text);
+    renderSend();
     if (message) { setTState(message, true); return; }
     const unsaved = draft != null && draft !== (tp ? tp.text : '') ? ' Edits not saved yet.' : '';
     if (!tr) setTState('Loading...');
@@ -1585,6 +1599,97 @@ export function mountInk(root, options = {}) {
       const marks = n ? ` ${n} unreadable word${n === 1 ? '' : 's'} marked [?].` : '';
       const changed = tp.changed ? ' The writing changed since this text was made: transcribe again.' : '';
       setTState(`${what}${marks}${changed}${unsaved}`, !!tp.changed);
+    }
+  }
+
+  // H4: the Send button and what Athena has. Send works only when every page with
+  // writing is reviewed for its strokes as they are now and no edit is left unsaved.
+  function unsavedPages() {
+    const id = state.note.id;
+    const out = [];
+    state.note.pages.forEach((page, i) => {
+      const draft = drafts.get(draftKey(id, page.id));
+      const tp = trPage(page.id);
+      if (draft != null && draft !== (tp ? tp.text : '')) out.push(i + 1);
+    });
+    return out;
+  }
+
+  // What the Athena state is now: a Send answer is shown only until it changes.
+  const athenaKey = (a) => (a ? `${a.state}|${a.sent_at}|${(a.waiting || []).length}|${a.has_text}` : '');
+
+  function renderSend() {
+    const a = tr && !tr.missing && tr.noteId === state.note.id ? tr.athena : null;
+    const busy = sendingId === state.note.id || !!(a && a.sending);
+    const unsaved = a ? unsavedPages() : [];
+    const waiting = (a && a.waiting) || [];
+    let line = '';
+    let error = false;
+    tSend.textContent = a && a.state !== 'not_sent' ? 'Send again' : 'Send to Athena';
+    tSend.disabled = true;
+    tSend.removeAttribute('data-state');
+    tAthena.textContent = '';
+    if (!a) return;
+    tSend.setAttribute('data-state', a.state);
+    if (busy) line = 'Sending to Athena...';
+    else if (waiting.length) {
+      line = `Send to Athena once every page is reviewed. Waiting: ${waiting.slice(0, 6)
+        .map((w) => `page ${w.page} (${w.why})`).join(', ')}${waiting.length > 6 ? ` and ${waiting.length - 6} more` : ''}.`;
+    } else if (unsaved.length) {
+      line = `Save review first: edits not saved yet on page${unsaved.length === 1 ? '' : 's'} ${unsaved.join(', ')}.`;
+    } else if (a.state === 'sent') {
+      line = `Sent to Athena${a.sent_at ? ` ${new Date(a.sent_at).toLocaleString()}` : ''}.`;
+    } else if (a.state === 'changed') {
+      line = a.has_text ? 'Changed since it was sent: Send again replaces the note in Athena.'
+        : 'No text left since it was sent: Send again removes the note from Athena.';
+      tSend.disabled = false;
+    } else if (a.has_text) {
+      line = 'Not sent to Athena yet.';
+      tSend.disabled = false;
+    } else line = 'Nothing to send yet: review a page first.';
+    const msg = athenaMsg && athenaMsg.noteId === state.note.id && athenaMsg.key === athenaKey(a) ? athenaMsg : null;
+    if (msg && !busy) { line = msg.text; error = !!msg.error; }
+    tAthena.append(line);
+    const link = msg && !busy ? msg.link : (a.state === 'sent' && !busy && !waiting.length ? a.transcript_link : null);
+    if (link && /^https?:\/\//.test(link)) {
+      tAthena.append(' ', el('a', { href: link, target: '_blank', rel: 'noopener', text: 'Open in Athena' }));
+    }
+    tAthena.classList.toggle('error', error);
+  }
+
+  async function sendToAthena() {
+    if (!state.note || state.view !== 'text' || state.live || sendingId) return;
+    const my = nav;
+    const db = store;
+    const id = state.note.id;
+    sendingId = id;
+    athenaMsg = null;
+    renderText();
+    const say = (text, error, link = null) => {
+      athenaMsg = { noteId: id, text, error, link, key: athenaKey(tr && tr.noteId === id ? tr.athena : null) };
+    };
+    try {
+      if (!(await pushStrokes(id))) {
+        say('The writing is saved on this device but not on the hub yet: send when it syncs.', true);
+        return;
+      }
+      if (!current(my, id, db)) return;
+      const seq = ++trAsked;
+      let res = null;
+      try { res = await api(`${API}/${enc(id)}/send`, { method: 'POST', body: '{}' }); } catch (_) { res = null; }
+      if (!current(my, id, db)) return; // another note, screen or user meanwhile
+      if (res && res.ok) {
+        takeTranscripts(id, res.body, seq);
+        const sent = (res.body && res.body.sent) || {};
+        const words = { created: 'Sent to Athena.', replaced: 'Sent again: Athena replaced the note.',
+          unchanged: 'Athena already had this text.', deleted: 'Removed from Athena: the note has no text now.',
+          already: 'Athena no longer had this note.' };
+        say(words[sent.result] || 'Sent to Athena.', false, sent.transcript_link || null);
+      } else if (!res) say('Not sent: the hub is not reachable. Try again when it is back.', true);
+      else say(`Not sent: ${(res.body && res.body.detail) || `the hub said ${res.status}`}`, true);
+    } finally {
+      if (sendingId === id) sendingId = null;
+      if (current(my, id, db)) renderText();
     }
   }
 
@@ -1606,6 +1711,7 @@ export function mountInk(root, options = {}) {
     const key = tArea.dataset.key;
     if (!key || !key.startsWith(`${state.note.id}:`)) return;
     updateHighlight();
+    queueMicrotask(() => { if (state.note && state.view === 'text') renderSend(); });
     const db = store;
     const tp = trPage(key.slice(state.note.id.length + 1));
     if (tp && tArea.value === tp.text) { // back to the hub's text: nothing to keep
@@ -1821,6 +1927,7 @@ export function mountInk(root, options = {}) {
     // transcripts and drafts; another note starts without them.
     if (!sameOpen) {
       tr = null;
+      athenaMsg = null;
       edited.clear();
       loadDrafts(note.id);
     }
@@ -1891,7 +1998,7 @@ export function mountInk(root, options = {}) {
   }
 
   async function deleteNote(id, title) {
-    const ok = await confirmDelete(`Delete "${title || 'this note'}"? Its handwriting is removed too.`);
+    const ok = await confirmDelete(`Delete "${title || 'this note'}"? Its handwriting is removed too, and Athena's copy if it was sent.`);
     if (!ok) return;
     await deleteLocal(id);
     await flushQueue();
@@ -1949,7 +2056,7 @@ export function mountInk(root, options = {}) {
       if (!known || !n.synced) {
         byId.set(n.id, { id: n.id, title: n.title, image_url: n.image_url || (known && known.image_url),
           edited_at: n.edited_at, pages: n.pages.length, waiting: !n.synced, blocked: n.blocked,
-          transcripts: known && known.transcripts });
+          transcripts: known && known.transcripts, athena: known && known.athena });
       }
     }
     const items = [...byId.values()].sort((a, b) => (b.edited_at || 0) - (a.edited_at || 0)
@@ -1965,8 +2072,9 @@ export function mountInk(root, options = {}) {
   function noteCard(n) {
     const when = n.edited_at ? new Date(n.edited_at) : (n.updated_at ? new Date(n.updated_at) : null);
     const toReview = (n.transcripts && n.transcripts.review && n.transcripts.review.length) || 0;
+    const athena = { sent: 'sent to Athena', changed: 'changed since sent to Athena' }[n.athena] || '';
     const meta = [n.pages ? `${n.pages} page${n.pages === 1 ? '' : 's'}` : '', when ? when.toLocaleString() : '',
-      toReview ? `${toReview} to review` : '',
+      toReview ? `${toReview} to review` : '', athena,
       n.blocked ? `not synced: the hub refused it (${n.blocked})` : (n.waiting ? 'waiting to sync' : '')]
       .filter(Boolean).join(' · ');
     const thumb = el('div', { class: 'ink-thumb' });

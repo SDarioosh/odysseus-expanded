@@ -34,6 +34,10 @@ module's ``retire_fact`` for each Athena fact behind a rejected belief, so the
 fact is not submitted again (an older module without the tool is tolerated; the ledger
 keeps the belief rejected either way).
 
+Handwritten notes (``src/ink_athena.py``): each run first asks Athena to remove the
+written notes of handwritten notes deleted in the hub (:func:`sweep_handwritten`), so the
+facts Athena drops with them leave the ledger in the same run.
+
 Odysseus never opens the module's database. Per-owner state (last run, counts) is in
 ``<DATA_DIR>/module_facts_<owner>.json``. An older module that answers ``list_facts``
 with text does nothing (logged once).
@@ -334,6 +338,7 @@ async def action_sync_facts(owner: str, **kwargs) -> tuple[str, bool]:
     from src.builtin_actions import TaskNoop
     from src.tool_utils import get_mcp_manager
 
+    await sweep_handwritten()
     if not enabled():
         raise TaskNoop("MODULE_FACTS_SYNC is off")
     manager = get_mcp_manager()
@@ -349,6 +354,23 @@ async def action_sync_facts(owner: str, **kwargs) -> tuple[str, bool]:
     if not changed(stats):
         raise TaskNoop(summary(stats))
     return summary(stats), True
+
+
+async def sweep_handwritten() -> dict[str, int] | None:
+    """Handwritten notes deleted in the hub leave Athena first (``src/ink_athena.py``),
+    so the facts Athena drops with them are gone from this same pass. Never fails the
+    sync: what Athena didn't confirm is asked again next hour."""
+    from src import ink_athena
+
+    try:
+        stats = await ink_athena.sweep_all()
+    except Exception as e:  # noqa: BLE001
+        logger.warning("handwritten notes sweep failed: %s", e)
+        return None
+    if stats["retracted"] or stats["kept"]:
+        logger.info("handwritten notes: %d removed from Athena, %d waiting for Athena",
+                    stats["retracted"], stats["kept"])
+    return stats
 
 
 # ------------------------------------------------------------------------ forget
