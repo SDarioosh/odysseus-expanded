@@ -94,8 +94,12 @@ Write view ──strokes──▶ ink sidecar ──render──▶ page PNG
 
 ### 1. Capture (browser)
 
-A new full-screen **Write** view in new fork files, not a patch of `drawing.js` (that file
-is upstream and bitmap-based). The old canvas stays for quick sketches.
+A new **Write** view in new fork files, not a patch of `drawing.js` (that file is
+upstream and bitmap-based). The old canvas stays for quick sketches. Write opens as a
+fork window like Conversations and Today (`static/js/forkModuleWindows.js`), full screen
+on the tablet, with its rail button, `/open write` and an optional keyboard shortcut
+coming from the fork's tables (see Fork changes), so no upstream file gains a line for
+it.
 
 - **Pointer Events.** `pointerType === "pen"` draws. Touch never draws: while a pen is
   in range or down, touch is ignored (palm rejection); otherwise one finger scrolls and
@@ -115,6 +119,13 @@ is upstream and bitmap-based). The old canvas stays for quick sketches.
 - **Saving.** Autosave every few seconds and on `visibilitychange`, to IndexedDB first,
   then to the hub. An offline queue syncs when the tablet is back on Tailscale. Last
   write wins per note; the UI says so.
+- **Offline start without a service-worker hook.** `static/sw.js` already caches every
+  `/static/*.js` and `.css` it serves (network first, cache when offline), which is how
+  the other fork scripts work offline without being in its precache list. After the app
+  loads, `forkModuleWindows.js` imports `forkInk.js` and `fork-ink.css` in idle time,
+  so they are in the cache even right after a deploy cleared the old one, and Write
+  opens with no connection. Nothing is added to `sw.js` (its `CACHE_NAME` line changes
+  with most upstream releases and would conflict on every sync).
 - **Display.** The note keeps a rendered PNG of the first page in `image_url`, so the
   Notes window, the Gallery and exports show it without knowing about strokes.
 
@@ -139,13 +150,19 @@ No change to the upstream `notes` table. A handwritten note is an ordinary note:
   `pending`, `machine` (model output, not yet reviewed), `reviewed` or `failed`; and
   `athena {sent_hash, sent_at, conversation_id}` (what was last sent, so an edit can be
   detected and resent).
-- Deleting the note deletes the sidecar and asks Athena to remove the written note
-  (see Edits and deletes).
+- Deleting the note is handled by a sweep, not a hook in upstream's delete code: a
+  sidecar whose note is gone is deleted, and if the note had been sent, Athena is asked
+  to remove the written note. The sweep runs at the start of the hourly Athena fact
+  sync (`src/module_facts.py`, fork code), so the facts it retires are dropped from the
+  hub in the same run, and also whenever the Write view lists notes.
 
 ### 3. Transcription (hub, vision model)
 
-Triggered by a **Transcribe** button on the page (and later by a background task for
-changed pages). Per page whose strokes changed since the last transcript:
+Triggered by a **Transcribe** button on the page, and started automatically when the
+owner leaves a page whose strokes changed, as a background job in fork code (an asyncio
+task in `src/ink_transcribe.py`, not a registered scheduled task: that would need two
+more hooks in upstream's task scheduler, and with manual review there's nothing to run
+on a timer). Per page whose strokes changed since the last transcript:
 
 1. Render the page on the server from the strokes, black ink on white (colours kept but
    highlighter dropped), about 1600 px wide. Long pages are cut into bands at gaps
@@ -208,8 +225,9 @@ Every page is reviewed by the owner before its text leaves the hub.
   Athena. The hourly fact sync then retires facts Athena no longer returns; filed to-dos
   that disappeared follow whatever `module_action_items.py` does for items that vanish
   (check this; if it does nothing, say so in the PR as a follow-up).
-- Notes Evidence skips notes labelled `handwritten` (one-line hook next to the existing
-  `odysseus-sound` skip in `src/notes_evidence.py`).
+- Deleted notes: the sweep in Storage removes them from Athena within the hour.
+- Notes Evidence skips notes labelled `handwritten` (one line next to the existing
+  `odysseus-sound` skip in `src/notes_evidence.py`, which is fork code).
 
 ## Phases
 
@@ -218,7 +236,7 @@ Every page is reviewed by the owner before its text leaves the hub.
 | H1 Capture | Write view (pen-only drawing, palm rejection, pen colours, highlighter, stroke eraser, undo, pages, autosave, offline queue), ink routes (save, load, delete), sidecar, rendered PNG on the note, Write button | hub |
 | H2 Transcribe + review | Server-side render, band cutting, vision-model call, Transcribe button, Text tab, Needs review list, `status` | hub |
 | H3 Athena text input | `POST /v1/ingest/text`, relay route, replace on resend, delete, "written by hand" in results and `/view`; tests | Athena |
-| H4 Send to Athena | Send button, resend on edit, delete on note delete, Notes Evidence skip | hub (after H3 is merged) |
+| H4 Send to Athena | Send button, resend on edit, sweep of deleted notes, Notes Evidence skip | hub (after H3 is merged) |
 | H5 Measure | `scripts/ink_eval.py`: character and word error rate of the recognizer on (page, reviewed text) pairs; the owner's reviewed pages become the set | hub |
 | H6 Later | `INK_AUTO_SEND` once H5 numbers are good; photo import of paper pages through the same recognizer | hub |
 
@@ -226,26 +244,65 @@ H1 is useful alone. H3 can be built in parallel with H1–H2.
 
 ## Fork changes
 
-New files only, following the fork rules:
+Goal: keep future upstream syncs cheap without giving up any feature. Ink adds **one
+new hook** to an upstream file and changes one existing fork hook once.
 
-`src/ink_notes.py` (sidecar, render, note create/update through `do_manage_notes`),
-`src/ink_transcribe.py`, `src/ink_athena.py`, `routes/ink_routes.py`,
-`static/js/forkInk.js`, `static/css/fork-ink.css`, `scripts/ink_eval.py`,
-`tests/test_ink_notes.py`, `tests/test_ink_transcribe.py`, `tests/test_ink_routes.py`,
-`tests/test_ink_athena.py`.
+### New files
 
-Upstream hooks (each a few lines, with a `# Fork: ... (src/ink_notes.py)` comment and a
-row in the "Changes from upstream" table of [FORK.md](../../FORK.md)):
+`src/ink_notes.py` (sidecar, render, the upstream adapter below), `src/ink_transcribe.py`,
+`src/ink_athena.py`, `routes/ink_routes.py`, `static/js/forkInk.js`,
+`static/css/fork-ink.css`, `scripts/ink_eval.py`, `tests/test_ink_notes.py`,
+`tests/test_ink_upstream_contract.py`, `tests/test_ink_transcribe.py`,
+`tests/test_ink_routes.py`, `tests/test_ink_athena.py`.
 
-1. App route registration (`app.py`): include the ink router.
-2. Service worker precache entry for the Write view (`static/sw.js`, bump `CACHE_NAME`).
-3. A "Write" button through the fork shortcut hook `static/js/forkModuleShortcuts.js`
-   (no upstream file touched), or in the notes window if that doesn't fit.
-4. Note deletion removes the sidecar and the Athena copy (or a sweep in a task: no
-   upstream hook).
-5. Notes Evidence skips `handwritten` notes (`src/notes_evidence.py` is fork code).
+Existing fork files that gain a few lines: `static/js/forkModuleWindows.js` (the Write
+window and the idle-time import), `static/js/forkModuleShortcuts.js` (rail button,
+shortcut, `/open write` target), `src/module_facts.py` (calls the sweep),
+`src/notes_evidence.py` (skips `handwritten`).
 
-No change to `core/database.py`: the sidecar avoids a migration on an upstream table.
+### Upstream hooks
+
+Each with a `# Fork: ... (<fork file>)` comment and a row in the "Changes from upstream"
+table of [FORK.md](../../FORK.md):
+
+1. **`app.py`:** include the ink router: three lines in the block where the other fork
+   routers are included (`setup_ink_routes()`), the same pattern as theirs.
+2. **`static/js/slashCommands.js`, existing fork line:** the `/open` targets line that
+   lists `conversations` and `today` is changed once to spread a table exported by
+   `forkModuleShortcuts.js` (like the keyboard-shortcut and settings hooks already do).
+   Write and any later fork window then need no edit to an upstream file.
+
+Deliberately **not** hooked, and how the feature still works:
+
+| Would-be hook | Instead |
+|---|---|
+| `static/sw.js` precache entry and `CACHE_NAME` bump | Runtime cache plus the idle-time import (Capture) |
+| Upstream note-delete code | Sweep in the hourly fact sync and the Write view |
+| Scheduled-task registration (`builtin_actions.py`, `task_scheduler.py`) | Button and on-leave background job; a timer can be added later if auto-send needs it |
+| `core/database.py` migration | Sidecar file per note |
+| `static/js/features/notes/ui/drawing.js` | Separate Write view |
+| `static/index.html` | Loaded by `forkModuleWindows.js`, which is already included |
+
+### One adapter for upstream notes code
+
+The real risk from upstream isn't merge conflicts but upstream changing the notes code
+underneath us (its notes UI was split into feature modules in odysseus-dev/odysseus#6713). Every
+call into upstream notes code goes through one small section of `src/ink_notes.py`, and
+nothing else in the ink code imports upstream notes code:
+
+- `create_note(owner, title, label, image_url) -> note_id` and
+  `update_note(owner, note_id, *, content=None, image_url=None)`, through
+  `do_manage_notes` (`src/tools/notes.py`).
+- `existing_note_ids(owner, ids) -> set[str]` (for the sweep), through `core.database`
+  (`Note`).
+- `save_page_image(owner, png_bytes) -> image_url`, through the same upload/gallery path
+  the old drawing canvas uses.
+- `note_link(note_id) -> str` (`/#open=notes&note=<id>`, opened by
+  `static/js/forkEntityHash.js`).
+
+`tests/test_ink_upstream_contract.py` runs each adapter function against the real
+upstream code on a temporary database, without fakes. When an upstream sync changes the
+notes code, this test fails in the sync PR and the fix is confined to the adapter.
 
 ## Tests and measures
 
@@ -279,8 +336,9 @@ Steps target the test instance on `127.0.0.1:7010` with `vision_model` set to
 - **Pen events on this tablet.** Hover and barrel-button reporting vary by device and
   Chrome version; palm rejection has a time-based fallback, and real-device iteration is
   budgeted in H1.
-- **Upstream drift.** Notes and the upload route change often; new files and a sidecar
-  keep merges cheap.
+- **Upstream drift.** Notes and the upload route change often. One new upstream hook
+  keeps merge conflicts rare; the adapter and its contract test catch silent breakage
+  in the sync PR (see Fork changes).
 - **Sync conflicts** between devices editing the same page: last write wins, stated in
   the UI.
 
