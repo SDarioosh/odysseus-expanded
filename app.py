@@ -898,6 +898,9 @@ app.include_router(setup_summary_model_routes())
 # Fork: auto mode switch for Settings → Tools (routes/auto_mode_routes.py)
 from routes.auto_mode_routes import setup_auto_mode_routes  # noqa: E402
 app.include_router(setup_auto_mode_routes())
+# Fork: handwritten notes, the Write view's strokes (routes/ink_routes.py)
+from routes.ink_routes import setup_ink_routes  # noqa: E402
+app.include_router(setup_ink_routes())
 logger.info("MCP routes initialized")
 
 # AI Interaction tools (debates, pipelines, self-managing AI, UI control)
