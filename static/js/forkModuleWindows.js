@@ -4,15 +4,23 @@
 // normal click opens the view in a tool window instead, so the chat and other windows
 // stay put. The windows use upstream's window machinery: dragging, resizing and snapping
 // (windowDrag.js), minimize to a dock chip and stacking (modalManager.js), Esc and the
-// mobile bottom sheet (the generic .modal rules). Also adds the two rail buttons, and
+// mobile bottom sheet (the generic .modal rules). Also adds the rail buttons, and
 // opens the Conversations reader for links to a module transcript moment
 // (<CONVO_PUBLIC_URL>/view/<id>?sig=…#t=<s>) clicked in chat.
+//
+// Write (handwritten notes, static/js/forkInk.js) has no standalone page and no entry in
+// index.html: its sidebar entry is added here, after Today. Its code and stylesheet are
+// loaded in idle time after the app starts, so a service worker that controls the app
+// page caches them for an offline start (static/sw.js is left alone; today its scope is
+// /static/, see open question 4 in docs/fork/handwritten-notes.md).
 
 import * as Modals from './modalManager.js';
 import { makeWindowDraggable } from './windowDrag.js';
 import { FORK_SHORTCUT_ICONS } from './forkModuleShortcuts.js';
 
 const STYLESHEET = '/static/css/fork-modules.css';
+const INK_SCRIPT = './forkInk.js';
+const INK_STYLESHEET = '/static/css/fork-ink.css';
 
 const ICON_16 = (svg) => svg.replace('width="14" height="14"', 'width="16" height="16"');
 
@@ -44,6 +52,17 @@ const WINDOWS = {
       return mountToday(body);
     },
   },
+  ink: {
+    id: 'fork-ink-modal',
+    title: 'Write',
+    sidebarBtn: 'tool-ink-btn',
+    railBtn: 'rail-ink',
+    icon: FORK_SHORTCUT_ICONS.open_write,
+    async mount(body) {
+      const { mountInk } = await import(INK_SCRIPT);
+      return mountInk(body);
+    },
+  },
 };
 
 function styledConfirm(message) {
@@ -60,11 +79,11 @@ async function askInChat(text, win) {
   prefill(text);
 }
 
-function loadStylesheet() {
-  if (document.querySelector(`link[href="${STYLESHEET}"]`)) return;
+function loadStylesheet(href = STYLESHEET) {
+  if (document.querySelector(`link[href="${href}"]`)) return;
   const link = document.createElement('link');
   link.rel = 'stylesheet';
-  link.href = STYLESHEET;
+  link.href = href;
   document.head.appendChild(link);
 }
 
@@ -147,8 +166,8 @@ async function open(win) {
       win.body.textContent = `Could not load ${win.title}: ${e.message}`;
       throw e;
     });
-  } else if (win.view && win.id === WINDOWS.today.id) {
-    win.view.refresh(); // the stored insight may be newer than when it was last shown
+  } else if (win.view && (win.id === WINDOWS.today.id || win.id === WINDOWS.ink.id)) {
+    win.view.refresh(); // the stored insight / the notes list may be newer
   }
   return win.mounting;
 }
@@ -156,6 +175,8 @@ async function open(win) {
 function hide(win) {
   if (win.modal) win.modal.classList.add('hidden');
   setActive(win, false);
+  // Write: save now and stop its timers and window-wide listener while closed.
+  if (win.view && typeof win.view.suspend === 'function') win.view.suspend();
 }
 
 // Close keeps the view (and its state) for the next open; it only hides the window.
@@ -183,9 +204,9 @@ function wireSidebar(win) {
   const link = document.getElementById(win.sidebarBtn);
   if (!link) return;
   // A plain click (or .click() from a shortcut, the rail, or /open) opens the window;
-  // a modified click still opens the standalone page in a new tab.
+  // a modified click still opens the standalone page in a new tab (links only).
   link.addEventListener('click', (e) => {
-    if (!plainClick(e)) return;
+    if (!plainClick(e) && link.tagName === 'A') return;
     e.preventDefault();
     toggle(win);
   });
@@ -205,6 +226,40 @@ function addRailButton(win, after) {
   btn.addEventListener('click', () => document.getElementById(win.sidebarBtn)?.click());
   anchor.after(btn);
   return btn;
+}
+
+// Write's sidebar entry, after Today, styled like the entries around it.
+function addSidebarEntry(win, after) {
+  if (document.getElementById(win.sidebarBtn)) return;
+  const anchor = document.getElementById(after);
+  if (!anchor) return;
+  const item = document.createElement('div');
+  item.className = 'list-item';
+  item.id = win.sidebarBtn;
+  item.setAttribute('role', 'button');
+  item.tabIndex = 0;
+  item.innerHTML = win.icon.replace('<svg ', '<svg style="flex-shrink:0;opacity:0.5;" '); // our own SVG
+  const label = document.createElement('span');
+  label.className = 'grow';
+  label.textContent = win.title;
+  item.append(label);
+  item.addEventListener('keydown', (e) => {
+    if (e.target !== item || (e.key !== 'Enter' && e.key !== ' ')) return;
+    e.preventDefault(); // Space would scroll the sidebar
+    item.click();
+  });
+  anchor.after(item);
+}
+
+// Load Write's code and stylesheet once the app is idle, so they are cached (the service
+// worker's runtime cache when it controls the page, else the HTTP cache) before needed.
+function warmInk() {
+  const go = () => {
+    import(INK_SCRIPT).catch(() => {});
+    loadStylesheet(INK_STYLESHEET);
+  };
+  if ('requestIdleCallback' in window) window.requestIdleCallback(go, { timeout: 10000 });
+  else setTimeout(go, 3000);
 }
 
 // The rail button follows its sidebar entry when Appearance hides it.
@@ -247,12 +302,16 @@ function wireTranscriptLinks() {
 
 function init() {
   loadStylesheet();
+  addSidebarEntry(WINDOWS.ink, WINDOWS.today.sidebarBtn);
   for (const win of Object.values(WINDOWS)) wireSidebar(win);
   addRailButton(WINDOWS.sound, 'rail-notes');
   addRailButton(WINDOWS.today, WINDOWS.sound.railBtn);
+  addRailButton(WINDOWS.ink, WINDOWS.today.railBtn);
   for (const win of Object.values(WINDOWS)) mirrorVisibility(win);
   preloadParser();
   wireTranscriptLinks();
+  if (document.readyState === 'complete') warmInk();
+  else window.addEventListener('load', warmInk, { once: true });
 }
 
 if (document.readyState === 'loading') document.addEventListener('DOMContentLoaded', init);

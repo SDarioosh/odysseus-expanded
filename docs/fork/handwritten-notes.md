@@ -2,8 +2,8 @@
 
 Scope and plan for writing notes with a pen on a tablet running the Odysseus web app,
 turning the handwriting into text with a local vision model, and adding that text to
-[Athena](https://github.com/SDarioosh/Athena) like a voice note. Nothing here is built
-yet.
+[Athena](https://github.com/SDarioosh/Athena) like a voice note. **H1 (pen capture) is
+built** (see "Built in H1" under Phases); the rest is planned.
 
 _Written 2026-10-22, revised 2026-10-26 with the owner's decisions (below). Items still
 open are at the end._
@@ -242,6 +242,62 @@ Every page is reviewed by the owner before its text leaves the hub.
 
 H1 is useful alone. H3 can be built in parallel with H1–H2.
 
+### Built in H1
+
+As planned, with these details settled while building it:
+
+- **Adapter.** The adapter writes notes through upstream's `Note` model with the owner
+  rules of upstream's notes routes, not through `do_manage_notes`: that tool can't set
+  `image_url` or take a note id made by the client (needed to start a note offline),
+  marks notes `source="agent"`, and merges notes with identical text. It also has
+  `delete_note`, `note_title` and `handwritten_notes`. The page PNG goes through the
+  shared `UploadHandler.save_upload` (the store `/api/upload` uses); it isn't added to
+  the Gallery. `tests/test_ink_upstream_contract.py` checks each function against
+  upstream's notes routes, upload route and upload cleanup scan.
+- **Ids and sync.** The client makes the note id (a UUID), so a note can be started
+  offline; its first save creates the note. "Last write wins" means the **last edit**
+  wins: each save carries `edited_at` (ms, the device's clock), and the hub refuses an
+  older one (409 with its version, which the device then shows). A save for a deleted
+  note answers 410; deleted ids are remembered (`deleted.json` in the owner's ink
+  folder, last 2000), so a save queued on the tablet can't bring a note back.
+- **Page image.** Redrawn when page 1's strokes change, at most once a minute while
+  writing and on the save made when the page is left or the app hidden (`final`), so an
+  hour of writing doesn't leave hundreds of unused uploads. Older images are no longer
+  referenced and go with upstream's upload cleanup.
+- **Write entry.** Its sidebar entry (after Today) and rail button are added by
+  `forkModuleWindows.js`; `/open write` (also `ink`, `handwriting`) comes from
+  `FORK_OPEN_TARGETS` in `forkModuleShortcuts.js`.
+- **Pages** are 1000 × 1414 units (A4); a note has at most 60 pages and 600,000 points.
+- **Sweep** runs when Write lists notes (`GET /api/ink/notes`). Calling it from the
+  hourly fact sync, and asking Athena to drop sent notes, is H4. A note relabelled in
+  the Notes window keeps its strokes but leaves Write; the ink routes answer 404 for
+  any note not labelled `handwritten`, so they never change or delete other notes.
+- **Notes Evidence** already skips `handwritten` notes in H1 (planned for H4), so a
+  long handwritten title can't reach the ledger.
+- **Device store per user:** IndexedDB `fork-ink:<user>` (the user from
+  `/api/auth/status`, or upstream's cached `odysseus-auth-user` when offline), so a
+  shared browser never shows or uploads another user's notes. A note the hub refuses
+  for good (404, 400) stays on the device marked "not synced" and isn't retried until
+  it's edited again.
+- **Limits in the view:** at most 60 pages (Add page is disabled), a stroke longer than
+  5000 points continues as a new stroke, a page or note at the hub's limit says the
+  note is full. Pages are exactly 1000 × 1414 (the hub refuses other sizes).
+- **Barrel button:** Chrome reports it as the secondary button (`buttons & 2`) on most
+  Android pens and as 32 on pens with an eraser end; both erase while held, also when
+  pressed or released mid-stroke. A barrel press while the pen hovers doesn't erase
+  until the tip touches.
+- **Render:** the hub draws the same smoothed curve as the canvas, and highlighter
+  marks are laid down as one layer on both, so overlaps don't get darker.
+- **Offline start: not yet.** The idle-time import is in, but it doesn't put Write in
+  the service worker's cache: `static/index.html` registers `/static/sw.js` with the
+  default scope, `/static/`, and the server sends no `Service-Worker-Allowed` header, so
+  the worker controls no page at `/` and never sees the app's requests (checked in
+  Chromium: one registration, scope `/static/`, `navigator.serviceWorker.controller`
+  null; its cache holds only the precache list). So the app itself, not only Write,
+  can't start without a connection. Once the app is open, Write keeps working offline:
+  notes are saved on the device and sync when the hub is back. Making the app start
+  offline needs a scope fix (open question 4); it's a general upstream bug.
+
 ## Fork changes
 
 Goal: keep future upstream syncs cheap without giving up any feature. Ink adds **one
@@ -349,3 +405,9 @@ Steps target the test instance on `127.0.0.1:7010` with `vision_model` set to
 2. One Athena written note per hub note (all pages joined), as proposed, or one per page?
 3. Should the hub's own note `content` keep the reviewed text (searchable in the hub), as
    proposed, or stay empty so the text lives only in Athena?
+4. Offline start (found in H1): fix the service worker's scope so it controls the app
+   page? Either the server sends `Service-Worker-Allowed: /` on `/static/sw.js` and the
+   registration in `static/index.html` passes `{scope: '/'}` (two small upstream hooks,
+   worth offering upstream), or the fork serves the same worker at a root path and
+   registers it from fork code (no upstream line, but a second registration). Not done
+   in H1 because it changes caching for the whole app.
