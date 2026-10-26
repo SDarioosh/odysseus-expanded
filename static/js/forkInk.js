@@ -14,7 +14,9 @@
 // - Autosave every AUTOSAVE_MS and when the app is hidden: IndexedDB first, then the
 //   hub (PUT /api/ink/notes/<id>, routes/ink_routes.py). Notes that couldn't reach the
 //   hub wait in IndexedDB and sync later. Last edit wins: when the hub has a newer
-//   edit (409), its version replaces this one, and the view says so.
+//   edit (409), its version replaces this one, and the view says so. Each signed-in
+//   user has their own IndexedDB database ("fork-ink:<user>"), so a shared browser
+//   never shows or uploads another user's notes.
 
 export const PAGE_W = 1000;
 export const PAGE_H = 1414;
@@ -30,6 +32,12 @@ const ERASER_PX = 14;
 const RULE_TOP = 120;
 const RULE_STEP = 44;
 const API = '/api/ink/notes';
+// The hub's limits (src/ink_notes.py): the view never builds a note it would refuse.
+const MAX_PAGES = 60;
+const MAX_STROKE_POINTS = 5000;     // a longer stroke continues as a new one (hub: 6000)
+const MAX_STROKES_PER_PAGE = 6000;
+const MAX_NOTE_POINTS = 590000;     // hub: 600,000
+const CLOSE_WAIT_MS = 4000;         // Back waits this long for the hub before listing
 const STYLESHEET = '/static/css/fork-ink.css';
 
 export const PENS = [
@@ -45,15 +53,27 @@ const HIGHLIGHT_ALPHA = 0.35;
 // ------------------------------------------------------------------ input router
 // Pure logic, no DOM: decides what each pointer event does. Exported for tests
 // (tests/test_ink_palm_rejection.py feeds it synthetic events).
+//
+// handlers: drawStart(e, {eraser}), drawMove(e), drawEnd(e), drawSwitch(e, {eraser})
+// (the barrel button was pressed or released mid-stroke), gesture(from, to) (touch
+// pan/zoom: move the page point under `from`'s midpoint to `to`'s, scaled by the
+// change in finger distance), gestureEnd().
+
+// A pen's barrel button: Chrome reports it as the secondary button (2) on most
+// Android pens, as the eraser button (32) on pens with an eraser end.
+const BARREL = 2 | 32;
+const barrelDown = (e) => e.pointerType === 'pen' && ((e.buttons || 0) & BARREL) !== 0;
+
 export function createInputRouter(handlers, clock = () => performance.now()) {
   const h = handlers;
   let lastPen = -Infinity;
-  let pensDown = 0;
-  let draw = null;              // { id, eraser }
-  const touches = new Map();    // pointerId -> {x, y}, only accepted touches
-  let gesture = null;           // { x, y, dist } of the accepted touches
+  const pens = new Set();       // pen pointers that are down
+  let draw = null;              // { id, eraser, pen }
+  const touches = new Map();    // pointerId -> {x, y}, at most two accepted touches
+  let gesture = null;           // { x, y, dist, n } of the accepted touches
+  const muted = new Set();      // pointers whose stroke was dropped: ignored until lifted
 
-  const penNear = () => pensDown > 0 || clock() - lastPen < PALM_MS;
+  const penNear = () => pens.size > 0 || clock() - lastPen < PALM_MS;
   const seenPen = (e) => { if (e.pointerType === 'pen') lastPen = clock(); };
 
   function snapshot() {
@@ -72,49 +92,74 @@ export function createInputRouter(handlers, clock = () => performance.now()) {
     if (h.gestureEnd) h.gestureEnd();
   }
 
+  function endDraw(e) {
+    const d = draw;
+    draw = null;
+    if (d && d.pen) pens.delete(d.id);
+    h.drawEnd(e);
+  }
+
   function down(e) {
     seenPen(e);
     if (e.pointerType === 'touch') {
-      if (penNear() || draw) return 'ignored'; // palm, or a stroke is being drawn
+      // a palm, a stroke being drawn, or a third finger
+      if (penNear() || draw || touches.size >= 2) return 'ignored';
       touches.set(e.pointerId, { x: e.clientX, y: e.clientY });
       gesture = snapshot();
       return 'gesture';
     }
-    if (e.pointerType === 'pen') pensDown += 1;
     if (e.pointerType === 'mouse' && e.button !== 0) return 'ignored';
-    if (draw) return 'ignored';
+    muted.delete(e.pointerId); // a new contact
+    // The barrel pressed while the pen hovers: not a touch on the glass (yet).
+    if (e.pointerType === 'pen' && e.button !== 0 && e.button !== 5 && !((e.buttons || 0) & 1)) return 'hover';
+    if (draw && e.pointerId === draw.id) endDraw(e); // its pointerup was lost
+    if (draw) return 'ignored';                       // one stroke at a time
+    const pen = e.pointerType === 'pen';
+    if (pen) pens.add(e.pointerId);
     dropTouches(); // the palm landed before the pen: the pen wins
-    const eraser = e.pointerType === 'pen' && (((e.buttons || 0) & 32) !== 0 || e.button === 5);
-    draw = { id: e.pointerId, eraser };
+    const eraser = barrelDown(e) || (pen && (e.button === 5 || e.button === 2));
+    draw = { id: e.pointerId, eraser, pen, type: e.pointerType };
     h.drawStart(e, { eraser });
     return 'draw';
   }
 
   function move(e) {
     seenPen(e);
-    if (draw && e.pointerId === draw.id) { h.drawMove(e); return 'draw'; }
-    if (e.pointerType === 'pen' && !e.buttons) pensDown = 0; // hovering: no pen is down
+    if (muted.has(e.pointerId)) {
+      if (!((e.buttons || 0) & 1)) muted.delete(e.pointerId); // lifted (hovering again)
+      return 'ignored';
+    }
+    if (draw && e.pointerId === draw.id) {
+      if (draw.pen && barrelDown(e) !== draw.eraser && h.drawSwitch) {
+        draw.eraser = barrelDown(e);
+        h.drawSwitch(e, { eraser: draw.eraser });
+      } else {
+        h.drawMove(e);
+      }
+      return 'draw';
+    }
+    if (e.pointerType === 'pen' && !e.buttons) pens.clear(); // hovering: no pen is down
+    // The tip touched after the barrel was pressed in the air: Chrome sends no second
+    // pointerdown, only a move with the tip's bit set.
+    if (e.pointerType === 'pen' && !draw && ((e.buttons || 0) & 1)) return down(e);
     if (e.pointerType !== 'touch') return 'hover';
     if (!touches.has(e.pointerId)) return 'ignored';
     if (penNear()) { dropTouches(); return 'ignored'; }
+    const from = gesture;
     touches.set(e.pointerId, { x: e.clientX, y: e.clientY });
-    const now = snapshot();
-    if (gesture && now && now.n === gesture.n) {
-      if (now.n > 1 && gesture.dist > 0 && h.zoom) h.zoom(now.dist / gesture.dist, now.x, now.y);
-      if (h.pan) h.pan(now.x - gesture.x, now.y - gesture.y);
-    }
-    gesture = now;
+    gesture = snapshot();
+    if (from && gesture && gesture.n === from.n && h.gesture) h.gesture(from, gesture);
     return 'gesture';
   }
 
   function up(e) {
     seenPen(e);
-    if (e.pointerType === 'pen') pensDown = Math.max(0, pensDown - 1);
+    if (muted.delete(e.pointerId)) return 'ignored';
     if (draw && e.pointerId === draw.id) {
-      draw = null;
-      h.drawEnd(e);
+      endDraw(e);
       return 'draw';
     }
+    if (e.pointerType === 'pen') pens.delete(e.pointerId);
     if (touches.delete(e.pointerId)) {
       gesture = snapshot();
       if (!touches.size && h.gestureEnd) h.gestureEnd();
@@ -128,7 +173,10 @@ export function createInputRouter(handlers, clock = () => performance.now()) {
       case 'pointerdown': return down(e);
       case 'pointermove': return move(e);
       case 'pointerup':
-      case 'pointercancel': return up(e);
+      case 'pointercancel':
+      // Android system gestures (back swipe, notification shade) and dialogs can take
+      // the pointer without a pointerup. After a normal pointerup this is a no-op.
+      case 'lostpointercapture': return up(e);
       case 'pointerover':
       case 'pointerenter':
       case 'pointerleave':
@@ -137,7 +185,25 @@ export function createInputRouter(handlers, clock = () => performance.now()) {
     }
   }
 
-  return { handle, penNear, drawing: () => !!draw, notePen: seenPen };
+  // The window lost focus or was hidden: finish the stroke being drawn, forget
+  // pointers whose release we may never see.
+  function release() {
+    if (draw) endDraw({ type: 'release', pointerType: draw.type, pointerId: draw.id });
+    pens.clear();
+    dropTouches();
+  }
+
+  // The view replaced the note under the pen: forget the stroke without ending it;
+  // the rest of it (until the pen lifts) isn't drawn either.
+  function reset() {
+    if (draw) muted.add(draw.id);
+    draw = null;
+    pens.clear();
+    touches.clear();
+    gesture = null;
+  }
+
+  return { handle, penNear, drawing: () => !!draw, notePen: seenPen, release, reset };
 }
 
 // --------------------------------------------------------------------- helpers
@@ -187,15 +253,36 @@ const ICONS = {
 };
 
 // ----------------------------------------------------------------- local store
-// IndexedDB "fork-ink": notes (the local copy, with `synced`) and deletes (to send).
-// Falls back to memory when IndexedDB isn't available (private mode).
-function openStore() {
+// IndexedDB "fork-ink:<user>": notes (the local copy, with `synced`) and deletes (to
+// send). Falls back to memory when IndexedDB isn't available (private mode).
+const storeName = (user) => `fork-ink:${user || '_'}`;
+
+// The signed-in user: the hub's answer, else the one upstream's init.js last saw
+// (localStorage "odysseus-auth-user"), so an offline start still knows whose notes
+// to show.
+function cachedUser() {
+  try { return localStorage.getItem('odysseus-auth-user') || ''; } catch (_) { return ''; }
+}
+
+async function liveUser() {
+  try {
+    const ctl = typeof AbortController === 'function' ? new AbortController() : null;
+    const timer = ctl ? setTimeout(() => ctl.abort(), 3000) : null;
+    const res = await fetch('/api/auth/status', { credentials: 'same-origin', signal: ctl ? ctl.signal : undefined });
+    if (timer) clearTimeout(timer);
+    if (!res.ok) return null;
+    const data = await res.json();
+    return (data && data.username) || '';
+  } catch (_) { return null; }  // offline: unknown
+}
+
+function openStore(user) {
   const memory = { notes: new Map(), deletes: new Map() };
   let dbp = null;
   if (globalThis.indexedDB) {
     dbp = new Promise((resolve) => {
       let req;
-      try { req = indexedDB.open('fork-ink', 1); } catch (_) { resolve(null); return; }
+      try { req = indexedDB.open(storeName(user), 1); } catch (_) { resolve(null); return; }
       req.onupgradeneeded = () => {
         const db = req.result;
         if (!db.objectStoreNames.contains('notes')) db.createObjectStore('notes', { keyPath: 'id' });
@@ -256,13 +343,13 @@ function strokePath(ctx, pts, map) {
   ctx.lineTo(lx, ly);
 }
 
-function drawStroke(ctx, stroke, map, k) {
+function drawStroke(ctx, stroke, map, k, { opaque = false } = {}) {
   ctx.save();
   ctx.lineCap = 'round';
   ctx.lineJoin = 'round';
   ctx.strokeStyle = stroke.pen.color;
   ctx.lineWidth = Math.max(0.6, stroke.pen.width * k);
-  if (stroke.pen.highlighter) ctx.globalAlpha = HIGHLIGHT_ALPHA;
+  if (stroke.pen.highlighter && !opaque) ctx.globalAlpha = HIGHLIGHT_ALPHA;
   strokePath(ctx, stroke.points, map);
   ctx.stroke();
   ctx.restore();
@@ -290,8 +377,12 @@ export function strokeHit(stroke, x, y, radius) {
 // ===================================================================== the view
 export function mountInk(root, options = {}) {
   loadStylesheet();
-  const store = options.store || openStore();
+  let user = cachedUser();
+  let store = options.store || openStore(user);
   const now = options.clock || (() => performance.now());
+  // Each screen change gets a number; an answer that arrives after the next change is
+  // dropped (a slow note load must not replace the note being written).
+  let nav = 0;
   const state = {
     screen: 'list',
     note: null,               // { id, title, ruled, edited_at, pages, synced }
@@ -305,8 +396,9 @@ export function mountInk(root, options = {}) {
     sx: -SIDE, sy: -PAGE_GAP, // scroll, in page units
     live: null,               // stroke being drawn: { pageIndex, stroke, eraser, removed }
   };
-  const syncing = new Map();  // note id -> promise
+  const syncing = new Map();  // note id -> { promise, again }
   let timers = [];
+  let suspended = false;
 
   // ---------------------------------------------------------------- DOM
   root.textContent = '';
@@ -320,7 +412,7 @@ export function mountInk(root, options = {}) {
   const status = el('span', { class: 'ink-status bs-meta', role: 'status', 'aria-live': 'polite' });
   const titleInput = el('input', { class: 'bs-input ink-title', type: 'text', maxlength: '200',
     'aria-label': 'Title', placeholder: 'Title' });
-  const backBtn = iconBtn('back', 'All notes', () => closeNote());
+  const backBtn = iconBtn('back', 'All notes', () => { if (!state.live) closeNote(); });
   const penBtns = PENS.map((p) => {
     const b = el('button', { type: 'button', class: 'bs-btn ink-pen', title: p.label, 'aria-label': p.label,
       'data-pen': p.key, 'aria-pressed': 'false' });
@@ -337,7 +429,7 @@ export function mountInk(root, options = {}) {
   const redoBtn = iconBtn('redo', 'Redo', () => redo());
   const ruledBtn = el('button', { type: 'button', class: 'bs-btn', title: 'Ruled lines (not part of the ink)',
     text: 'Lines', onclick: () => {
-      if (!state.note) return;
+      if (!state.note || state.live) return;
       state.note.ruled = !state.note.ruled;
       markDirty(); syncTools(); render();
     } });
@@ -415,6 +507,11 @@ export function mountInk(root, options = {}) {
     frame = requestAnimationFrame(() => { frame = 0; renderNow(); });
   }
 
+  // Highlighter strokes are drawn opaque on their own layer, which is then laid on the
+  // pages at HIGHLIGHT_ALPHA: overlapping marks don't get darker, like the hub's image.
+  const marks = document.createElement('canvas');
+  const mctx = marks.getContext('2d');
+
   function renderNow() {
     const ctx = bctx;
     ctx.setTransform(dpr, 0, 0, dpr, 0, 0);
@@ -423,9 +520,19 @@ export function mountInk(root, options = {}) {
     const k = scale();
     const top = state.sy;
     const bottom = state.sy + cssH / k;
+    const visible = [];
     state.note.pages.forEach((page, i) => {
       const y0 = pageTop(i);
       if (y0 > bottom || y0 + page.height < top) return;
+      visible.push([page, i, y0]);
+    });
+    const clipTo = (c, y0, page) => {
+      const [px, py] = toScreen(0, y0);
+      c.beginPath();
+      c.rect(px, py, page.width * k, page.height * k);
+      c.clip();
+    };
+    for (const [page, , y0] of visible) {
       const [px, py] = toScreen(0, y0);
       const pw = page.width * k;
       const ph = page.height * k;
@@ -435,11 +542,9 @@ export function mountInk(root, options = {}) {
       ctx.shadowBlur = 6;
       ctx.fillRect(px, py, pw, ph);
       ctx.restore();
-      ctx.save();
-      ctx.beginPath();
-      ctx.rect(px, py, pw, ph);
-      ctx.clip();
       if (state.note.ruled) {
+        ctx.save();
+        clipTo(ctx, y0, page);
         ctx.strokeStyle = '#d6e0ea';
         ctx.lineWidth = 1;
         for (let ry = RULE_TOP; ry < page.height - 30; ry += RULE_STEP) {
@@ -449,12 +554,36 @@ export function mountInk(root, options = {}) {
           ctx.lineTo(px + pw, sy);
           ctx.stroke();
         }
+        ctx.restore();
       }
-      const map = (p) => toScreen(p[0], p[1] + y0);
-      for (const s of page.strokes) if (s.pen.highlighter) drawStroke(ctx, s, map, k);
-      for (const s of page.strokes) if (!s.pen.highlighter) drawStroke(ctx, s, map, k);
+    }
+    if (visible.some(([page]) => page.strokes.some((st) => st.pen.highlighter))) {
+      if (marks.width !== base.width || marks.height !== base.height) {
+        marks.width = base.width;
+        marks.height = base.height;
+      }
+      mctx.setTransform(dpr, 0, 0, dpr, 0, 0);
+      mctx.clearRect(0, 0, cssW, cssH);
+      for (const [page, , y0] of visible) {
+        mctx.save();
+        clipTo(mctx, y0, page);
+        const map = (p) => toScreen(p[0], p[1] + y0);
+        for (const st of page.strokes) if (st.pen.highlighter) drawStroke(mctx, st, map, k, { opaque: true });
+        mctx.restore();
+      }
+      ctx.save();
+      ctx.setTransform(1, 0, 0, 1, 0, 0);
+      ctx.globalAlpha = HIGHLIGHT_ALPHA;
+      ctx.drawImage(marks, 0, 0);
       ctx.restore();
-    });
+    }
+    for (const [page, , y0] of visible) {
+      ctx.save();
+      clipTo(ctx, y0, page);
+      const map = (p) => toScreen(p[0], p[1] + y0);
+      for (const st of page.strokes) if (!st.pen.highlighter) drawStroke(ctx, st, map, k);
+      ctx.restore();
+    }
   }
 
   function renderLive() {
@@ -490,11 +619,14 @@ export function mountInk(root, options = {}) {
     return Math.max(0, Math.min(pages.length - 1, i));
   }
 
+  // A point on the stroke's page, kept inside the page: ink outside it would be
+  // clipped away when the stroke ends.
   function pointOf(e, lv) {
     const [x, y] = toDoc(e.clientX, e.clientY);
+    if (lv.eraser) lv.pageIndex = pageAt(y); // the eraser follows the pen onto another page
     const page = state.note.pages[lv.pageIndex];
-    const cx = Math.max(-40, Math.min(page.width + 40, x));
-    const cy = Math.max(-40, Math.min(page.height + 40, y - pageTop(lv.pageIndex)));
+    const cx = Math.max(0, Math.min(page.width, x));
+    const cy = Math.max(0, Math.min(page.height, y - pageTop(lv.pageIndex)));
     return [Math.round(cx * 10) / 10, Math.round(cy * 10) / 10, Math.max(0, Math.round(e.timeStamp - lv.t0))];
   }
 
@@ -512,19 +644,51 @@ export function mountInk(root, options = {}) {
     if (hit) render();
   }
 
+  const notePoints = () => state.note.pages.reduce(
+    (n, pg) => n + pg.strokes.reduce((m, st) => m + st.points.length, 0), 0);
+
+  function startLive(e, eraser) {
+    if (!state.note) return;
+    const [, docY] = toDoc(e.clientX, e.clientY);
+    const pageIndex = pageAt(docY);
+    const isEraser = eraser || state.eraser;
+    if (!isEraser) {
+      const page = state.note.pages[pageIndex];
+      if (page.strokes.length >= MAX_STROKES_PER_PAGE || notePoints() >= MAX_NOTE_POINTS) {
+        setStatus('This note is full: start a new note.', true);
+        return;
+      }
+    }
+    const lv = { pageIndex, eraser: isEraser, t0: e.timeStamp, removed: [], cursor: null,
+      stroke: isEraser ? null : { id: shortId(), pen: currentPen(), at: Date.now(), points: [] } };
+    state.live = lv;
+    const p = pointOf(e, lv);
+    if (isEraser) { lv.cursor = p; eraseAt(lv, p); } else lv.stroke.points.push(p);
+    syncTools();
+    renderLive();
+  }
+
+  // Commit the stroke being drawn (or the strokes the eraser took) as one undo step.
+  // `dropShort`: a stroke of a point or two, cut short by the barrel button.
+  function endLive({ dropShort = false } = {}) {
+    const lv = state.live;
+    state.live = null;
+    if (lv && lv.eraser) {
+      if (lv.removed.length) pushAction({ type: 'erase', removed: lv.removed });
+    } else if (lv && lv.stroke.points.length && !(dropShort && lv.stroke.points.length <= 2)) {
+      const page = state.note.pages[lv.pageIndex];
+      page.strokes.push(lv.stroke);
+      pushAction({ type: 'add', pageId: page.id, stroke: lv.stroke });
+      render();
+    }
+    syncTools();
+    renderLive();
+  }
+
   const router = createInputRouter({
     drawStart(e, { eraser }) {
-      if (!state.note) return;
       try { live.setPointerCapture(e.pointerId); } catch (_) { /* synthetic */ }
-      const [, docY] = toDoc(e.clientX, e.clientY);
-      const pageIndex = pageAt(docY);
-      const isEraser = eraser || state.eraser;
-      const lv = { pageIndex, eraser: isEraser, t0: e.timeStamp, removed: [], cursor: null,
-        stroke: isEraser ? null : { id: shortId(), pen: currentPen(), at: Date.now(), points: [] } };
-      state.live = lv;
-      const p = pointOf(e, lv);
-      if (isEraser) { lv.cursor = p; eraseAt(lv, p); } else lv.stroke.points.push(p);
-      renderLive();
+      startLive(e, eraser);
     },
     drawMove(e) {
       const lv = state.live;
@@ -532,36 +696,44 @@ export function mountInk(root, options = {}) {
       let events = typeof e.getCoalescedEvents === 'function' ? e.getCoalescedEvents() : [];
       if (!events || !events.length) events = [e];
       for (const ev of events) {
-        const p = pointOf(ev, lv);
-        if (lv.eraser) { lv.cursor = p; eraseAt(lv, p); continue; }
-        const pts = lv.stroke.points;
+        const cur = state.live;
+        const p = pointOf(ev, cur);
+        if (cur.eraser) { cur.cursor = p; eraseAt(cur, p); continue; }
+        const pts = cur.stroke.points;
         const last = pts[pts.length - 1];
         if (last && Math.abs(last[0] - p[0]) < 0.3 && Math.abs(last[1] - p[1]) < 0.3) continue;
+        if (pts.length >= MAX_STROKE_POINTS) {
+          // A very long stroke goes on as a new one, from the same point.
+          const { pageIndex, t0 } = cur;
+          endLive();
+          state.live = { pageIndex, eraser: false, t0, removed: [], cursor: null,
+            stroke: { id: shortId(), pen: { ...cur.stroke.pen }, at: Date.now(), points: [last] } };
+          state.live.stroke.points.push(p);
+          continue;
+        }
         pts.push(p);
       }
       renderLive();
     },
-    drawEnd() {
-      const lv = state.live;
-      state.live = null;
-      if (lv && lv.eraser) {
-        if (lv.removed.length) pushAction({ type: 'erase', removed: lv.removed });
-      } else if (lv && lv.stroke.points.length) {
-        const page = state.note.pages[lv.pageIndex];
-        page.strokes.push(lv.stroke);
-        pushAction({ type: 'add', pageId: page.id, stroke: lv.stroke });
-        render();
-      }
-      renderLive();
+    drawEnd() { endLive(); },
+    drawSwitch(e, { eraser }) {
+      endLive({ dropShort: eraser });
+      startLive(e, eraser);
     },
-    pan(dx, dy) {
+    gesture(from, to) {
+      // The page point under the fingers' old midpoint moves to their new midpoint,
+      // zoomed by how much the fingers spread: one step, so pinching doesn't drift.
+      const [dx, dy] = toDoc(from.x, from.y);
+      if (to.n > 1 && from.dist > 0) {
+        state.zoom = Math.min(MAX_ZOOM, Math.max(MIN_ZOOM, state.zoom * (to.dist / from.dist)));
+      }
+      const r = live.getBoundingClientRect();
       const k = scale();
-      state.sx -= dx / k;
-      state.sy -= dy / k;
+      state.sx = dx - (to.x - r.left) / k;
+      state.sy = dy - (to.y - r.top) / k;
       clampScroll();
       render();
     },
-    zoom(factor, cx, cy) { zoomAt(factor, cx, cy); },
   }, now);
 
   function zoomAt(factor, clientX, clientY) {
@@ -575,8 +747,8 @@ export function mountInk(root, options = {}) {
     render();
   }
 
-  for (const type of ['pointerdown', 'pointermove', 'pointerup', 'pointercancel', 'pointerover',
-    'pointerenter', 'pointerleave', 'pointerout']) {
+  for (const type of ['pointerdown', 'pointermove', 'pointerup', 'pointercancel', 'lostpointercapture',
+    'pointerover', 'pointerenter', 'pointerleave', 'pointerout']) {
     live.addEventListener(type, (e) => {
       const what = router.handle(e);
       if (what === 'draw' || what === 'gesture' || (type === 'pointerdown' && e.pointerType === 'touch')) {
@@ -584,9 +756,10 @@ export function mountInk(root, options = {}) {
       }
     });
   }
-  // A pen hovering anywhere in the window counts for palm rejection.
+  // A pen hovering anywhere in the window counts for palm rejection (listening only
+  // while Write is open: see suspend/resume).
   const notePen = (e) => router.notePen(e);
-  document.addEventListener('pointermove', notePen, { passive: true, capture: true });
+  const onBlur = () => router.release();
   live.addEventListener('contextmenu', (e) => e.preventDefault());
   live.addEventListener('wheel', (e) => {
     e.preventDefault();
@@ -636,7 +809,9 @@ export function mountInk(root, options = {}) {
     }
   }
 
+  // Not while the pen is down: the stroke being drawn belongs to the page as it is.
   function undo() {
+    if (state.live) return;
     const a = state.undo.pop();
     if (!a) return;
     apply(a, true);
@@ -646,6 +821,7 @@ export function mountInk(root, options = {}) {
   }
 
   function redo() {
+    if (state.live) return;
     const a = state.redo.pop();
     if (!a) return;
     apply(a, false);
@@ -655,7 +831,7 @@ export function mountInk(root, options = {}) {
   }
 
   function addPage() {
-    if (!state.note) return;
+    if (!state.note || state.live || state.note.pages.length >= MAX_PAGES) return;
     const page = { id: `p${shortId()}`, width: PAGE_W, height: PAGE_H, strokes: [] };
     state.note.pages.push(page);
     pushAction({ type: 'page', page });
@@ -669,8 +845,10 @@ export function mountInk(root, options = {}) {
     eraserBtn.setAttribute('aria-pressed', String(state.eraser));
     widthBtn.textContent = state.width === 'thin' ? 'Thin' : 'Medium';
     ruledBtn.setAttribute('aria-pressed', String(!!(state.note && state.note.ruled)));
-    undoBtn.disabled = !state.undo.length;
-    redoBtn.disabled = !state.redo.length;
+    undoBtn.disabled = !state.undo.length || !!state.live;
+    redoBtn.disabled = !state.redo.length || !!state.live;
+    addPageBtn.disabled = !!(state.note && state.note.pages.length >= MAX_PAGES);
+    addPageBtn.title = addPageBtn.disabled ? `A note has at most ${MAX_PAGES} pages` : 'Add a page';
   }
 
   // -------------------------------------------------------------- saving
@@ -699,11 +877,13 @@ export function mountInk(root, options = {}) {
   // redraws the note's page image now instead of at most once a minute.
   async function persist(final = false) {
     if (!state.note || !state.dirty) return;
+    if (state.live) return; // mid-stroke or mid-erase: saved once the pen lifts
     state.dirty = false;
     state.needsFinal = !final;
     const copy = snapshotNote();
     copy.synced = false;
     copy.final = final;
+    delete copy.blocked; // an edit may fix what the hub refused: try again
     try {
       await store.put('notes', copy);
       setStatus('Saved on this device');
@@ -727,62 +907,95 @@ export function mountInk(root, options = {}) {
   }
 
   async function syncOnce(id) {
-    const note = await store.get('notes', id);
-    if (!note || note.synced) return;
-    const isOpen = state.note && state.note.id === id;
+    const db = store;
+    const note = await db.get('notes', id);
+    if (!note || note.synced || note.blocked) return;
+    const isOpen = () => state.note && state.note.id === id;
     if (globalThis.navigator && navigator.onLine === false) {
-      if (isOpen) setStatus('Offline: saved on this device, syncs later');
+      if (isOpen()) setStatus('Offline: saved on this device, syncs later');
       return;
     }
     let res;
     try {
       res = await api(`${API}/${encodeURIComponent(id)}`, { method: 'PUT', body: JSON.stringify(payload(note)) });
     } catch (_) {
-      if (isOpen) setStatus('Hub not reachable: saved on this device, syncs later');
+      if (isOpen()) setStatus('Hub not reachable: saved on this device, syncs later');
       return;
     }
+    if (db !== store) return; // another user signed in meanwhile
+    const latest = await db.get('notes', id);
+    if (!latest) return;      // deleted on this device meanwhile: don't bring it back
     if (res.ok) {
-      const latest = await store.get('notes', id);
-      if (latest && latest.edited_at === note.edited_at) {
+      const image = (res.body && res.body.image_url) || null;
+      latest.image_url = image;
+      if (isOpen()) state.note.image_url = image;
+      if (latest.edited_at === note.edited_at) {
         latest.synced = true;
-        latest.image_url = res.body && res.body.image_url;
-        await store.put('notes', latest);
-        if (state.note && state.note.id === id && !state.dirty) {
+        latest.synced_at = Date.now();
+        if (isOpen() && !state.dirty) {
           state.note.synced = true;
           setStatus('Saved');
         }
       }
+      await db.put('notes', latest);
+      if (state.screen === 'list') refreshListSoon();
     } else if (res.status === 409 && res.body && res.body.note) {
       const theirs = fromServer(res.body.note);
-      await store.put('notes', theirs);
-      if (state.note && state.note.id === id) {
+      if ((latest.edited_at || 0) > theirs.edited_at) {
+        // Written on here while the request was out, after the other device's edit:
+        // this one is the last edit, so send it again.
+        const running = syncing.get(id);
+        if (running) running.again = true;
+        return;
+      }
+      if (isOpen() && state.dirty && state.note.edited_at > theirs.edited_at) return; // the autosave sends it
+      await db.put('notes', theirs);
+      if (isOpen()) {
+        if (state.live) { state.live = null; router.reset(); }
         openLoaded(theirs);
         setStatus('Another device saved a newer version; it replaced this one (last edit wins).', true);
       }
     } else if (res.status === 410) {
-      await store.del('notes', id);
-      if (state.note && state.note.id === id) {
+      await db.del('notes', id);
+      if (isOpen()) {
+        state.live = null;
+        router.reset();
         state.note = null;
         await showList('This note was deleted elsewhere.');
-      }
+      } else if (state.screen === 'list') refreshListSoon();
     } else if (res.status === 401 || res.status === 403) {
-      if (isOpen) setStatus('Sign in to sync. Saved on this device.', true);
-    } else if (isOpen) {
+      if (isOpen()) setStatus('Sign in to sync. Saved on this device.', true);
+    } else if (res.status >= 400 && res.status < 500 && res.status !== 408 && res.status !== 429) {
+      // Refused for good (not this user's note, too large, malformed): keep it on this
+      // device, stop retrying until it's edited again.
+      latest.blocked = res.status;
+      await db.put('notes', latest);
+      const why = (res.body && res.body.detail) || `HTTP ${res.status}`;
+      if (isOpen()) setStatus(`The hub refused this note (${why}). Kept on this device.`, true);
+    } else if (isOpen()) {
       setStatus(`Hub said ${res.status}: saved on this device, syncs later`, true);
     }
   }
 
+  let listTimer = 0;
+  function refreshListSoon() {
+    clearTimeout(listTimer);
+    listTimer = setTimeout(() => { if (state.screen === 'list' && !suspended) showList(); }, 300);
+  }
+
   async function flushQueue() {
+    const db = store;
     let pending = [];
-    try { pending = await store.all('notes'); } catch (_) { return; }
-    for (const n of pending) if (!n.synced) await sync(n.id);
+    try { pending = await db.all('notes'); } catch (_) { return; }
+    for (const n of pending) if (!n.synced && !n.blocked && db === store) await sync(n.id);
     let deletes = [];
-    try { deletes = await store.all('deletes'); } catch (_) { return; }
+    try { deletes = await db.all('deletes'); } catch (_) { return; }
     for (const d of deletes) {
       if (globalThis.navigator && navigator.onLine === false) return;
       try {
+        if (db !== store) return;
         const res = await api(`${API}/${encodeURIComponent(d.id)}`, { method: 'DELETE' });
-        if (res.ok || res.status === 404) await store.del('deletes', d.id);
+        if (res.ok || res.status === 404) await db.del('deletes', d.id);
       } catch (_) { return; }
     }
   }
@@ -794,16 +1007,20 @@ export function mountInk(root, options = {}) {
   }
 
   // -------------------------------------------------------------- screens
-  function openLoaded(note) {
+  function openLoaded(note, { keepView = false } = {}) {
     state.note = note;
     state.screen = 'editor';
     state.undo = [];
     state.redo = [];
     state.dirty = false;
     state.needsFinal = false;
+    if (state.live) router.reset();
     state.live = null;
-    state.zoom = 1;
-    state.sy = -PAGE_GAP;
+    if (!keepView) {
+      state.zoom = 1;
+      state.sy = -PAGE_GAP;
+    }
+    renderLive();
     titleInput.value = note.title || '';
     listView.hidden = true;
     editor.hidden = false;
@@ -814,25 +1031,30 @@ export function mountInk(root, options = {}) {
   }
 
   async function openNote(id) {
+    const my = ++nav;
+    const db = store;
     let local = null;
-    try { local = await store.get('notes', id); } catch (_) { local = null; }
+    try { local = await db.get('notes', id); } catch (_) { local = null; }
     let remote = null;
     try {
       const res = await api(`${API}/${encodeURIComponent(id)}`);
       if (res.ok && res.body) remote = fromServer(res.body);
     } catch (_) { remote = null; }
+    if (my !== nav || db !== store) return; // the owner moved on meanwhile
     let note = local;
     if (remote && (!local || (local.synced && remote.edited_at >= local.edited_at)
       || remote.edited_at > local.edited_at)) {
       note = remote;
-      try { await store.put('notes', remote); } catch (_) { /* memory only */ }
+      try { await db.put('notes', remote); } catch (_) { /* memory only */ }
     }
+    if (my !== nav) return;
     if (!note) { await showList('That note could not be loaded.'); return; }
     openLoaded(note);
     if (!note.synced) sync(note.id);
   }
 
   async function newNote() {
+    ++nav;
     const note = { id: uuid(), title: defaultTitle(), ruled: true, edited_at: Date.now(), synced: false,
       pages: [{ id: `p${shortId()}`, width: PAGE_W, height: PAGE_H, strokes: [] }] };
     try { await store.put('notes', note); } catch (_) { /* memory only */ }
@@ -842,18 +1064,29 @@ export function mountInk(root, options = {}) {
   }
 
   async function closeNote() {
+    const id = state.note && state.note.id;
+    const my = ++nav;
     await flush();
+    // Wait a moment for the hub, so the list shows the saved note and its new image.
+    const running = id && syncing.get(id);
+    if (running) await Promise.race([running.promise, new Promise((r) => setTimeout(r, CLOSE_WAIT_MS))]);
+    if (my !== nav) return;
     state.note = null;
     await showList();
+  }
+
+  // Remove a note from this device and queue its delete for the hub.
+  async function deleteLocal(id) {
+    try {
+      await store.del('notes', id);
+      await store.put('deletes', { id });
+    } catch (_) { /* memory only */ }
   }
 
   async function deleteNote(id, title) {
     const ok = await confirmDelete(`Delete "${title || 'this note'}"? Its handwriting is removed too.`);
     if (!ok) return;
-    try {
-      await store.del('notes', id);
-      await store.put('deletes', { id });
-    } catch (_) { /* memory only */ }
+    await deleteLocal(id);
     await flushQueue();
     await showList();
   }
@@ -867,6 +1100,7 @@ export function mountInk(root, options = {}) {
   }
 
   async function showList(message = '') {
+    const my = ++nav;
     state.screen = 'list';
     editor.hidden = true;
     listView.hidden = false;
@@ -879,28 +1113,35 @@ export function mountInk(root, options = {}) {
     const list = el('div', { class: 'ink-notes' }, el('div', { class: 'bs-status', text: 'Loading...' }));
     listView.append(head, msg, list);
 
-    let local = [];
-    try { local = await store.all('notes'); } catch (_) { local = []; }
+    await checkUser();
+    if (my !== nav) return;
+    const db = store;
+    const asked = Date.now();
     let remote = null;
     try {
       const res = await api(API);
       if (res.ok && res.body) remote = res.body.notes || [];
     } catch (_) { remote = null; }
+    let local = [];
+    try { local = await db.all('notes'); } catch (_) { local = []; }
+    if (my !== nav || db !== store) return;
     const byId = new Map();
     if (remote) {
       const remoteIds = new Set(remote.map((n) => n.id));
+      // A synced note the hub no longer lists was deleted elsewhere; one synced after
+      // the list was asked for may just be missing from it.
+      const gone = (n) => n.synced && !remoteIds.has(n.id) && !((n.synced_at || 0) >= asked);
       for (const n of local) {
-        // A synced note the hub no longer lists was deleted elsewhere.
-        if (n.synced && !remoteIds.has(n.id)) { try { await store.del('notes', n.id); } catch (_) { /* */ } }
+        if (gone(n)) { try { await db.del('notes', n.id); } catch (_) { /* */ } }
       }
-      local = local.filter((n) => !n.synced || remoteIds.has(n.id));
+      local = local.filter((n) => !gone(n));
       for (const n of remote) byId.set(n.id, { ...n, waiting: false });
     }
     for (const n of local) {
       const known = byId.get(n.id);
       if (!known || !n.synced) {
         byId.set(n.id, { id: n.id, title: n.title, image_url: n.image_url || (known && known.image_url),
-          edited_at: n.edited_at, pages: n.pages.length, waiting: !n.synced });
+          edited_at: n.edited_at, pages: n.pages.length, waiting: !n.synced, blocked: n.blocked });
       }
     }
     const items = [...byId.values()].sort((a, b) => (b.edited_at || 0) - (a.edited_at || 0)
@@ -914,7 +1155,8 @@ export function mountInk(root, options = {}) {
   function noteCard(n) {
     const when = n.edited_at ? new Date(n.edited_at) : (n.updated_at ? new Date(n.updated_at) : null);
     const meta = [n.pages ? `${n.pages} page${n.pages === 1 ? '' : 's'}` : '', when ? when.toLocaleString() : '',
-      n.waiting ? 'waiting to sync' : ''].filter(Boolean).join(' · ');
+      n.blocked ? `not synced: the hub refused it (${n.blocked})` : (n.waiting ? 'waiting to sync' : '')]
+      .filter(Boolean).join(' · ');
     const thumb = el('div', { class: 'ink-thumb' });
     if (n.image_url) thumb.append(el('img', { src: n.image_url, alt: '', loading: 'lazy' }));
     const del = el('button', { type: 'button', class: 'bs-btn bs-icon-btn', title: 'Delete', 'aria-label': `Delete ${n.title}` });
@@ -924,7 +1166,10 @@ export function mountInk(root, options = {}) {
       thumb, el('div', { class: 'ink-card-text' }, el('h2', { text: n.title || 'Untitled' }), el('div', { class: 'bs-meta', text: meta })),
       del);
     card.addEventListener('click', () => openNote(n.id));
-    card.addEventListener('keydown', (e) => { if (e.key === 'Enter') openNote(n.id); });
+    card.addEventListener('keydown', (e) => {
+      if (e.target !== card) return; // a key on its Delete button is the button's
+      if (e.key === 'Enter' || e.key === ' ') { e.preventDefault(); openNote(n.id); }
+    });
     return card;
   }
 
@@ -934,19 +1179,34 @@ export function mountInk(root, options = {}) {
     markDirty();
   });
 
+  // A different user signed in on this browser: switch to their notes.
+  async function checkUser() {
+    if (options.store) return;
+    const who = await liveUser();
+    if (who === null || who === user) return;
+    user = who;
+    store = openStore(user);
+    syncing.clear();
+    if (state.note) {
+      state.live = null;
+      router.reset();
+      state.note = null;
+      state.screen = 'list';
+    }
+  }
+
   // --------------------------------------------------------- lifecycle
   async function flush() {
+    if (state.live) router.release(); // the stroke being drawn is part of the save
     if (!state.note || !(state.dirty || state.needsFinal)) return;
     state.dirty = true;
     await persist(true);
   }
-  const onHidden = () => { if (document.visibilityState === 'hidden') flush(); };
+  const onHidden = () => { if (document.visibilityState === 'hidden') { router.release(); flush(); } };
   const onOnline = () => flushQueue();
   document.addEventListener('visibilitychange', onHidden);
   window.addEventListener('pagehide', onHidden);
   window.addEventListener('online', onOnline);
-  timers.push(setInterval(() => { if (state.dirty) persist(); }, AUTOSAVE_MS));
-  timers.push(setInterval(() => flushQueue(), RETRY_MS));
   let observer = null;
   if (globalThis.ResizeObserver) {
     observer = new ResizeObserver(() => { if (state.screen === 'editor') resize(); });
@@ -954,22 +1214,71 @@ export function mountInk(root, options = {}) {
   }
   window.addEventListener('orientationchange', resize);
 
+  // Write is open: timers and the window-wide pen listener run.
+  function resume() {
+    suspended = false;
+    if (timers.length) return;
+    timers.push(setInterval(() => { if (state.dirty) persist(); }, AUTOSAVE_MS));
+    timers.push(setInterval(() => flushQueue(), RETRY_MS));
+    document.addEventListener('pointermove', notePen, { passive: true, capture: true });
+    window.addEventListener('blur', onBlur);
+  }
+
+  // Write is closed (its window hidden): save now, stop the timers and listeners. A
+  // note still waiting for the hub syncs when the browser is back online.
+  function suspend() {
+    suspended = true;
+    router.release();
+    flush();
+    timers.forEach(clearInterval);
+    timers = [];
+    document.removeEventListener('pointermove', notePen, { capture: true });
+    window.removeEventListener('blur', onBlur);
+  }
+
+  // Reopened: the list again, or the open note as the hub has it now when it was
+  // changed elsewhere and not here.
+  async function refresh() {
+    resume();
+    if (state.screen === 'list') return showList();
+    if (!state.note || state.dirty || state.live) return undefined;
+    const my = nav;
+    const id = state.note.id;
+    try {
+      const res = await api(`${API}/${encodeURIComponent(id)}`);
+      if (my !== nav || !state.note || state.note.id !== id || state.dirty || state.live) return undefined;
+      if (res.ok && res.body) {
+        const remote = fromServer(res.body);
+        if (remote.edited_at > (state.note.edited_at || 0)) {
+          await store.put('notes', remote);
+          openLoaded(remote, { keepView: true });
+        }
+      } else if (res.status === 404) {
+        await store.del('notes', id);
+        state.note = null;
+        return showList('This note was deleted elsewhere.');
+      }
+    } catch (_) { /* offline: keep what is on screen */ }
+    return undefined;
+  }
+
   syncTools();
+  resume();
   showList();
   flushQueue();
 
   return {
-    refresh: () => (state.screen === 'list' ? showList() : undefined),
+    refresh,
     flush,
+    suspend,
+    resume,
     newNote,
     openNote,
     fit() { state.zoom = 1; state.sy = -PAGE_GAP; clampScroll(); render(); },
     destroy() {
-      timers.forEach(clearInterval);
-      timers = [];
+      suspend();
       observer?.disconnect();
       document.removeEventListener('visibilitychange', onHidden);
-      document.removeEventListener('pointermove', notePen, { capture: true });
       window.removeEventListener('pagehide', onHidden);
       window.removeEventListener('online', onOnline);
       window.removeEventListener('orientationchange', resize);
@@ -977,6 +1286,10 @@ export function mountInk(root, options = {}) {
     // For tests.
     _state: state,
     _router: router,
+    _persist: () => persist(),
+    _clamp: () => clampScroll(),
+    _deleteLocal: deleteLocal,
+    _timers: () => timers.length,
     strokeCount: () => (state.note ? state.note.pages.reduce((n, p) => n + p.strokes.length, 0) : 0),
   };
 }

@@ -269,7 +269,25 @@ As planned, with these details settled while building it:
   `FORK_OPEN_TARGETS` in `forkModuleShortcuts.js`.
 - **Pages** are 1000 × 1414 units (A4); a note has at most 60 pages and 600,000 points.
 - **Sweep** runs when Write lists notes (`GET /api/ink/notes`). Calling it from the
-  hourly fact sync, and asking Athena to drop sent notes, is H4.
+  hourly fact sync, and asking Athena to drop sent notes, is H4. A note relabelled in
+  the Notes window keeps its strokes but leaves Write; the ink routes answer 404 for
+  any note not labelled `handwritten`, so they never change or delete other notes.
+- **Notes Evidence** already skips `handwritten` notes in H1 (planned for H4), so a
+  long handwritten title can't reach the ledger.
+- **Device store per user:** IndexedDB `fork-ink:<user>` (the user from
+  `/api/auth/status`, or upstream's cached `odysseus-auth-user` when offline), so a
+  shared browser never shows or uploads another user's notes. A note the hub refuses
+  for good (404, 400) stays on the device marked "not synced" and isn't retried until
+  it's edited again.
+- **Limits in the view:** at most 60 pages (Add page is disabled), a stroke longer than
+  5000 points continues as a new stroke, a page or note at the hub's limit says the
+  note is full. Pages are exactly 1000 × 1414 (the hub refuses other sizes).
+- **Barrel button:** Chrome reports it as the secondary button (`buttons & 2`) on most
+  Android pens and as 32 on pens with an eraser end; both erase while held, also when
+  pressed or released mid-stroke. A barrel press while the pen hovers doesn't erase
+  until the tip touches.
+- **Render:** the hub draws the same smoothed curve as the canvas, and highlighter
+  marks are laid down as one layer on both, so overlaps don't get darker.
 - **Offline start: not yet.** The idle-time import is in, but it doesn't put Write in
   the service worker's cache: `static/index.html` registers `/static/sw.js` with the
   default scope, `/static/`, and the server sends no `Service-Worker-Allowed` header, so

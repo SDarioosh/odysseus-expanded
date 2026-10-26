@@ -135,9 +135,12 @@ await page.evaluate(() => document.querySelector('[aria-label="Undo"]').click())
 await page.evaluate(() => view.flush());
 await page.waitForFunction(() => document.querySelector('.ink-status').textContent === 'Saved');
 out.saved = saves.length ? saves[saves.length - 1] : null;
+// The device store is per signed-in user; this page has none ("fork-ink:_").
 out.local = await page.evaluate(() => new Promise((resolve) => {
-  const req = indexedDB.open('fork-ink', 1);
+  const req = indexedDB.open('fork-ink:_');
+  req.onerror = () => resolve('no database');
   req.onsuccess = () => {
+    if (!req.result.objectStoreNames.contains('notes')) { resolve('no notes store'); return; }
     const get = req.result.transaction('notes').objectStore('notes').getAll();
     get.onsuccess = () => resolve(get.result.map((n) => ({ synced: n.synced,
       strokes: n.pages.reduce((s, p) => s + p.strokes.length, 0) })));

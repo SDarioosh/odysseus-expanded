@@ -175,7 +175,8 @@ async function open(win) {
 function hide(win) {
   if (win.modal) win.modal.classList.add('hidden');
   setActive(win, false);
-  if (win.view && typeof win.view.flush === 'function') win.view.flush(); // Write: save now
+  // Write: save now and stop its timers and window-wide listener while closed.
+  if (win.view && typeof win.view.suspend === 'function') win.view.suspend();
 }
 
 // Close keeps the view (and its state) for the next open; it only hides the window.
@@ -242,7 +243,11 @@ function addSidebarEntry(win, after) {
   label.className = 'grow';
   label.textContent = win.title;
   item.append(label);
-  item.addEventListener('keydown', (e) => { if (e.key === 'Enter') item.click(); });
+  item.addEventListener('keydown', (e) => {
+    if (e.target !== item || (e.key !== 'Enter' && e.key !== ' ')) return;
+    e.preventDefault(); // Space would scroll the sidebar
+    item.click();
+  });
   anchor.after(item);
 }
 
