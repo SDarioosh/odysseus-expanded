@@ -230,13 +230,14 @@ def parse_answer(raw: Any) -> str | None:
         return None
     s = raw.strip()
     s = re.sub(r"^```(?:json)?\s*|\s*```$", "", s)
-    candidates = [s]
-    start, end = s.find("{"), s.rfind("}")
-    if 0 <= start < end:
-        candidates.append(s[start:end + 1])
-    for c in candidates:
+    # The first object with a string "text" that starts at a "{": braces in the words
+    # around it (or inside it) don't matter.
+    decoder = json.JSONDecoder()
+    for i, ch in enumerate(s):
+        if ch != "{":
+            continue
         try:
-            data = json.loads(c)
+            data, _ = decoder.raw_decode(s, i)
         except ValueError:
             continue
         if isinstance(data, dict) and isinstance(data.get("text"), str):

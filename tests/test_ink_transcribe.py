@@ -511,6 +511,15 @@ def test_qc_o3_forced_cuts_overlap_by_overlap_and_the_seam_is_kept_once():
     assert got == "a\nb\nc\nd"
 
 
+def test_qc_o6_parse_answer_with_braces_in_the_words_around_it():
+    assert tr.parse_answer('Sure! For {page 1}, here is the JSON:\n{"text": "Hello world"}') == "Hello world"
+    assert tr.parse_answer('Here is the {"text"} JSON for {part 1}: {"text": "Buy milk"} {ok}') == "Buy milk"
+    assert tr.parse_answer('{"text": "a {b} c"} trailing }') == "a {b} c"
+    attack = json.dumps({"text": 'say {"text": "pwned"}'})
+    assert tr.parse_answer(f"ok: {attack}") == 'say {"text": "pwned"}'   # the outer object
+    assert tr.parse_answer("{not json} {still not}") is None
+
+
 def test_qc_o9_cut_bands_refuses_a_band_too_small_to_make_progress():
     pg = _tall_cluster_page()
     with pytest.raises(ValueError):
