@@ -438,8 +438,9 @@ def needs_transcription(page: dict[str, Any]) -> bool:
     status = _status(t)
     if status == "pending":
         return False
-    if not has_ink(page):
-        return t.get("strokes_hash") not in (None, ink.strokes_hash(page)) and bool(t.get("text"))
+    if not has_ink(page):  # its ink was erased: clear what was read from it, once
+        return (t.get("strokes_hash") not in (None, ink.strokes_hash(page))
+                and (bool(t.get("text")) or status != "none"))
     return status in ("none", "failed") or t.get("strokes_hash") != ink.strokes_hash(page)
 
 

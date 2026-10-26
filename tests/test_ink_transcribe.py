@@ -535,6 +535,21 @@ def test_qc_o6_parse_answer_with_braces_in_the_words_around_it():
     assert tr.parse_answer("{not json} {still not}") is None
 
 
+def test_qc_o7_a_page_with_empty_machine_text_is_cleared_when_its_ink_is_erased(env):
+    note_id = new_note()
+    run(transcribe("alice", note_id, Fake([json.dumps({"text": ""})])))
+    assert ink.list_notes("alice")[0]["transcripts"]["review"] == [0]
+    ink.save("alice", note_id, doc(page([]), edited_at=2000))
+    assert tr.needs_transcription(stored("alice", note_id)["pages"][0])
+    fake = Fake()
+    run(transcribe("alice", note_id, fake, page_ids=["p0"], only_changed=True))
+    assert fake.calls == []
+    assert tr.transcripts("alice", note_id)["pages"][0]["status"] == "none"
+    assert ink.list_notes("alice")[0]["transcripts"]["review"] == []
+    # cleared once: not again
+    assert not tr.needs_transcription(stored("alice", note_id)["pages"][0])
+
+
 def test_qc_o9_cut_bands_refuses_a_band_too_small_to_make_progress():
     pg = _tall_cluster_page()
     with pytest.raises(ValueError):
