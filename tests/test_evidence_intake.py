@@ -215,9 +215,9 @@ def test_source_edit_follows_or_moves(data):
 def test_source_rewording_keeps_the_owners_decision(data):
     """Athena re-summarized a conversation and reworded a fact under the same id: the
     owner's confirmed (or dismissed) belief keeps it, no second belief in memory."""
-    bike = "Shahyah owns a carbureted motorcycle with no computer on it."
-    reworded = "Shahyah owns a carbureted motorcycle that has no computer."
-    person = {"about": "person", "subject": "Shahyah"}
+    bike = "Marisol owns a carbureted motorcycle with no computer on it."
+    reworded = "Marisol owns a carbureted motorcycle that has no computer."
+    person = {"about": "person", "subject": "Marisol"}
     ei.submit("alice", [ev("odysseus-sound", "7", bike, **person)], now=T0)
     ei.confirm("alice", only()["id"], now=T0)
     ei.submit("alice", [ev("odysseus-sound", "7", reworded, source_confirmed=True, **person)],
@@ -286,26 +286,26 @@ def test_reject_leaves_memory_and_stays_rejected(data):
 
 
 def test_correct_changes_what_memory_shows(data):
-    ei.submit("alice", [ev("odysseus-sound", "5", "Jenn lives in Lisbon", about="person",
-                           subject="Jenn", source_confirmed=True)], now=T0)
+    ei.submit("alice", [ev("odysseus-sound", "5", "Kath lives in Lisbon", about="person",
+                           subject="Kath", source_confirmed=True)], now=T0)
     belief = only()
     memory_id = mirrored(data)[belief["id"]]["id"]
     MemoryManager(str(data)).increment_uses([memory_id])
-    fixed = ei.correct("alice", belief["id"], "Jenn lives in  Porto", now=T1)
+    fixed = ei.correct("alice", belief["id"], "Kath lives in  Porto", now=T1)
     assert (fixed["status"], fixed["confirmed_by"], fixed["owner_text"]) == \
-        ("confirmed", "owner", "Jenn lives in Porto")
-    assert fixed["text"] == "Jenn lives in Lisbon" and fixed["shown_text"] == "Jenn lives in Porto"
+        ("confirmed", "owner", "Kath lives in Porto")
+    assert fixed["text"] == "Kath lives in Lisbon" and fixed["shown_text"] == "Kath lives in Porto"
     entry = mirrored(data)[belief["id"]]
     assert (entry["id"], entry["uses"]) == (memory_id, 1)
-    assert entry["text"] == "Jenn lives in Porto (source: http://h/odysseus-sound/5)"
+    assert entry["text"] == "Kath lives in Porto (source: http://h/odysseus-sound/5)"
     assert entry["category"] == "contact"
     # the module still says Lisbon, and is retracted later: the correction stays
-    ei.submit("alice", [ev("odysseus-sound", "5", "Jenn lives in Lisbon", about="person",
-                           subject="Jenn", source_confirmed=False)], now=T1)
+    ei.submit("alice", [ev("odysseus-sound", "5", "Kath lives in Lisbon", about="person",
+                           subject="Kath", source_confirmed=False)], now=T1)
     ei.reconcile_source("alice", "odysseus-sound", set(), now=T1)
     assert only()["status"] == "confirmed"
     # a source that now says the corrected text lands on the same belief
-    ei.submit("alice", [ev("notes", "n2", "Jenn lives in Porto.")], now=T1)
+    ei.submit("alice", [ev("notes", "n2", "Kath lives in Porto.")], now=T1)
     assert len(only()["evidence"]) == 2
     with pytest.raises(ValueError):
         ei.correct("alice", belief["id"], "   ")
@@ -514,15 +514,15 @@ def test_unreadable_memory_store_is_not_overwritten(data):
 # ------------------------------------------------------------------------- reads
 def test_list_filters_and_stats(data):
     ei.submit("alice", [
-        ev("notes", "1", "Jenn lives in Lisbon", about="person", subject="Jenn"),
-        ev("notes", "2", "Jenn has a dog", about="person", subject="jenn",
+        ev("notes", "1", "Kath lives in Lisbon", about="person", subject="Kath"),
+        ev("notes", "2", "Kath has a dog", about="person", subject="kath",
            source_confirmed=True),
         ev("notes", "3", "Likes jazz"),
     ], now=T0)
-    assert [b["text"] for b in ei.list_beliefs("alice", subject="JENN")] == \
-        ["Jenn lives in Lisbon", "Jenn has a dog"]
+    assert [b["text"] for b in ei.list_beliefs("alice", subject="KATH")] == \
+        ["Kath lives in Lisbon", "Kath has a dog"]
     assert [b["text"] for b in ei.list_beliefs("alice", status="confirmed")] == \
-        ["Jenn has a dog"]
+        ["Kath has a dog"]
     assert len(ei.list_beliefs("alice", status=["confirmed", "tentative"], limit=2)) == 2
     with pytest.raises(ValueError):
         ei.list_beliefs("alice", status="maybe")
@@ -564,9 +564,9 @@ def test_normalize_owner_mentions():
     assert ei.normalize("Owners of the flat pay rent", None, "owner") == \
         "owners of the flat pay rent"
     assert ei.normalize("Likes jazz", "Me", "owner") == "likes jazz"
-    assert ei.normalize("I am allergic to peanuts", "Jenn", "person") == \
+    assert ei.normalize("I am allergic to peanuts", "Kath", "person") == \
         "i am allergic to peanuts"
-    assert ei.normalize("Jenn lives in Lisbon.", "Jenn", "person") == "jenn lives in lisbon"
+    assert ei.normalize("Kath lives in Lisbon.", "Kath", "person") == "kath lives in lisbon"
     assert ei.normalize("Me is allergic to peanuts.") == "me is allergic to peanuts"
 
 
@@ -582,7 +582,7 @@ def test_owner_fact_from_a_note_and_a_conversation_is_one_belief(data):
     assert {e["source"] for e in belief["evidence"]} == {"notes", "odysseus-sound", "chat"}
     # a person's fact with the same words is a different belief
     ei.submit("alice", [ev("notes", "n-2:0", "I am allergic to peanuts", about="person",
-                           subject="Jenn")], now=T1)
+                           subject="Kath")], now=T1)
     assert len(ei.list_beliefs("alice")) == 2
 
 
@@ -600,8 +600,8 @@ def test_owner_correction_is_normalized_with_the_beliefs_about(data):
 
 def test_existing_ledger_owner_keys_are_migrated_once(data):
     ei.submit("alice", [ev("notes", "n-1:0", "I am allergic to peanuts", subject="Me"),
-                        ev("notes", "n-2:0", "Jenn is allergic to cats", about="person",
-                           subject="Jenn")], now=T0)
+                        ev("notes", "n-2:0", "Kath is allergic to cats", about="person",
+                           subject="Kath")], now=T0)
     with sqlite3.connect(data / "beliefs.db") as db:  # as an older ledger stored them
         db.execute("UPDATE beliefs SET norm = lower(rtrim(text, '.'))")
         db.execute("PRAGMA user_version = 0")
@@ -611,4 +611,4 @@ def test_existing_ledger_owner_keys_are_migrated_once(data):
     with sqlite3.connect(data / "beliefs.db") as db:
         assert db.execute("PRAGMA user_version").fetchone()[0] == ei.ERASE_VERSION
         assert sorted(r[0] for r in db.execute("SELECT norm FROM beliefs")) == \
-            ["jenn is allergic to cats", "owner is allergic to peanuts"]
+            ["kath is allergic to cats", "owner is allergic to peanuts"]

@@ -137,7 +137,7 @@ Then, per [../modules.md](../modules.md#registering-a-module-in-odysseus):
   still ask for approval.
 - Follow-ups in the same chat don't need `/sound` again: once a convo tool has run in a
   chat, every later message there is offered all 13 tools (write tools still ask). So
-  "Speaker 1 and 3 were Shahyah, speaker 2 was Jenn" after `/sound what did we talk about
+  "Speaker 1 and 3 were Marisol, speaker 2 was Kath" after `/sound what did we talk about
   last night?` calls `name_speaker`.
 - Approving a write tool once covers more calls of that same tool in the same reply:
   one click renames all three speakers. A different write tool in that reply is still
@@ -289,7 +289,8 @@ from MCP 0.11.0 `kind`, `conversation_id` and `quote` (the transcript line), whi
 and group the facts on the review page ([beliefs.md](../beliefs.md#the-athena-facts-job)).
 From MCP 0.12.0 each row also has `written_by_hand` and `note_link` (true and the hub
 note's URL for a fact from a handwritten note, else false and null); the facts job
-doesn't read them yet, and the fact's `link` is still the signed transcript link.
+doesn't read them yet, and the fact's `link` is still the signed transcript link. From
+MCP 0.13.0 each row also has `valid_until` (additive).
 
 - **Evidence per fact**: source `odysseus-sound`, source id = the fact id, the fact text,
   the signed transcript link, `first_said`/`last_said` as seen dates, `times_said`/`days`
@@ -297,6 +298,11 @@ doesn't read them yet, and the fact's `link` is still the signed transcript link
   verdict. A module that doesn't send `confirmed` per row yet gets one more call,
   `{"confirmed": true, "format": "json", "limit": 1000}`, whose ids are the confirmed
   set.
+- **Facts about one occasion end**: the row's `valid_until` (the last day a fact like
+  "has a meeting with the Meshtastic team on Tuesday at 11 a.m." is worth keeping; null
+  for lasting facts) travels as `Evidence.valid_until`. The belief goes `stale` the day
+  after and leaves memory, even while the module still returns the fact. A module older
+  than 0.13.0 sends none: nothing ends early.
 - **Confirmed beliefs become memories**: confirmed by the module's flag, by a second
   source saying the same thing (`BELIEF_CONFIRM_SOURCES`), by enough sightings on enough
   days, or by the owner. One memory per belief, for the task's owner: text = the fact

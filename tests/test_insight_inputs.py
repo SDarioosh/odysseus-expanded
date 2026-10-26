@@ -124,7 +124,7 @@ def test_plans_from_the_ledger(store):
     (("The owner plans to slow down feature development for Odysseus after phase 4 to "
       "focus on bug fixing."), None,
      "Slow down feature development for Odysseus after phase 4 to focus on bug fixing"),
-    (("Shahyah plans to have Odysseus save notes as flat PNGs, transcribe them, and feed "
+    (("Marisol plans to have Odysseus save notes as flat PNGs, transcribe them, and feed "
       "them into the personal context system."), None,
      "Have Odysseus save notes as flat PNGs, transcribe them, and feed them into the…"),
     ("The owner decided to stabilise the base system before side projects.", None,
@@ -137,10 +137,10 @@ def test_plan_titles_are_short_todo_phrases(text, value, title):
 
 
 def test_beliefs_that_are_not_plans_are_left_out():
-    beliefs = [_belief(1, text="Shahyah believes a separate server is needed for agentic "
+    beliefs = [_belief(1, text="Marisol believes a separate server is needed for agentic "
                                 "tasks."),
-               _belief(2, text="Shahyah has been thinking of getting rid of his truck."),
-               _belief(3, text="Shahyah wants to sell the truck before winter.")]
+               _belief(2, text="Marisol has been thinking of getting rid of his truck."),
+               _belief(3, text="Marisol wants to sell the truck before winter.")]
     cands = ii.plan_candidates("alice", TODAY, beliefs=beliefs)
     assert [(c["ref"], c["title"]) for c in cands] == [
         ("belief:3", "Sell the truck before winter")]

@@ -12,3 +12,32 @@ services:
       # Module MCP servers whose readOnlyHint tools run without approval
       # (src/mcp_trust.py). Comma separated, e.g. convo,<next module>.
       - ODYSSEUS_TRUSTED_READONLY_MCP=convo
+
+  # Fork: forwards host services that listen only on 127.0.0.1 (Proton Mail Bridge IMAP
+  # 1143 / SMTP 1025) to the Docker bridge address, where the odysseus container reaches
+  # them as host.docker.internal:<port>. Nothing is opened on the LAN. Ports in .env:
+  # HOST_RELAY_PORTS=1143,1025 (empty = idle). Replaces socat started by hand on the host;
+  # stop those first, they hold the same addresses (docs/fork/deploy.md).
+  host-relay:
+    image: docker.io/alpine/socat@sha256:22d77becaeeea8ef56b8c4bb2312323acafe85354be6a85714ff5050e3537842  # 1.8.1.3
+    network_mode: host
+    environment:
+      - HOST_RELAY_PORTS=${HOST_RELAY_PORTS:-}
+      - HOST_RELAY_BIND=${HOST_RELAY_BIND:-172.17.0.1}
+    entrypoint:
+      - /bin/sh
+      - -c
+      - |
+        set -eu
+        pids=""
+        for port in $$(echo "$$HOST_RELAY_PORTS" | tr ',' ' '); do
+          echo "forwarding $$HOST_RELAY_BIND:$$port -> 127.0.0.1:$$port"
+          socat "TCP-LISTEN:$$port,bind=$$HOST_RELAY_BIND,fork,reuseaddr" "TCP:127.0.0.1:$$port" &
+          pids="$$pids $$!"
+        done
+        [ -n "$$pids" ] || exec sleep 2147483647
+        # One forwarder died (e.g. its address is taken): exit so Docker restarts all.
+        while kill -0 $$pids 2>/dev/null; do sleep 5; done
+        echo "a forwarder stopped; exiting" >&2
+        exit 1
+    restart: unless-stopped

@@ -137,7 +137,7 @@ def no_disables(monkeypatch):
 
 
 def test_follow_up_gets_the_used_trusted_servers_other_tools(manager, monkeypatch, no_disables):
-    """'Speaker 2 was Jenn' after a /sound search must be offered name_speaker."""
+    """'Speaker 2 was Kath' after a /sound search must be offered name_speaker."""
     monkeypatch.setenv(mcp_trust.TRUSTED_READONLY_MCP_ENV, "convo")
     warm = mcp_trust.with_trusted_server_tools({SEARCH, "manage_notes"})
     assert {"mcp__srv1__name_speaker", "mcp__srv1__get_transcript", "manage_notes"} <= warm
@@ -163,7 +163,7 @@ def test_follow_up_contract_offers_write_tool_but_does_not_grant_it(manager, mon
     schemas = [{"type": "function", "function": {"name": f"mcp__srv1__{t['name']}",
                                                  "parameters": {"type": "object"}}}
                for t in manager._tools["srv1"]]
-    message = 'Speaker 1 and 3 was "Shahyah", speaker 2 was "Jenn"'
+    message = 'Speaker 1 and 3 was "Marisol", speaker 2 was "Kath"'
     contract = resolve_turn_contract(
         capabilities=(), schemas=schemas, policy=ToolPolicy(), message=message,
         warm_tools=mcp_trust.with_trusted_server_tools({SEARCH}))
@@ -209,15 +209,15 @@ def test_approved_trusted_tool_runs_again_in_the_resumed_task(backends, monkeypa
     monkeypatch.setenv(mcp_trust.TRUSTED_READONLY_MCP_ENV, "convo")
     # A resumed authority: inherited, backends sealed from the original request.
     base = replace(RequestAuthority.empty(owner="alice", session_id="s"), inherited=True)
-    assert not base.permits(_rename("Speaker 3", "Shahyah"))
+    assert not base.permits(_rename("Speaker 3", "Marisol"))
     with pytest.raises(ResourceIdentityError):
-        bind_backend_for_operation(base, _rename("Speaker 3", "Shahyah"))
+        bind_backend_for_operation(base, _rename("Speaker 3", "Marisol"))
     auth = mcp_trust.with_approved_tool_grant(base, _approval(RENAME))
-    assert auth.permits(_rename("Speaker 3", "Shahyah"))
-    assert auth.permits(_rename("Speaker 2", "Jenn"))
+    assert auth.permits(_rename("Speaker 3", "Marisol"))
+    assert auth.permits(_rename("Speaker 2", "Kath"))
     # The tool's MCP backend is in scope too ("External backend is outside
     # sealed request scope" on the server before this).
-    bound = bind_backend_for_operation(auth, _rename("Speaker 2", "Jenn"))
+    bound = bind_backend_for_operation(auth, _rename("Speaker 2", "Kath"))
     assert bound.resource.tool_id == "name_speaker"
     with pytest.raises(ResourceIdentityError):
         bind_backend_for_operation(auth, ExactOperation.normalize("mcp__srv2__search_web", "{}"))
@@ -225,8 +225,8 @@ def test_approved_trusted_tool_runs_again_in_the_resumed_task(backends, monkeypa
     assert not auth.permits(ExactOperation.normalize("mcp__srv1__wipe", "{}"))
     assert not auth.permits(ExactOperation.normalize("mcp__srv2__search_web", "{}"))
     # Policy and per-tool disables still win.
-    assert not auth.restrict(disabled_tools={RENAME}).permits(_rename("Speaker 2", "Jenn"))
-    assert not auth.restrict(ToolPolicy(disable_mcp=True)).permits(_rename("Speaker 2", "Jenn"))
+    assert not auth.restrict(disabled_tools={RENAME}).permits(_rename("Speaker 2", "Kath"))
+    assert not auth.restrict(ToolPolicy(disable_mcp=True)).permits(_rename("Speaker 2", "Kath"))
     assert mcp_trust.with_approved_tool_grant(auth, _approval(RENAME)) is auth
 
 
