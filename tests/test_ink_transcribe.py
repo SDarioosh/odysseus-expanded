@@ -466,3 +466,53 @@ def test_default_reader_lets_chat_finish_first_and_uses_the_local_model(monkeypa
     assert model == "3.6-35b" and kw["thinking_mode"] == "off"
     assert kw.get("workload", "foreground") != "background"
     assert read.answered_by == "3.6-35b"
+
+
+# ------------------------------------------------- QC bug hunt on H2 (2026-10-26)
+# docs/fork/qc-ink-h2-2026-10-26.md: one test per finding that reproduced.
+def _mark(y0, y1, sid="m"):
+    return {"id": sid, "pen": PEN, "at": 0, "points": [[100, y0, 0], [200, y1, 10]]}
+
+
+def test_qc_o1_strokes_in_the_margin_below_or_above_the_page():
+    for marks in ([_mark(1445, 1450)], [_mark(-40, -35)],
+                  [_mark(1445, 1450), _mark(-40, -35, "n")]):
+        pg = page([], extra=marks)                       # only ink off the paper
+        assert all(0 <= a < b <= 1414 for a, b, _ in tr.cut_bands(pg))
+        tr.page_bands(pg)                                # no PIL crop error
+    pg = page([700], extra=[_mark(1445, 1450), _mark(-40, -35, "n")])
+    bands = tr.cut_bands(pg)
+    assert bands and all(0 <= a < b <= 1414 for a, b, _ in bands)
+    assert len(tr.page_bands(pg)) == len(bands)
+    edge = page([], extra=[_mark(1400, 1460)])           # on the paper's edge: kept
+    assert tr.cut_bands(edge) and tr.cut_bands(edge)[0][1] == 1414
+
+
+def _tall_cluster_page():
+    """Written lines every 44 units joined by a margin line: one cluster, cut by force."""
+    margin = {"id": "margin", "pen": PEN, "at": 0, "points": [[60, y, 0] for y in range(140, 1290, 5)]}
+    return page([150 + 44 * i for i in range(26)], extra=[margin])
+
+
+def test_qc_o3_forced_cuts_overlap_by_overlap_and_the_seam_is_kept_once():
+    pg = _tall_cluster_page()
+    bands = tr.cut_bands(pg)
+    assert any(j for _, _, j in bands)
+    for (a, b, _), nxt in zip(bands, bands[1:]):
+        if nxt[2]:
+            assert b - nxt[0] <= 2 * tr.OVERLAP + 0.5   # no extra paper at a forced cut
+    first = {"top": 0, "bottom": 554, "overlap": False}
+    second = {"top": 446, "bottom": 900, "overlap": True}
+    got = tr.join_bands([("First line\nOverlap line 1\nOverlap line 2", first),
+                         ("overlap line 1\nOverlap  line 2\nLast line", second)])
+    assert got == "First line\nOverlap line 1\nOverlap line 2\nLast line"
+    # a line that is only similar is not dropped, and only at an overlap seam
+    got = tr.join_bands([("a\nb", first), ("c\nd", second)])
+    assert got == "a\nb\nc\nd"
+
+
+def test_qc_o9_cut_bands_refuses_a_band_too_small_to_make_progress():
+    pg = _tall_cluster_page()
+    with pytest.raises(ValueError):
+        tr.cut_bands(pg, max_band=2 * tr.OVERLAP)
+    assert tr.cut_bands(pg, max_band=2 * tr.OVERLAP + 1)       # smallest that ends

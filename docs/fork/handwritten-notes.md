@@ -327,8 +327,10 @@ As planned (`src/ink_transcribe.py`, routes on the existing ink router, a Text t
   cluster; bands are at most 560 units (about 12 ruled lines), cut in the gaps, with up
   to 24 units of paper around them but never into the next line. A cluster taller than
   a band (a drawing, a margin line) is cut where the fewest strokes cross, with 30 units
-  of overlap; a line read twice at that seam is kept once. A gap of 80 units or more
-  between bands is a blank line. A page without ink is cleared without a model call.
+  of overlap on each side of the cut and no paper added there; lines read twice at that
+  seam (up to 3) are kept once. Ink in the 50-unit margin the hub accepts around a page
+  is cut to the paper, as in the render. A gap of 80 units or more between bands is a
+  blank line. A page without ink is cleared without a model call.
 - **Prompt and answer.** As planned, plus: keep list markers, leave out struck-through
   words and drawings. The answer must be JSON `{text}`; code fences and words around the
   object are tolerated, anything else gets one retry and then `failed`. Words like

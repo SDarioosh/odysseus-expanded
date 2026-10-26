@@ -57,6 +57,7 @@ OVERLAP = 30                          # page units on each side of a cut inside 
 PAD = 24                              # page units of paper around a band
 LINE_JOIN = 10                        # strokes closer than this vertically are one line
 PARAGRAPH_GAP = 80                    # a gap this tall between bands is a blank line
+SEAM_LINES = 3                        # lines at most that both bands of a cut can hold
 MAX_PAGE_TEXT = 20_000                # characters kept per page (model or owner)
 UNREADABLE = "[?]"
 
@@ -100,11 +101,16 @@ def has_ink(page: dict[str, Any]) -> bool:
 
 
 def _extents(page: dict[str, Any]) -> list[tuple[float, float]]:
+    """Vertical span of each ink stroke, cut to the paper: a stroke may lie in the margin
+    the hub accepts around a page (``src/ink_notes.py``), which the render leaves out."""
+    height = float(page.get("height") or ink.PAGE_HEIGHT)
     out = []
     for s in _ink_strokes(page):
         ys = [p[1] for p in s["points"]]
         half = s["pen"]["width"] / 2
-        out.append((min(ys) - half, max(ys) + half))
+        top, bottom = max(0.0, min(ys) - half), min(height, max(ys) + half)
+        if top < bottom:
+            out.append((top, bottom))
     return out
 
 
@@ -138,7 +144,10 @@ def cut_bands(page: dict[str, Any], max_band: float = MAX_BAND
               ) -> list[tuple[float, float, bool]]:
     """``(top, bottom, overlaps_previous)`` bands in page units covering all ink. Cuts
     fall in the gaps between line clusters; a cluster taller than ``max_band`` is cut
-    where the fewest strokes cross, and the two bands then overlap by ``OVERLAP``."""
+    where the fewest strokes cross, and the two bands then overlap by ``OVERLAP`` on each
+    side of the cut. Ink outside the paper is left out."""
+    if max_band <= 2 * OVERLAP:  # a forced cut would never move down the page
+        raise ValueError(f"max_band must be more than {2 * OVERLAP}")
     height = float(page.get("height") or ink.PAGE_HEIGHT)
     clusters = line_clusters(page)
     if not clusters:
@@ -160,10 +169,11 @@ def cut_bands(page: dict[str, Any], max_band: float = MAX_BAND
             bands.append([top, bottom, joined])
     out = []
     for i, (top, bottom, joined) in enumerate(bands):
-        # Paper around the band, but never into the next or previous line.
-        gap_above = PAD if i == 0 or joined else min(PAD, (top - bands[i - 1][1]) / 2)
+        # Paper around the band, but never into the next or previous line. A forced cut
+        # already has OVERLAP on each side: no paper on top of it.
+        gap_above = 0.0 if joined else PAD if i == 0 else min(PAD, (top - bands[i - 1][1]) / 2)
         nxt = bands[i + 1] if i + 1 < len(bands) else None
-        gap_below = PAD if nxt is None or nxt[2] else min(PAD, (nxt[0] - bottom) / 2)
+        gap_below = PAD if nxt is None else 0.0 if nxt[2] else min(PAD, (nxt[0] - bottom) / 2)
         out.append((max(0.0, top - gap_above), min(height, bottom + gap_below), bool(joined)))
     return out
 
@@ -240,16 +250,20 @@ def _norm(line: str) -> str:
 
 def join_bands(parts: list[tuple[str, dict[str, Any]]]) -> str:
     """Join band texts top to bottom. A blank line marks a tall gap between bands; where
-    two bands overlap, a line read twice at the seam is kept once."""
+    two bands overlap, the lines read twice at the seam (up to ``SEAM_LINES``) are kept
+    once."""
     lines: list[str] = []
     prev: dict[str, Any] | None = None
     for text, band in parts:
         new = clean_text(text).split("\n") if clean_text(text) else []
         if prev is not None and new:
             if band["overlap"]:
-                tail = [ln for ln in lines if ln.strip()]
-                if tail and _norm(tail[-1]) == _norm(new[0]):
-                    new = new[1:]
+                tail = [_norm(ln) for ln in lines if ln.strip()]
+                head = [_norm(ln) for ln in new]
+                for k in range(min(SEAM_LINES, len(tail), len(head)), 0, -1):
+                    if tail[-k:] == head[:k]:
+                        new = new[k:]
+                        break
             elif lines and band["top"] - prev["bottom"] >= PARAGRAPH_GAP - 2 * PAD:
                 lines.append("")
         lines.extend(new)
