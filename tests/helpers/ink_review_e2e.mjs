@@ -868,5 +868,46 @@ await check('qc_o9_text_image_follows_resize', async () => {
   return { ok: after < before && after <= fits, before, after, fits };
 });
 
+// While the pen is down, the line on screen is whole: drawn in pieces it must match the
+// same stroke drawn in one go. A real pen sends ~240 samples a second, so the steps
+// are tiny; the bug was a dotted line until the pen lifted.
+await check('live_stroke_is_whole_while_writing', async () => {
+  const page = await openPage(browser, { user: 'quin' });
+  await newNote(page);
+  const got = await page.evaluate(async () => {
+    const c = canvas();
+    const r = c.getBoundingClientRect();
+    const ev = (type, x, y, buttons, ahead) => {
+      const e = new PointerEvent(type, { bubbles: true, cancelable: true, pointerType: 'pen', pointerId: 6,
+        clientX: r.left + x, clientY: r.top + y, buttons, button: type === 'pointermove' ? -1 : 0 });
+      if (ahead) Object.defineProperty(e, 'getPredictedEvents', { value: () => [
+        { clientX: r.left + x + 3, clientY: r.top + y + 2, timeStamp: e.timeStamp },
+        { clientX: r.left + x + 6, clientY: r.top + y + 4, timeStamp: e.timeStamp }] });
+      c.dispatchEvent(e);
+    };
+    // A curvy line in 0.7 px steps, with predictions, like a fast real pen.
+    ev('pointerdown', 120, 200, 1, false);
+    let x = 120; let y = 200;
+    for (let i = 1; i <= 500; i++) {
+      x = 120 + i * 0.7;
+      y = 200 + Math.sin(i / 25) * 60;
+      ev('pointermove', x, y, 1, i < 500);
+    }
+    const read = () => c.getContext('2d').getImageData(0, 0, c.width, c.height).data;
+    const shown = read();
+    view.fit();                          // the same live stroke, drawn in one go
+    await settle(100);
+    const full = read();
+    let diff = 0;
+    for (let i = 0; i < shown.length; i += 4) {
+      if (Math.abs(shown[i] - full[i]) + Math.abs(shown[i + 1] - full[i + 1]) + Math.abs(shown[i + 2] - full[i + 2]) > 60) diff++;
+    }
+    ev('pointerup', x, y, 0, false);
+    return { diff };
+  });
+  await page.close();
+  return { ok: got.diff < 20, ...got };
+});
+
 await browser.close();
 console.log(JSON.stringify(results));
