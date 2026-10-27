@@ -69,10 +69,41 @@ export function buildAthenaMenu(itemIds, beforeId = 'tools-section') {
     header.setAttribute('aria-expanded', String(!collapsed));
   };
   set(readCollapsed());
+  // Same open/close animation as the Tools section (static/js/section-management.js):
+  // rows cascade in on open; on close they peel off first, then the list hides. The
+  // keyframes are upstream's (static/css/01-agent-chat.css); fork-modules.css applies
+  // them to this group. `gen` makes a superseded toggle's pending callback a no-op.
+  let gen = 0;
   const toggle = () => {
     const collapsed = !group.classList.contains('collapsed');
-    set(collapsed);
     saveCollapsed(collapsed);
+    group.classList.remove('fork-athena-expanding', 'fork-athena-collapsing');
+    const mine = ++gen;
+    if (collapsed) {
+      header.setAttribute('aria-expanded', 'false');
+      void group.offsetHeight; // restart the keyframes
+      group.classList.add('fork-athena-collapsing');
+      const lock = () => {
+        if (gen !== mine) return;
+        group.classList.remove('fork-athena-collapsing');
+        set(true);
+      };
+      const out = group.getAnimations({ subtree: true })
+        .filter((a) => a.animationName === 'section-domino-out');
+      if (!out.length) {
+        lock();
+      } else {
+        Promise.allSettled(out.map((a) => a.finished)).then(lock);
+        setTimeout(lock, 600); // never stay stuck open
+      }
+    } else {
+      set(false);
+      void group.offsetHeight;
+      group.classList.add('fork-athena-expanding');
+      setTimeout(() => {
+        if (gen === mine) group.classList.remove('fork-athena-expanding');
+      }, 700);
+    }
   };
   header.addEventListener('click', toggle);
   header.addEventListener('keydown', (e) => {
