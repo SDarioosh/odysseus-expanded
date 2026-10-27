@@ -8,7 +8,10 @@ Per page, the sidecar's ``transcript`` is::
      "error",      # why the last run failed (status ``failed``)
      "job",        # the run that will write this page (status ``pending``)
      "reading",    # strokes_hash of the strokes that run reads (status ``pending``)
-     "previous"}   # {"text", "at"}: reviewed text a new transcription replaced
+     "previous",   # {"text", "at", "auto"?}: reviewed text a new transcription replaced
+     "auto",       # True: accepted by INK_AUTO_SEND, never checked by the owner
+     "machine"}    # {"text", "model", "at", "strokes_hash"}: the model's text a review
+                   # replaced, kept for scripts/ink_eval.py --stored (H5)
 
 ``status`` is ``none`` -> ``pending`` -> ``machine`` (model output, not reviewed) or
 ``failed``; saving reviewed text makes it ``reviewed``. A page whose strokes no longer
@@ -16,6 +19,13 @@ hash to ``strokes_hash`` (:func:`writing_hash`, the highlighter left out) has ch
 since its text was made and needs transcribing again. Nothing here sends text anywhere:
 review only writes the hub note's ``content`` through the adapter in
 ``src/ink_notes.py``; only Send (``src/ink_athena.py``, H4) sends reviewed text to Athena.
+
+``INK_AUTO_SEND`` (H6, :func:`auto_send_enabled`, off by default): a run stores a page
+whose text is clean (not empty, no ``[?]``, read from the strokes the page has now) as
+``reviewed`` itself, marked ``auto``, and when the run ends with no page of the note
+waiting it sends the note through that same Send (``src/ink_athena.py``
+:func:`~src.ink_athena.auto_send`). The owner's Save review clears ``auto`` and never
+sends.
 
 How a page is read:
 
@@ -30,6 +40,12 @@ How a page is read:
    follow what the page says, answer JSON ``{"text"}`` (:func:`default_reader`).
 4. The bands are joined and stored as ``machine``.
 
+A photo page (H6, ``ink.is_photo``) is read the same way from its photo instead of its
+strokes: at most ``RENDER_PX`` wide, in colour, cut into tiles at most ``PHOTO_BAND``
+page units tall at the quietest row (fewest dark pixels); where no row is blank the two
+tiles overlap by ``PHOTO_OVERLAP`` on each side and the seam is joined like a forced cut
+(:func:`photo_bands`). Each tile's question says it is a photo of a paper page.
+
 The job is an asyncio task started by the routes (a Transcribe button, or the Write view
 leaving a changed page), not a scheduled task. Bands are read one at a time across the
 whole hub (one GPU, shared with chat), and the default reader lets a running chat finish
@@ -43,7 +59,9 @@ import base64
 import io
 import json
 import logging
+import os
 import re
+import threading
 import time
 import uuid
 import weakref
@@ -60,8 +78,15 @@ PAD = 24                              # page units of paper around a band
 LINE_JOIN = 10                        # strokes closer than this vertically are one line
 PARAGRAPH_GAP = 80                    # a gap this tall between bands is a blank line
 SEAM_LINES = 3                        # lines at most that both bands of a cut can hold
+PHOTO_BAND = 700                      # page units per tile of a photo page (H6)
+PHOTO_OVERLAP = 40                    # page units on each side of a cut through writing
+PHOTO_QUIET = 0.004                   # a row with at most this share of dark pixels is blank
+PHOTO_PAPER_BLOCK = 8                 # px blocks the paper's brightness is measured in
+PHOTO_PAPER_SPAN = 5                  # blocks (each way) the paper around a pixel is taken from
+PHOTO_INK_CONTRAST = 40               # gray levels below the paper around it: ink
 MAX_PAGE_TEXT = 20_000                # characters kept per page (model or owner)
 UNREADABLE = "[?]"
+AUTO_SEND_ENV = "INK_AUTO_SEND"       # truthy: clean pages are accepted and sent unreviewed
 
 # A model reader: the chat messages of one band in, the model's raw answer out.
 Reader = Callable[[list[dict]], Awaitable[str]]
@@ -82,6 +107,8 @@ PROMPT = (
     'Answer with JSON only: {"text": "<the transcription>"}. If the image has no '
     'writing, answer {"text": ""}.'
 )
+PHOTO_HINT = (" This is a photo of a paper page: copy the text on the paper, handwritten "
+              "or printed, and leave out anything around the paper.")
 RETRY = 'Answer again with JSON only, exactly {"text": "<the transcription>"}.'
 
 # Words some models write for an unreadable word instead of [?].
@@ -99,7 +126,8 @@ def _ink_strokes(page: dict[str, Any]) -> list[dict[str, Any]]:
 
 
 def has_ink(page: dict[str, Any]) -> bool:
-    return bool(_ink_strokes(page))
+    """Something to read: ink strokes, or a photo (H6)."""
+    return bool(_ink_strokes(page)) or ink.is_photo(page)
 
 
 def writing_hash(page: dict[str, Any]) -> str:
@@ -189,9 +217,11 @@ def cut_bands(page: dict[str, Any], max_band: float = MAX_BAND
 
 def page_bands(page: dict[str, Any], *, width_px: int = RENDER_PX) -> list[dict[str, Any]]:
     """PNG bands of a page for the model: ``[{"png", "top", "bottom", "overlap"}]``
-    (page units). Empty for a page without ink."""
+    (page units). Empty for a page without ink. A photo page: :func:`photo_bands`."""
     from PIL import Image
 
+    if ink.is_photo(page):
+        return photo_bands(page, width_px=width_px)
     bands = cut_bands(page)
     if not bands:
         return []
@@ -206,15 +236,94 @@ def page_bands(page: dict[str, Any], *, width_px: int = RENDER_PX) -> list[dict[
     return out
 
 
+def dark_rows(img) -> list[float]:
+    """Per pixel row of a photo, the share of dark pixels, 0..1. A pixel is dark when it
+    is ``PHOTO_INK_CONTRAST`` below the paper around it (the brightest block nearby:
+    writing is thin), so a shadow or uneven light across the paper is not ink, and a dim
+    photo still has its writing."""
+    from PIL import Image, ImageChops, ImageFilter
+
+    gray = img.convert("L")
+    gray = gray.resize((min(400, gray.width), gray.height), Image.BILINEAR)
+    small = gray.resize((max(1, gray.width // PHOTO_PAPER_BLOCK),
+                         max(1, gray.height // PHOTO_PAPER_BLOCK)), Image.BOX)
+    paper = small.filter(ImageFilter.MaxFilter(PHOTO_PAPER_SPAN)).resize(gray.size,
+                                                                          Image.BILINEAR)
+    below = ImageChops.subtract(paper, gray)  # how much darker than the paper, >= 0
+    dark = below.point(lambda v: 255 if v >= PHOTO_INK_CONTRAST else 0)
+    column = dark.resize((1, dark.height), Image.BOX)  # the mean of each row
+    return [v / 255.0 for v in column.tobytes()]
+
+
+def photo_cuts(rows: list[float], band: float, overlap: float,
+               quiet: float = PHOTO_QUIET) -> list[tuple[int, int, bool]]:
+    """``(top, bottom, overlaps_previous)`` tiles in pixel rows covering a photo whose
+    rows have the dark shares ``rows``. Each cut is at the quietest row in the lower
+    part of a tile; a blank row is cut cleanly, otherwise the tiles overlap by
+    ``overlap`` on each side, so a line cut through is whole in both."""
+    n = len(rows)
+    band, overlap = int(band), int(overlap)
+    if band <= 4 * overlap:  # a forced cut would barely move down the photo
+        raise ValueError("band must be more than 4 x overlap")
+
+    def busy(y: int) -> float:  # a row and its neighbours: a stroke thinner than that
+        return sum(rows[max(0, y - 2):y + 3])
+
+    out: list[tuple[int, int, bool]] = []
+    top, joined = 0, False
+    while n - top > band:
+        lo, hi = top + int(band * 0.55), top + band - overlap
+        best = min(range(lo, hi + 1), key=lambda y: (busy(y), hi - y))
+        if busy(best) <= quiet * 5:
+            out.append((top, best, joined))
+            top, joined = best, False
+        else:
+            out.append((top, best + overlap, joined))
+            top, joined = best - overlap, True
+    out.append((top, n, joined))
+    return out
+
+
+def photo_bands(page: dict[str, Any], *, width_px: int = RENDER_PX) -> list[dict[str, Any]]:
+    """JPEG tiles of a photo page (H6): ``[{"png" (the bytes), "mime", "top", "bottom",
+    "overlap", "photo"}]``, top and bottom in page units (the photo ``PAGE_WIDTH``
+    wide). The photo is read from ``page["_photo"]`` (set by :func:`_prepare`), in
+    colour, scaled down to ``width_px`` wide (never up). Raises when it is missing."""
+    from PIL import Image
+
+    path = page.get("_photo")
+    if not path:
+        raise ValueError("the photo of this page is missing")
+    try:
+        with Image.open(path) as img:
+            img = img.convert("RGB")
+    except OSError:
+        raise ValueError("the photo of this page is missing") from None
+    if img.width > width_px:
+        img = img.resize((width_px, max(1, round(img.height * width_px / img.width))),
+                         Image.LANCZOS)
+    units = float(page.get("width") or ink.PAGE_WIDTH) / img.width  # page units per px
+    cuts = photo_cuts(dark_rows(img), PHOTO_BAND / units, PHOTO_OVERLAP / units)
+    out = []
+    for top, bottom, overlap in cuts:
+        buf = io.BytesIO()
+        img.crop((0, top, img.width, bottom)).save(buf, format="JPEG", quality=90)
+        out.append({"png": buf.getvalue(), "mime": "image/jpeg", "top": top * units,
+                    "bottom": bottom * units, "overlap": overlap, "photo": True})
+    return out
+
+
 # ------------------------------------------------------------------- the model
-def band_messages(png: bytes, index: int, count: int) -> list[dict]:
+def band_messages(png: bytes, index: int, count: int, *, mime: str = "image/png",
+                  photo: bool = False) -> list[dict]:
     data = base64.b64encode(png).decode("ascii")
     where = f" (part {index + 1} of {count}, top to bottom)" if count > 1 else ""
+    hint = PHOTO_HINT if photo else ""
     return [
         {"role": "system", "content": PROMPT},
         {"role": "user", "content": [
-            {"type": "text", "text": f"Transcribe this handwriting{where}."},
-            {"type": "image_url", "image_url": {"url": f"data:image/png;base64,{data}"}},
+            {"type": "text", "text": f"Transcribe this handwriting{where}.{hint}"},
+            {"type": "image_url", "image_url": {"url": f"data:{mime};base64,{data}"}},
         ]},
     ]
 
@@ -287,7 +396,9 @@ async def read_page(page: dict[str, Any], reader: Reader) -> str:
     bands = await asyncio.to_thread(page_bands, page)
     parts = []
     for i, band in enumerate(bands):
-        messages = band_messages(band["png"], i, len(bands))
+        messages = band_messages(band["png"], i, len(bands),
+                                 mime=band.get("mime", "image/png"),
+                                 photo=bool(band.get("photo")))
         async with _gpu():
             text = None
             for attempt in range(2):
@@ -425,6 +536,21 @@ def default_reader(owner: str | None) -> tuple[str, Reader]:
 
 
 # --------------------------------------------------------------- page state
+def auto_send_enabled() -> bool:
+    """``INK_AUTO_SEND`` (1, true, yes, on), read at call time; off by default."""
+    return (os.environ.get(AUTO_SEND_ENV) or "").strip().lower() in {"1", "true", "yes", "on"}
+
+
+def auto_acceptable(text: str | None) -> bool:
+    """Machine text that auto-send may accept without review: words Athena would take
+    (not empty, not only control characters), no ``[?]``, and not cut at
+    ``MAX_PAGE_TEXT``."""
+    from src.ink_athena import has_words  # imports this module
+
+    return (isinstance(text, str) and UNREADABLE not in text and len(text) < MAX_PAGE_TEXT
+            and has_words(text))
+
+
 def _transcript(page: dict[str, Any]) -> dict[str, Any]:
     t = page.get("transcript")
     if not isinstance(t, dict):
@@ -437,6 +563,19 @@ def _transcript(page: dict[str, Any]) -> dict[str, Any]:
 # hub restarted) counts as failed.
 _RUNNING: set[str] = set()
 _TASKS: set[asyncio.Task] = set()
+# Notes ((store, note id) -> runs) whose run ended and is about to send them by itself
+# (INK_AUTO_SEND): the Text tab keeps asking until Athena answered.
+_AUTO_SENDING: dict[tuple[str, str], int] = {}
+_AUTO_SENDING_LOCK = threading.Lock()  # changed from the loop and from _store_result's thread
+
+
+def _auto_sending_add(key: tuple[str, str], delta: int) -> None:
+    with _AUTO_SENDING_LOCK:
+        left = _AUTO_SENDING.get(key, 0) + delta
+        if left > 0:
+            _AUTO_SENDING[key] = left
+        else:
+            _AUTO_SENDING.pop(key, None)
 
 
 def _status(t: dict[str, Any]) -> str:
@@ -477,25 +616,39 @@ def page_view(page: dict[str, Any], index: int) -> dict[str, Any]:
     out = {"id": page.get("id"), "index": index, "status": status, "text": text,
            "model": t.get("model"), "at": t.get("at"),
            "error": error if status == "failed" else None, "ink": has_ink(page),
-           "changed": changed, "unreadable": text.count(UNREADABLE)}
+           "photo": ink.is_photo(page),
+           "changed": changed, "unreadable": text.count(UNREADABLE),
+           "auto": status == "reviewed" and bool(t.get("auto"))}
     prev = t.get("previous")
     if isinstance(prev, dict) and prev.get("text"):
-        out["previous"] = {"text": prev["text"], "at": prev.get("at")}
+        out["previous"] = {"text": prev["text"], "at": prev.get("at"),
+                           "auto": bool(prev.get("auto"))}
     return out
 
 
 def summary(stored: dict[str, Any]) -> dict[str, Any]:
-    """Per note, for the Write list: pages to review (``machine``), failed, running."""
-    review, failed, pending = [], [], 0
+    """Per note, for the Write list: pages to review (``machine``), failed, running,
+    accepted by auto-send and not checked since (``auto``), and whether Athena's copy
+    came from an automatic send (``auto_sent``)."""
+    review, failed, pending, auto = [], [], 0, []
     for i, page in enumerate(stored.get("pages") or []):
-        status = _status(_transcript(page))
+        t = _transcript(page)
+        status = _status(t)
         if status == "machine":
             review.append(i)
         elif status == "failed" and has_ink(page):
             failed.append(i)
         elif status == "pending":
             pending += 1
-    return {"review": review, "failed": failed, "pending": pending}
+        elif status == "reviewed" and t.get("auto"):
+            auto.append(i)
+    out: dict[str, Any] = {"review": review, "failed": failed, "pending": pending}
+    a = stored.get("athena") if isinstance(stored.get("athena"), dict) else {}
+    if auto:  # H6 keys only when there is something to say (INK_AUTO_SEND was on)
+        out["auto"] = auto
+    if a.get("sent_hash") and a.get("auto"):
+        out["auto_sent"] = True
+    return out
 
 
 # ------------------------------------------------------------------ the owner's side
@@ -515,8 +668,10 @@ def _load(store: str | None, note_id: str) -> dict[str, Any]:
 
 
 def transcripts(owner: str | None, note_id: str) -> dict[str, Any]:
-    """``{"pages": [page_view...], "running": bool, "athena": {...}}`` for the owner's
-    note (``athena``: ``src/ink_athena.py`` ``view``)."""
+    """``{"pages": [page_view...], "running": bool, "athena": {...}, "auto_send": bool,
+    "auto_sending": bool}`` for the owner's note (``athena``: ``src/ink_athena.py``
+    ``view``; ``auto_send``: INK_AUTO_SEND is on; ``auto_sending``: a run just ended and
+    is sending the note by itself)."""
     store = _check(owner, note_id)
     with ink._lock(store):
         stored = _load(store, note_id)
@@ -525,12 +680,14 @@ def transcripts(owner: str | None, note_id: str) -> dict[str, Any]:
 
     return {"note_id": note_id, "pages": pages,
             "running": any(p["status"] == "pending" for p in pages),
-            "athena": ink_athena.view(stored)}
+            "athena": ink_athena.view(stored), "auto_send": auto_send_enabled(),
+            "auto_sending": _AUTO_SENDING.get((store or "", note_id), 0) > 0}
 
 
 async def start(owner: str | None, note_id: str, *, page_ids: list[str] | None = None,
                 only_changed: bool = False, reader: tuple[str, Reader] | None = None,
-                now: Callable[[], str] = ink._now_iso) -> dict[str, Any]:
+                now: Callable[[], str] = ink._now_iso,
+                request_base: str | None = None) -> dict[str, Any]:
     """Mark pages ``pending`` and start a run on them (an asyncio task on this loop);
     returns :func:`transcripts`.
 
@@ -538,13 +695,15 @@ async def start(owner: str | None, note_id: str, *, page_ids: list[str] | None =
     leaving a page) skips pages whose text is current. A page without ink is cleared
     without asking the model. Raises :class:`NoModel` before marking anything when no
     model can read the pages, and ``InkError`` (404, 400) for a note or page that isn't
-    the owner's."""
+    the owner's. ``request_base``: the origin the browser asked from, for the note's link
+    if the run sends the note by itself (INK_AUTO_SEND, :func:`src.ink_athena.hub_base`)."""
     job, snapshot, reader = await asyncio.to_thread(
         _prepare, owner, note_id, page_ids, only_changed, reader, now)
     if job:
         store = ink._store_owner(owner, note_id)
         task = asyncio.get_running_loop().create_task(
-            _run(store, note_id, job, snapshot, reader, now))
+            _run(store, note_id, job, snapshot, reader, now, owner=owner,
+                 request_base=request_base))
         _TASKS.add(task)
         task.add_done_callback(_TASKS.discard)
     return await asyncio.to_thread(transcripts, owner, note_id)
@@ -577,13 +736,21 @@ def _prepare(owner: str | None, note_id: str, page_ids: list[str] | None,
             t.update(text="", model=None, status="none", strokes_hash=writing_hash(page),
                      at=now(), error=None, job=None)
             t.pop("reading", None)
+            t.pop("auto", None)
+            t.pop("machine", None)  # for writing that is gone
         job = uuid.uuid4().hex if work else None
         snapshot = []
         for page in work:
             t = _transcript(page)
+            # The model's text for these strokes stays kept (H5) if this run fails or a
+            # review replaces it before the run answers.
+            _keep_machine(t, writing_hash(page))
             _keep_reviewed(t)
             t.update(status="pending", job=job, error=None, reading=writing_hash(page))
-            snapshot.append(json.loads(json.dumps(page)))
+            copy = json.loads(json.dumps(page))
+            if ink.is_photo(page):  # H6: the run reads the photo from its file
+                copy["_photo"] = str(ink.photo_path(store, note_id, page["id"]))
+            snapshot.append(copy)
         if job:
             _RUNNING.add(job)
         if empty or work:
@@ -600,29 +767,66 @@ def _keep_reviewed(t: dict[str, Any]) -> None:
     it back."""
     if t.get("status") == "reviewed" and t.get("text"):
         t["previous"] = {"text": t["text"], "at": t.get("at")}
+        if t.get("auto"):
+            t["previous"]["auto"] = True
 
 
 async def _run(store: str | None, note_id: str, job: str,
                pages: list[dict[str, Any]], reader: tuple[str, Reader],
-               now: Callable[[], str]) -> None:
+               now: Callable[[], str], *, owner: str | None = None,
+               request_base: str | None = None) -> None:
+    """Read the run's pages one by one and store each result. With INK_AUTO_SEND on, a
+    clean page is accepted as it is stored, and once the run has ended (no page of the
+    note is then being read by it) the note is sent if a page was accepted and none
+    waits (``src/ink_athena.py`` :func:`~src.ink_athena.auto_send`)."""
     model, read = reader
+    key = (store or "", note_id)
+    marked = threading.Event()  # this run counts in _AUTO_SENDING
+
+    def mark() -> None:  # by _store_result, before the accepted page is written: the
+        if not marked.is_set():  # Text tab never sees the run over and no send coming
+            marked.set()
+            _auto_sending_add(key, 1)
+
     try:
-        for page in pages:
-            started = time.monotonic()
-            try:
-                text, error = await read_page(page, read), None
-                logger.info("ink transcribe: page read in %.1f s (%d characters)",
-                            time.monotonic() - started, len(text))
-                model = getattr(read, "answered_by", None) or model
-            except asyncio.CancelledError:
-                raise
-            except Exception as exc:
-                text, error = None, _error_text(exc)
-                logger.warning("ink transcribe: page failed (%s)", type(exc).__name__)
-            await asyncio.to_thread(_store_result, store, note_id, page, job, model, text,
-                                    error, now)
+        try:
+            await _read_pages(store, note_id, job, pages, model, read, now, owner, mark)
+        finally:
+            _RUNNING.discard(job)
+        if not marked.is_set():  # nothing accepted: never sends
+            return
+        try:
+            from src import ink_athena  # imports this module
+
+            await ink_athena.auto_send(owner, note_id, request_base=request_base)
+        except Exception as exc:  # noqa: BLE001 -- the owner can still Send by hand
+            logger.warning("ink: automatic send failed (%s)", type(exc).__name__)
     finally:
-        _RUNNING.discard(job)
+        if marked.is_set():
+            _auto_sending_add(key, -1)
+
+
+async def _read_pages(store: str | None, note_id: str, job: str,
+                      pages: list[dict[str, Any]], model: str, read: Reader,
+                      now: Callable[[], str], owner: str | None,
+                      mark: Callable[[], None]) -> None:
+    """Read and store each page of a run (``mark``: called when one is accepted)."""
+    for page in pages:
+        started = time.monotonic()
+        try:
+            text, error = await read_page(page, read), None
+            logger.info("ink transcribe: page read in %.1f s (%d characters)",
+                        time.monotonic() - started, len(text))
+            model = getattr(read, "answered_by", None) or model
+        except asyncio.CancelledError:
+            raise
+        except Exception as exc:
+            text, error = None, _error_text(exc)
+            logger.warning("ink transcribe: page failed (%s)", type(exc).__name__)
+        auto = text is not None and auto_send_enabled()
+        await asyncio.to_thread(
+            _store_result, store, note_id, page, job, model, text, error, now,
+            owner=owner, auto=auto, on_accept=mark)
 
 
 def _error_text(exc: Exception) -> str:
@@ -632,26 +836,44 @@ def _error_text(exc: Exception) -> str:
 
 def _store_result(store: str | None, note_id: str, page: dict[str, Any], job: str,
                   model: str, text: str | None, error: str | None,
-                  now: Callable[[], str]) -> None:
+                  now: Callable[[], str], *, owner: str | None = None,
+                  auto: bool = False, on_accept: Callable[[], None] | None = None) -> bool:
     """Write one page's result, unless the page changed hands meanwhile (deleted,
-    reviewed, or a newer run took it). Strokes are never touched."""
+    reviewed, or a newer run took it). Strokes are never touched.
+
+    ``auto`` (INK_AUTO_SEND on): clean text (:func:`auto_acceptable`) read from the
+    strokes the page has now is stored ``reviewed`` with ``auto`` set, and the note's
+    ``content`` follows as on Save review; ``on_accept`` is called before that is
+    written. Returns whether the page was accepted so."""
     with ink._lock(store):
         stored = ink.load_sidecar(store, note_id)
         if stored is None:
-            return
+            return False
         target = next((p for p in stored.get("pages") or [] if p.get("id") == page["id"]), None)
         if target is None:
-            return
+            return False
         t = _transcript(target)
         if t.get("job") != job or t.get("status") != "pending":
-            return
+            return False
         t.pop("reading", None)
+        t.pop("auto", None)
+        accept = (auto and auto_acceptable(text)
+                  and writing_hash(page) == writing_hash(target))
         if text is None:
             t.update(status="failed", error=error, job=None)
         else:
-            t.update(text=text, model=model, status="machine",
+            t.update(text=text, model=model, status="reviewed" if accept else "machine",
                      strokes_hash=writing_hash(page), at=now(), error=None, job=None)
+            t.pop("machine", None)  # the fresh model text is in ``text`` now
+            _clear_auto_error(stored)  # it was about text the note no longer has
+            if accept:
+                t["auto"] = True
+                if on_accept is not None:
+                    on_accept()
         ink._write_json(ink.sidecar_path(store, note_id), stored)
+        if accept and not ink.update_note(owner, note_id, content=note_content(stored)):
+            return False  # the note is gone: nothing to send
+        return accept
 
 
 def save_review(owner: str | None, note_id: str, page_id: str, text: Any,
@@ -670,14 +892,38 @@ def save_review(owner: str | None, note_id: str, page_id: str, text: Any,
         if page is None:
             raise ink.InkError("Page not found", 404)
         t = _transcript(page)
+        _keep_machine(t, writing_hash(page))
         t.update(text=clean_text(text), status="reviewed", strokes_hash=writing_hash(page),
                  at=now(), error=None, job=None)
         t.pop("previous", None)
         t.pop("reading", None)
+        t.pop("auto", None)  # checked by the owner now
+        _clear_auto_error(stored)
         ink._write_json(ink.sidecar_path(store, note_id), stored)
         if not ink.update_note(owner, note_id, content=note_content(stored)):
             raise ink.InkError("Note not found", 404)
     return transcripts(owner, note_id)
+
+
+def _clear_auto_error(stored: dict[str, Any]) -> None:
+    """A failed automatic send's message is about the text it tried: once a page's text
+    changes, it no longer applies (a new automatic send says again if it fails)."""
+    if isinstance(stored.get("athena"), dict):
+        stored["athena"].pop("auto_error", None)
+
+
+def _keep_machine(t: dict[str, Any], current: str) -> None:
+    """Before a review replaces the model's text for the page's current strokes, keep it
+    as ``machine`` (what ``scripts/ink_eval.py --stored`` scores against the review). A
+    kept ``machine`` for strokes that changed since no longer matches and is dropped."""
+    # A page INK_AUTO_SEND accepted still holds the model's text until the owner checks it.
+    model_text = t.get("status") == "machine" or (t.get("status") == "reviewed" and t.get("auto"))
+    if model_text and t.get("strokes_hash") == current:
+        t["machine"] = {"text": t.get("text") or "", "model": t.get("model"),
+                        "at": t.get("at"), "strokes_hash": current}
+    elif not (isinstance(t.get("machine"), dict)
+              and t["machine"].get("strokes_hash") == current):
+        t.pop("machine", None)
 
 
 def note_content(stored: dict[str, Any]) -> str:

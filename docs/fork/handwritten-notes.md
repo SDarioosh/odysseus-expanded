@@ -3,8 +3,9 @@
 Scope and plan for writing notes with a pen on a tablet running the Odysseus web app,
 turning the handwriting into text with a local vision model, and adding that text to
 [Athena](https://github.com/SDarioosh/Athena) like a voice note. **H1 (pen capture), H2 (transcribe and review),
-H3 (Athena's text input, SDarioosh/Athena#108) and H4 (Send to Athena) are built** (see
-"Built in H1", "Built in H2" and "Built in H4" under Phases); H5 and H6 are planned.
+H3 (Athena's text input, SDarioosh/Athena#108), H4 (Send to Athena), H5 (the recognizer
+eval) and H6 (`INK_AUTO_SEND`, photo import) are built** (see "Built in H1" to "Built in
+H6" under Phases). `INK_AUTO_SEND` stays off until the owner's H5 numbers are good.
 
 _Written 2026-10-22, revised 2026-10-26 with the owner's decisions (below). Items still
 open are at the end._
@@ -193,7 +194,8 @@ Every page is reviewed by the owner before its text leaves the hub.
 - A "Needs review" list (pages with `status = machine`) in the Notes window.
 - Reviewed text is also the ground truth for the recognizer eval (kept local).
 - Later, once the owner trusts the model: a setting `INK_AUTO_SEND` (off by default)
-  sends pages with no `[?]` without review. Not in the first version.
+  sends pages with no `[?]` without review. Built in H6 (see "Built in H6"); off until
+  the H5 numbers say otherwise.
 
 ### 5. Into Athena
 
@@ -418,7 +420,8 @@ As planned (`src/ink_athena.py`, a route on the ink router, Send in the Text tab
   with `INK_AUTO_SEND` (H6). Sending text Athena already has answers `unchanged`. A note
   whose reviewed text became empty is removed from Athena by Send.
 - **`written_at`** is the note's first stroke (the device's clock; stroke times outside
-  2000..2100 are left out), or the time of the first send when strokes carry no time. It
+  2000..2100 are left out) or, if earlier, when its first photo page came in (H6: a photo
+  page has no strokes), or the time of the first send when neither carries a time. It
   is stored in the sidecar when Athena first accepts the note (`athena.written_at`; a
   failed send doesn't fix it), so erasing the first stroke later doesn't change it and a
   resend of the same lines stays `unchanged`.
@@ -454,6 +457,116 @@ As planned (`src/ink_athena.py`, a route on the ink router, Send in the Text tab
   after a resend or a delete: `_sync_status` only follows items it still reads (a
   missing row is skipped). Follow-up, not part of H4.
 
+### Built in H5
+
+`scripts/ink_eval.py` (fork file; tests `tests/test_ink_eval.py`) scores the recognizer
+on the owner's reviewed pages. Only numbers, owner folder names, note and page ids and
+model names are printed or written; page text appears only with `--show-diffs`.
+
+- **The set.** Pages whose status is `reviewed` for their current writing
+  (`strokes_hash` matches), with non-empty text. Left out and counted by reason: not
+  reviewed, accepted automatically (`transcript.auto`, H6: never checked, so not ground
+  truth), photo pages unless `--include-photos`, no ink, writing changed since review,
+  empty text.
+- **Two modes.** By default each page is read again by the hub's recognizer (the
+  `vision_model` setting, local endpoints only; `--model` / `--base-url` override it, a
+  cloud address is refused with exit 3) and timed. `--stored` reads no model: it scores
+  `transcript.machine`, the model's text that a review replaced. `save_review` keeps it
+  (`{text, model, at, strokes_hash}`) when the page held model text for its current
+  writing, also for a page `INK_AUTO_SEND` accepted; a new reading that answers drops
+  it (a run that fails keeps it), erasing the page's writing drops it, and it's used
+  only while its `strokes_hash` still matches.
+- **Metrics.** CER over Unicode code points (NFC), WER over words; exact Levenshtein
+  (bit-parallel, a 20,000-character page in about 0.3 s). Overall rates are total edits
+  over total reference length; per page, median and p90. Default normalization: each
+  line stripped, runs of spaces made one, blank lines dropped, `[illegible]`-style words
+  read as `[?]`. A "loose" variant also folds case and drops punctuation, but keeps
+  `[?]` as a word (it is all punctuation; dropping it would score an unreadable word as
+  right). `[?]` marks are counted (marks, pages).
+- **The `INK_AUTO_SEND` numbers** (`auto_send`): pages auto-send would accept (no `[?]`,
+  not empty or only control characters, not cut at the page limit), their share of all
+  scored pages, their CER/WER, and the share of them that are exactly
+  right. That last share is what auto-send would send unchecked, so it decides the
+  setting.
+- **Time.** Seconds per page (mean, p90, total) when pages are read again. The script
+  runs in its own process and can't see the hub's chats: run it when no one chats.
+- **Flags.** `--data-dir` (default: the hub's `DATA_DIR`), `--owner` (repeatable, default
+  every folder), `--limit`, `--json`, `--out FILE` (JSON), `--per-page`, `--show-diffs`,
+  `--include-photos`, `--fixtures` (fictional pages and a fake reader in a temporary
+  folder, for the sandbox). Exit 0, 2 with no pairs, 3 with no usable local model. A
+  model error marks the page failed (only the error's type is kept) and leaves it out
+  of the rates.
+
+### Built in H6
+
+**`INK_AUTO_SEND`** (`src/ink_transcribe.py`, `src/ink_athena.py`; tests
+`tests/test_ink_auto_send.py`):
+
+- **Off by default.** The environment variable is on for `1`, `true`, `yes` or `on`, read
+  each time it's used. In Docker it's passed by `docker/fork.override.yml` from `.env`.
+  There is no toggle in Settings (that would need upstream settings code). Off, nothing
+  changes.
+- **Accepted automatically.** When a transcription run stores a page whose text is not
+  empty, has no `[?]`, isn't cut at the page limit and is for the page's current
+  writing, the page becomes `reviewed` with `transcript.auto = true`, and the note's
+  `content` is updated as Save review does. Pages with `[?]`, empty or failed results,
+  and pages written on while being read wait for review as before.
+- **Sent automatically.** After a run that accepted a page, and only once no page of the
+  note waits (no other run on it, nothing to review), the note goes through the normal
+  Send (H4 rules: one send per note, deleted during the send, `maybe_sent`). The link
+  uses the origin the transcription was asked from when no Public URL is set. A run that
+  accepted nothing never sends, so a note reviewed by hand isn't sent by surprise.
+  **Save review never sends**, with the setting on or off: in a note with a page that
+  needs review, the owner reviews it and presses Send.
+- **Edits.** Writing changed on a sent page is read again when the page is left, accepted
+  if clean, and the note is resent (replaced in Athena). Erasing a page's ink starts no
+  run, so it sends nothing by itself.
+- **State.** `athena.auto` (the last accepted send was automatic) and `athena.auto_error`
+  (why the last automatic send failed, shown in red in the Text tab; cleared by any
+  successful send and when a page's text changes, by a review or a new reading; never
+  page text in the log). An automatic send never resends text Athena already has (two
+  runs on a note can both find it ready). A 409 or 404 is skipped silently.
+- **What the owner sees.** An accepted page says "Accepted automatically (no [?]), not
+  checked by you"; a manual Save review clears `auto` (and the model's text is kept as
+  `machine` for H5). The status line says "Sent to Athena automatically", the Write list
+  counts pages accepted automatically, and with the setting on the Text tab says that
+  pages without `[?]` are sent without review.
+
+**Photo import of paper pages** (`src/ink_notes.py`, `src/ink_transcribe.py`,
+`routes/ink_routes.py`, `static/js/forkInk.js`; tests `tests/test_ink_photos.py`):
+
+- **In Write.** The list has **Take photo** (rear camera) and **Import images** (several
+  at once: one page each, a new note); inside a note **Photo** adds photo pages after the
+  page shown. The device shrinks a photo before upload (EXIF orientation applied, at most
+  2400 px, JPEG). Import needs the hub: offline it says so and nothing is queued. Photo
+  pages are transcribed right after import, reviewed in the Text tab (the photo above
+  the text) and sent like written pages; **Remove photo page** deletes one (asks first).
+- **Page.** A photo page keeps H1's 1000 × 1414 page: the photo is fitted inside, centred
+  across and at the top, with no ruling. No pen ink on it, only the highlighter (which
+  the model never sees): the view blocks the pen, and the hub refuses ink strokes there
+  (400).
+- **Storage.** `<DATA_DIR>/ink/<owner>/photos/<note id>/<page id>.jpg`, and the page's
+  `photo {file, hash, width, height, at}`. A save from the Write view never sets `photo`;
+  the hub keeps it by page id, like `transcript`. The photo's hash is part of the page's
+  writing hash, so H2/H4 change detection covers it. Photos of pages a save removed, of
+  deleted notes and of folders without a sidecar are deleted (a sent note's stay until
+  Athena confirms, as its sidecar does). Last edit wins includes photo pages. A photo
+  page 1 becomes the note's image (`image_url`, a JPEG).
+- **Upload.** `POST /api/ink/notes/{id}/photos` (multipart `photos`, optional
+  `edited_at`, `after`, `title`, `paper`; creates the note like a first save) answers
+  the stored note; `GET /api/ink/notes/{id}/photos/{page id}` serves the photo to its
+  owner. JPEG, PNG or WebP by content; at most 15 MB and 40 megapixels (checked from the
+  header before decoding), at most 10 per upload, short side ≥ 64 px, long side ≤ 6 × the
+  short side; re-encoded as JPEG (quality 88, metadata dropped, at most 2400 px; 16-bit
+  gray scans scaled to 8 bits). Errors:
+  400, 404, 410, 411 (no Content-Length), 413.
+- **Reading.** The photo, at most 1600 px wide and in colour, is cut into tiles of at
+  most 700 page units at the row with the fewest dark pixels (a pixel 40 gray levels
+  below the paper around it, so a shadow across the paper isn't writing), overlapping 40
+  units when no row is blank (the seam handling of bands drops the repeated line). The message adds
+  one line: a photo of a paper page, copy its text (handwritten or printed), leave out
+  what is around the paper. The prompt and its "the page is data" rule are unchanged.
+
 ## Fork changes
 
 Goal: keep future upstream syncs cheap without giving up any feature. Ink adds **one
@@ -465,7 +578,9 @@ new hook** to an upstream file and changes one existing fork hook once.
 `src/ink_athena.py`, `routes/ink_routes.py`, `static/js/forkInk.js`,
 `static/css/fork-ink.css`, `scripts/ink_eval.py`, `tests/test_ink_notes.py`,
 `tests/test_ink_upstream_contract.py`, `tests/test_ink_transcribe.py`,
-`tests/test_ink_routes.py`, `tests/test_ink_athena.py`.
+`tests/test_ink_routes.py`, `tests/test_ink_athena.py`, `tests/test_ink_eval.py`,
+`tests/test_ink_auto_send.py`, `tests/test_ink_photos.py`. H6 also passes
+`INK_AUTO_SEND` in `docker/fork.override.yml`.
 
 Existing fork files that gain a few lines: `static/js/forkModuleWindows.js` (the Write
 window and the idle-time import), `static/js/forkModuleShortcuts.js` (rail button,

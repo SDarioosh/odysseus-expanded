@@ -12,6 +12,10 @@ services:
       # Module MCP servers whose readOnlyHint tools run without approval
       # (src/mcp_trust.py). Comma separated, e.g. convo,<next module>.
       - ODYSSEUS_TRUSTED_READONLY_MCP=convo
+      # Handwritten notes (src/ink_transcribe.py, H6): 1 sends pages the model read
+      # without [?] to Athena without review. Off unless set in .env; decide it with
+      # scripts/ink_eval.py (docs/fork/handwritten-notes.md#built-in-h6).
+      - INK_AUTO_SEND=${INK_AUTO_SEND:-}
 
   # Fork: forwards host services that listen only on 127.0.0.1 (Proton Mail Bridge IMAP
   # 1143 / SMTP 1025) to the Docker bridge address, where the odysseus container reaches

@@ -1199,5 +1199,35 @@ await check('h4qc_14_empty_text_removes_from_athena', async () => {
     && /Removed from Athena/.test(got.line), empty, got, athena };
 });
 
+// PR 104 QC F-13: a photo that fails to load says so in the Text tab too (it stayed
+// "Loading the photo..." there: only the hidden Write canvas was redrawn).
+await check('h6qc_13_photo_error_in_text_tab', async () => {
+  const page = await openPage(browser, { user: 'pia' });
+  await newNote(page);
+  await page.evaluate(async () => { document.querySelector('[aria-label="Add a page"]').click(); await settle(50); });
+  await page.evaluate((pts) => stroke('pen', 2, pts), line(200));
+  await textTab(page);
+  const got = await page.evaluate(async () => {
+    const drawn = [];
+    const fill = CanvasRenderingContext2D.prototype.fillText;
+    CanvasRenderingContext2D.prototype.fillText = function (text, ...rest) {
+      if (this.canvas.classList.contains('ink-timage')) drawn.push(String(text));
+      return fill.call(this, text, ...rest);
+    };
+    const at = view._state.textPage;
+    const pg = view._state.note.pages[at]; // no photo on the hub: it fails to load
+    pg.photo = { file: 'photos/x.jpg', hash: 'h', width: pg.width, height: pg.height, at: '2026-10-26T10:00:00Z' };
+    document.querySelector(at ? '[aria-label="Previous page"]' : '[aria-label="Next page"]').click();
+    await settle(50);
+    document.querySelector(at ? '[aria-label="Next page"]' : '[aria-label="Previous page"]').click();
+    await settle(600);
+    CanvasRenderingContext2D.prototype.fillText = fill;
+    return { drawn, page: view._state.textPage, at };
+  });
+  await page.close();
+  const last = got.drawn[got.drawn.length - 1] || '';
+  return { ok: got.page === got.at && last.includes('could not be loaded'), ...got };
+});
+
 await browser.close();
 console.log(JSON.stringify(results));

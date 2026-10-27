@@ -29,6 +29,13 @@
 //   writing waits for review, and says which pages wait. The tab shows not sent / sent /
 //   changed since sent; after an edit is reviewed, Send again replaces the note in Athena
 //   (never by itself).
+// - Stage H6 (photos of paper pages): Take photo / Import images in the list make a note
+//   with one page per photo, Photo in a note adds photo pages after the page shown
+//   (POST /api/ink/notes/<id>/photos, needs the hub: never queued offline). Photos are
+//   shrunk here first (orientation applied, at most MAX_PHOTO_SIDE px, JPEG). A photo page
+//   is still PAGE_W x PAGE_H: the photo is drawn fitted in it, at the top (photoBox, as
+//   the hub renders it); it takes the highlighter but no pen ink. The hub transcribes it
+//   like a written page; the Text tab shows the photo, and can remove a photo page.
 
 export const PAGE_W = 1000;
 export const PAGE_H = 1414;
@@ -63,6 +70,35 @@ const CLOSE_WAIT_MS = 4000;         // Back waits this long for the hub before l
 const POLL_MS = 2500;               // the Text tab asks how a transcription is going
 const UNREADABLE = '[?]';
 const STYLESHEET = '/static/css/fork-ink.css';
+const MAX_PHOTO_SIDE = 2400;        // px, the long side of a photo sent to the hub (hub: same)
+const MAX_PHOTOS = 10;              // photos per upload (hub: MAX_PHOTOS_PER_UPLOAD)
+
+// H6: a photo fitted into a page: as large as fits, centred across, at the top. The same
+// box as the hub's page image (src/ink_notes.py photo_box).
+export function photoBox(pw, ph, pageW = PAGE_W, pageH = PAGE_H) {
+  const k = Math.min(pageW / Math.max(1, pw), pageH / Math.max(1, ph));
+  return { x: (pageW - pw * k) / 2, y: 0, w: pw * k, h: ph * k };
+}
+
+// H6: a photo as the hub takes it: upright (the camera's orientation applied), at most
+// MAX_PHOTO_SIDE px, JPEG, without the camera's metadata. The file itself when the
+// browser can't decode it (the hub then says what it accepts).
+async function shrinkPhoto(file) {
+  if (typeof createImageBitmap !== 'function' || typeof document === 'undefined') return file;
+  let bmp = null;
+  try { bmp = await createImageBitmap(file, { imageOrientation: 'from-image' }); } catch (_) { return file; }
+  const k = Math.min(1, MAX_PHOTO_SIDE / Math.max(bmp.width, bmp.height));
+  const c = document.createElement('canvas');
+  c.width = Math.max(1, Math.round(bmp.width * k));
+  c.height = Math.max(1, Math.round(bmp.height * k));
+  const ctx = c.getContext('2d');
+  ctx.fillStyle = '#ffffff';
+  ctx.fillRect(0, 0, c.width, c.height);
+  ctx.drawImage(bmp, 0, 0, c.width, c.height);
+  if (typeof bmp.close === 'function') bmp.close();
+  const blob = await new Promise((resolve) => { try { c.toBlob(resolve, 'image/jpeg', 0.9); } catch (_) { resolve(null); } });
+  return blob || file;
+}
 
 export const PENS = [
   { key: 'black', label: 'Black', color: '#1f1f1f' },
@@ -281,6 +317,7 @@ const ICONS = {
   eraser: SVG('<path d="M7 21h10"/><path d="M5.5 13.5l7-7a2 2 0 0 1 2.8 0l3.2 3.2a2 2 0 0 1 0 2.8L13 18H8.5l-3-3a1 1 0 0 1 0-1.5z"/>'),
   page: SVG('<path d="M6 3h8l4 4v14H6z"/><path d="M12 11v6M9 14h6"/>'),
   plus: SVG('<path d="M12 5v14M5 12h14"/>'),
+  photo: SVG('<path d="M4 8h3l2-3h6l2 3h3v11H4z"/><circle cx="12" cy="13" r="3.5"/>'),
   trash: SVG('<path d="M4 7h16M10 11v6M14 11v6M6 7l1 13h10l1-13M9 7V4h6v3"/>'),
 };
 
@@ -553,6 +590,14 @@ export function mountInk(root, options = {}) {
     } });
   const addPageBtn = iconBtn('page', 'Add a page', () => addPage());
   addPageBtn.append('Page');
+  // H6: photo pages, after the page shown. Without `capture`, Android offers the camera
+  // and the files.
+  const photoBtn = iconBtn('photo', 'Add photos of paper pages', () => {
+    if (state.note && !state.live) pickPhotos(state.note.id, false);
+  });
+  photoBtn.append('Photo');
+  const photoInput = el('input', { type: 'file', accept: 'image/*', multiple: true, hidden: true,
+    class: 'ink-photo-input' });
 
   const tabInk = el('button', { type: 'button', class: 'bs-btn ink-tab', role: 'tab', text: 'Write',
     onclick: () => showInkTab() });
@@ -560,7 +605,7 @@ export function mountInk(root, options = {}) {
     title: 'The text of each page: transcribe, check, save', onclick: () => showTextTab() });
   const penGroup = el('div', { class: 'ink-group ink-pens', role: 'group', 'aria-label': 'Pens' },
     ...penBtns, widthBtn, eraserBtn);
-  const editGroup = el('div', { class: 'ink-group' }, undoBtn, redoBtn, paperBtn, addPageBtn);
+  const editGroup = el('div', { class: 'ink-group' }, undoBtn, redoBtn, paperBtn, addPageBtn, photoBtn);
   const bar = el('div', { class: 'ink-bar' },
     el('div', { class: 'ink-group' }, backBtn, titleInput),
     el('div', { class: 'ink-group ink-tabs', role: 'tablist', 'aria-label': 'View' }, tabInk, tabText),
@@ -591,6 +636,8 @@ export function mountInk(root, options = {}) {
   const tSave = el('button', { type: 'button', class: 'bs-btn primary', text: 'Save review',
     title: 'Store this text in the note (it stays in the hub)', onclick: () => saveReview() });
   // H4: send the reviewed text of every page to Athena.
+  const tRemove = el('button', { type: 'button', class: 'bs-btn', text: 'Remove photo page', hidden: true,
+    onclick: () => removePhotoPage() });
   const tSend = el('button', { type: 'button', class: 'bs-btn ink-send', text: 'Send to Athena',
     title: 'Send the reviewed text of every page to Athena (replaces what Athena has)', onclick: () => sendToAthena() });
   const tAthena = el('div', { class: 'bs-meta ink-athena', role: 'status', 'aria-live': 'polite' });
@@ -601,9 +648,10 @@ export function mountInk(root, options = {}) {
   const tEdit = el('div', { class: 'ink-tedit' }, tHl, tArea);
   const textPanel = el('div', { class: 'ink-text', hidden: true },
     el('div', { class: 'ink-trow' }, tPrev, tLabel, tNext, el('span', { class: 'ink-tspacer' }),
-      tRestore, tFind, tTranscribe, tSave, tSend),
+      tRestore, tFind, tTranscribe, tSave, tSend, tRemove),
     tState, tAthena, tFigure, tEdit);
   editor.append(bar, stage, textPanel);
+  wrap.append(photoInput);
   // Upstream's mobile sheets close when swiped down from anywhere in a window that
   // is scrolled to the top (static/js/ui.js), and the pen fires touch events too: a
   // downward stroke closed Write. Only the window's header keeps that swipe.
@@ -811,6 +859,7 @@ export function mountInk(root, options = {}) {
       ctx.shadowBlur = 6;
       ctx.fillRect(rect.x0, rect.y0, rect.x1 - rect.x0, rect.y1 - rect.y0);
       ctx.restore();
+      if (page.photo) { drawPhoto(ctx, page, rect.x0, rect.y0, k); continue; } // H6: no paper under a photo
       const paper = paperOf(state.note);
       if (paper === 'lined') {
         ctx.save();
@@ -885,6 +934,55 @@ export function mountInk(root, options = {}) {
       for (const st of page.strokes) if (!st.pen.highlighter && wanted(st, y0)) drawStroke(ctx, st, map, k, { box });
       ctx.restore();
     }
+  }
+
+  // ------------------------------------------------------- H6: photo pages
+  // Each photo page's photo, loaded from the hub once per open note.
+  const photos = new Map(); // page id -> { img, ok, failed }
+  function photoOf(page) {
+    if (!page.photo || !state.note) return null;
+    let entry = photos.get(page.id);
+    if (!entry && typeof Image === 'function') {
+      const noteId = state.note.id;
+      const img = new Image();
+      entry = { img, ok: false, failed: false };
+      img.onload = () => {
+        entry.ok = true;
+        if (!state.note || state.note.id !== noteId || photos.get(page.id) !== entry) return;
+        render();
+        if (state.view === 'text') { imageKey = ''; renderText(); }
+      };
+      img.onerror = () => {
+        entry.failed = true;
+        if (!state.note || state.note.id !== noteId || photos.get(page.id) !== entry) return;
+        render();
+        if (state.view === 'text') { imageKey = ''; renderText(); } // say it failed there too
+      };
+      img.src = `${API}/${encodeURIComponent(noteId)}/photos/${encodeURIComponent(page.id)}`;
+      photos.set(page.id, entry);
+    }
+    return entry || null;
+  }
+
+  // The photo of a photo page at (x0, y0) on screen, `k` CSS px per page unit.
+  function drawPhoto(ctx, page, x0, y0, k) {
+    const entry = photoOf(page);
+    ctx.save();
+    ctx.beginPath();
+    ctx.rect(x0, y0, page.width * k, page.height * k);
+    ctx.clip();
+    if (entry && entry.ok) {
+      const b = photoBox(page.photo.width || entry.img.naturalWidth, page.photo.height || entry.img.naturalHeight,
+        page.width, page.height);
+      ctx.drawImage(entry.img, x0 + b.x * k, y0 + b.y * k, b.w * k, b.h * k);
+    } else {
+      ctx.fillStyle = '#8a8f98';
+      ctx.font = `${Math.max(11, Math.round(30 * k))}px sans-serif`;
+      ctx.textAlign = 'center';
+      ctx.fillText(entry && entry.failed ? 'The photo could not be loaded from the hub.' : 'Loading the photo...',
+        x0 + (page.width * k) / 2, y0 + 140 * k);
+    }
+    ctx.restore();
   }
 
   function renderNow() {
@@ -1198,6 +1296,10 @@ export function mountInk(root, options = {}) {
     const isEraser = eraser || state.eraser;
     if (!isEraser) {
       const page = state.note.pages[pageIndex];
+      if (page.photo && !currentPen().highlighter) { // H6: the hub refuses ink on a photo
+        setStatus('A photo page takes only the highlighter: add a page to write.', true);
+        return;
+      }
       if (page.strokes.length >= MAX_STROKES_PER_PAGE || notePoints() >= MAX_NOTE_POINTS) {
         setStatus('This note is full: start a new note.', true);
         return;
@@ -1438,6 +1540,7 @@ export function mountInk(root, options = {}) {
     undoBtn.disabled = !state.undo.length || !!state.live;
     redoBtn.disabled = !state.redo.length || !!state.live;
     addPageBtn.disabled = !!(state.note && state.note.pages.length >= MAX_PAGES);
+    photoBtn.disabled = addPageBtn.disabled || !!state.live;
     tabInk.setAttribute('aria-selected', String(state.view === 'ink'));
     tabText.setAttribute('aria-selected', String(state.view === 'text'));
     tabInk.disabled = !!state.live;
@@ -1465,7 +1568,10 @@ export function mountInk(root, options = {}) {
     final: !!note.final, pages: note.pages.map((p) => ({ id: p.id, width: p.width, height: p.height, strokes: p.strokes })) });
 
   function snapshotNote() {
-    return JSON.parse(JSON.stringify({ ...state.note, ...payload(state.note) }));
+    const copy = JSON.parse(JSON.stringify({ ...state.note, ...payload(state.note) }));
+    // H6: the device's copy keeps which pages are photos (the hub never takes it from here).
+    state.note.pages.forEach((p, i) => { if (p.photo) copy.pages[i].photo = { ...p.photo }; });
+    return copy;
   }
 
   // `final`: the page is being left (closed, back to the list, app hidden): the hub also
@@ -1599,7 +1705,8 @@ export function mountInk(root, options = {}) {
   function fromServer(n) {
     return { id: n.note_id, title: n.title || '', paper: paperOf(n), edited_at: n.edited_at || 0,
       image_url: n.image_url || null, synced: true,
-      pages: (n.pages || []).map((p) => ({ id: p.id, width: p.width, height: p.height, strokes: p.strokes || [] })) };
+      pages: (n.pages || []).map((p) => ({ id: p.id, width: p.width, height: p.height, strokes: p.strokes || [],
+        ...(p.photo ? { photo: p.photo } : {}) })) };
   }
 
   // ------------------------------------------------- H2: transcription and review
@@ -1608,7 +1715,7 @@ export function mountInk(root, options = {}) {
   // Still the same screen, note and user as when an answer was asked for.
   const current = (my, id, db) => my === nav && db === store && !!state.note && state.note.id === id;
   const trPage = (pageId) => (tr && state.note && tr.noteId === state.note.id ? tr.pages.get(pageId) : null);
-  const inkOf = (page) => page.strokes.some((st) => !st.pen.highlighter);
+  const inkOf = (page) => !!page.photo || page.strokes.some((st) => !st.pen.highlighter); // H6: a photo is read too
 
   function applyView() {
     const text = state.view === 'text';
@@ -1671,7 +1778,9 @@ export function mountInk(root, options = {}) {
     if (!body || !Array.isArray(body.pages) || seq < trTaken) return;
     trTaken = seq;
     tr = { noteId, pages: new Map(body.pages.map((p) => [p.id, p])), running: !!body.running, missing: false,
-      athena: body.athena || null };
+      athena: body.athena || null,
+      // H6: INK_AUTO_SEND is on; a run just ended and sends the note by itself.
+      autoSend: !!body.auto_send, autoSending: !!body.auto_sending };
   }
 
   async function loadTranscripts() {
@@ -1698,7 +1807,8 @@ export function mountInk(root, options = {}) {
   function schedulePoll() {
     clearTimeout(pollTimer);
     pollTimer = 0;
-    if (suspended || !tr || !tr.running || state.screen !== 'editor' || state.view !== 'text') return;
+    const busy = tr && (tr.running || tr.autoSending || (tr.athena && tr.athena.sending)); // H6: until Athena answers
+    if (suspended || !busy || state.screen !== 'editor' || state.view !== 'text') return;
     pollTimer = setTimeout(() => {
       pollTimer = 0;
       if (!suspended && state.screen === 'editor' && state.view === 'text') loadTranscripts();
@@ -1708,7 +1818,9 @@ export function mountInk(root, options = {}) {
   let imageKey = '';
   function drawPageImage(page) {
     const width = Math.max(200, Math.floor(tFigure.clientWidth || 600) - 2);
-    const key = `${state.note.id}:${page.id}:${width}:${page.strokes.length}:${state.note.edited_at}`;
+    const shot = page.photo ? photoOf(page) : null; // H6
+    const key = `${state.note.id}:${page.id}:${width}:${page.strokes.length}:${state.note.edited_at}`
+      + `:${shot ? `${shot.ok}${shot.failed}` : ''}`;
     if (key === imageKey) return;
     imageKey = key;
     const k = width / page.width;
@@ -1722,6 +1834,7 @@ export function mountInk(root, options = {}) {
     c.setTransform(ratio, 0, 0, ratio, 0, 0);
     c.fillStyle = '#ffffff';
     c.fillRect(0, 0, width, h);
+    if (page.photo) drawPhoto(c, page, 0, 0, k);
     const map = (p) => [p[0] * k, p[1] * k];
     const hl = page.strokes.filter((st) => st.pen.highlighter);
     if (hl.length) {
@@ -1767,12 +1880,15 @@ export function mountInk(root, options = {}) {
     tArea.readOnly = pending; // the model's text is on its way
     updateHighlight();
     // While the note is sent to Athena its text stays as it is (typing is kept as a draft).
-    const sending = sendingIds.has(state.note.id);
+    const sending = sendingIds.has(state.note.id) || !!(tr && tr.noteId === state.note.id && tr.autoSending);
     tTranscribe.textContent = tp && (tp.status === 'machine' || tp.status === 'reviewed') ? 'Transcribe again' : 'Transcribe';
     tTranscribe.disabled = pending || sending || !inkOf(page);
     tSave.disabled = pending || sending || !tr || tr.missing || !tp;
     tRestore.hidden = !(tp && tp.previous && tp.previous.text);
     tRestore.disabled = sending;
+    tRemove.hidden = !page.photo;
+    tRemove.disabled = pending || sending || pages.length < 2;
+    tRemove.title = pages.length < 2 ? 'The only page of the note: delete the note instead' : 'Remove this photo page from the note';
     renderSend();
     if (message) { setTState(message, true); return; }
     const unsaved = draft != null && draft !== (tp ? tp.text : '') ? ' Edits not saved yet.' : '';
@@ -1784,7 +1900,8 @@ export function mountInk(root, options = {}) {
     else if (tp.status === 'none') setTState(`Not transcribed yet: press Transcribe, or type the text.${unsaved}`);
     else {
       const n = (tArea.value.match(/\[\?\]/g) || []).length;
-      const what = tp.status === 'reviewed' ? 'Reviewed.'
+      const what = tp.status === 'reviewed'
+        ? (tp.auto ? 'Accepted automatically (no [?]), not checked by you: correct it if needed, then Save review.' : 'Reviewed.')
         : `Machine text${tp.model ? ` (${tp.model})` : ''}: check it against the page, then Save review.`;
       const marks = n ? ` ${n} unreadable word${n === 1 ? '' : 's'} marked [?].` : '';
       const changed = tp.changed ? ' The writing changed since this text was made: transcribe again.' : '';
@@ -1810,7 +1927,7 @@ export function mountInk(root, options = {}) {
 
   function renderSend() {
     const a = tr && !tr.missing && tr.noteId === state.note.id ? tr.athena : null;
-    const busy = sendingIds.has(state.note.id) || !!(a && a.sending);
+    const busy = sendingIds.has(state.note.id) || !!(a && a.sending) || !!(a && tr.autoSending);
     const unsaved = a ? unsavedPages() : [];
     const waiting = (a && a.waiting) || [];
     let line = '';
@@ -1828,7 +1945,7 @@ export function mountInk(root, options = {}) {
     } else if (unsaved.length) {
       line = `Save review first: edits not saved yet on page${unsaved.length === 1 ? '' : 's'} ${unsaved.join(', ')}.`;
     } else if (a.state === 'sent') {
-      line = `Sent to Athena${a.sent_at ? ` ${new Date(a.sent_at).toLocaleString()}` : ''}.`;
+      line = `Sent to Athena${a.auto ? ' automatically' : ''}${a.sent_at ? ` ${new Date(a.sent_at).toLocaleString()}` : ''}.`;
     } else if (a.state === 'changed') {
       line = a.has_text ? 'Changed since it was sent: Send again replaces the note in Athena.'
         : 'No text left since it was sent: Send again removes the note from Athena.';
@@ -1842,6 +1959,8 @@ export function mountInk(root, options = {}) {
     const quiet = !busy && !waiting.length && !unsaved.length;
     const msg = quiet && athenaMsg && athenaMsg.noteId === state.note.id && athenaMsg.key === athenaKey(a) ? athenaMsg : null;
     if (msg) { line = msg.text; error = !!msg.error; }
+    else if (quiet && a.auto_error && a.state !== 'sent') { line = `${a.auto_error} ${line}`; error = true; } // H6
+    if (tr.autoSend) line += ' Auto-send is on: pages without [?] are sent to Athena without review.';
     tAthena.append(line);
     const link = msg ? msg.link : (a.state === 'sent' && quiet ? a.transcript_link : null);
     if (link && /^https?:\/\//.test(link)) {
@@ -2097,6 +2216,151 @@ export function mountInk(root, options = {}) {
     return box;
   }
 
+  // ------------------------------------------------- H6: photos of paper pages
+  let photoTarget = null; // 'new' (a note from the photos) or the id of the note to add to
+  const online = () => !(globalThis.navigator && navigator.onLine === false);
+
+  function listMessage(text, error = false) {
+    const box = listView.querySelector('.bs-msg');
+    if (!box || state.screen !== 'list') return;
+    box.textContent = text;
+    box.classList.toggle('error', !!error);
+  }
+
+  function pickPhotos(target, camera) {
+    const say = target === 'new' ? listMessage : (t, e) => setStatus(t, e);
+    if (!online()) { say('Photo import needs a connection to the hub.', true); return; }
+    photoTarget = target;
+    if (camera) photoInput.setAttribute('capture', 'environment');
+    else photoInput.removeAttribute('capture');
+    photoInput.value = '';
+    photoInput.click();
+  }
+
+  photoInput.addEventListener('change', () => {
+    const files = [...(photoInput.files || [])];
+    const target = photoTarget;
+    photoTarget = null;
+    photoInput.value = '';
+    if (!files.length || !target) return;
+    if (target === 'new') importPhotos(files);
+    else addPhotoPages(target, files);
+  });
+
+  async function uploadPhotos(id, files, fields) {
+    const form = new FormData();
+    for (const f of files) {
+      const blob = await shrinkPhoto(f);
+      form.append('photos', blob, blob === f && f.name ? f.name : 'photo.jpg');
+    }
+    for (const [k, v] of Object.entries(fields)) if (v != null) form.append(k, String(v));
+    try {
+      const res = await fetch(`${API}/${encodeURIComponent(id)}/photos`, { method: 'POST', credentials: 'same-origin', body: form });
+      let body = null;
+      try { body = await res.json(); } catch (_) { /* empty */ }
+      return { status: res.status, ok: res.ok, body };
+    } catch (_) { return null; }
+  }
+
+  const photoError = (res) => (res ? `The hub refused the photos: ${(res.body && res.body.detail) || `HTTP ${res.status}`}.`
+    : 'The hub is not reachable: photos are imported only while it is.');
+  const plural = (n, word) => `${n} ${word}${n === 1 ? '' : 's'}`;
+
+  // A new note, one page per photo, then opened. The hub reads the photos at once.
+  async function importPhotos(files) {
+    const my = nav;
+    const db = store;
+    if (files.length > MAX_PHOTOS) { listMessage(`At most ${MAX_PHOTOS} photos at a time.`, true); return; }
+    listMessage(`Uploading ${plural(files.length, 'photo')}...`);
+    const res = await uploadPhotos(uuid(), files, { edited_at: Date.now(), title: defaultTitle(), paper: 'blank' });
+    if (db !== store) return; // another user signed in meanwhile
+    if (!(res && res.ok && res.body)) { if (my === nav) listMessage(photoError(res), true); return; }
+    const note = fromServer(res.body);
+    try { await db.put('notes', note); } catch (_) { /* memory only */ }
+    if (my !== nav || state.screen !== 'list') { refreshListSoon(); return; } // moved on: it's in the list
+    ++nav;
+    openLoaded(note);
+    for (const p of note.pages) edited.add(p.id);
+    autoTranscribe(note.pages.map((p) => p.id));
+  }
+
+  // Photo pages added to the open note after the page shown. Its strokes reach the hub
+  // first, so the hub's answer (which then has every page) can replace the note here.
+  async function addPhotoPages(id, files) {
+    if (!state.note || state.note.id !== id) return;
+    const my = nav;
+    const db = store;
+    const room = Math.min(MAX_PHOTOS, MAX_PAGES - state.note.pages.length);
+    if (files.length > room) {
+      setStatus(room <= 0 ? `A note has at most ${MAX_PAGES} pages: this note is full.` : `At most ${plural(room, 'photo')} here.`, true);
+      return;
+    }
+    const at = state.view === 'text' ? state.textPage : currentPageIndex();
+    const after = (state.note.pages[at] || {}).id;
+    setStatus(`Uploading ${plural(files.length, 'photo')}...`);
+    if (!(await pushStrokes(id))) {
+      if (current(my, id, db)) setStatus('The writing is not on the hub yet: add the photos once it has synced.', true);
+      return;
+    }
+    if (!current(my, id, db)) return;
+    const res = await uploadPhotos(id, files, { edited_at: Math.max(Date.now(), (state.note.edited_at || 0) + 1), after });
+    if (db !== store) return;
+    if (!(res && res.ok && res.body)) { if (current(my, id, db)) setStatus(photoError(res), true); return; }
+    const note = fromServer(res.body);
+    if (!current(my, id, db)) { try { await db.put('notes', note); } catch (_) { /* */ } return; }
+    const before = new Set(state.note.pages.map((p) => p.id));
+    if (state.dirty || state.live) {
+      // Written on here while the photos went up: keep that writing, take the new pages,
+      // and the autosave sends both.
+      const mine = new Map(state.note.pages.map((p) => [p.id, p]));
+      const pages = note.pages.map((p) => mine.get(p.id) || p);
+      for (const p of state.note.pages) if (!note.pages.some((q) => q.id === p.id)) pages.push(p);
+      state.note.pages = pages;
+      state.note.edited_at = Math.max(state.note.edited_at || 0, note.edited_at);
+      if (note.image_url) state.note.image_url = note.image_url;
+      markDirty();
+      render();
+    } else {
+      try { await db.put('notes', note); } catch (_) { /* memory only */ }
+      openLoaded(note, { keepView: true });
+    }
+    const added = state.note.pages.filter((p) => !before.has(p.id)).map((p) => p.id);
+    const first = state.note.pages.findIndex((p) => p.id === added[0]);
+    if (first >= 0) {
+      if (state.view === 'text') { state.textPage = first; renderText(); loadTranscripts(); }
+      else { state.sy = pageTop(first) - PAGE_GAP / 2; clampScroll(); state.curPage = null; render(); }
+    }
+    setStatus(`Added ${plural(added.length, 'photo page')}. The hub reads ${added.length === 1 ? 'it' : 'them'} now.`);
+    for (const p of added) edited.add(p);
+    autoTranscribe(added);
+  }
+
+  // The photo page shown in the Text tab leaves the note (with its photo and text).
+  async function removePhotoPage() {
+    if (!state.note || state.live || state.view !== 'text' || sendingIds.has(state.note.id)) return;
+    const id = state.note.id;
+    const page = state.note.pages[state.textPage];
+    if (!page || !page.photo || state.note.pages.length < 2) return;
+    const ok = await confirmDelete('Remove this photo page? Its photo and its text leave the note.');
+    if (!ok || !state.note || state.note.id !== id || state.live || !state.note.pages.includes(page)) return;
+    state.note.pages = state.note.pages.filter((p) => p !== page);
+    const keep = (a) => a.pageId !== page.id && !(a.page && a.page.id === page.id)
+      && !(a.removed && a.removed.some((r) => r.pageId === page.id));
+    state.undo = state.undo.filter(keep);
+    state.redo = state.redo.filter(keep);
+    edited.delete(page.id);
+    photos.delete(page.id);
+    const key = draftKey(id, page.id);
+    if (drafts.has(key)) await dropDraft(key, drafts.get(key));
+    state.textPage = Math.min(state.textPage, state.note.pages.length - 1);
+    markDirty();
+    imageKey = '';
+    renderText();
+    await persist(true);
+    await sync(id);
+    if (state.note && state.note.id === id && state.view === 'text') loadTranscripts();
+  }
+
   // -------------------------------------------------------------- screens
   function openLoaded(note, { keepView = false, textPage = null } = {}) {
     const sameOpen = state.note && state.note.id === note.id;
@@ -2124,6 +2388,7 @@ export function mountInk(root, options = {}) {
       tr = null;
       athenaMsg = null;
       edited.clear();
+      photos.clear(); // H6
       loadDrafts(note.id);
     }
     state.curPage = null;
@@ -2216,6 +2481,10 @@ export function mountInk(root, options = {}) {
     listView.textContent = '';
     const head = el('div', { class: 'bs-row ink-list-head' },
       el('button', { type: 'button', class: 'bs-btn primary', onclick: () => newNote() }, 'New note'),
+      el('button', { type: 'button', class: 'bs-btn ink-take-photo', title: 'Photograph a paper page: it becomes a note',
+        onclick: () => pickPhotos('new', true) }, 'Take photo'),
+      el('button', { type: 'button', class: 'bs-btn ink-import-photo', title: 'Pictures of paper pages: one page each',
+        onclick: () => pickPhotos('new', false) }, 'Import images'),
       el('span', { class: 'bs-meta', text: 'Write with the pen; one finger scrolls, two fingers zoom. '
         + 'Saved on this device first, then in your notes. If two devices change the same note, the last edit wins.' }));
     const msg = el('div', { class: `bs-msg${message ? ' error' : ''}`, text: message });
@@ -2267,9 +2536,11 @@ export function mountInk(root, options = {}) {
   function noteCard(n) {
     const when = n.edited_at ? new Date(n.edited_at) : (n.updated_at ? new Date(n.updated_at) : null);
     const toReview = (n.transcripts && n.transcripts.review && n.transcripts.review.length) || 0;
-    const athena = { sent: 'sent to Athena', changed: 'changed since sent to Athena' }[n.athena] || '';
+    const t = n.transcripts || {};
+    const autoPages = (t.auto && t.auto.length) || 0; // H6: accepted by INK_AUTO_SEND, not checked
+    const athena = { sent: `sent to Athena${t.auto_sent ? ' automatically' : ''}`, changed: 'changed since sent to Athena' }[n.athena] || '';
     const meta = [n.pages ? `${n.pages} page${n.pages === 1 ? '' : 's'}` : '', when ? when.toLocaleString() : '',
-      toReview ? `${toReview} to review` : '', athena,
+      toReview ? `${toReview} to review` : '', autoPages ? `${autoPages} accepted automatically, not checked` : '', athena,
       n.blocked ? `not synced: the hub refused it (${n.blocked})` : (n.waiting ? 'waiting to sync' : '')]
       .filter(Boolean).join(' · ');
     const thumb = el('div', { class: 'ink-thumb' });
@@ -2307,6 +2578,7 @@ export function mountInk(root, options = {}) {
     sendingIds.clear(); // the last user's sends answer to nobody here
     athenaMsg = null;
     edited.clear();
+    photos.clear(); // H6: the last user's photos
     if (state.note) {
       state.live = null;
       router.reset();

@@ -13,13 +13,23 @@ Sidecar (``version`` 1)::
      "pages": [{"id", "width", "height",
                 "strokes": [{"id", "pen": {"color", "width", "highlighter"},
                              "at": int, "points": [[x, y, t], ...]}],
-                "transcript": {"text", "model", "status", "strokes_hash", "at"}}],
+                "transcript": {"text", "model", "status", "strokes_hash", "at"},
+                "photo": {"file", "hash", "width", "height", "at"}}],  # H6: photo pages
      "athena": {"sent_hash", "sent_at", "conversation_id"},
      "render": {"hash", "image_url", "at"}}   # page 1's image, last drawn ``at``
 
 Coordinates are page units (a page is ``PAGE_WIDTH`` wide); ``t`` is ms since the
 stroke's ``at``. ``transcript`` and ``athena`` belong to later stages (H2, H4): a save from
 the Write view never sets them, it only keeps what the sidecar already had.
+
+A **photo page** (H6, photo import of a paper page) has ``photo``: the photo is a JPEG in
+``<ink folder>/photos/<note_id>/<page_id>.jpg`` (:func:`photo_path`), made by
+:func:`prepare_photo` (orientation applied, metadata dropped, at most ``PHOTO_MAX_SIDE``
+px) and added by :func:`add_photos`. Like ``transcript``, a save from the Write view
+never sets ``photo``: it is kept by page id. A photo page takes no pen ink (only the
+highlighter, which the recognizer never sees); a page dropped by a save, and the whole
+folder with the sidecar, lose their photo files. The page stays ``PAGE_WIDTH`` x
+``PAGE_HEIGHT``; the photo is drawn fitted into it, centred, at the top.
 
 Last edit wins: a save whose ``edited_at`` is older than the stored one is refused
 (:class:`Stale`) and the client takes the stored version.
@@ -37,8 +47,11 @@ import io
 import json
 import os
 import re
+import shutil
 import threading
 import time
+import uuid
+import warnings
 from datetime import datetime, timezone
 from pathlib import Path
 from typing import Any, Iterable
@@ -68,6 +81,16 @@ _COLOR_RE = re.compile(r"^#[0-9a-fA-F]{6}$")
 _OWNER_RE = re.compile(r"^[A-Za-z0-9@][A-Za-z0-9._@-]{0,63}$")
 
 TRANSCRIPT_STATUSES = ("none", "pending", "machine", "reviewed", "failed")
+
+# H6: photos of paper pages. A photo is checked and re-encoded before it is stored.
+PHOTO_TYPES = ("JPEG", "PNG", "WEBP")   # what Pillow found in the file, not its name
+MAX_PHOTO_BYTES = 15 * 1024 * 1024      # per photo as sent
+MAX_PHOTO_PIXELS = 40_000_000           # decoded size (decompression bombs)
+MAX_PHOTO_ASPECT = 6                    # long side / short side
+MIN_PHOTO_SIDE = 64
+PHOTO_MAX_SIDE = 2400                   # px, the long side of a stored photo
+PHOTO_QUALITY = 88
+MAX_PHOTOS_PER_UPLOAD = 10
 
 
 class InkError(ValueError):
@@ -118,6 +141,23 @@ def sidecar_path(owner: str | None, note_id: str) -> Path:
     if not valid_note_id(note_id):
         raise InkError("Invalid note id")
     return ink_dir(owner) / f"{note_id}.json"
+
+
+def photo_dir(owner: str | None, note_id: str) -> Path:
+    """Where a note's photos are: ``<ink folder>/photos/<note_id>``."""
+    if not valid_note_id(note_id):
+        raise InkError("Invalid note id")
+    return ink_dir(owner) / "photos" / note_id
+
+
+def photo_path(owner: str | None, note_id: str, page_id: str) -> Path:
+    if not isinstance(page_id, str) or not _SHORT_ID_RE.match(page_id):
+        raise InkError("Invalid page id")
+    return photo_dir(owner, note_id) / f"{page_id}.jpg"
+
+
+def is_photo(page: dict[str, Any]) -> bool:
+    return isinstance(page, dict) and isinstance(page.get("photo"), dict)
 
 
 def _tombstone_path(owner: str | None) -> Path:
@@ -285,22 +325,29 @@ def paper_of(doc: dict[str, Any]) -> str:
 
 
 def strokes_hash(page: dict[str, Any]) -> str:
-    """Stable hash of a page's strokes (what H2 compares to know a page changed)."""
-    raw = json.dumps([page.get("width"), page.get("height"), page.get("strokes") or []],
-                     separators=(",", ":"), sort_keys=True)
+    """Stable hash of a page's strokes (what H2 compares to know a page changed), and of
+    its photo on a photo page (H6; a page without one hashes as before)."""
+    parts = [page.get("width"), page.get("height"), page.get("strokes") or []]
+    if is_photo(page):
+        parts.append({"photo": page["photo"].get("hash")})
+    raw = json.dumps(parts, separators=(",", ":"), sort_keys=True)
     return hashlib.sha256(raw.encode("utf-8")).hexdigest()
 
 
 # ------------------------------------------------------------------------ render
 def render_page_png(page: dict[str, Any], *, scale: float = RENDER_SCALE,
-                    highlighter: bool = True) -> bytes:
+                    highlighter: bool = True, photo: Path | None = None,
+                    fmt: str = "PNG") -> bytes:
     """A PNG of one page: white paper, highlighter under the ink, no ruling. The same
-    strokes always give the same bytes."""
+    strokes always give the same bytes. ``photo`` (a photo page's file, H6) is drawn
+    first, fitted into the page; ``fmt`` ``"JPEG"`` suits a page with a photo."""
     from PIL import Image, ImageDraw
 
     width = max(1, int(round(page.get("width", PAGE_WIDTH) * scale)))
     height = max(1, int(round(page.get("height", PAGE_HEIGHT) * scale)))
     base = Image.new("RGBA", (width, height), (255, 255, 255, 255))
+    if photo is not None:
+        _paste_photo(base, photo)
     strokes = page.get("strokes") or []
     marks = [s for s in strokes if s["pen"].get("highlighter")] if highlighter else []
     ink = [s for s in strokes if not s["pen"].get("highlighter")]
@@ -313,8 +360,33 @@ def render_page_png(page: dict[str, Any], *, scale: float = RENDER_SCALE,
         base = Image.alpha_composite(base, layer)
     _draw_strokes(ImageDraw.Draw(base), ink, scale, opaque=True)
     out = io.BytesIO()
-    base.convert("RGB").save(out, format="PNG", optimize=False)
+    if fmt == "JPEG":
+        base.convert("RGB").save(out, format="JPEG", quality=PHOTO_QUALITY)
+    else:
+        base.convert("RGB").save(out, format="PNG", optimize=False)
     return out.getvalue()
+
+
+def photo_box(photo_w: float, photo_h: float, page_w: float, page_h: float
+              ) -> tuple[float, float, float, float]:
+    """``(x, y, w, h)`` of a photo fitted into a page: as large as fits, centred
+    across, at the top (the Write view draws it the same way, static/js/forkInk.js)."""
+    k = min(page_w / max(1.0, photo_w), page_h / max(1.0, photo_h))
+    w, h = photo_w * k, photo_h * k
+    return (page_w - w) / 2, 0.0, w, h
+
+
+def _paste_photo(base, path: Path) -> None:
+    from PIL import Image
+
+    try:
+        with Image.open(path) as img:
+            img = img.convert("RGB")
+    except (OSError, ValueError):
+        return  # the file is gone: the page is drawn without it
+    x, y, w, h = photo_box(img.width, img.height, base.width, base.height)
+    size = (max(1, round(w)), max(1, round(h)))
+    base.paste(img.resize(size, Image.LANCZOS), (round(x), round(y)))
 
 
 def smooth_points(points: list[list[float]], steps: int = 6) -> list[tuple[float, float]]:
@@ -386,32 +458,20 @@ def save(owner: str | None, note_id: str, body: Any, *, title: str | None = None
     store = _store_owner(owner, note_id)
     with _lock(store):
         current = load_sidecar(store, note_id)
-        exists = bool(existing_note_ids(owner, [note_id]))
-        created = False
-        if not exists:
-            if note_id_taken(note_id):
-                raise InkError("Note not found", 404)
-            if current is not None or is_deleted(store, note_id):
-                # The note was deleted (e.g. in the Notes window): don't bring it back.
-                _drop_sidecar(store, note_id, current)
-                _add_tombstones(store, [note_id])
-                raise Gone()
-            if not create_note(owner, default_title() if title is None else title, LABEL,
-                               None, note_id=note_id):
-                raise InkError("Note not found", 404)  # taken meanwhile
-            created = True
-        elif current is not None and doc["edited_at"] < int(current.get("edited_at") or 0):
+        exists, created = _ensure_note(owner, note_id, store, current, title)
+        if exists and current is not None and doc["edited_at"] < int(current.get("edited_at") or 0):
             raise Stale(public(current, note_title(owner, note_id)))
         try:
             stored = _merge(current, doc, note_id)
             _render_if_changed(owner, note_id, stored, final=final,
-                               now=time.time() if now is None else now)
+                               now=time.time() if now is None else now, store=store)
             _write_json(sidecar_path(store, note_id), stored)
         except BaseException:
             if created:  # no note without its strokes
                 delete_note(owner, note_id)
                 _remove_sidecar(store, note_id)
             raise
+        _drop_photos(store, note_id, current, stored)  # H6: photo pages removed
         if exists and title is not None:
             update_note(owner, note_id, title=title)
         if current is not None and _page_ids(current) != _page_ids(stored):
@@ -420,6 +480,26 @@ def save(owner: str | None, note_id: str, body: Any, *, title: str | None = None
 
             update_note(owner, note_id, content=ink_transcribe.note_content(stored))
         return public(stored, note_title(owner, note_id))
+
+
+def _ensure_note(owner: str | None, note_id: str, store: str | None,
+                 current: dict[str, Any] | None, title: str | None) -> tuple[bool, bool]:
+    """``(exists, created)``: create the owner's note on its first write (the id comes
+    from the client). Raises :class:`Gone` for a deleted note (its sidecar is dropped
+    and its id remembered) and 404 for an id another note took. Call under the lock."""
+    if existing_note_ids(owner, [note_id]):
+        return True, False
+    if note_id_taken(note_id):
+        raise InkError("Note not found", 404)
+    if current is not None or is_deleted(store, note_id):
+        # The note was deleted (e.g. in the Notes window): don't bring it back.
+        _drop_sidecar(store, note_id, current)
+        _add_tombstones(store, [note_id])
+        raise Gone()
+    if not create_note(owner, default_title() if title is None else title, LABEL,
+                       None, note_id=note_id):
+        raise InkError("Note not found", 404)  # taken meanwhile
+    return False, True
 
 
 def _page_ids(stored: dict[str, Any]) -> list[Any]:
@@ -445,7 +525,12 @@ def _merge(current: dict[str, Any] | None, doc: dict[str, Any], note_id: str
     for page in doc["pages"]:
         old = old_pages.get(page["id"]) or {}
         transcript = old.get("transcript") if isinstance(old.get("transcript"), dict) else None
-        pages.append({**page, "transcript": transcript or _empty_transcript()})
+        new = {**page, "transcript": transcript or _empty_transcript()}
+        if is_photo(old):  # H6: only add_photos makes a photo page
+            if any(not s["pen"].get("highlighter") for s in page["strokes"]):
+                raise InkError("A photo page takes only the highlighter, not pen ink")
+            new["photo"] = old["photo"]
+        pages.append(new)
     athena = current.get("athena") if isinstance(current.get("athena"), dict) else None
     render = current.get("render") if isinstance(current.get("render"), dict) else None
     return {"version": VERSION, "note_id": note_id, "paper": doc["paper"],
@@ -456,7 +541,7 @@ def _merge(current: dict[str, Any] | None, doc: dict[str, Any], note_id: str
 
 
 def _render_if_changed(owner: str | None, note_id: str, stored: dict[str, Any], *,
-                       final: bool, now: float) -> None:
+                       final: bool, now: float, store: str | None = None) -> None:
     first = stored["pages"][0]
     digest = strokes_hash(first)
     render = stored["render"]
@@ -465,7 +550,14 @@ def _render_if_changed(owner: str | None, note_id: str, stored: dict[str, Any], 
     recent = now - float(render.get("at") or 0) < RENDER_MIN_SECONDS
     if render.get("image_url") and recent and not final:
         return  # still writing: redrawn on a later save
-    if not first["strokes"]:
+    if is_photo(first):  # H6: the photo, with any highlighting, as a JPEG
+        path = photo_path(_store_owner(owner, note_id) if store is None else store,
+                          note_id, first["id"])
+        url = save_page_image(owner, render_page_png(first, photo=path, fmt="JPEG"),
+                              filename="handwritten.jpg")
+        if url is None:
+            return
+    elif not first["strokes"]:
         url = None  # nothing to show yet
     else:
         url = save_page_image(owner, render_page_png(first))
@@ -502,6 +594,25 @@ def _remove_sidecar(owner: str | None, note_id: str) -> None:
         sidecar_path(owner, note_id).unlink()
     except FileNotFoundError:
         pass
+    _remove_photos(owner, note_id)  # H6: a note's photos go with its sidecar
+
+
+def _remove_photos(owner: str | None, note_id: str) -> None:
+    folder = photo_dir(owner, note_id)
+    if folder.is_dir():
+        shutil.rmtree(folder, ignore_errors=True)
+
+
+def _drop_photos(store: str | None, note_id: str, before: dict[str, Any] | None,
+                 after: dict[str, Any]) -> None:
+    """Delete the photo files of photo pages a save removed."""
+    kept = {p.get("id") for p in after.get("pages") or [] if is_photo(p)}
+    for page in (before or {}).get("pages") or []:
+        if is_photo(page) and page.get("id") not in kept:
+            try:
+                photo_path(store, note_id, page["id"]).unlink()
+            except (FileNotFoundError, InkError):
+                pass
 
 
 def sent_to_athena(stored: dict[str, Any] | None) -> bool:
@@ -538,6 +649,154 @@ def delete(owner: str | None, note_id: str) -> bool:
     return True
 
 
+# ------------------------------------------------------------------ photos (H6)
+def prepare_photo(data: bytes) -> dict[str, Any]:
+    """Check a photo of a paper page and make the JPEG that is stored: ``{"jpeg",
+    "width", "height", "hash"}``. Only JPEG, PNG and WebP (by content, not by name),
+    at most ``MAX_PHOTO_BYTES`` and ``MAX_PHOTO_PIXELS`` (checked from the header,
+    before decoding), the camera's orientation applied, at most ``PHOTO_MAX_SIDE`` px,
+    transparency on white, and re-encoded so no metadata (EXIF, GPS, ICC, comments) is
+    kept. Raises :class:`InkError` (400, or 413 for size)."""
+    from PIL import Image, ImageOps
+
+    if not isinstance(data, (bytes, bytearray)) or not data:
+        raise InkError("The photo is empty")
+    if len(data) > MAX_PHOTO_BYTES:
+        raise InkError(f"A photo is at most {MAX_PHOTO_BYTES // (1024 * 1024)} MB", 413)
+    too_big = InkError("The photo has too many pixels", 413)
+    try:
+        with warnings.catch_warnings():
+            warnings.simplefilter("error", Image.DecompressionBombWarning)
+            img = Image.open(io.BytesIO(bytes(data)))
+            if img.format not in PHOTO_TYPES:
+                raise InkError("A photo must be a JPEG, PNG or WebP image")
+            w, h = img.size  # from the header: nothing decoded yet
+            if w * h > MAX_PHOTO_PIXELS:
+                raise too_big
+            if min(w, h) < MIN_PHOTO_SIDE or max(w, h) > MAX_PHOTO_ASPECT * min(w, h):
+                raise InkError("The photo is too small or too narrow to read")
+            if img.format == "JPEG":
+                img.draft("RGB", (PHOTO_MAX_SIDE, PHOTO_MAX_SIDE))  # decode smaller
+            img = ImageOps.exif_transpose(img)
+            if img.mode in ("I", "I;16", "I;16L", "I;16B", "I;16N"):
+                # 16-bit gray (scanner PNGs): Pillow's convert clips at 255 rather than
+                # scaling, so the page would come out white. Scale to 8 bits first.
+                img = img.convert("I").point(lambda v: v * (1 / 256)).convert("L")
+            img.thumbnail((PHOTO_MAX_SIDE, PHOTO_MAX_SIDE), Image.LANCZOS)
+            if img.mode in ("RGBA", "LA", "PA") or (img.mode == "P" and "transparency" in img.info):
+                rgba = img.convert("RGBA")
+                flat = Image.new("RGB", rgba.size, (255, 255, 255))
+                flat.paste(rgba, mask=rgba.getchannel("A"))
+            else:
+                flat = Image.new("RGB", img.size, (255, 255, 255))
+                flat.paste(img.convert("RGB"))
+    except InkError:
+        raise
+    except (Image.DecompressionBombError, Image.DecompressionBombWarning):
+        raise too_big from None
+    except Exception:  # noqa: BLE001 -- anything Pillow can't read is refused
+        raise InkError("The file is not an image that can be read") from None
+    out = io.BytesIO()
+    flat.save(out, format="JPEG", quality=PHOTO_QUALITY, optimize=True)  # a new image: no metadata
+    jpeg = out.getvalue()
+    return {"jpeg": jpeg, "width": flat.width, "height": flat.height,
+            "hash": hashlib.sha256(jpeg).hexdigest()}
+
+
+def _write_bytes(path: Path, data: bytes) -> None:
+    path.parent.mkdir(parents=True, exist_ok=True)
+    tmp = path.with_name(f".{path.name}.{os.getpid()}.{threading.get_ident()}.tmp")
+    tmp.write_bytes(data)
+    os.replace(tmp, path)
+
+
+def add_photos(owner: str | None, note_id: str, photos: list[dict[str, Any]], *,
+               edited_at: Any = 0, after: str | None = None, title: str | None = None,
+               paper: str | None = None, now: float | None = None) -> dict[str, Any]:
+    """Add photos (from :func:`prepare_photo`) as new pages of the owner's note, one
+    page each, after the page ``after`` (else at the end). The first upload creates the
+    note (client-made id, like the first save; ``title`` and ``paper`` are used then,
+    ``paper`` blank by default). The note's ``edited_at`` becomes at least ``edited_at``
+    and newer than the stored one, so the device that sent the photos has the last
+    edit. Returns the stored note (:func:`public`). Raises :class:`Gone` (410), 404 for
+    another owner's note, 413 past ``MAX_PAGES``."""
+    if not valid_note_id(note_id):
+        raise InkError("Invalid note id")
+    if not photos:
+        raise InkError("No photo was sent")
+    if len(photos) > MAX_PHOTOS_PER_UPLOAD:
+        raise InkError(f"At most {MAX_PHOTOS_PER_UPLOAD} photos at a time", 413)
+    edited_at = int(_num(edited_at or 0, 0, 1e14, "edited_at"))
+    if title is not None:
+        if not isinstance(title, str):
+            raise InkError("title must be a string")
+        title = title.strip()[:MAX_TITLE]
+    if note_id_taken(note_id) and not existing_note_ids(owner, [note_id]):
+        raise InkError("Note not found", 404)
+    store = _store_owner(owner, note_id)
+    with _lock(store):
+        current = load_sidecar(store, note_id)
+        _, created = _ensure_note(owner, note_id, store, current, title)
+        base = current if current is not None else {
+            "paper": paper if paper in PAPERS else "blank", "edited_at": 0, "pages": []}
+        pages = [p for p in base.get("pages") or [] if isinstance(p, dict)]
+        if len(pages) + len(photos) > MAX_PAGES:
+            raise InkError(f"A note has at most {MAX_PAGES} pages: this note is full", 413)
+        ids = [p.get("id") for p in pages]
+        at = ids.index(after) + 1 if after in ids else len(pages)
+        written: list[Path] = []
+        try:
+            new_pages = []
+            for photo in photos:
+                pid = "ph" + uuid.uuid4().hex[:12]
+                path = photo_path(store, note_id, pid)
+                _write_bytes(path, photo["jpeg"])
+                written.append(path)
+                new_pages.append({
+                    "id": pid, "width": PAGE_WIDTH, "height": PAGE_HEIGHT, "strokes": [],
+                    "transcript": _empty_transcript(),
+                    "photo": {"file": f"photos/{note_id}/{pid}.jpg", "hash": photo["hash"],
+                              "width": int(photo["width"]), "height": int(photo["height"]),
+                              "at": _now_iso()}})
+            pages[at:at] = new_pages
+            paper_now = paper_of(base)
+            athena = base.get("athena") if isinstance(base.get("athena"), dict) else None
+            render = base.get("render") if isinstance(base.get("render"), dict) else None
+            stored = {"version": VERSION, "note_id": note_id, "paper": paper_now,
+                      "ruled": paper_now == "lined",
+                      "edited_at": max(edited_at, int(base.get("edited_at") or 0) + 1),
+                      "saved_at": _now_iso(), "pages": pages,
+                      "athena": athena or _empty_athena(),
+                      "render": render or {"hash": None, "image_url": None, "at": None}}
+            _render_if_changed(owner, note_id, stored, final=True,
+                               now=time.time() if now is None else now, store=store)
+            _write_json(sidecar_path(store, note_id), stored)
+        except BaseException:
+            for path in written:
+                path.unlink(missing_ok=True)
+            if created:  # no note without its pages
+                delete_note(owner, note_id)
+                _remove_sidecar(store, note_id)
+            raise
+        return public(stored, note_title(owner, note_id))
+
+
+def photo_file(owner: str | None, note_id: str, page_id: str) -> Path | None:
+    """The stored photo of a photo page of the owner's handwritten note, else None."""
+    if not valid_note_id(note_id) or not isinstance(page_id, str) \
+            or not _SHORT_ID_RE.match(page_id) or not existing_note_ids(owner, [note_id]):
+        return None
+    store = _store_owner(owner, note_id)
+    with _lock(store):
+        stored = load_sidecar(store, note_id)
+    page = next((p for p in (stored or {}).get("pages") or []
+                 if isinstance(p, dict) and p.get("id") == page_id), None)
+    if page is None or not is_photo(page):
+        return None
+    path = photo_path(store, note_id, page_id)
+    return path if path.is_file() else None
+
+
 def owner_folders() -> list[str | None]:
     """Every ink folder, as the owner to pass for it: a folder name is its owner's name,
     or a hash of it (:func:`_owner_dir_name`), which maps to itself; ``_single`` (single-
@@ -566,6 +825,7 @@ def sweep_folder(owner: str | None) -> list[str]:
     """:func:`sweep` for one ink folder (``owner`` None: ``_single``)."""
     with _lock(owner):  # no save, delete or tombstone write of this owner meanwhile
         ids = sidecar_ids(owner)
+        _sweep_photos(owner, set(ids))
         if not ids:
             return []
         # Any note with that id keeps its strokes (also one relabelled in Notes).
@@ -580,6 +840,17 @@ def sweep_folder(owner: str | None) -> list[str]:
                     removed.append(note_id)
         _add_tombstones(owner, gone)
         return removed
+
+
+def _sweep_photos(owner: str | None, sidecars: set[str]) -> None:
+    """Photo folders without a sidecar (a write cut short) are removed. Call under the
+    lock."""
+    root = ink_dir(owner) / "photos"
+    if not root.is_dir():
+        return
+    for folder in root.iterdir():
+        if folder.is_dir() and valid_note_id(folder.name) and folder.name not in sidecars:
+            shutil.rmtree(folder, ignore_errors=True)
 
 
 def list_notes(owner: str | None) -> list[dict[str, Any]]:
@@ -775,9 +1046,11 @@ def handwritten_notes(owner: str | None) -> list[dict[str, Any]]:
         db.close()
 
 
-def save_page_image(owner: str | None, png_bytes: bytes) -> str | None:
+def save_page_image(owner: str | None, png_bytes: bytes,
+                    filename: str = "handwritten.png") -> str | None:
     """Store a rendered page through upstream's upload store (the one the drawing
-    canvas posts to) and return its URL, ``/api/upload/<id>``; ``None`` if refused."""
+    canvas posts to) and return its URL, ``/api/upload/<id>``; ``None`` if refused.
+    ``filename`` ``handwritten.jpg`` for a JPEG (a photo page, H6)."""
     from fastapi import HTTPException, UploadFile
 
     from src.tool_utils import get_upload_handler
@@ -785,7 +1058,7 @@ def save_page_image(owner: str | None, png_bytes: bytes) -> str | None:
     handler = get_upload_handler()
     if handler is None or not png_bytes:
         return None
-    upload = UploadFile(file=io.BytesIO(png_bytes), filename="handwritten.png")
+    upload = UploadFile(file=io.BytesIO(png_bytes), filename=filename)
     try:
         meta = handler.save_upload(upload, f"fork-ink:{owner or ''}", owner=owner)
     except HTTPException:
