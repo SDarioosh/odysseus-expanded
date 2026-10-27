@@ -391,7 +391,8 @@ async def join(link: recorder.Link, request: JoinRequest, title: str | None = No
     if status not in (200, 201, 202):
         raise _error(status, body)
     meeting = _meeting(body)
-    return public({"state": "starting", "active": True, "title": title, **meeting})
+    return public({"state": "starting", "active": True, "title": title,
+                   "meeting_id": request.meeting_id, **meeting})
 
 
 async def get(link: recorder.Link, meeting_id: str, *,

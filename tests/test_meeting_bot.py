@@ -245,6 +245,7 @@ def test_join_posts_json_with_the_mcp_token():
     got = run(mb.join(LINK, req, "Fictional sync", transport=module.transport))
     assert got["id"] == MID and got["state"] == "starting" and got["active"] is True
     assert got["text"] == "Joining…" and got["title"] == "Fictional sync"
+    assert got["meeting_id"] == "85012345678"
     sent = module.requests[0]
     assert sent.method == "POST" and sent.url.path == "/meetings"
     assert dict(sent.url.params) == {"access_token": TOKEN}
