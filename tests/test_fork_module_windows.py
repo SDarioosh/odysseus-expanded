@@ -146,3 +146,24 @@ def test_meetings_window_reads_the_meetings_page():
     sound = (_JS / "soundModule.js").read_text()
     assert "'Record a call'" not in sound
     assert "ctx.embedded ? null : el('a', { className: 'bs-btn', href: '/modules/sound/record' }" in sound
+
+
+def test_athena_group_holds_the_module_entries():
+    # The sidebar's collapsible "Athena" group (static/js/forkAthenaMenu.js) is built
+    # above Tools from the existing entries; it must not be a `.section`, or upstream's
+    # section toggle (static/js/section-management.js) binds a second handler to it.
+    menu = (_JS / "forkAthenaMenu.js").read_text()
+    assert "export function buildAthenaMenu(itemIds, beforeId = 'tools-section')" in menu
+    assert "group.className = 'fork-athena-section';" in menu
+    assert "'section'" not in menu
+    windows = (_JS / "forkModuleWindows.js").read_text()
+    assert "import { buildAthenaMenu } from './forkAthenaMenu.js';" in windows
+    assert ("buildAthenaMenu([WINDOWS.sound.sidebarBtn, WINDOWS.meetings.sidebarBtn, "
+            "WINDOWS.today.sidebarBtn,\n                   WINDOWS.ink.sidebarBtn, "
+            "'tool-beliefs-btn']);") in windows
+    # built after the entries it moves are added
+    assert windows.index("addSidebarEntry(WINDOWS.ink") < windows.index("buildAthenaMenu([")
+    index = (_REPO / "static" / "index.html").read_text()
+    for entry in ("tool-sound-module-btn", "tool-today-insight-btn", "tool-beliefs-btn"):
+        assert f'id="{entry}"' in index
+    assert 'id="tools-section"' in index

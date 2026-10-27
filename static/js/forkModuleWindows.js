@@ -12,6 +12,9 @@
 // sidebar entry added here, after Conversations; it is a link to its standalone page
 // (/modules/sound/record) like the entries in index.html.
 //
+// All of these, and Beliefs, sit in the sidebar's collapsible "Athena" group above Tools
+// (static/js/forkAthenaMenu.js).
+//
 // Write (handwritten notes, static/js/forkInk.js) has no standalone page and no entry in
 // index.html: its sidebar entry is added here, after Today. Its code and stylesheet are
 // loaded in idle time after the app starts, so a service worker that controls the app
@@ -21,6 +24,7 @@
 import * as Modals from './modalManager.js';
 import { makeWindowDraggable } from './windowDrag.js';
 import { FORK_SHORTCUT_ICONS } from './forkModuleShortcuts.js';
+import { buildAthenaMenu } from './forkAthenaMenu.js';
 
 const STYLESHEET = '/static/css/fork-modules.css';
 const INK_SCRIPT = './forkInk.js';
@@ -328,6 +332,8 @@ function init() {
   loadStylesheet();
   addSidebarEntry(WINDOWS.meetings, WINDOWS.sound.sidebarBtn);
   addSidebarEntry(WINDOWS.ink, WINDOWS.today.sidebarBtn);
+  buildAthenaMenu([WINDOWS.sound.sidebarBtn, WINDOWS.meetings.sidebarBtn, WINDOWS.today.sidebarBtn,
+                   WINDOWS.ink.sidebarBtn, 'tool-beliefs-btn']);
   for (const win of Object.values(WINDOWS)) wireSidebar(win);
   addRailButton(WINDOWS.sound, 'rail-notes');
   addRailButton(WINDOWS.meetings, WINDOWS.sound.railBtn);

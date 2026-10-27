@@ -248,3 +248,8 @@ html.fm-page body { background: var(--bg); color: var(--fg); margin: 0; display:
   .fm-meetings .mb-form, .fm-meetings .mb-paste, .fm-meetings .rc-grid { grid-template-columns: 1fr; }
 }
 /* end Meetings window */
+/* Sidebar "Athena" group (static/js/forkAthenaMenu.js): looks like the Tools section */
+.fork-athena-section { margin-top: 1px; }
+.fork-athena-section .list-item { padding: 8px 8px; }
+.fork-athena-section.collapsed .section-collapse-chevron { transform: rotate(-90deg); }
+/* end sidebar "Athena" group */
