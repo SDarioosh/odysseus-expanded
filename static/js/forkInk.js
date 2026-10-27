@@ -1519,7 +1519,9 @@ export function mountInk(root, options = {}) {
     if (!body || !Array.isArray(body.pages) || seq < trTaken) return;
     trTaken = seq;
     tr = { noteId, pages: new Map(body.pages.map((p) => [p.id, p])), running: !!body.running, missing: false,
-      athena: body.athena || null };
+      athena: body.athena || null,
+      // H6: INK_AUTO_SEND is on; a run just ended and sends the note by itself.
+      autoSend: !!body.auto_send, autoSending: !!body.auto_sending };
   }
 
   async function loadTranscripts() {
@@ -1546,7 +1548,8 @@ export function mountInk(root, options = {}) {
   function schedulePoll() {
     clearTimeout(pollTimer);
     pollTimer = 0;
-    if (suspended || !tr || !tr.running || state.screen !== 'editor' || state.view !== 'text') return;
+    const busy = tr && (tr.running || tr.autoSending || (tr.athena && tr.athena.sending)); // H6: until Athena answers
+    if (suspended || !busy || state.screen !== 'editor' || state.view !== 'text') return;
     pollTimer = setTimeout(() => {
       pollTimer = 0;
       if (!suspended && state.screen === 'editor' && state.view === 'text') loadTranscripts();
@@ -1615,7 +1618,7 @@ export function mountInk(root, options = {}) {
     tArea.readOnly = pending; // the model's text is on its way
     updateHighlight();
     // While the note is sent to Athena its text stays as it is (typing is kept as a draft).
-    const sending = sendingIds.has(state.note.id);
+    const sending = sendingIds.has(state.note.id) || !!(tr && tr.noteId === state.note.id && tr.autoSending);
     tTranscribe.textContent = tp && (tp.status === 'machine' || tp.status === 'reviewed') ? 'Transcribe again' : 'Transcribe';
     tTranscribe.disabled = pending || sending || !inkOf(page);
     tSave.disabled = pending || sending || !tr || tr.missing || !tp;
@@ -1632,7 +1635,8 @@ export function mountInk(root, options = {}) {
     else if (tp.status === 'none') setTState(`Not transcribed yet: press Transcribe, or type the text.${unsaved}`);
     else {
       const n = (tArea.value.match(/\[\?\]/g) || []).length;
-      const what = tp.status === 'reviewed' ? 'Reviewed.'
+      const what = tp.status === 'reviewed'
+        ? (tp.auto ? 'Accepted automatically (no [?]), not checked by you: correct it if needed, then Save review.' : 'Reviewed.')
         : `Machine text${tp.model ? ` (${tp.model})` : ''}: check it against the page, then Save review.`;
       const marks = n ? ` ${n} unreadable word${n === 1 ? '' : 's'} marked [?].` : '';
       const changed = tp.changed ? ' The writing changed since this text was made: transcribe again.' : '';
@@ -1658,7 +1662,7 @@ export function mountInk(root, options = {}) {
 
   function renderSend() {
     const a = tr && !tr.missing && tr.noteId === state.note.id ? tr.athena : null;
-    const busy = sendingIds.has(state.note.id) || !!(a && a.sending);
+    const busy = sendingIds.has(state.note.id) || !!(a && a.sending) || !!(a && tr.autoSending);
     const unsaved = a ? unsavedPages() : [];
     const waiting = (a && a.waiting) || [];
     let line = '';
@@ -1676,7 +1680,7 @@ export function mountInk(root, options = {}) {
     } else if (unsaved.length) {
       line = `Save review first: edits not saved yet on page${unsaved.length === 1 ? '' : 's'} ${unsaved.join(', ')}.`;
     } else if (a.state === 'sent') {
-      line = `Sent to Athena${a.sent_at ? ` ${new Date(a.sent_at).toLocaleString()}` : ''}.`;
+      line = `Sent to Athena${a.auto ? ' automatically' : ''}${a.sent_at ? ` ${new Date(a.sent_at).toLocaleString()}` : ''}.`;
     } else if (a.state === 'changed') {
       line = a.has_text ? 'Changed since it was sent: Send again replaces the note in Athena.'
         : 'No text left since it was sent: Send again removes the note from Athena.';
@@ -1690,6 +1694,8 @@ export function mountInk(root, options = {}) {
     const quiet = !busy && !waiting.length && !unsaved.length;
     const msg = quiet && athenaMsg && athenaMsg.noteId === state.note.id && athenaMsg.key === athenaKey(a) ? athenaMsg : null;
     if (msg) { line = msg.text; error = !!msg.error; }
+    else if (quiet && a.auto_error && a.state !== 'sent') { line = `${a.auto_error} ${line}`; error = true; } // H6
+    if (tr.autoSend) line += ' Auto-send is on: pages without [?] are sent to Athena without review.';
     tAthena.append(line);
     const link = msg ? msg.link : (a.state === 'sent' && quiet ? a.transcript_link : null);
     if (link && /^https?:\/\//.test(link)) {
@@ -2115,9 +2121,11 @@ export function mountInk(root, options = {}) {
   function noteCard(n) {
     const when = n.edited_at ? new Date(n.edited_at) : (n.updated_at ? new Date(n.updated_at) : null);
     const toReview = (n.transcripts && n.transcripts.review && n.transcripts.review.length) || 0;
-    const athena = { sent: 'sent to Athena', changed: 'changed since sent to Athena' }[n.athena] || '';
+    const t = n.transcripts || {};
+    const autoPages = (t.auto && t.auto.length) || 0; // H6: accepted by INK_AUTO_SEND, not checked
+    const athena = { sent: `sent to Athena${t.auto_sent ? ' automatically' : ''}`, changed: 'changed since sent to Athena' }[n.athena] || '';
     const meta = [n.pages ? `${n.pages} page${n.pages === 1 ? '' : 's'}` : '', when ? when.toLocaleString() : '',
-      toReview ? `${toReview} to review` : '', athena,
+      toReview ? `${toReview} to review` : '', autoPages ? `${autoPages} accepted automatically, not checked` : '', athena,
       n.blocked ? `not synced: the hub refused it (${n.blocked})` : (n.waiting ? 'waiting to sync' : '')]
       .filter(Boolean).join(' · ');
     const thumb = el('div', { class: 'ink-thumb' });
