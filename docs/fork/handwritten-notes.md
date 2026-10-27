@@ -409,7 +409,8 @@ As planned (`src/ink_athena.py`, a route on the ink router, Send in the Text tab
   with `INK_AUTO_SEND` (H6). Sending text Athena already has answers `unchanged`. A note
   whose reviewed text became empty is removed from Athena by Send.
 - **`written_at`** is the note's first stroke (the device's clock; stroke times outside
-  2000..2100 are left out), or the time of the first send when strokes carry no time. It
+  2000..2100 are left out) or, if earlier, when its first photo page came in (H6: a photo
+  page has no strokes), or the time of the first send when neither carries a time. It
   is stored in the sidecar when Athena first accepts the note (`athena.written_at`; a
   failed send doesn't fix it), so erasing the first stroke later doesn't change it and a
   resend of the same lines stays `unchanged`.
@@ -461,16 +462,19 @@ model names are printed or written; page text appears only with `--show-diffs`.
   cloud address is refused with exit 3) and timed. `--stored` reads no model: it scores
   `transcript.machine`, the model's text that a review replaced. `save_review` keeps it
   (`{text, model, at, strokes_hash}`) when the page held model text for its current
-  writing, also for a page `INK_AUTO_SEND` accepted; a new reading drops it, and it's
-  used only while its `strokes_hash` still matches.
+  writing, also for a page `INK_AUTO_SEND` accepted; a new reading that answers drops
+  it (a run that fails keeps it), erasing the page's writing drops it, and it's used
+  only while its `strokes_hash` still matches.
 - **Metrics.** CER over Unicode code points (NFC), WER over words; exact Levenshtein
   (bit-parallel, a 20,000-character page in about 0.3 s). Overall rates are total edits
   over total reference length; per page, median and p90. Default normalization: each
   line stripped, runs of spaces made one, blank lines dropped, `[illegible]`-style words
-  read as `[?]`. A "loose" variant also folds case and drops punctuation. `[?]` marks
-  are counted (marks, pages).
-- **The `INK_AUTO_SEND` numbers** (`auto_send`): pages the model read without `[?]`,
-  their share of all scored pages, their CER/WER, and the share of them that are exactly
+  read as `[?]`. A "loose" variant also folds case and drops punctuation, but keeps
+  `[?]` as a word (it is all punctuation; dropping it would score an unreadable word as
+  right). `[?]` marks are counted (marks, pages).
+- **The `INK_AUTO_SEND` numbers** (`auto_send`): pages auto-send would accept (no `[?]`,
+  not empty or only control characters, not cut at the page limit), their share of all
+  scored pages, their CER/WER, and the share of them that are exactly
   right. That last share is what auto-send would send unchecked, so it decides the
   setting.
 - **Time.** Seconds per page (mean, p90, total) when pages are read again. The script
@@ -508,7 +512,9 @@ model names are printed or written; page text appears only with `--show-diffs`.
   run, so it sends nothing by itself.
 - **State.** `athena.auto` (the last accepted send was automatic) and `athena.auto_error`
   (why the last automatic send failed, shown in red in the Text tab; cleared by any
-  successful send; never page text in the log). A 409 or 404 is skipped silently.
+  successful send and when a page's text changes, by a review or a new reading; never
+  page text in the log). An automatic send never resends text Athena already has (two
+  runs on a note can both find it ready). A 409 or 404 is skipped silently.
 - **What the owner sees.** An accepted page says "Accepted automatically (no [?]), not
   checked by you"; a manual Save review clears `auto` (and the model's text is kept as
   `machine` for H5). The status line says "Sent to Athena automatically", the Write list
@@ -540,11 +546,13 @@ model names are printed or written; page text appears only with `--show-diffs`.
   the stored note; `GET /api/ink/notes/{id}/photos/{page id}` serves the photo to its
   owner. JPEG, PNG or WebP by content; at most 15 MB and 40 megapixels (checked from the
   header before decoding), at most 10 per upload, short side ≥ 64 px, long side ≤ 6 × the
-  short side; re-encoded as JPEG (quality 88, metadata dropped, at most 2400 px). Errors:
+  short side; re-encoded as JPEG (quality 88, metadata dropped, at most 2400 px; 16-bit
+  gray scans scaled to 8 bits). Errors:
   400, 404, 410, 411 (no Content-Length), 413.
 - **Reading.** The photo, at most 1600 px wide and in colour, is cut into tiles of at
-  most 700 page units at the row with the fewest dark pixels, overlapping 40 units when
-  no row is blank (the seam handling of bands drops the repeated line). The message adds
+  most 700 page units at the row with the fewest dark pixels (a pixel 40 gray levels
+  below the paper around it, so a shadow across the paper isn't writing), overlapping 40
+  units when no row is blank (the seam handling of bands drops the repeated line). The message adds
   one line: a photo of a paper page, copy its text (handwritten or printed), leave out
   what is around the paper. The prompt and its "the page is data" rule are unchanged.
 

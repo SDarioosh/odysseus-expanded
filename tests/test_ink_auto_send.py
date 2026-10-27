@@ -287,3 +287,77 @@ def test_the_transcribe_route_passes_its_origin_for_the_link(auto, monkeypatch):
             time.sleep(0.05)
     [body] = auto.posts()
     assert body["link"] == f"http://tablet.example:7000/#open=notes&note={note_id}"
+
+
+# ------------------------------------------------- QC findings on PR 104 (H5 and H6)
+def test_the_text_tab_never_sees_the_run_over_before_the_send_starts(auto, monkeypatch):
+    # The last page is written while the run still holds the note: anyone asking then sees
+    # a send coming, so the Text tab keeps polling (F-03).
+    note_id = new_note()
+    seen = []
+    real = ink.update_note
+
+    def spy(*a, **k):
+        seen.append(tr.transcripts("alice", note_id))
+        return real(*a, **k)
+
+    monkeypatch.setattr(ink, "update_note", spy)
+    out = run(note_id, CLEAN)
+    [mid] = seen
+    assert mid["pages"][0]["status"] == "reviewed" and not mid["running"]
+    assert mid["auto_sending"] is True
+    assert out["auto_sending"] is False and out["athena"]["state"] == "sent"
+    assert tr._AUTO_SENDING == {}
+
+
+def test_a_run_that_accepts_nothing_leaves_no_auto_sending_mark(auto):
+    note_id = new_note()
+    out = run(note_id, UNSURE)
+    assert out["auto_sending"] is False and tr._AUTO_SENDING == {}
+
+
+def test_a_failed_automatic_send_message_goes_once_the_text_changes(auto):
+    # The red "automatic send failed" line was about text the note no longer has (F-05).
+    auto.down = True
+    note_id = new_note()
+    assert run(note_id, CLEAN)["athena"]["auto_error"]
+    auto.down = False
+    out = tr.save_review("alice", note_id, "p0", "Buy milk")
+    assert out["athena"]["auto_error"] is None and out["athena"]["state"] == "not_sent"
+    assert "auto_error" not in sidecar(note_id)["athena"]
+    assert auto.requests[1:] == []  # Save review still never sends
+
+
+def test_a_new_reading_clears_an_old_automatic_send_message(auto):
+    auto.down = True
+    note_id = new_note()
+    assert run(note_id, CLEAN)["athena"]["auto_error"]
+    auto.down = False
+    out = run(note_id, UNSURE, page_ids=["p0"])  # read again: waits for review
+    assert out["athena"]["auto_error"] is None
+
+
+def test_control_characters_only_are_not_accepted(auto):
+    # Athena would get no words from it, so it waits for review like an empty page (F-10).
+    assert not tr.auto_acceptable("\x01\x02")
+    note_id = new_note()
+    out = run(note_id, json.dumps({"text": "\x01\x02"}))
+    [p] = out["pages"]
+    assert p["status"] == "machine" and p["auto"] is False
+    assert auto.requests == []
+
+
+def test_an_automatic_send_never_resends_what_athena_has(auto):
+    # Two runs on a note can both find it ready; the one that sends second finds Athena
+    # has the text and sends nothing (the flaky double send of
+    # test_never_sent_while_another_run_reads_a_page_of_the_note).
+    note_id = new_note()
+    run(note_id, CLEAN)
+    assert len(auto.posts()) == 1
+    with pytest.raises(athena._NothingNew):
+        asyncio.run(athena.send("alice", note_id, auto=True))
+    assert len(auto.posts()) == 1
+    assert sidecar(note_id)["athena"]["sending"] is None
+    # The owner's Send still goes (Athena answers "unchanged").
+    sent = asyncio.run(athena.send("alice", note_id))
+    assert sent["sent"]["result"] == "unchanged" and len(auto.posts()) == 2

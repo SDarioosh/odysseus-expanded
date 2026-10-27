@@ -128,11 +128,16 @@ def norm_default(text: Any) -> str:
     return "\n".join(ln for ln in lines if ln)
 
 
+def _drop_punct(text: str) -> str:
+    return "".join(" " if unicodedata.category(ch).startswith("P") else ch for ch in text)
+
+
 def norm_loose(text: Any) -> str:
-    """Case-folded, punctuation dropped, all whitespace (line breaks too) as one space."""
-    text = _base(text).casefold()
-    text = "".join(" " if unicodedata.category(ch).startswith("P") else ch for ch in text)
-    return " ".join(text.split())
+    """Case-folded, punctuation dropped, all whitespace (line breaks too) as one space.
+    ``[?]`` stays, as a word of its own: it is all punctuation, and dropping it would
+    score an unreadable word as no error."""
+    parts = _base(text).casefold().split(UNREADABLE)
+    return " ".join(f" {UNREADABLE} ".join(_drop_punct(p) for p in parts).split())
 
 
 NORMS: dict[str, Callable[[Any], str]] = {"default": norm_default, "loose": norm_loose}
@@ -187,6 +192,7 @@ class PageScore:
     seconds: float | None = None
     unreadable: int = 0
     exact: bool = False
+    auto_acceptable: bool = False  # INK_AUTO_SEND would accept it (src/ink_transcribe.py)
     counts: dict[str, dict[str, list[int]]] = field(default_factory=dict)
     # counts[norm]["char" | "word"] = [edits, reference length]
 
@@ -265,6 +271,12 @@ def score_page(pair: Pair, hypothesis: str | None, *, model: str | None = None,
     if hypothesis is None:
         return s
     s.unreadable = _base(hypothesis).count(UNREADABLE)
+    try:  # as a run stores it: an empty, cut or [?] answer is never accepted
+        from src import ink_transcribe as tr
+
+        s.auto_acceptable = tr.auto_acceptable(tr.clean_text(hypothesis))
+    except ImportError:  # metrics work without the hub's code
+        s.auto_acceptable = s.unreadable == 0 and bool(_base(hypothesis).strip())
     for name, norm in NORMS.items():
         ref, hyp = norm(pair.reference), norm(hypothesis)
         s.counts[name] = {"char": list(char_edits(ref, hyp)), "word": list(word_edits(ref, hyp))}
@@ -293,9 +305,10 @@ def summarize(scores: Sequence[PageScore], *, mode: str, skipped: dict[str, int]
     ok = [s for s in scores if s.error is None and s.counts]
     failed = [s for s in scores if s.error is not None]
     clear = [s for s in ok if s.unreadable == 0]
+    accepted = [s for s in ok if s.auto_acceptable]
     secs = [s.seconds for s in scores if s.seconds is not None and s.error is None]
     models = sorted({s.model for s in ok if s.model})
-    clear_rates = _rates(clear, "default")
+    auto_rates = _rates(accepted, "default")
     return {
         "mode": mode,
         "models": models,
@@ -307,11 +320,11 @@ def summarize(scores: Sequence[PageScore], *, mode: str, skipped: dict[str, int]
         "loose": _rates(ok, "loose"),
         "unreadable": {"pages": len(ok) - len(clear),
                        "marks": sum(s.unreadable for s in ok)},
-        "auto_send": {  # pages INK_AUTO_SEND would send unreviewed (no [?])
-            "pages": len(clear),
-            "share_of_scored": len(clear) / len(ok) if ok else None,
-            "cer": clear_rates["cer"], "wer": clear_rates["wer"],
-            "exact": clear_rates["exact"], "exact_share": clear_rates["exact_share"],
+        "auto_send": {  # pages INK_AUTO_SEND would send unreviewed (auto_acceptable)
+            "pages": len(accepted),
+            "share_of_scored": len(accepted) / len(ok) if ok else None,
+            "cer": auto_rates["cer"], "wer": auto_rates["wer"],
+            "exact": auto_rates["exact"], "exact_share": auto_rates["exact_share"],
         },
         "seconds": None if not secs else {
             "mean": statistics.fmean(secs), "p90": percentile(secs, 0.9),
@@ -621,7 +634,9 @@ def _run(args: argparse.Namespace) -> int:
     from src import ink_notes as ink
 
     answers = write_fixtures() if args.fixtures else None
-    owners: list[str | None] = list(args.owner) if args.owner else ink.owner_folders()
+    # "_single" is the folder of single-user mode (owner None), as owner_folders() says.
+    owners: list[str | None] = ([None if o == "_single" else o for o in args.owner]
+                                if args.owner else ink.owner_folders())
     pairs, skipped = collect_pairs(owners, include_photos=args.include_photos,
                                    limit=args.limit)
     if not pairs:

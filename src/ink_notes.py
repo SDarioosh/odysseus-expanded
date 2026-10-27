@@ -678,6 +678,10 @@ def prepare_photo(data: bytes) -> dict[str, Any]:
             if img.format == "JPEG":
                 img.draft("RGB", (PHOTO_MAX_SIDE, PHOTO_MAX_SIDE))  # decode smaller
             img = ImageOps.exif_transpose(img)
+            if img.mode in ("I", "I;16", "I;16L", "I;16B", "I;16N"):
+                # 16-bit gray (scanner PNGs): Pillow's convert clips at 255 rather than
+                # scaling, so the page would come out white. Scale to 8 bits first.
+                img = img.convert("I").point(lambda v: v * (1 / 256)).convert("L")
             img.thumbnail((PHOTO_MAX_SIDE, PHOTO_MAX_SIDE), Image.LANCZOS)
             if img.mode in ("RGBA", "LA", "PA") or (img.mode == "P" and "transparency" in img.info):
                 rgba = img.convert("RGBA")
