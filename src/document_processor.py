@@ -418,6 +418,12 @@ def _resolve_vl_model(configured: str, owner: str | None = None) -> tuple:
     if configured:
         return _resolve_model(configured, owner=owner)
 
+    # Fork: pick a vision-capable model the owner has configured (src/vision_auto_detect.py)
+    from src.vision_auto_detect import auto_detect_vision_model
+    _found = auto_detect_vision_model(owner)
+    if _found:
+        return _found
+
     # Auto-detect: try known vision-capable models in priority order
     candidates = [
         "gpt-4o", "gpt-4o-mini", "gpt-4.1", "gpt-4.1-mini",
