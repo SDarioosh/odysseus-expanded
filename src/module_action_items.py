@@ -55,8 +55,9 @@ removes the single undated to-dos filed per non-explicit voice-note item before 
 (never a dated to-do or a reminder; entries record ``filed_mode``). A "Voice notes" list
 emptied by Undo or a move is archived (``_archive_if_empty``).
 Notes: an item of kind ``note`` (the owner said "create a note ..." in a voice note)
-becomes an Odysseus note (type ``note``) titled with its ``note_title``, its text and the
-source line as content. With a ``list_name`` ("add to my hardware notes ..." ->
+becomes an Odysseus note (type ``note``) titled with its ``note_title``, its text, the
+voice note's ``key_points`` as a list (MCP 0.15.0, a note that is the whole voice note) and
+the source line as content. With a ``list_name`` ("add to my hardware notes ..." ->
 ``hardware``) it is added as a line ("- <text>") to that note instead: the open note
 whose title is that name ("Hardware notes", "hardware"), or a new one titled
 "Hardware notes". A filed note is marked done in the module right away (a note is no
@@ -548,7 +549,7 @@ async def _file_one(owner: str, item: dict, target: str, *, rev: int = 0,
         title = _note_title(item, text)
         res = await do_manage_notes(json.dumps({
             "action": "add", "note_type": "note", "title": title, "label": LABEL,
-            "content": f"{text}\n\n{_source_line(item)}"}), owner=owner or None)
+            "content": _note_content(item, text)}), owner=owner or None)
         if res.get("error") or not res.get("note_id"):
             raise RuntimeError(f"notes: {res.get('error') or 'no note created'}")
         ref = res["note_id"]
@@ -561,6 +562,17 @@ async def _file_one(owner: str, item: dict, target: str, *, rev: int = 0,
 
 # ------------------------------------------------------------------------ notes
 _NOTES_WORDS = re.compile(r"^(?:my|the|our)\s+|\s+notes?$", re.IGNORECASE)
+
+
+def _note_content(item: dict, text: str) -> str:
+    """A filed note: its text, the voice note's key points as a list when the module sends
+    them (MCP 0.15.0: the note is the whole voice note, its text the summary), and the
+    source line with the transcript link last."""
+    points = item.get("key_points")
+    points = [str(p).strip() for p in points if str(p).strip()] \
+        if isinstance(points, list) else []
+    parts = [text] + (["\n".join(f"- {p}" for p in points)] if points else [])
+    return "\n\n".join(parts + [_source_line(item)])
 
 
 def _note_title(item: dict, text: str) -> str:

@@ -736,6 +736,22 @@ def test_notes_names_match_loosely():
 
 
 @pytest.mark.asyncio
+async def test_note_of_a_whole_voice_note_lists_its_key_points(hub, pushes):
+    module = JsonModule()
+    await _start(module)
+    module.add(note_row(71, "Recorded the AMOLED T4-S3 dimensions.",
+                        title="AMOLED T4-S3 Dimensions",
+                        key_points=["Screen: 49mm x 60mm", " ", "PCB: 39mm x 52mm"]))
+    await bai.sync("alice", module, now=T0)
+    (note,) = notes(hub)
+    body, points, source = note.content.split("\n\n")
+    assert (body, points) == ("Recorded the AMOLED T4-S3 dimensions.",
+                              "- Screen: 49mm x 60mm\n- PCB: 39mm x 52mm")
+    assert source.startswith('From your voice note "Note 71"')
+    assert source.endswith(LINK.format(c="c71"))
+
+
+@pytest.mark.asyncio
 async def test_create_a_note_files_an_odysseus_note(hub, pushes):
     module = JsonModule()
     await _start(module)
