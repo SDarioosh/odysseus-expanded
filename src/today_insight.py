@@ -990,7 +990,7 @@ _SHORT_WHAT_TO_DO = re.compile(
 
 def wants_insight(message: Any) -> bool:
     """Whether a chat message is about today's plan (then the insight joins the context).
-    Slash commands and slash-invoked skills (``/sound``, ``/context``) never are: the
+    Slash commands and slash-invoked skills (``/athena``, ``/context``) never are: the
     insight block made a small model answer from it instead of calling the module."""
     text = str(message or "").strip()
     if not text or text.startswith("/"):

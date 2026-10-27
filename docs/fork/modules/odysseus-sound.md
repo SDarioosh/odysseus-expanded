@@ -117,11 +117,12 @@ Then, per [../modules.md](../modules.md#registering-a-module-in-odysseus):
    system prompt.
 3. `python scripts/modules_setup.py --url http://127.0.0.1:7010 --password-file <file>`
    (sandbox, or the server's test instance; on production `fork_deploy.sh` runs it).
-   It creates the `/sound` and `/context` skills from that preset text.
+   It creates the `/athena` and `/context` skills from that preset text, and deletes the
+   old `/sound` skill.
 
-## Slash skill: `/sound`
+## Slash skill: `/athena`
 
-- Skill **`sound`**, server **`convo`**: `/sound <question>` gives that one message
+- Skill **`athena`**, server **`convo`**: `/athena <question>` gives that one message
   Athena's 13 tools (plus `ask_user`/`update_plan`) and nothing else. `/context
   <question>` does the same for every trusted module (today only `convo`).
 - The skill's procedure is `INSTRUCTIONS` from `server/convo_server/mcp_server.py`, the
@@ -130,15 +131,18 @@ Then, per [../modules.md](../modules.md#registering-a-module-in-odysseus):
 - Needed because with every Odysseus tool on and "Auto", a plain recording question
   is routed to built-ins (calendar, files) and never sees a convo tool. Sandbox
   numbers: [../sandbox.md](../sandbox.md#slash-skills-2026-10-18).
-- Examples: `/sound what did Alice say about the budget in September?`,
+- Examples: `/athena what did Alice say about the budget in September?`,
   `/context what did Maria ask me to do on Friday?` The model gets today's date on
   every turn, so relative dates work.
-- Write tools (`update_action_item`, `name_speaker`) are offered on `/sound` turns and
+- Write tools (`update_action_item`, `name_speaker`) are offered on `/athena` turns and
   still ask for approval.
-- Follow-ups in the same chat don't need `/sound` again: once a convo tool has run in a
+- Follow-ups in the same chat don't need `/athena` again: once a convo tool has run in a
   chat, every later message there is offered all 13 tools (write tools still ask). So
-  "Speaker 1 and 3 were Marisol, speaker 2 was Kath" after `/sound what did we talk about
+  "Speaker 1 and 3 were Marisol, speaker 2 was Kath" after `/athena what did we talk about
   last night?` calls `name_speaker`.
+- The command was `/sound` until 2026-10-27. `modules_setup.py` deletes a managed `/sound`
+  skill, so `/sound` no longer works; sandbox results below that say `/sound` were
+  measured with the same skill under its old name.
 - Approving a write tool once covers more calls of that same tool in the same reply:
   one click renames all three speakers. A different write tool in that reply is still
   refused; ask for it in a new message.
@@ -352,7 +356,7 @@ voice notes are labelled), and a "who is this?" card for every unnamed speaker. 
 conversation in place (`get_conversation`, `get_transcript` 200 lines a page); tapping a
 speaker fixes one line (`reassign_line`), a whole unnamed `Speaker N` (`name_speaker`) or
 a name everywhere (`rename_speaker_everywhere`, confirmed first). **Ask in chat** puts
-`/sound About the conversation "<title>" (id <id>, <start>): ` into a new chat for the
+`/athena About the conversation "<title>" (id <id>, <start>): ` into a new chat for the
 owner to finish and send (the page links to `/?ask=…`). It calls
 `list_action_items`, `update_action_item`, `search_conversations`, `get_conversation`,
 `get_transcript`, `reassign_line`, `rename_speaker_everywhere`,
@@ -587,7 +591,7 @@ its tool calls. Full analysis: Athena
   disappears from the module (a resend that drops it, or a deleted note):
   `src/module_action_items.py` only follows status changes of items it still reads.
 
-- Plain questions (no `/sound` or `/context`) don't reach the convo tools when every
+- Plain questions (no `/athena` or `/context`) don't reach the convo tools when every
   Odysseus tool is on ([../roadmap.md](../roadmap.md)).
 - A malformed date argument (e.g. `'2026-09-30”,'` from the 4B sandbox model) makes
   `search_conversations` raise instead of returning a readable error, so Odysseus only

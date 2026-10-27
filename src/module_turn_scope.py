@@ -1,6 +1,6 @@
 """Plain questions about a module's data reach the module's tools.
 
-``/sound`` and ``/context`` pin a module's tools for one message
+``/athena`` and ``/context`` pin a module's tools for one message
 (``src/skill_invocation.py``), but a plain question ("What did Alice say about
 the budget?") in "Auto" got none of them:
 

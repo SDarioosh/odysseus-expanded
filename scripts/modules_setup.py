@@ -25,18 +25,22 @@ ships paused), which files voice-note action items into the calendar and to-dos 
 pushes them to the phone; ``--no-action-items`` leaves it alone. (It logs a warning at
 run time when the module's CONVO_TIMEZONE isn't Odysseus' timezone.)
 
-Slash-command skills: ``/sound <question>`` offers Athena's tools for that
+Slash-command skills: ``/athena <question>`` offers Athena's tools for that
 one message, and ``/context <question>`` the tools of every trusted module. This
 script creates or updates those skills through the skills API (source
 ``managed``, so they need no skill audit; see src/skill_invocation.py):
 
-* one per ``--module-skill NAME=SERVER`` (default ``sound=convo``), requiring
+* one per ``--module-skill NAME=SERVER`` (default ``athena=convo``), requiring
   ``mcp:SERVER``; its procedure is the module's usage instructions, read from
   ``--skill-text NAME=FILE`` or else from the Custom preset's system prompt (the
   module doc says to paste the same text there);
 * ``--context-skill`` (default ``context``), requiring ``mcp:<server>`` for each
   server in ``--trusted`` (default: ``ODYSSEUS_TRUSTED_READONLY_MCP``, else the
   ``--module`` list). ``--no-skills`` skips both.
+
+Renamed skills: a managed skill under an old name (``/sound``, now ``/athena``) is
+deleted, so the old command stops working. A skill someone else made under that
+name is left alone.
 
 Trusting a module's read-only tools is not done here; that is the
 ``ODYSSEUS_TRUSTED_READONLY_MCP`` environment variable (see src/mcp_trust.py).
@@ -45,7 +49,7 @@ Usage:
     python scripts/modules_setup.py --url http://127.0.0.1:7000 \
         --user admin --password-file ~/.config/odysseus-fork/admin.txt \
         [--trim [--keep a,b] | --untrim] [--model-mode auto|full|unchanged]
-        [--module-skill sound=convo] [--skill-text sound=FILE] [--context-skill context]
+        [--module-skill athena=convo] [--skill-text athena=FILE] [--context-skill context]
         [--trusted convo,...] [--no-skills] [--dry-run]
 
 Re-run after each upgrade. With --trim, new upstream tools are turned off unless
@@ -76,6 +80,8 @@ BUILTIN_MCP_OFF = {"email", "builtin_browser", "image_gen"}
 MODEL_MODES = {"full": "full", "auto": "", "unchanged": None}
 TRUSTED_ENV = "ODYSSEUS_TRUSTED_READONLY_MCP"
 MANAGED_SOURCE = "managed"  # src/skill_invocation.py: skips the skill audit gates
+# Old names of managed skills, deleted on each run: /sound became /athena.
+RETIRED_SKILLS = ("sound",)
 # src/module_action_items.py's built-in task (ships paused): files voice-note items into
 # the calendar and to-dos and pushes them. Named here, not imported: this script only
 # talks to the admin API.
@@ -115,7 +121,7 @@ def parse_args(argv: list[str] | None = None) -> argparse.Namespace:
     ap.add_argument("--module", action="append", default=None,
                     help="MCP server name a module registers (default: convo); repeatable")
     ap.add_argument("--module-skill", action="append", default=None, metavar="NAME=SERVER",
-                    help="slash skill offering one module's tools (default: sound=convo); "
+                    help="slash skill offering one module's tools (default: athena=convo); "
                          "repeatable")
     ap.add_argument("--skill-text", action="append", default=[], metavar="NAME=FILE",
                     help="procedure text for a module skill (default: the Custom preset's "
@@ -140,7 +146,7 @@ def parse_args(argv: list[str] | None = None) -> argparse.Namespace:
     if args.module is None:
         args.module = ["convo"]
     if args.module_skill is None:
-        args.module_skill = ["sound=convo"]
+        args.module_skill = ["athena=convo"]
     try:
         args.module_skill = [_pair(p, "--module-skill") for p in args.module_skill]
         args.skill_text = dict(_pair(p, "--skill-text") for p in args.skill_text)
@@ -231,6 +237,14 @@ def apply_skills(c: httpx.Client, specs: list[dict], dry_run: bool) -> list[str]
                                             "confidence": 1.0}).raise_for_status()
         else:
             c.put(f"/api/skills/{name}", json={**spec, "status": "published"}).raise_for_status()
+    wanted = {spec["name"] for spec in specs}
+    for name in RETIRED_SKILLS:
+        current = existing.get(name)
+        if name in wanted or current is None or current.get("source") != MANAGED_SOURCE:
+            continue
+        print(f"skill /{name}: delete (renamed)")
+        if not dry_run:
+            c.delete(f"/api/skills/{name}").raise_for_status()
     return warnings
 
 

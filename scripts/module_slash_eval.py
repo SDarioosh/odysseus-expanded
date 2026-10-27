@@ -17,7 +17,7 @@ Per question it prints the Odysseus log's approvals and ``tools_sent=`` counts w
 
 Usage, from Athena's ``server/`` directory:
     ODYSSEUS_URL=http://127.0.0.1:7010 ODYSSEUS_PASSWORD_FILE=<file> \
-      .venv/bin/python <odysseus fork>/scripts/module_slash_eval.py --skill sound \
+      .venv/bin/python <odysseus fork>/scripts/module_slash_eval.py --skill athena \
       [--log <odysseus log>] [--extra] -- [bakeoff args, e.g. --only 1 4 16]
 """
 
@@ -38,7 +38,7 @@ def main(argv: list[str] | None = None) -> int:
         i = argv.index("--")
         argv, rest = argv[:i], argv[i + 1:]
     ap = argparse.ArgumentParser(description=__doc__.splitlines()[0])
-    ap.add_argument("--skill", help="slash skill to prefix, e.g. sound or context")
+    ap.add_argument("--skill", help="slash skill to prefix, e.g. athena or context")
     ap.add_argument("--bakeoff", type=Path, default=Path("eval/bakeoff.py"),
                     help="path to bakeoff.py (default: eval/bakeoff.py)")
     ap.add_argument("--log", type=Path, help="Odysseus log, for approvals and tools_sent")

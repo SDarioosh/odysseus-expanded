@@ -433,7 +433,7 @@ async function loadItems() {
 // Text for a new chat's composer (static/js/forkChatAsk.js); it never sends by itself.
 // The window hands it over directly; the standalone page links to the main page's ?ask=.
 function askText(title, id, start) {
-  return `/sound About the conversation "${title}" (id ${id}, ${start}): `;
+  return `/athena About the conversation "${title}" (id ${id}, ${start}): `;
 }
 
 function askButton(title, id, start) {

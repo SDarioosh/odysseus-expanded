@@ -146,7 +146,7 @@ untrusted context, **only when the message is about today's plan**
 (`today_insight.wants_insight`): it names today, tonight, this morning/afternoon/evening,
 first, priority/priorities, plan, focus, agenda or schedule, or says "what should I do",
 "what's next", "what now", "what to do", "where do I start", or is a short "what do I do
-(now)?". Slash commands and slash-invoked skills (`/sound`, `/context`) never get it.
+(now)?". Slash commands and slash-invoked skills (`/athena`, `/context`) never get it.
 
 Why: with the block on every turn, the sandbox model answered an action-item question
 ("what did the doctor say…") with "no information in the provided context" and called no

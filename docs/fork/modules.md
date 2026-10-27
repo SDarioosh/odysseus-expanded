@@ -91,7 +91,7 @@ name heuristic. So:
 
 ### Slash skill
 
-Each module gets one slash command in Odysseus, e.g. `/sound <question>`, plus a share
+Each module gets one slash command in Odysseus, e.g. `/athena <question>`, plus a share
 of `/context <question>` (every trusted module). For that one message, the model is
 offered only the module's tools (plus `ask_user`/`update_plan`), so a small model
 finds them among Odysseus' ~130 tools. Mechanism: an Odysseus skill whose
@@ -105,7 +105,7 @@ What the module ships:
   it so it works as a procedure: which tool for which question, dates as
   `YYYY-MM-DD`, and "put the link next to each fact". Paragraphs or list items become
   the skill's procedure steps.
-- **The module doc names the skill and the server**, e.g. "skill `sound`, server
+- **The module doc names the skill and the server**, e.g. "skill `athena`, server
   `convo`". Pick a short, unused name; it must not clash with an Odysseus slash
   command or skill.
 - Odysseus' `scripts/modules_setup.py` creates or updates the skill (source `managed`, no
@@ -180,10 +180,10 @@ the server's test instance (`127.0.0.1:7010`), then on production (port 7000) pe
 5. **Run `scripts/modules_setup.py`** (`--dry-run` first). It checks that the module's
    server is connected, sets "Auto" tool mode leaving every Odysseus tool on, and
    creates the module's slash skill (`--module-skill <skill>=<server>`, e.g.
-   `sound=convo`) and the shared `/context` skill. See
+   `athena=convo`) and the shared `/context` skill. See
    [Slash skill](#slash-skill). `--trim` gives the old memory-only tool set with
    "Regular tools". With every tool on, plain questions in "Auto" don't reach module
-   tools; `/sound` and `/context` do
+   tools; `/athena` and `/context` do
    ([sandbox.md](sandbox.md#slash-skills-2026-10-18)).
 6. **Run the module's eval** (see "Eval harness"): a few questions in the sandbox, the
    full run by the owner on the server. Record the server score in the module doc.
@@ -269,7 +269,7 @@ like tools: adding one is non-breaking, renaming or removing one is breaking.
 - [ ] Correct `readOnlyHint` / `destructiveHint` on every tool, with a test.
 - [ ] Every result fact has a source link; non-empty results carry the citation rule.
 - [ ] MCP `instructions` written to work as the slash skill's procedure; the module doc
-      names the skill (e.g. `sound`) and server.
+      names the skill (e.g. `athena`) and server.
 - [ ] Main search tool follows [Shared search (planned)](#shared-search-planned):
       `query`, `since`, `until`, `person`, `limit`; dated hits with links.
 - [ ] Eval script with fictional seed data, a `--frontend odysseus` mode and a target
