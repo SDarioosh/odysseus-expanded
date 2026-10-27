@@ -297,12 +297,27 @@ def _clean_title(title: str) -> str | None:
     return title or None
 
 
+def _photo_time(page: dict[str, Any]) -> int | None:
+    """When a photo page's photo came in (``photo.at``, ISO-8601), in seconds."""
+    at = page.get("photo", {}).get("at") if ink.is_photo(page) else None
+    try:
+        when = datetime.fromisoformat(str(at).replace("Z", "+00:00"))
+    except ValueError:
+        return None
+    if when.tzinfo is None:
+        when = when.replace(tzinfo=timezone.utc)
+    return int(when.timestamp())
+
+
 def _first_written(stored: dict[str, Any]) -> int | None:
-    """When the note was first written: its earliest stroke (device clock, ms). Stroke
-    times outside 2000..2100 (a clock not set yet) are left out."""
-    times = [int(at // 1000) for p in stored.get("pages") or [] for s in p.get("strokes") or []
-             if isinstance(at := s.get("at"), (int, float)) and not isinstance(at, bool)
-             and EARLIEST <= int(at // 1000) < LATEST]
+    """When the note was first written: its earliest stroke (device clock, ms), or the
+    earliest photo of a paper page (H6: it has no strokes). Times outside 2000..2100 (a
+    clock not set yet) are left out."""
+    pages = stored.get("pages") or []
+    times = [int(at // 1000) for p in pages for s in p.get("strokes") or []
+             if isinstance(at := s.get("at"), (int, float)) and not isinstance(at, bool)]
+    times += [t for p in pages if (t := _photo_time(p)) is not None]
+    times = [t for t in times if EARLIEST <= t < LATEST]
     return min(times) if times else None
 
 
@@ -310,13 +325,18 @@ def _iso(seconds: float) -> str:
     return datetime.fromtimestamp(seconds, timezone.utc).isoformat().replace("+00:00", "Z")
 
 
-def _prepare(owner: str | None, note_id: str, base: str, now: float
+class _NothingNew(ink.InkError):
+    """An automatic send found Athena already has the note's text."""
+
+
+def _prepare(owner: str | None, note_id: str, base: str, now: float, auto: bool = False
              ) -> tuple[str | None, dict[str, Any] | None, str | None, int | None]:
     """Check the note and mark it ``sending``. Returns (store, payload, text hash,
     written_at); the payload is None when the note has no words left and was sent before
     (it is removed from Athena instead). ``written_at`` is stored only once Athena accepts
     the note (:func:`_finish`), so a failed first send doesn't fix it. Raises
-    ``InkError`` with what to fix."""
+    ``InkError`` with what to fix; ``auto`` (:func:`auto_send`): :class:`_NothingNew`
+    when Athena has the text already (another run's automatic send just sent it)."""
     store = tr._check(owner, note_id)
     with ink._lock(store):
         stored = tr._load(store, note_id)
@@ -326,6 +346,8 @@ def _prepare(owner: str | None, note_id: str, base: str, now: float
         a = _athena(stored)
         if _sending(a, now) or (store or "", note_id) in _SENDING:
             raise ink.InkError("This note is being sent: wait for Athena's answer.", 409)
+        if auto and state(stored) == "sent":
+            raise _NothingNew("Athena has this text already.", 409)
         text = note_text(stored)
         payload: dict[str, Any] | None = None
         written: int | None = None
@@ -418,7 +440,7 @@ async def send(owner: str | None, note_id: str, *, request_base: str | None = No
     await _link()  # fail before marking anything when Athena isn't set up
     base = hub_base(request_base)
     store, payload, digest, written = await asyncio.to_thread(
-        _prepare, owner, note_id, base, clock())
+        _prepare, owner, note_id, base, clock(), auto)
     key = (store or "", note_id)
     _SENDING.add(key)
     sent: dict[str, Any] | None = None
@@ -514,6 +536,8 @@ async def auto_send(owner: str | None, note_id: str, *, request_base: str | None
     try:
         out = await send(owner, note_id, request_base=request_base, transport=transport,
                          clock=clock, auto=True)
+    except _NothingNew:  # another run's automatic send sent this text just now
+        return None
     except ink.InkError as exc:
         if exc.status == 409:  # a page waits again, or a send holds the note
             return "waiting"

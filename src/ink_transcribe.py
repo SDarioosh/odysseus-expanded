@@ -61,6 +61,7 @@ import json
 import logging
 import os
 import re
+import threading
 import time
 import uuid
 import weakref
@@ -80,6 +81,9 @@ SEAM_LINES = 3                        # lines at most that both bands of a cut c
 PHOTO_BAND = 700                      # page units per tile of a photo page (H6)
 PHOTO_OVERLAP = 40                    # page units on each side of a cut through writing
 PHOTO_QUIET = 0.004                   # a row with at most this share of dark pixels is blank
+PHOTO_PAPER_BLOCK = 8                 # px blocks the paper's brightness is measured in
+PHOTO_PAPER_SPAN = 5                  # blocks (each way) the paper around a pixel is taken from
+PHOTO_INK_CONTRAST = 40               # gray levels below the paper around it: ink
 MAX_PAGE_TEXT = 20_000                # characters kept per page (model or owner)
 UNREADABLE = "[?]"
 AUTO_SEND_ENV = "INK_AUTO_SEND"       # truthy: clean pages are accepted and sent unreviewed
@@ -233,13 +237,20 @@ def page_bands(page: dict[str, Any], *, width_px: int = RENDER_PX) -> list[dict[
 
 
 def dark_rows(img) -> list[float]:
-    """Per pixel row of a photo, the share of dark pixels (after autocontrast), 0..1."""
-    from PIL import Image, ImageOps
+    """Per pixel row of a photo, the share of dark pixels, 0..1. A pixel is dark when it
+    is ``PHOTO_INK_CONTRAST`` below the paper around it (the brightest block nearby:
+    writing is thin), so a shadow or uneven light across the paper is not ink, and a dim
+    photo still has its writing."""
+    from PIL import Image, ImageChops, ImageFilter
 
     gray = img.convert("L")
     gray = gray.resize((min(400, gray.width), gray.height), Image.BILINEAR)
-    gray = ImageOps.autocontrast(gray, cutoff=1)
-    dark = gray.point(lambda v: 255 if v < 100 else 0)
+    small = gray.resize((max(1, gray.width // PHOTO_PAPER_BLOCK),
+                         max(1, gray.height // PHOTO_PAPER_BLOCK)), Image.BOX)
+    paper = small.filter(ImageFilter.MaxFilter(PHOTO_PAPER_SPAN)).resize(gray.size,
+                                                                          Image.BILINEAR)
+    below = ImageChops.subtract(paper, gray)  # how much darker than the paper, >= 0
+    dark = below.point(lambda v: 255 if v >= PHOTO_INK_CONTRAST else 0)
     column = dark.resize((1, dark.height), Image.BOX)  # the mean of each row
     return [v / 255.0 for v in column.tobytes()]
 
@@ -531,10 +542,13 @@ def auto_send_enabled() -> bool:
 
 
 def auto_acceptable(text: str | None) -> bool:
-    """Machine text that auto-send may accept without review: not empty, no ``[?]``, and
-    not cut at ``MAX_PAGE_TEXT``."""
-    return (isinstance(text, str) and bool(text.strip()) and UNREADABLE not in text
-            and len(text) < MAX_PAGE_TEXT)
+    """Machine text that auto-send may accept without review: words Athena would take
+    (not empty, not only control characters), no ``[?]``, and not cut at
+    ``MAX_PAGE_TEXT``."""
+    from src.ink_athena import has_words  # imports this module
+
+    return (isinstance(text, str) and UNREADABLE not in text and len(text) < MAX_PAGE_TEXT
+            and has_words(text))
 
 
 def _transcript(page: dict[str, Any]) -> dict[str, Any]:
@@ -552,6 +566,16 @@ _TASKS: set[asyncio.Task] = set()
 # Notes ((store, note id) -> runs) whose run ended and is about to send them by itself
 # (INK_AUTO_SEND): the Text tab keeps asking until Athena answered.
 _AUTO_SENDING: dict[tuple[str, str], int] = {}
+_AUTO_SENDING_LOCK = threading.Lock()  # changed from the loop and from _store_result's thread
+
+
+def _auto_sending_add(key: tuple[str, str], delta: int) -> None:
+    with _AUTO_SENDING_LOCK:
+        left = _AUTO_SENDING.get(key, 0) + delta
+        if left > 0:
+            _AUTO_SENDING[key] = left
+        else:
+            _AUTO_SENDING.pop(key, None)
 
 
 def _status(t: dict[str, Any]) -> str:
@@ -713,10 +737,14 @@ def _prepare(owner: str | None, note_id: str, page_ids: list[str] | None,
                      at=now(), error=None, job=None)
             t.pop("reading", None)
             t.pop("auto", None)
+            t.pop("machine", None)  # for writing that is gone
         job = uuid.uuid4().hex if work else None
         snapshot = []
         for page in work:
             t = _transcript(page)
+            # The model's text for these strokes stays kept (H5) if this run fails or a
+            # review replaces it before the run answers.
+            _keep_machine(t, writing_hash(page))
             _keep_reviewed(t)
             t.update(status="pending", job=job, error=None, reading=writing_hash(page))
             copy = json.loads(json.dumps(page))
@@ -753,42 +781,52 @@ async def _run(store: str | None, note_id: str, job: str,
     waits (``src/ink_athena.py`` :func:`~src.ink_athena.auto_send`)."""
     model, read = reader
     key = (store or "", note_id)
-    accepted = False
-    try:
-        for page in pages:
-            started = time.monotonic()
-            try:
-                text, error = await read_page(page, read), None
-                logger.info("ink transcribe: page read in %.1f s (%d characters)",
-                            time.monotonic() - started, len(text))
-                model = getattr(read, "answered_by", None) or model
-            except asyncio.CancelledError:
-                raise
-            except Exception as exc:
-                text, error = None, _error_text(exc)
-                logger.warning("ink transcribe: page failed (%s)", type(exc).__name__)
-            auto = text is not None and auto_send_enabled()
-            accepted = await asyncio.to_thread(
-                _store_result, store, note_id, page, job, model, text, error, now,
-                owner=owner, auto=auto) or accepted
-        if accepted:
-            _AUTO_SENDING[key] = _AUTO_SENDING.get(key, 0) + 1  # before the run ends
-    finally:
-        _RUNNING.discard(job)
-    if not accepted:
-        return
-    try:
-        from src import ink_athena  # imports this module
+    marked = threading.Event()  # this run counts in _AUTO_SENDING
 
-        await ink_athena.auto_send(owner, note_id, request_base=request_base)
-    except Exception as exc:  # noqa: BLE001 -- the owner can still Send by hand
-        logger.warning("ink: automatic send failed (%s)", type(exc).__name__)
+    def mark() -> None:  # by _store_result, before the accepted page is written: the
+        if not marked.is_set():  # Text tab never sees the run over and no send coming
+            marked.set()
+            _auto_sending_add(key, 1)
+
+    try:
+        try:
+            await _read_pages(store, note_id, job, pages, model, read, now, owner, mark)
+        finally:
+            _RUNNING.discard(job)
+        if not marked.is_set():  # nothing accepted: never sends
+            return
+        try:
+            from src import ink_athena  # imports this module
+
+            await ink_athena.auto_send(owner, note_id, request_base=request_base)
+        except Exception as exc:  # noqa: BLE001 -- the owner can still Send by hand
+            logger.warning("ink: automatic send failed (%s)", type(exc).__name__)
     finally:
-        left = _AUTO_SENDING.get(key, 0) - 1
-        if left > 0:
-            _AUTO_SENDING[key] = left
-        else:
-            _AUTO_SENDING.pop(key, None)
+        if marked.is_set():
+            _auto_sending_add(key, -1)
+
+
+async def _read_pages(store: str | None, note_id: str, job: str,
+                      pages: list[dict[str, Any]], model: str, read: Reader,
+                      now: Callable[[], str], owner: str | None,
+                      mark: Callable[[], None]) -> None:
+    """Read and store each page of a run (``mark``: called when one is accepted)."""
+    for page in pages:
+        started = time.monotonic()
+        try:
+            text, error = await read_page(page, read), None
+            logger.info("ink transcribe: page read in %.1f s (%d characters)",
+                        time.monotonic() - started, len(text))
+            model = getattr(read, "answered_by", None) or model
+        except asyncio.CancelledError:
+            raise
+        except Exception as exc:
+            text, error = None, _error_text(exc)
+            logger.warning("ink transcribe: page failed (%s)", type(exc).__name__)
+        auto = text is not None and auto_send_enabled()
+        await asyncio.to_thread(
+            _store_result, store, note_id, page, job, model, text, error, now,
+            owner=owner, auto=auto, on_accept=mark)
 
 
 def _error_text(exc: Exception) -> str:
@@ -799,13 +837,14 @@ def _error_text(exc: Exception) -> str:
 def _store_result(store: str | None, note_id: str, page: dict[str, Any], job: str,
                   model: str, text: str | None, error: str | None,
                   now: Callable[[], str], *, owner: str | None = None,
-                  auto: bool = False) -> bool:
+                  auto: bool = False, on_accept: Callable[[], None] | None = None) -> bool:
     """Write one page's result, unless the page changed hands meanwhile (deleted,
     reviewed, or a newer run took it). Strokes are never touched.
 
     ``auto`` (INK_AUTO_SEND on): clean text (:func:`auto_acceptable`) read from the
     strokes the page has now is stored ``reviewed`` with ``auto`` set, and the note's
-    ``content`` follows as on Save review. Returns whether the page was accepted so."""
+    ``content`` follows as on Save review; ``on_accept`` is called before that is
+    written. Returns whether the page was accepted so."""
     with ink._lock(store):
         stored = ink.load_sidecar(store, note_id)
         if stored is None:
@@ -826,8 +865,11 @@ def _store_result(store: str | None, note_id: str, page: dict[str, Any], job: st
             t.update(text=text, model=model, status="reviewed" if accept else "machine",
                      strokes_hash=writing_hash(page), at=now(), error=None, job=None)
             t.pop("machine", None)  # the fresh model text is in ``text`` now
+            _clear_auto_error(stored)  # it was about text the note no longer has
             if accept:
                 t["auto"] = True
+                if on_accept is not None:
+                    on_accept()
         ink._write_json(ink.sidecar_path(store, note_id), stored)
         if accept and not ink.update_note(owner, note_id, content=note_content(stored)):
             return False  # the note is gone: nothing to send
@@ -856,10 +898,18 @@ def save_review(owner: str | None, note_id: str, page_id: str, text: Any,
         t.pop("previous", None)
         t.pop("reading", None)
         t.pop("auto", None)  # checked by the owner now
+        _clear_auto_error(stored)
         ink._write_json(ink.sidecar_path(store, note_id), stored)
         if not ink.update_note(owner, note_id, content=note_content(stored)):
             raise ink.InkError("Note not found", 404)
     return transcripts(owner, note_id)
+
+
+def _clear_auto_error(stored: dict[str, Any]) -> None:
+    """A failed automatic send's message is about the text it tried: once a page's text
+    changes, it no longer applies (a new automatic send says again if it fails)."""
+    if isinstance(stored.get("athena"), dict):
+        stored["athena"].pop("auto_error", None)
 
 
 def _keep_machine(t: dict[str, Any], current: str) -> None:
