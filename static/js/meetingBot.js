@@ -23,6 +23,9 @@ let working = ''; // 'join' | 'leave' while a request is in flight
 let message = ''; // a problem to show under the state
 let timer = null;
 let errorDelay = POLL_JOINING_MS;
+// Bumped by every Join and Leave: a state read (loadCurrent, refresh) that started
+// before one of them answers with old news, so it is dropped (QA BUG-26).
+let seq = 0;
 
 // ------------------------------------------------------------------ helpers
 async function call(method, path, body) {
@@ -108,7 +111,9 @@ async function refresh() {
   timer = null;
   if (!meeting || working) return;
   const id = meeting.id;
+  const started = seq;
   const res = await call('GET', `${API}/${encodeURIComponent(id)}`);
+  if (started !== seq || working) return; // a Join or Leave came meanwhile
   if (!meeting || meeting.id !== id) return; // replaced meanwhile
   if (res.ok && res.data.meeting) {
     meeting = res.data.meeting;
@@ -131,8 +136,9 @@ async function refresh() {
 }
 
 async function loadCurrent() {
+  const started = seq;
   const res = await call('GET', `${API}/current`);
-  if (working) return;
+  if (started !== seq || working) return; // a Join or Leave came meanwhile
   if (res.ok) {
     if (res.data.meeting) {
       meeting = res.data.meeting;
@@ -160,6 +166,7 @@ async function join() {
     ui.link.focus();
     return;
   }
+  seq += 1;
   working = 'join';
   message = '';
   busyId = null;
@@ -187,6 +194,7 @@ async function leave() {
   const id = (meeting && meeting.active && meeting.id) || busyId;
   if (!id) return;
   stopPolling();
+  seq += 1;
   working = 'leave';
   message = '';
   render();
@@ -195,6 +203,12 @@ async function leave() {
   if (res.ok && res.data.meeting) {
     meeting = res.data.meeting;
     busyId = null;
+  } else if (res.status === 404 && id === busyId) {
+    // The other meeting is already gone: forget it and show what is on now.
+    busyId = null;
+    render();
+    await loadCurrent();
+    return;
   } else {
     message = res.data.detail;
   }
