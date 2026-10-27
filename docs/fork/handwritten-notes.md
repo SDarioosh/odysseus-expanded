@@ -310,7 +310,15 @@ As planned, with these details settled while building it:
   nowhere near and tests the path between samples. `pointerrawupdate` and Chrome's
   predicted points cut the gap behind a fast pen. On a dense page (1,500 strokes, CPU
   4x slower) the eraser went from about 220 ms to under 10 ms a frame
-  (`tests/helpers/ink_perf.mjs`, `tests/test_ink_perf.py`).
+  (`tests/helpers/ink_perf.mjs`, `tests/test_ink_perf.py`). The eraser's boxes copy the
+  paper (page, shadow, lines or dots) from a cache of the current view instead of
+  drawing it again.
+- **Panning:** while fingers pan or zoom, the pages canvas (a normal one, under the
+  writing canvas and hidden otherwise) is shown instead of the desynchronized canvas:
+  that one is drawn straight to the screen and tore when redrawn whole every frame. The
+  writing canvas is back, with the same picture, when the fingers lift or the pen comes
+  down. The scroll is rounded to whole device pixels, so lines, dots and ink move
+  together without shimmering.
 - **Render:** the hub draws the same smoothed curve as the canvas, and highlighter
   marks are laid down as one layer on both, so overlaps don't get darker.
 - **Offline start: not yet.** The idle-time import is in, but it doesn't put Write in

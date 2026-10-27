@@ -72,7 +72,7 @@ Fork code so far: `src/mcp_trust.py`, `src/mcp_stdio_owner.py`, `src/mcp_session
 `static/today.html`, `static/js/today.js`, `static/js/todayWeights.js`, `static/js/todayTrends.js`, `static/beliefs.html`, `static/js/beliefs.js`,
 `static/call-recorder.html`, `static/js/callRecorder.js`, `static/phone-pairing.html`, `static/js/phonePairing.js`,
 `static/js/soundModule.js`, `static/js/forkChatAsk.js`, `static/js/forkEntityHash.js`,
-`static/js/forkModuleWindows.js`, `static/js/forkModuleShortcuts.js`, `static/js/forkInk.js`, `static/css/fork-ink.css`, `static/js/forkBackgroundModels.js`, `static/js/forkAutoMode.js`, `static/js/forkResumeFallback.js`, `static/css/fork-modules.css`,
+`static/js/forkModuleWindows.js`, `static/js/forkModuleShortcuts.js`, `static/js/forkInk.js`, `static/css/fork-ink.css`, `static/js/forkBackgroundModels.js`, `static/js/forkPhonePairing.js`, `static/js/forkAutoMode.js`, `static/js/forkResumeFallback.js`, `static/css/fork-modules.css`,
 `scripts/modules_setup.py`, `scripts/belief_eval.py`, `scripts/belief_eval_scale.py`, `scripts/unfile_voice_note_todos.py`,
 `scripts/module_slash_eval.py`, `scripts/insight_eval.py`, `scripts/ink_eval.py`, `scripts/fork_deploy.sh`, `docker/fork.override.yml`,
 their tests (`tests/test_mcp_trust.py`,

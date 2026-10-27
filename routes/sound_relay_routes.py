@@ -19,8 +19,8 @@ token of the connected ``convo`` MCP server (``src/call_recorder.py``):
 
 Pairing (``src/phone_pairing.py``):
 
-* ``GET  /modules/sound/pair``: ``static/phone-pairing.html`` (Conversations → Pair a
-  phone); ``POST /api/modules/sound/pair`` {url} (admin) makes a code and its QR;
+* ``GET  /modules/sound/pair``: ``static/phone-pairing.html`` (Settings → Integrations →
+  Pair a phone); ``POST /api/modules/sound/pair`` {url} (admin) makes a code and its QR;
   ``GET /api/modules/sound/pair/{id}`` (admin) says whether the phone used it.
 * ``POST /api/pair/redeem`` {code}: no session or token (auth-exempt hook in ``app.py``),
   rate limited; consumes the code and answers the new token once.
