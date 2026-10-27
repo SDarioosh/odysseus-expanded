@@ -946,7 +946,10 @@ function openSubject(id) {
   state.detail = null;
   try { sessionStorage.setItem(VIEW_KEY, 'subject'); } catch (e) {}
   load();
-  window.scrollTo(0, 0);
+  // In the Beliefs window (static/js/forkBeliefsWindow.js) the window body scrolls.
+  const scroller = $('#bl-main').closest('.fm-modal-body');
+  if (scroller) scroller.scrollTo(0, 0);
+  else window.scrollTo(0, 0);
 }
 
 function closeSubject() {

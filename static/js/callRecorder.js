@@ -1,4 +1,5 @@
-// Fork: "Record a call" page (static/call-recorder.html). Captures a meeting's audio
+// Fork: "Record it on this computer" on the Meetings page (static/call-recorder.html) and in
+// the Meetings window (static/js/forkMeetings.js). Captures a meeting's audio
 // (a tab, a window or the screen, shared with audio, plus the microphone), mixes it,
 // and records one self-contained 30-second WebM/Opus file at a time. Each piece goes to
 // routes/sound_module_routes.py, which forwards it to Athena's ingest API

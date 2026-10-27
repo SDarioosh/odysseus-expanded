@@ -3,7 +3,7 @@
 <head>
   <meta charset="utf-8">
   <meta name="viewport" content="width=device-width, initial-scale=1">
-  <title>Record a call — Odysseus</title>
+  <title>Meetings — Odysseus</title>
   <meta name="theme-color" content="#282c34">
   <link rel="icon" href="/static/icon.ico">
   <script nonce="{{CSP_NONCE}}">
@@ -43,7 +43,9 @@
   </script>
   <link rel="stylesheet" href="/static/css/00-tokens.css?v=20260929csssplit">
   <style>
-    /* Fork: "Record a call" page (src/call_recorder.py). Colors, font and spacing come from
+    /* Fork: Meetings page (src/call_recorder.py, src/meeting_bot.py). Its cards are also
+       shown in the Meetings window of the main app (static/js/forkMeetings.js), styled
+       there by static/css/fork-modules.css. Colors, font and spacing come from
        the Odysseus tokens in 00-tokens.css plus the saved theme applied above, with the
        same classes as the Athena page; nothing here introduces new color values. */
     html, body { height: auto; overflow: visible; overscroll-behavior: auto; }
@@ -85,7 +87,26 @@
     .rc-dot { display: inline-block; width: 10px; height: 10px; border-radius: 50%;
               border: 1px solid var(--border); margin-right: 8px; vertical-align: middle; }
     .rc-dot.on { background: var(--red); border-color: var(--red); }
+    /* "Send Athena to a meeting" (src/meeting_bot.py, static/js/meetingBot.js) */
+    .bs-input { background: var(--input-bg, var(--bg)); color: var(--fg);
+                border: 1px solid var(--input-border, var(--border)); border-radius: 6px;
+                padding: 6px 8px; font: inherit; font-size: 0.85rem; min-width: 0;
+                box-sizing: border-box; }
+    .bs-input:focus { outline: none; border-color: var(--red); }
+    .mb-form { display: grid; grid-template-columns: 1fr 12em; gap: 8px; margin-top: 10px; }
+    .mb-form textarea { resize: vertical; min-height: 36px; height: 36px; line-height: 1.4; }
+    .mb-hint { margin-top: 6px; }
+    .mb-state { font-size: 0.88rem; margin-top: 10px; }
+    .mb-state:empty { display: none; }
+    .mb-signin { font-size: 0.88rem; margin-top: 10px; }
+    .mb-signin-line { display: flex; flex-wrap: wrap; gap: 8px; align-items: center; }
+    .mb-signin-line span:empty { display: none; }
+    .mb-signin a { color: var(--fg); }
+    .mb-paste { display: grid; grid-template-columns: 1fr auto; gap: 8px; margin-top: 8px; }
+    #mb-signin-msg:empty { display: none; }
+    [hidden] { display: none !important; }
     @media (max-width: 640px) {
+      .mb-form, .mb-paste { grid-template-columns: 1fr; }
       .rc-grid { grid-template-columns: 1fr; }
       .bs-row .bs-btn { flex: 1 1 calc(50% - 8px); }
     }
@@ -98,13 +119,56 @@
         <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"
           stroke-linecap="round" stroke-linejoin="round"><polyline points="15 18 9 12 15 6"/></svg>
       </a>
-      <h1>Record a call</h1>
+      <h1>Meetings</h1>
+    </div>
+
+    <div class="bs-card" id="mb-card">
+      <h2>Send Athena to a meeting</h2>
+      <p class="bs-text">Paste a Zoom link, or the whole invite. Athena joins on the server as a
+        guest called “Athena”, records each person under their Zoom name and leaves when the
+        meeting ends. Nothing on this computer records, and you can close this page.</p>
+      <div class="mb-form">
+        <textarea class="bs-input" id="mb-link" rows="1" spellcheck="false" autocomplete="off"
+          aria-label="Zoom link, invite or meeting ID"
+          placeholder="https://zoom.us/j/… or meeting ID"></textarea>
+        <input class="bs-input" id="mb-pass" type="text" spellcheck="false" autocomplete="off"
+          aria-label="Passcode" placeholder="Passcode (with an ID)">
+      </div>
+      <div class="bs-meta mb-hint">Join the meeting yourself too — Athena records while you're in it.</div>
+      <div class="mb-signin" id="mb-signin" hidden>
+        <div class="mb-signin-line">
+          <span id="mb-signin-text"></span>
+          <button type="button" class="bs-btn" id="mb-signin-btn" hidden>Sign in to Zoom</button>
+        </div>
+        <div id="mb-signin-paste" hidden>
+          <p class="bs-text">In the new tab, sign in to Zoom and click Allow. Zoom then opens a
+            page that can't load — that's expected. Copy that page's address from the address
+            bar and paste it here.</p>
+          <div class="bs-meta mb-hint" id="mb-signin-open" hidden>No tab opened?
+            <a id="mb-signin-link" href="#" target="_blank" rel="noopener noreferrer">Open Zoom's sign-in page</a>.</div>
+          <div class="mb-paste">
+            <input class="bs-input" id="mb-signin-input" type="text" spellcheck="false"
+              autocomplete="off" aria-label="Address of the page Zoom opened"
+              placeholder="Paste the address here">
+            <button type="button" class="bs-btn primary" id="mb-signin-finish">Finish</button>
+          </div>
+        </div>
+        <div class="bs-meta mb-hint" id="mb-signin-msg" role="status" aria-live="polite"></div>
+      </div>
+      <div class="bs-row">
+        <button type="button" class="bs-btn primary" id="mb-join" disabled>Join</button>
+        <button type="button" class="bs-btn" id="mb-leave" hidden>Leave</button>
+      </div>
+      <div class="mb-state" id="mb-state" role="status" aria-live="polite"></div>
     </div>
 
     <div class="bs-card">
-      <p class="bs-text rc-first">Records a meeting's audio on this computer and sends it to
+      <h2>Or record it on this computer</h2>
+      <p class="bs-text">Records a meeting's audio on this computer and sends it to
         Athena, which transcribes and summarizes it like any other conversation.
-        Keep this tab open while you record.</p>
+        Keep Odysseus open while you record.</p>
+      <p class="bs-text" data-in-app hidden>You can close this window and keep using the
+        chat: the recording goes on until you press Stop.</p>
       <ul class="bs-list">
         <li><b>Meeting in a browser tab</b> (Zoom web, Google Meet, Teams web): choose that tab and turn on
           <i>Also share tab audio</i>.</li>
@@ -123,7 +187,7 @@
       <div class="bs-row">
         <button type="button" class="bs-btn primary" id="rc-start" disabled>Start recording</button>
         <button type="button" class="bs-btn" id="rc-stop" disabled>Stop</button>
-        <a class="bs-btn" href="/modules/sound">Conversations</a>
+        <a class="bs-btn" href="/modules/sound" data-conversations>Conversations</a>
       </div>
       <div class="rc-grid">
         <div><span class="rc-dot" id="rc-dot"></span><span class="rc-time" id="rc-time">0:00:00</span></div>
@@ -138,5 +202,6 @@
     </div>
   </div>
   <script type="module" src="/static/js/callRecorder.js"></script>
+  <script type="module" src="/static/js/meetingBot.js"></script>
 </body>
 </html>

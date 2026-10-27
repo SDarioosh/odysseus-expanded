@@ -3602,3 +3602,6 @@ _fork_notes_register(BUILTIN_ACTIONS, BUILTIN_ACTION_INFO)
 # Fork: structure for confirmed beliefs (src/belief_structure.py)
 from src.belief_structure import register_builtin_action as _fork_structure_register  # noqa: E402
 _fork_structure_register(BUILTIN_ACTIONS, BUILTIN_ACTION_INFO)
+# Fork: Send Athena to toggled calendar meetings (src/meeting_auto_join.py)
+from src.meeting_auto_join import register_builtin_action as _fork_auto_join_register  # noqa: E402
+_fork_auto_join_register(BUILTIN_ACTIONS, BUILTIN_ACTION_INFO)

@@ -310,9 +310,12 @@ As planned, with these details settled while building it:
   nowhere near and tests the path between samples. `pointerrawupdate` and Chrome's
   predicted points cut the gap behind a fast pen. On a dense page (1,500 strokes, CPU
   4x slower) the eraser went from about 220 ms to under 10 ms a frame
-  (`tests/helpers/ink_perf.mjs`, `tests/test_ink_perf.py`). The eraser's boxes copy the
-  paper (page, shadow, lines or dots) from a cache of the current view instead of
-  drawing it again.
+  (`tests/helpers/ink_perf.mjs`, `tests/test_ink_perf.py`). While the eraser moves, it
+  redraws once a frame (what it took and its ring) straight onto the visible canvas:
+  the paper (page, shadow, lines or dots) is copied from a cache of the current view,
+  and only the pieces of strokes near the box are drawn, not whole strokes. The
+  off-screen pages canvas catches up when the pen lifts, so nothing is copied from a
+  canvas that changes every frame (the pen never does that either).
 - **Panning:** while fingers pan or zoom, the pages canvas (a normal one, under the
   writing canvas and hidden otherwise) is shown instead of the desynchronized canvas:
   that one is drawn straight to the screen and tore when redrawn whole every frame. The

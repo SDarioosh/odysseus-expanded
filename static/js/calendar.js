@@ -3592,6 +3592,8 @@ function _showEventForm(existing, defaultDate, defaultEndDate) {
   document.getElementById('cal-f-allday')?.addEventListener('change', (e) => {
     document.getElementById('cal-time-row').style.display = e.target.checked ? 'none' : '';
   });
+  // Fork: "Send Athena" toggle for an event with a Zoom link (static/js/forkMeetingAutoJoin.js)
+  if (isEdit && existing?.uid) import('./forkMeetingAutoJoin.js').then(m => m.attach(body.querySelector('.cal-form'), existing.uid)).catch(() => {});
   // Open-task back-link button — dynamically imports the tasks module
   // so the linkage works even if the user is opening the calendar
   // before they've touched the Tasks tab in this session.

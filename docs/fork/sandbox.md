@@ -128,7 +128,7 @@ INSTR=$(cd $SOUND/server && .venv/bin/python -c \
   "import json; from convo_server.mcp_server import INSTRUCTIONS; print(json.dumps(INSTRUCTIONS))")
 curl -s -b $J -X POST $B/api/presets/custom -H 'content-type: application/json' \
   -d "{\"system_prompt\": $INSTR, \"temperature\": 0.3, \"max_tokens\": 2048}"
-# after the Custom preset: setup copies its text into the /sound skill (an empty
+# after the Custom preset: setup copies its text into the /athena skill (an empty
 # preset leaves the skill without instructions)
 # --trim: the tool set of all earlier sandbox runs; see "All Odysseus tools on" for why
 venv/bin/python scripts/modules_setup.py --url http://$B --password-file $SBX/admin.txt --trim

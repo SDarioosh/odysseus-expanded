@@ -433,7 +433,7 @@ async function loadItems() {
 // Text for a new chat's composer (static/js/forkChatAsk.js); it never sends by itself.
 // The window hands it over directly; the standalone page links to the main page's ?ask=.
 function askText(title, id, start) {
-  return `/sound About the conversation "${title}" (id ${id}, ${start}): `;
+  return `/athena About the conversation "${title}" (id ${id}, ${start}): `;
 }
 
 function askButton(title, id, start) {
@@ -463,6 +463,7 @@ function handwrittenLink(url) {
 }
 
 function sourceLabel(c) {
+  if (c.meeting) return c.meeting_topic ? `Online meeting: ${c.meeting_topic} · ` : 'Online meeting · ';
   return c.written_link ? 'Written by hand · ' : (c.voice_note ? 'Voice note · ' : '');
 }
 
@@ -995,7 +996,8 @@ function buildView() {
         tabButton('written', 'Written notes'), tabButton('items', 'Action items'),
         tabButton('who', 'Who is this?')),
       el('div', { className: 'bs-bar-end' },
-        el('a', { className: 'bs-btn', href: '/modules/sound/record' }, 'Record a call'),
+        // Recording a call lives in Meetings: its own window in the app, a link on this page.
+        ctx.embedded ? null : el('a', { className: 'bs-btn', href: '/modules/sound/record' }, 'Meetings'),
         el('button', { type: 'button', className: 'bs-btn bs-icon-btn bs-refresh', title: 'Refresh',
                        'aria-label': 'Refresh' }, refreshIcon()))),
     list('conversations'), list('voice'), list('written'),

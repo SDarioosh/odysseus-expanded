@@ -66,6 +66,32 @@ Source: `server/convo_server/mcp_server.py` (`build_mcp`).
   on device `handwriting`. Text results mark it, its facts and its action items
   `(written by hand: <link>)` instead of `(voice note)`, where `<link>` is the note in the
   hub (`<hub>/#open=notes&note=<id>`).
+- Zoom meetings (MCP 0.16.0, additive): a conversation recorded by Athena's Zoom bot
+  ([Sending Athena to a Zoom meeting](#sending-athena-to-a-zoom-meeting), once that
+  section lands) is marked `(Online meeting: <topic>)` after its title, or `(Online
+  meeting)` without a topic (MCP 0.17.0; 0.16.0 said `(Zoom meeting…)`. The mark names no
+  platform, since meetings may come from others than Zoom later; the hub reads both,
+  `src/sound_module_view.py`). The mark shows in `search_conversations`, `get_conversation`,
+  `search_transcripts`, and in text `list_action_items` and `list_facts`.
+  - `search_conversations` adds `; participants: A, B, …`: everyone in the meeting,
+    including people who never spoke.
+  - `get_conversation` adds `Participants: Name (HH:MM–HH:MM), …`.
+  - A line typed in the meeting chat reads `<name> (chat): …` in `get_transcript`,
+    `search_transcripts` and the transcript page.
+  - JSON fact rows (`list_facts(format="json")`) and action-item rows
+    (`list_action_items(format="json")`) have `source`: `"meeting"` when they come from a
+    Zoom meeting, else `null`. Treat an unknown value as null.
+  - A conversation is a Zoom meeting when it came from a meeting session (the Zoom bot's
+    tracks, or device `zoom`), with or without a chat call. The module's HTTP API
+    (`GET /v1/conversations/{id}`) then has `meeting: {topic, participants}` (`topic` null
+    without one; participants are the speakers heard when no list was sent), and `meeting:
+    null` for every other conversation. The MCP text tools show the `(Online meeting…)`
+    mark instead; there is no conversation-level `source` field.
+  - No tool, argument, annotation, link format or auth changed. The bot's own
+    `POST /v1/sessions/{id}/chat` is a module-internal ingest route on Athena's API: not
+    a relay route and not a tool.
+  - For "who was in the X meeting", call `search_conversations` with the topic words and
+    answer from its participants.
 - `list_unnamed_speakers` lists voices nobody has named yet ("Speaker N") with a few
   quotes, links and the closest known voice; for "who is this?" questions and cards.
 - Dates are `YYYY-MM-DD` in `CONVO_TIMEZONE`.
@@ -117,11 +143,12 @@ Then, per [../modules.md](../modules.md#registering-a-module-in-odysseus):
    system prompt.
 3. `python scripts/modules_setup.py --url http://127.0.0.1:7010 --password-file <file>`
    (sandbox, or the server's test instance; on production `fork_deploy.sh` runs it).
-   It creates the `/sound` and `/context` skills from that preset text.
+   It creates the `/athena` and `/context` skills from that preset text (and deletes
+   the old `/sound` skill it made before).
 
-## Slash skill: `/sound`
+## Slash skill: `/athena`
 
-- Skill **`sound`**, server **`convo`**: `/sound <question>` gives that one message
+- Skill **`athena`**, server **`convo`**: `/athena <question>` gives that one message
   Athena's 13 tools (plus `ask_user`/`update_plan`) and nothing else. `/context
   <question>` does the same for every trusted module (today only `convo`).
 - The skill's procedure is `INSTRUCTIONS` from `server/convo_server/mcp_server.py`, the
@@ -130,15 +157,17 @@ Then, per [../modules.md](../modules.md#registering-a-module-in-odysseus):
 - Needed because with every Odysseus tool on and "Auto", a plain recording question
   is routed to built-ins (calendar, files) and never sees a convo tool. Sandbox
   numbers: [../sandbox.md](../sandbox.md#slash-skills-2026-10-18).
-- Examples: `/sound what did Alice say about the budget in September?`,
+- Examples: `/athena what did Alice say about the budget in September?`,
   `/context what did Maria ask me to do on Friday?` The model gets today's date on
   every turn, so relative dates work.
-- Write tools (`update_action_item`, `name_speaker`) are offered on `/sound` turns and
+- Write tools (`update_action_item`, `name_speaker`) are offered on `/athena` turns and
   still ask for approval.
-- Follow-ups in the same chat don't need `/sound` again: once a convo tool has run in a
+- Follow-ups in the same chat don't need `/athena` again: once a convo tool has run in a
   chat, every later message there is offered all 13 tools (write tools still ask). So
-  "Speaker 1 and 3 were Marisol, speaker 2 was Kath" after `/sound what did we talk about
+  "Speaker 1 and 3 were Marisol, speaker 2 was Kath" after `/athena what did we talk about
   last night?` calls `name_speaker`.
+- The command was `/sound` until 2026-10-27. Rerunning `modules_setup.py` (or
+  `fork_deploy.sh deploy`) creates `/athena` and deletes the old managed `/sound`.
 - Approving a write tool once covers more calls of that same tool in the same reply:
   one click renames all three speakers. A different write tool in that reply is still
   refused; ask for it in a new message.
@@ -369,7 +398,8 @@ Audio isn't kept after transcription, so cards quote lines instead of playing th
 
 ## Recording calls from the computer
 
-`/modules/sound/record` (**Record a call** on the Conversations page, admin only) records
+`/modules/sound/record` (**Meetings**: its own sidebar entry, window and rail button, admin
+only; also `/open meetings` and "Open Meetings" in Settings → Shortcuts) records
 a Zoom, Meet or Teams call on any computer with a Chromium browser (Chrome, Brave, Edge)
 and sends it to the module, which transcribes, diarizes and summarizes it like any other
 conversation (device `computer`, kind `conversation`).
@@ -407,6 +437,162 @@ conversation (device `computer`, kind `conversation`).
   call audio and microphone arrive mixed, so the module's diarization tells the speakers
   apart; without headphones the microphone also hears the other people.
 
+## Sending Athena to a Zoom meeting
+
+The **Meetings** window and page (`/modules/sound/record`, admin only) start with a
+**Send Athena to a meeting** box. The owner pastes a Zoom link and presses Join; Athena's
+own Zoom bot joins on the module's server as a guest called "Athena", records each
+participant on their own track and leaves when the meeting ends. Nothing records on the
+owner's computer, and the window or page can be closed. Needs Athena with the meeting launcher and
+relay routes (SDarioosh/Athena#124, #125) and meetings set up there
+(`CONVO_MEETING_BOT_PATH` and the Zoom Meeting SDK credentials; see Athena's
+`server/README.md`).
+
+- **What it accepts.** Odysseus checks the input before it calls the module, with the
+  module's own rules (`src/meeting_bot.py`, `parse_join`): a join link
+  `https://(*.)zoom.us/j/<9-11 digits>?pwd=…` (any subdomain such as `us06web.zoom.us` or a
+  company's `acme.zoom.us`; `http` or no scheme too), the web client's `/wc/join/<n>` and
+  `/wc/<n>/join`, `zoommtg://` / `zoomus://…/join?confno=<n>&pwd=…`; a whole invite pasted
+  as it is (its first join link wins; an invite without a link is read from its
+  "Meeting ID:" and "Passcode:" lines); or a meeting ID with the passcode in the second
+  field. Refused, each with its own message and without calling the module: personal
+  links (`/my/<name>`), webinars (`/w/`), registration links, the host's start links
+  (`/s/`, `zoommtg://…/start`), Zoom for Government (`zoomgov.com`) and any other host
+  (look-alikes, user info, ports).
+- **The owner joins too.** Athena joins on the owner's behalf (Zoom's on-behalf-of token,
+  signed in once with the box's **Sign in to Zoom** button, [below](#signing-athena-in-to-zoom)),
+  so the owner must be in the
+  meeting: the bot waits for them (`starting`/`waiting_for_owner`), gives up if they don't
+  come (`failed`/`owner_not_joined`) and leaves when they leave (`ended`/`owner_left`). The
+  box says so under the link field.
+- **Recording permission.** In the meeting the bot asks Zoom for recording permission once
+  and then waits (`waiting_permission`, active); if the host declines (reason `denied`) it
+  stays in the meeting in case they allow it later.
+- **What it shows.** The state in plain words: "Joining…", "Waiting for you to join the
+  meeting — Athena joins as soon as you're in", "Waiting in the waiting room —
+  the host has to admit Athena", "In the meeting — waiting for the host to allow recording
+  (Zoom asked them once)", "The host declined recording. Athena stays in the meeting in
+  case they allow it later", "Recording", "Recording, but Zoom isn't sending audio",
+  "Ended: the meeting is over" (and the other end reasons), "Couldn't join: wrong
+  passcode" (and the other failures), "You didn't join the meeting in time, so Athena gave up", "Ended: you left the
+  meeting, so Athena left too", "Athena's Zoom sign-in is missing or expired. Sign in to
+  Zoom, then press Join again" with the **Sign in to Zoom** button (the module's 503
+  `zoom_signin_needed`), "Zoom
+  didn't give Athena a join token; try again in a minute" (502 `zoom_unavailable`),
+  "Athena is busy in another meeting" with a Leave
+  button for that meeting, "Meetings aren't set up on the server", and "Update Athena to
+  use meetings" for a module without the routes. On load the page shows the meeting the
+  bot is in, if any.
+- **No idle cost.** The page fetches the state only while it is open and visible and a
+  meeting is on (every 3 s while joining, 6 s while waiting for recording permission or recording, and once when the tab is
+  shown again); it stops when the meeting has ended or failed, when the tab is hidden and
+  when it is closed. Odysseus runs no thread or poll for meetings (calendar auto-join below uses one scheduled task per toggled event).
+- **Hub routes** (`routes/sound_module_routes.py`, admin only; the writes need the
+  `X-Odysseus-Recorder: 1` header like the call recorder's uploads):
+
+  | Route | Does |
+  |---|---|
+  | `GET /api/modules/sound/meetings/current` | `{meeting}`: the newest active meeting among the module's last five, or null |
+  | `POST /api/modules/sound/meetings` | JSON `{link, passcode?, title?}` → 202 `{meeting}`; errors `{detail, code, active?}` (`code`: `bad_link`, `busy` with `active`, `off`, `signin`, `zoom`, `update`, `setup`, `token`, `bot`, `unreachable`, `timeout`) |
+  | `GET /api/modules/sound/meetings/{id}` | `{meeting}`: `id, state, reason, active, session_id, meeting_id, title, created_at, started_at, ended_at` and `text` (the state in words) |
+  | `DELETE /api/modules/sound/meetings/{id}` | Leave: answers with the final state once the bot has exited (a few seconds) |
+  | `GET /api/modules/sound/zoom-signin` | `{configured, signed_in, join_token, missing}` ([sign-in](#signing-athena-in-to-zoom)) |
+  | `POST /api/modules/sound/zoom-signin/start` | `{url, expires_in}`: Zoom's authorize page (only an `https://…zoom.us` address is passed on); errors `{detail, code}` (`not_configured`, `zoom`, `update`, …) |
+  | `POST /api/modules/sound/zoom-signin/finish` | JSON `{pasted}` (body ≤ 8 KB, text ≤ 4096 characters) → `{ok, signed_in, join_token, …}`; 400 `bad_paste` with Athena's words, 501 `not_configured`, 502 `zoom`, `update` |
+
+- **Module routes it calls**: the meeting routes of the module's MCP HTTP server
+  ([below](#uploads-through-the-mcp-server)), with the `convo` server's URL and
+  `access_token`, like the call recorder. So **the MCP token can send the bot into a
+  meeting** (one at a time; the module answers `409 busy` over its limit).
+- Code: `src/meeting_bot.py`, routes in `routes/sound_module_routes.py`,
+  `static/call-recorder.html`, `static/js/meetingBot.js`; test `tests/test_meeting_bot.py`.
+
+### Signing Athena in to Zoom
+
+Athena joins on the owner's behalf, so it needs the owner's Zoom sign-in once (and again
+when Zoom drops it). The meeting box does this, with no terminal:
+
+- **The line.** When the page opens it reads the sign-in once (no polling) and shows
+  "Athena is signed in to Zoom.", or a **Sign in to Zoom** button when it isn't (never
+  signed in, or expired), with "Sign in once so Athena can join meetings other people
+  host. Meetings you host work without it." Join stays enabled: meetings the owner hosts
+  need no sign-in (Athena's join token mode `none`). A Join that the module refuses with
+  `zoom_signin_needed` shows the button too and reads the sign-in again. When Athena's
+  Zoom app isn't set up, the line names the missing settings: "Athena's Zoom app isn't set
+  up yet: CONVO_ZOOM_CLIENT_ID, … in Athena's server/.env." An Athena without the sign-in
+  routes shows "Update Athena to sign in to Zoom from here".
+- **Signing in.** The button opens a new tab inside the click (cut from the page: no
+  opener) and sends it to Zoom's authorize address that Athena returns; a link to the same
+  address is shown too, for a blocked popup. The box then says: "In the new tab, sign in
+  to Zoom and click Allow. Zoom then opens a page that can't load — that's expected. Copy
+  that page's address from the address bar and paste it here." **Finish** sends the
+  pasted address to Athena, which trades its code with Zoom and keeps the sign-in on its
+  server. On success the line says "Athena is signed in to Zoom.";
+  otherwise it shows Athena's words (an expired attempt, a wrong paste, Zoom refused or
+  unreachable).
+- **Privacy.** The pasted address holds a one-time Zoom code: Odysseus passes it to
+  Athena and keeps or logs nothing of it, nor of the authorize address. Zoom's tokens
+  live only in Athena.
+- **Routes**: the hub routes in the table above, forwarded to Athena's `/zoom/signin…`
+  relay routes ([below](#uploads-through-the-mcp-server)). Needs Athena with the sign-in
+  routes (branch `feature/zoom-signin-routes`).
+- Code: `src/meeting_bot.py` (`signin_status`, `signin_start`, `signin_finish`), routes in
+  `routes/sound_module_routes.py`, `static/js/meetingBot.js`; tests
+  `tests/test_meeting_bot.py`, `tests/test_meeting_bot_js.py`.
+
+### Send Athena to calendar meetings (auto-join)
+
+Each calendar event with a Zoom link has a **Send Athena** toggle in its event form, off
+by default. When it is on, Athena's bot joins that meeting by itself, one minute before it
+starts, through the same join call as the box above (`src/meeting_bot.py`), so the same
+link rules and error words apply. **The owner still joins too:** Athena joins on the
+owner's behalf and waits for them (up to its waiting limit), then gives up.
+
+- **Which events.** The event's location, then its description, is read with
+  `parse_join`; it needs a real Zoom join link (a bare "Meeting ID:" line doesn't count).
+  A Zoom link Athena can't join (a webinar, a personal link…) shows the toggle greyed out
+  with the reason. All-day events have no start and can't be toggled. The toggle is shown
+  for a saved event only, to admins, and uses the event as stored (save a new link first).
+- **One task per toggled event.** Turning it on creates one one-shot task in the
+  existing task scheduler (action `meeting_auto_join`, named "Send Athena: <title>", in
+  Tasks), due one minute before the start (or right away when the meeting has already
+  started). A moved event moves that task (same task id); a deleted event, a removed
+  Zoom link or turning the toggle off deletes it. A repeating event gets a task for its
+  next occurrence (skipped occurrences are left out); after each run the next one is
+  scheduled. Pausing the task in Tasks keeps it paused; deleting it there only lasts until
+  the next calendar change (turn the toggle off instead).
+- **When tasks follow the calendar.** After every CalDAV pull (`src/caldav_sync.py`),
+  after an event is edited or deleted in the hub (`routes/calendar_routes.py`), when the
+  toggle changes, and when a task runs (an event moved later or deleted without a pull
+  is caught then: the task is put right and nothing joins). Odysseus adds no thread,
+  timer or poll; between meetings only the existing scheduler runs.
+- **On time.** The scheduler normally holds back background tasks for 15 minutes while
+  the owner is using Odysseus; a Send Athena task runs on time anyway, outside the model
+  queue (`src/task_scheduler.py`, hook). If the owner opens Odysseus while the join call is
+  in flight, the call still finishes and its outcome is still reported.
+- **Overlaps.** Of toggled meetings that overlap, the one that starts earlier wins (same
+  start: the event uid decides). The later one gets no task and one notification: "Athena
+  is busy in "<earlier>" then, so it won't join "<later>"…". If the earlier one is
+  turned off, moved or deleted, the later one gets its task back.
+- **Notifications** (the hub's task notifications: toast, browser notification and the
+  notification log): on success "Athena is joining "<title>": … Join the meeting too";
+  on failure the run fails with the reason in words, e.g. busy in another meeting
+  (started from the box), meetings off on the server, Zoom sign-in missing ("sign in to
+  Zoom on the Meetings page"), or "update Athena".
+- **Stored in the hub, not in Athena:** `<DATA_DIR>/meeting_auto_join/<owner>.json`, per
+  event series uid: `on`, the task id, the scheduled start, the last occurrence joined and
+  the occurrence a busy notice was sent for. Naive-local events are read in the user's
+  time zone (`src/user_time.py`; in the background that is the server's zone).
+- **Hub routes** (admin only; the write needs `X-Odysseus-Recorder: 1`):
+  `GET /api/modules/sound/auto-join?uid=<event uid>` → `{uid, eligible, zoom, reason, on,
+  start, due, busy, task_id}`; `PUT /api/modules/sound/auto-join` JSON `{uid, on}` → the
+  same, 400 for an event without a joinable Zoom link, 404 for an unknown event. An
+  occurrence uid (`<series>::<date>`) means its series.
+- Code: `src/meeting_auto_join.py`, `static/js/forkMeetingAutoJoin.js`; hooks in
+  `src/caldav_sync.py`, `routes/calendar_routes.py`, `src/task_scheduler.py`,
+  `src/builtin_actions.py`, `static/js/calendar.js`; routes in
+  `routes/sound_module_routes.py`; test `tests/test_meeting_auto_join.py`.
+
 ## Uploads through the MCP server
 
 Since MCP version 0.8.0 the module's MCP HTTP server (`convo-server mcp --http`) has plain
@@ -423,8 +609,10 @@ transcript links) never leaves the module.
 | `DELETE /ingest/text/{source_id}` | `DELETE /v1/ingest/text/{source_id}` (MCP 0.12.0; `deleted` or `already`) |
 | `GET /health`, `GET /conversations`, `GET /conversations/{id}`, `GET /conversations/{id}/transcript`, `GET /action-items`, `PATCH /action-items/{id}`, `GET /digests/{date}`, `POST /digests/{date}` | the same `/v1` routes (the phone relay's T5 sync); from MCP 0.12.0 a conversation carries `written: {source_id, link, title}` (null for recordings) |
 | `GET /settings/llm`, `PUT /settings/llm` | the same `/v1` routes (Settings → AI Defaults: the summary model) |
+| `POST /meetings`, `GET /meetings?limit=1..100`, `GET /meetings/{id}`, `DELETE /meetings/{id}` | `/v1/meetings…` (SDarioosh/Athena#125; JSON only, ≤ 16 KB; [Sending Athena to a Zoom meeting](#sending-athena-to-a-zoom-meeting)): join with `{url}` or `{meeting_id, passcode}` and optional `title` → 202 `{id, state, session_id}`, 400 bad link, 409 `busy` with `active`, 501 meetings off; state; leave (waits for the bot, up to 30 s) |
+| `GET /zoom/signin`, `POST /zoom/signin/start`, `POST /zoom/signin/finish` | Athena's Zoom sign-in ([Signing Athena in to Zoom](#signing-athena-in-to-zoom); JSON only): status `{configured, signed_in, join_token: obf\|zak\|none, missing}`; start → `{url, expires_in}` (501 when Athena's Zoom app settings are missing); finish `{pasted}` → `{ok, signed_in, join_token}`, 400 `{detail}` in plain words (no or expired attempt, bad paste, Zoom refused), 502 Zoom unreachable, 501 not configured. An older Athena answers 404/405 ("update Athena") |
 
-So the MCP token can add recordings. Odysseus finds the module from the `convo` server's
+So the MCP token can add recordings and send Athena's Zoom bot into a meeting. Odysseus finds the module from the `convo` server's
 URL (`/mcp` stripped) and its `access_token` (`src/call_recorder.py`); Odysseus' HTTP MCP
 settings have no header field, so the query token is the only place it is. A module that
 answers 404 on these routes is older than 0.8.0: Odysseus says "update Athena".
@@ -533,6 +721,21 @@ model:
 
 - Code: `routes/summary_model_routes.py`, `static/js/forkBackgroundModels.js`; test
   `tests/test_summary_model_routes.py`. Module side: `server/convo_server/llm_settings.py`.
+
+## Transcription vocabulary in Settings
+
+Settings → AI Defaults → **Transcription Vocabulary** (admin only): comma-separated words
+(names, products, jargon such as "RokTalk, Meshtastic, Rokland") that the module's whisper
+is nudged toward. `GET`/`PUT /api/fork/whisper-vocabulary` (`{"text": "a, b"}`) → the
+module's `/settings/vocabulary` (`{"words": "a, b" | null}`). The module cleans the list
+(trims, drops duplicates, at most 50 words of 60 characters, 422 past that), stores it and
+puts it into whisper's prompt from the next recording on, after its `CONVO_WHISPER_PROMPT`
+and before known speakers' names. The card shows the prompt whisper gets now. Keep the
+list short: on the module's AMI eval a 12-word list hurt timestamps. A module without the
+route shows "update Athena".
+
+- Code: `routes/whisper_vocabulary_routes.py`, `static/js/forkWhisperVocabulary.js`; test
+  `tests/test_whisper_vocabulary_routes.py`. Module side: `server/convo_server/vocabulary.py`.
 
 ## Today insight
 

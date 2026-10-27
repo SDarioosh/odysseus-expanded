@@ -23,12 +23,28 @@ redirects there); its script calls:
   filed one per voice-note item (``unfile_auto_todos``; a dry run unless ``apply``;
   ``scripts/unfile_voice_note_todos.py`` calls it)
 
-``GET /modules/sound/record`` serves ``static/call-recorder.html`` ("Record a call"); its
-script calls ``GET /api/modules/sound/record/config``, ``POST /api/modules/sound/record/chunk``
-(multipart: audio, session_id, sequence, timestamp, codec) and
-``POST /api/modules/sound/record/{session_id}/end``. Those forward to the upload routes
+``GET /modules/sound/record`` serves ``static/call-recorder.html`` (the Meetings page, whose
+cards the Meetings window also shows: ``static/js/forkMeetings.js``); its script calls
+``GET /api/modules/sound/record/config``, ``POST /api/modules/sound/record/chunk``
+(multipart: audio, session_id, sequence, timestamp, codec) and ``POST /api/modules/sound/record/{session_id}/end``. Those forward to the upload routes
 of the module's MCP HTTP server (the connected ``convo`` server's URL and token), not its
 MCP tools (``src/call_recorder.py``).
+
+The same page's "Send Athena to a meeting" box (``static/js/meetingBot.js``) calls
+``GET /api/modules/sound/meetings/current`` (the meeting the bot is in now, or null),
+``POST /api/modules/sound/meetings`` {link, passcode?, title?} (join),
+``GET /api/modules/sound/meetings/{id}`` (state) and ``DELETE /api/modules/sound/meetings/{id}``
+(leave). They check the link and forward to the meeting routes of the module's MCP HTTP
+server (``src/meeting_bot.py``); the writes need the ``X-Odysseus-Recorder`` header too.
+Its Zoom sign-in line calls ``GET /api/modules/sound/zoom-signin`` (signed in or not),
+``POST /api/modules/sound/zoom-signin/start`` (Zoom's authorize address, opened in a new
+tab) and ``POST /api/modules/sound/zoom-signin/finish`` {pasted} (the address Zoom opened),
+forwarded the same way; the two writes need the header too.
+
+The calendar's event form (``static/js/forkMeetingAutoJoin.js``) reads and sets an event's
+**Send Athena** toggle with ``GET``/``PUT /api/modules/sound/auto-join`` (``uid``; ``{uid, on}``,
+the write with the same header); ``src/meeting_auto_join.py`` keeps the toggle in the hub
+and the event's one-shot task in the TaskScheduler.
 
 Action items are read live from the module, the source of truth; Done/Dismiss call its
 ``update_action_item``. Filing into the Odysseus calendar and to-dos (and the record of
@@ -43,7 +59,9 @@ so it doesn't go through the chat approval card.
 
 from __future__ import annotations
 
+import asyncio
 import inspect
+import json
 import logging
 import os
 from typing import Annotated, Any
@@ -55,14 +73,16 @@ from fastapi import (
     Form,
     Header,
     HTTPException,
+    Query,
     Request,
     UploadFile,
 )
-from fastapi.responses import RedirectResponse
+from fastapi.responses import JSONResponse, RedirectResponse
 from pydantic import BaseModel, Field
 
 from core.middleware import require_admin
 from src import call_recorder as recorder
+from src import meeting_bot as meetings
 from src import sound_module_view as view
 from src.auth_helpers import effective_user
 
@@ -91,6 +111,20 @@ class UnfileTodos(BaseModel):
     apply: bool = False
     ids: list[int] | None = Field(default=None, max_length=500)
     all: bool = False  # also entries filed in explicit mode or from the page
+
+
+class JoinMeeting(BaseModel):
+    link: str = Field(default="", max_length=meetings.MAX_INPUT_CHARS)
+    passcode: str | None = Field(default=None, max_length=meetings.MAX_PASSCODE_CHARS)
+    title: str | None = Field(default=None, max_length=400)  # checked by meeting_bot (400)
+
+
+ZOOM_FINISH_MAX_BYTES = 8 * 1024  # POST /api/modules/sound/zoom-signin/finish
+
+
+class AutoJoin(BaseModel):
+    uid: str = Field(min_length=1, max_length=1000)
+    on: bool
 
 
 class NameSpeaker(BaseModel):
@@ -347,7 +381,7 @@ def setup_sound_module_routes() -> APIRouter:
         message = await view.set_action_item(_caller(), item_id, body.status)
         return {"ok": message.startswith("Action item"), "message": message}
 
-    # ------------------------------------------------ record a call (src/call_recorder.py)
+    # ------------------------------------------------ Meetings: record a call (src/call_recorder.py)
     @router.get("/modules/sound/record")
     async def record_page(request: Request):
         from src.app_helpers import serve_html_with_nonce
@@ -390,6 +424,112 @@ def setup_sound_module_routes() -> APIRouter:
             return await recorder.end_session(recorder.resolve(), session_id)
         except recorder.RecorderError as exc:
             raise HTTPException(exc.status, exc.message) from None
+
+    # ------------------------------------- send Athena to a meeting (src/meeting_bot.py)
+    @router.get("/api/modules/sound/meetings/current", dependencies=[Depends(require_admin)])
+    async def meeting_current():
+        try:
+            return {"meeting": await meetings.current(meetings.resolve())}
+        except meetings.MeetingError as exc:
+            return JSONResponse(exc.body(), status_code=exc.status)
+
+    @router.post("/api/modules/sound/meetings", dependencies=[Depends(require_admin)])
+    async def meeting_join(body: JoinMeeting,
+                           x_odysseus_recorder: Annotated[str | None, Header()] = None):
+        _recorder_header(x_odysseus_recorder)
+        try:
+            request = meetings.parse_join(body.link, body.passcode)
+            title = meetings.check_title(body.title)
+            meeting = await meetings.join(meetings.resolve(), request, title)
+            return JSONResponse({"meeting": meeting}, status_code=202)
+        except meetings.MeetingError as exc:
+            return JSONResponse(exc.body(), status_code=exc.status)
+
+    @router.get("/api/modules/sound/meetings/{meeting_id}",
+                dependencies=[Depends(require_admin)])
+    async def meeting_state(meeting_id: str):
+        try:
+            return {"meeting": await meetings.get(meetings.resolve(), meeting_id)}
+        except meetings.MeetingError as exc:
+            return JSONResponse(exc.body(), status_code=exc.status)
+
+    @router.delete("/api/modules/sound/meetings/{meeting_id}",
+                   dependencies=[Depends(require_admin)])
+    async def meeting_leave(meeting_id: str,
+                            x_odysseus_recorder: Annotated[str | None, Header()] = None):
+        _recorder_header(x_odysseus_recorder)
+        try:
+            return {"meeting": await meetings.leave(meetings.resolve(), meeting_id)}
+        except meetings.MeetingError as exc:
+            return JSONResponse(exc.body(), status_code=exc.status)
+
+    # ---------------------------------- sign Athena in to Zoom (src/meeting_bot.py)
+    @router.get("/api/modules/sound/zoom-signin", dependencies=[Depends(require_admin)])
+    async def zoom_signin_status():
+        try:
+            return await meetings.signin_status(meetings.resolve())
+        except meetings.MeetingError as exc:
+            return JSONResponse(exc.body(), status_code=exc.status)
+
+    @router.post("/api/modules/sound/zoom-signin/start", dependencies=[Depends(require_admin)])
+    async def zoom_signin_start(x_odysseus_recorder: Annotated[str | None, Header()] = None):
+        _recorder_header(x_odysseus_recorder)
+        try:
+            return await meetings.signin_start(meetings.resolve())
+        except meetings.MeetingError as exc:
+            return JSONResponse(exc.body(), status_code=exc.status)
+
+    @router.post("/api/modules/sound/zoom-signin/finish", dependencies=[Depends(require_admin)])
+    async def zoom_signin_finish(request: Request,
+                                 x_odysseus_recorder: Annotated[str | None, Header()] = None):
+        _recorder_header(x_odysseus_recorder)
+        # Read by hand, capped, so the pasted code is never echoed in a validation error.
+        try:
+            declared = int(request.headers.get("content-length") or 0)
+        except ValueError:
+            declared = 0
+        if declared > ZOOM_FINISH_MAX_BYTES:
+            raise HTTPException(413, "That's too long: paste only the address.")
+        raw = b""
+        async for part in request.stream():
+            raw += part
+            if len(raw) > ZOOM_FINISH_MAX_BYTES:
+                raise HTTPException(413, "That's too long: paste only the address.")
+        try:
+            body = json.loads(raw or b"{}")
+        except ValueError:
+            body = None
+        pasted = body.get("pasted") if isinstance(body, dict) else None
+        if not isinstance(pasted, str):
+            return JSONResponse({"detail": "Send JSON {\"pasted\": \"…\"}.",
+                                 "code": "bad_paste"}, status_code=400)
+        try:
+            return await meetings.signin_finish(meetings.resolve(), pasted)
+        except meetings.MeetingError as exc:
+            return JSONResponse(exc.body(), status_code=exc.status)
+
+    # ------------------------------ Send Athena on calendar events (src/meeting_auto_join.py)
+    @router.get("/api/modules/sound/auto-join", dependencies=[Depends(require_admin)])
+    async def auto_join_state(request: Request, uid: str = Query(min_length=1, max_length=1000)):
+        from src import meeting_auto_join as auto
+
+        try:
+            return await asyncio.to_thread(auto.describe, _owner(request), uid)
+        except LookupError:
+            raise HTTPException(404, "Event not found") from None
+
+    @router.put("/api/modules/sound/auto-join", dependencies=[Depends(require_admin)])
+    async def auto_join_set(body: AutoJoin, request: Request,
+                            x_odysseus_recorder: Annotated[str | None, Header()] = None):
+        from src import meeting_auto_join as auto
+
+        _recorder_header(x_odysseus_recorder)
+        try:
+            return await asyncio.to_thread(auto.set_toggle, _owner(request), body.uid, body.on)
+        except LookupError:
+            raise HTTPException(404, "Event not found") from None
+        except ValueError as exc:
+            raise HTTPException(400, str(exc)) from None
 
     return router
 
