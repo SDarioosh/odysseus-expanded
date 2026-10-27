@@ -79,6 +79,12 @@ Source: `server/convo_server/mcp_server.py` (`build_mcp`).
   - JSON fact rows (`list_facts(format="json")`) and action-item rows
     (`list_action_items(format="json")`) have `source`: `"meeting"` when they come from a
     Zoom meeting, else `null`. Treat an unknown value as null.
+  - A conversation is a Zoom meeting when it came from a meeting session (the Zoom bot's
+    tracks, or device `zoom`), with or without a chat call. The module's HTTP API
+    (`GET /v1/conversations/{id}`) then has `meeting: {topic, participants}` (`topic` null
+    without one; participants are the speakers heard when no list was sent), and `meeting:
+    null` for every other conversation. The MCP text tools show the `(Zoom meeting…)`
+    mark instead; there is no conversation-level `source` field.
   - No tool, argument, annotation, link format or auth changed. The bot's own
     `POST /v1/sessions/{id}/chat` is a module-internal ingest route on Athena's API: not
     a relay route and not a tool.
