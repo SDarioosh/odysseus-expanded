@@ -24,9 +24,13 @@ CallTool = Callable[[str, dict], Awaitable[str]]
 # in the hub's Write view (Athena MCP 0.12.0)
 _MARK = (r"(?:(?P<note> \(voice note\))"
          r"| \(written by hand: (?P<written>https?://[^\s)]+)\))?")
+# Athena >= MCP 0.16.0: " (Zoom meeting: <topic>)" or " (Zoom meeting)" after the title,
+# and "; participants: A, B" after a meeting's people.
+_MEETING = r"(?P<meeting> \(Zoom meeting(?:: (?P<topic>.*?))?\))?"
 _CONV = re.compile(
     r"^- (?P<start>\d{4}-\d{2}-\d{2} \d{2}:\d{2})–(?P<end>\d{2}:\d{2}) \"(?P<title>.*)\""
-    + _MARK + r" id (?P<id>\S+); people: (?P<people>.*)$")
+    + _MARK + _MEETING + r" id (?P<id>\S+); people: (?P<people>.*?)"
+    r"(?:; participants: (?P<participants>.*))?$")
 _UNNAMED = re.compile(
     r"^- (?P<label>.+?) in \"(?P<title>.*)\" (?P<when>\d{4}-\d{2}-\d{2} \d{2}:\d{2}) "
     r"\(conversation id (?P<conv>[^)]+)\), (?P<lines>\d+) lines"
@@ -50,8 +54,9 @@ _DUE = re.compile(r" due (?P<due>(?:(?! due ).)+)$")
 _OWNER = re.compile(r" \(owner (?P<owner>[^)]*)\)$")
 _QUOTE = re.compile(r"^#(?P<id>\d+) \"(?P<text>.*)\" (?P<link>https?://\S+)$")
 # get_conversation
-_HEAD = re.compile(r"^\"(?P<title>.*)\"" + _MARK + r" — (?P<when>.+)$")
-_SPEAKERS = re.compile(r"^Speakers: (?P<speakers>.*)\. People: (?P<people>.*)$")
+_HEAD = re.compile(r"^\"(?P<title>.*)\"" + _MARK + _MEETING + r" — (?P<when>.+)$")
+_SPEAKERS = re.compile(r"^Speakers: (?P<speakers>.*)\. People: (?P<people>.*?)"
+                       r"(?:\. Participants: (?P<participants>.*))?$")
 _CONV_ITEM = re.compile(
     r"^Action #(?P<id>\d+) \[(?P<status>open|done|dismissed)\]: (?P<rest>.*) "
     r"(?P<link>https?://\S+)$")
@@ -77,6 +82,9 @@ class Conversation:
     link: str = ""
     voice_note: bool = False
     written_link: str | None = None  # the note in the hub, for a note written by hand
+    meeting: bool = False  # a Zoom meeting (Athena >= MCP 0.16.0)
+    meeting_topic: str = ""
+    participants: list[str] = field(default_factory=list)  # a meeting's, also silent ones
 
 
 @dataclass
@@ -153,6 +161,9 @@ class ConversationDetail:
     action_items: list[ConversationItem] = field(default_factory=list)
     facts: list[Fact] = field(default_factory=list)
     written_link: str | None = None  # the note in the hub, for a note written by hand
+    meeting: bool = False  # a Zoom meeting (Athena >= MCP 0.16.0)
+    meeting_topic: str = ""
+    participants: str = ""  # "Dana Example (16:00–16:45), Me", as Athena writes it
 
 
 @dataclass
@@ -318,8 +329,13 @@ def parse_conversations(text: str) -> list[Conversation]:
         if m:
             people = [] if m["people"].strip() in {"", "—"} else [
                 p.strip() for p in m["people"].split(",") if p.strip()]
+            participants = [p.strip() for p in (m["participants"] or "").split(",")
+                            if p.strip()]
             out.append(Conversation(m["id"], m["start"], m["end"], m["title"], people,
-                                    voice_note=bool(m["note"]), written_link=m["written"]))
+                                    voice_note=bool(m["note"]), written_link=m["written"],
+                                    meeting=bool(m["meeting"]),
+                                    meeting_topic=(m["topic"] or "").strip(),
+                                    participants=participants))
             continue
         if not out or not raw.startswith("  "):
             continue
@@ -354,8 +370,10 @@ def parse_conversation(text: str, conversation_id: str) -> ConversationDetail:
         line = raw.strip()
         if not c.title and (m := _HEAD.match(line)):
             c.title, c.when, c.written_link = m["title"], m["when"], m["written"]
+            c.meeting, c.meeting_topic = bool(m["meeting"]), (m["topic"] or "").strip()
         elif m := _SPEAKERS.match(line):
             c.speakers, c.people = _names(m["speakers"]), _names(m["people"])
+            c.participants = (m["participants"] or "").strip()
         elif line.startswith("Link: ") and not c.link:
             c.link = line[len("Link: "):].strip()
         elif line.startswith("Summary: ") and not c.summary:

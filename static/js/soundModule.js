@@ -463,6 +463,7 @@ function handwrittenLink(url) {
 }
 
 function sourceLabel(c) {
+  if (c.meeting) return c.meeting_topic ? `Zoom meeting: ${c.meeting_topic} · ` : 'Zoom meeting · ';
   return c.written_link ? 'Written by hand · ' : (c.voice_note ? 'Voice note · ' : '');
 }
 

@@ -717,3 +717,41 @@ def test_voice_and_written_notes_with_an_older_module(client, monkeypatch):
     assert [a["kind"] for _, a in calls[-2:]] == ["written", "note"]  # refused, then split
     assert calls[-1][1]["limit"] == 50
     assert [(c["id"], c["voice_note"]) for c in get("voice")] == [("n1", True)]
+
+
+MEETING_CONVS = """2 conversations (times are UTC). When answering, put the link next to each fact you use:
+- 2026-10-15 15:00–15:40 "Budget review" (Zoom meeting: Q4 budget (draft)) id m1; people: Dana Example, Me; participants: Dana Example, Lee Fictional, Me
+  Dana walks through the Q4 numbers.
+  http://h:8000/view/m1?sig=m
+- 2026-10-15 16:00–16:20 "Quick sync" (Zoom meeting) id m2; people: Lee Fictional
+  
+  http://h:8000/view/m2?sig=n"""
+
+
+def test_parse_conversations_zoom_meetings():
+    # Athena (MCP 0.16.0) marks meetings "(Zoom meeting: <topic>)" and adds
+    # "; participants: …" after the people; such lines must not be dropped.
+    a, b = view.parse_conversations(MEETING_CONVS)
+    assert (a.id, a.title, a.people) == ("m1", "Budget review", ["Dana Example", "Me"])
+    assert a.meeting and a.meeting_topic == "Q4 budget (draft)"
+    assert a.participants == ["Dana Example", "Lee Fictional", "Me"]
+    assert a.summary == "Dana walks through the Q4 numbers." and a.link.endswith("sig=m")
+    assert (b.id, b.meeting, b.meeting_topic, b.people, b.participants) == (
+        "m2", True, "", ["Lee Fictional"], [])
+    assert not a.voice_note and a.written_link is None
+
+
+def test_parse_conversation_zoom_meeting():
+    text = (
+        '"Budget review" (Zoom meeting: Q4 budget (draft)) — 2026-10-15 15:00–15:40 (UTC), '
+        "device zoom\n"
+        "Speakers: Dana Example, Me. People: Dana Example. "
+        "Participants: Dana Example (15:00–15:40), Lee Fictional (15:05–15:20), Me\n"
+        "Link: http://h:8000/view/m1?sig=m\n"
+        "Summary: Dana walks through the Q4 numbers.\n")
+    c = view.parse_conversation(text, "m1")
+    assert (c.title, c.when) == ("Budget review", "2026-10-15 15:00–15:40 (UTC), device zoom")
+    assert c.meeting and c.meeting_topic == "Q4 budget (draft)"
+    assert (c.speakers, c.people) == (["Dana Example", "Me"], ["Dana Example"])
+    assert c.participants.startswith("Dana Example (15:00–15:40), Lee Fictional")
+    assert c.summary == "Dana walks through the Q4 numbers."
