@@ -68,6 +68,9 @@ class FakeApi:
         return [(m, p, b) for m, p, b in self.calls
                 if m in {"POST", "PUT"} and p.startswith("/api/skills")]
 
+    def skill_deletes(self):
+        return [p for m, p, _ in self.calls if m == "DELETE" and p.startswith("/api/skills")]
+
 
 def _run(tmp_path, argv, api=None):
     api = api or FakeApi()
@@ -131,12 +134,13 @@ def test_keep_without_trim_is_rejected(tmp_path):
         modules_setup.parse_args(["--password-file", "x", "--keep", "web_search"])
 
 
-def test_default_creates_sound_and_context_skills(tmp_path):
+def test_default_creates_athena_and_context_skills(tmp_path):
     api = _run(tmp_path, [])
     writes = api.skill_writes()
     assert [(m, p) for m, p, _ in writes] == [("POST", "/api/skills/add")] * 2
     sound, context = (b for _, _, b in writes)
-    assert sound["name"] == "sound"
+    assert sound["name"] == "athena"
+    assert sound["description"] == "Use Athena's tools for this message"
     assert sound["requires_toolsets"] == ["mcp:convo"]
     # The procedure is the Custom preset's text (the module's instructions), one step per paragraph.
     assert sound["procedure"] == PRESET_TEXT.split("\n\n")
@@ -167,16 +171,35 @@ def test_module_skill_text_file_and_names(tmp_path):
 
 
 def test_existing_managed_skill_is_updated(tmp_path):
-    api = _run(tmp_path, [], FakeApi(skills=[{"name": "sound", "source": "managed"}]))
+    api = _run(tmp_path, [], FakeApi(skills=[{"name": "athena", "source": "managed"}]))
     assert [(m, p) for m, p, _ in api.skill_writes()] == [
-        ("PUT", "/api/skills/sound"), ("POST", "/api/skills/add")]
+        ("PUT", "/api/skills/athena"), ("POST", "/api/skills/add")]
     assert api.skill_writes()[0][2]["requires_toolsets"] == ["mcp:convo"]
+    assert api.skill_deletes() == []
 
 
 def test_someone_elses_skill_is_left_alone(tmp_path, capsys):
-    api = _run(tmp_path, [], FakeApi(skills=[{"name": "sound", "source": "user"}]))
+    api = _run(tmp_path, [], FakeApi(skills=[{"name": "athena", "source": "user"}]))
     assert [b["name"] for _, _, b in api.skill_writes()] == ["context"]
-    assert "skill 'sound' exists and isn't managed" in capsys.readouterr().err
+    assert "skill 'athena' exists and isn't managed" in capsys.readouterr().err
+
+
+def test_old_managed_sound_skill_is_replaced_by_athena(tmp_path, capsys):
+    api = _run(tmp_path, [], FakeApi(skills=[{"name": "sound", "source": "managed"}]))
+    assert [b["name"] for _, _, b in api.skill_writes()] == ["athena", "context"]
+    assert api.skill_deletes() == ["/api/skills/sound"]
+    assert "skill /sound: delete (replaced by /athena)" in capsys.readouterr().out
+
+
+def test_old_sound_skill_kept_when_not_ours_or_still_asked_for(tmp_path):
+    api = _run(tmp_path, [], FakeApi(skills=[{"name": "sound", "source": "user"}]))
+    assert api.skill_deletes() == []
+    api = _run(tmp_path, ["--module-skill", "sound=convo"],
+               FakeApi(skills=[{"name": "sound", "source": "managed"}]))
+    assert api.skill_deletes() == []
+    assert [b["name"] for _, _, b in api.skill_writes()] == ["sound", "context"]
+    api = _run(tmp_path, ["--dry-run"], FakeApi(skills=[{"name": "sound", "source": "managed"}]))
+    assert api.skill_deletes() == []
 
 
 def test_no_skills_and_dry_run_write_no_skills(tmp_path, capsys):
@@ -184,12 +207,12 @@ def test_no_skills_and_dry_run_write_no_skills(tmp_path, capsys):
     api = _run(tmp_path, ["--dry-run"])
     assert api.skill_writes() == []
     out = capsys.readouterr().out
-    assert "skill /sound: create" in out and '"skills"' in out
+    assert "skill /athena: create" in out and '"skills"' in out
 
 
 def test_bad_module_skill_is_rejected():
     with pytest.raises(SystemExit):
-        modules_setup.parse_args(["--password-file", "x", "--module-skill", "sound"])
+        modules_setup.parse_args(["--password-file", "x", "--module-skill", "athena"])
 
 
 def test_procedure_steps_splits_paragraphs_and_lists():

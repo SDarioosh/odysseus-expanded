@@ -20,10 +20,11 @@ this repository. Read this file completely before changing anything.
   odysseus-sound; recorded conversations: transcripts, summaries, action items, facts).
   Details: [docs/fork/modules/odysseus-sound.md](docs/fork/modules/odysseus-sound.md).
   The rename is wording only. Code and stored values keep the old names: the MCP server
-  `convo`, the `/sound` skill, `/modules/sound` routes, `sound:*` token scopes, and the
+  `convo`, `/modules/sound` routes, `sound:*` token scopes, and the
   string `"odysseus-sound"` used as the belief source, the label on filed notes, the
   memory source and calendar uid prefixes. Changing them breaks existing data; don't
-  "fix" them.
+  "fix" them. The slash command is the exception: it is now `/athena` (was `/sound`;
+  `scripts/modules_setup.py` deletes the old managed skill).
 - What the fork changes today: [FORK.md](FORK.md). System picture, ports and
   services: [docs/fork/architecture.md](docs/fork/architecture.md). Status and
   next work: [docs/fork/roadmap.md](docs/fork/roadmap.md).
