@@ -8,7 +8,9 @@ Per page, the sidecar's ``transcript`` is::
      "error",      # why the last run failed (status ``failed``)
      "job",        # the run that will write this page (status ``pending``)
      "reading",    # strokes_hash of the strokes that run reads (status ``pending``)
-     "previous"}   # {"text", "at"}: reviewed text a new transcription replaced
+     "previous",   # {"text", "at"}: reviewed text a new transcription replaced
+     "machine"}    # {"text", "model", "at", "strokes_hash"}: the model's text a review
+                   # replaced, kept for scripts/ink_eval.py --stored (H5)
 
 ``status`` is ``none`` -> ``pending`` -> ``machine`` (model output, not reviewed) or
 ``failed``; saving reviewed text makes it ``reviewed``. A page whose strokes no longer
@@ -651,6 +653,7 @@ def _store_result(store: str | None, note_id: str, page: dict[str, Any], job: st
         else:
             t.update(text=text, model=model, status="machine",
                      strokes_hash=writing_hash(page), at=now(), error=None, job=None)
+            t.pop("machine", None)  # the fresh model text is in ``text`` now
         ink._write_json(ink.sidecar_path(store, note_id), stored)
 
 
@@ -670,6 +673,7 @@ def save_review(owner: str | None, note_id: str, page_id: str, text: Any,
         if page is None:
             raise ink.InkError("Page not found", 404)
         t = _transcript(page)
+        _keep_machine(t, writing_hash(page))
         t.update(text=clean_text(text), status="reviewed", strokes_hash=writing_hash(page),
                  at=now(), error=None, job=None)
         t.pop("previous", None)
@@ -678,6 +682,18 @@ def save_review(owner: str | None, note_id: str, page_id: str, text: Any,
         if not ink.update_note(owner, note_id, content=note_content(stored)):
             raise ink.InkError("Note not found", 404)
     return transcripts(owner, note_id)
+
+
+def _keep_machine(t: dict[str, Any], current: str) -> None:
+    """Before a review replaces the model's text for the page's current strokes, keep it
+    as ``machine`` (what ``scripts/ink_eval.py --stored`` scores against the review). A
+    kept ``machine`` for strokes that changed since no longer matches and is dropped."""
+    if t.get("status") == "machine" and t.get("strokes_hash") == current:
+        t["machine"] = {"text": t.get("text") or "", "model": t.get("model"),
+                        "at": t.get("at"), "strokes_hash": current}
+    elif not (isinstance(t.get("machine"), dict)
+              and t["machine"].get("strokes_hash") == current):
+        t.pop("machine", None)
 
 
 def note_content(stored: dict[str, Any]) -> str:
