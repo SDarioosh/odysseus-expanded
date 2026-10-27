@@ -341,3 +341,69 @@ def test_machine_is_dropped_when_strokes_change_or_a_new_run_replaces_it(env):
     assert _t(note_id)["machine"]["text"] == "Buy oat milk\nand bead"
     asyncio.run(_transcribe(note_id, "Buy oat milk\nand bread"))
     assert "machine" not in _t(note_id)
+
+
+# ------------------------------------------------- QC findings on PR 104 (H5 and H6)
+def _pair(reference="Buy milk"):
+    return ev.Pair("alice", "n1", "p0", 0, {}, reference, None)
+
+
+def test_loose_keeps_unreadable_marks_as_errors():
+    # [?] is all punctuation: dropping it scored an unreadable word as no error (F-01).
+    assert ev.norm_loose("Buy [?] milk!") == "buy [?] milk"
+    assert ev.norm_loose("[illegible], ok") == "[?] ok"
+    s = ev.score_page(_pair(), "Buy [?] milk")
+    assert s.counts["loose"]["word"][0] == 1 and s.counts["loose"]["char"][0] > 0
+    s = ev.score_page(_pair("Pick up the parcel"), "Pick up the [?]")
+    assert s.counts["loose"]["word"] == [1, 4]
+
+
+@pytest.mark.parametrize("answer", ["", "   ", "\x01\x02", "x" * tr.MAX_PAGE_TEXT, "Buy [?]"])
+def test_auto_send_numbers_count_only_pages_auto_send_would_accept(answer):
+    # Empty, control characters only or cut at the page limit: INK_AUTO_SEND leaves them
+    # for review, so they are not in its numbers (F-02).
+    rep = ev.summarize([ev.score_page(_pair(), answer), ev.score_page(_pair(), "Buy milk")],
+                       mode="reread", skipped={}, pairs=2)
+    assert rep["scored"] == 2
+    assert rep["auto_send"]["pages"] == 1 and rep["auto_send"]["exact"] == 1
+    assert rep["auto_send"]["cer"] == 0.0
+
+
+def test_owner_single_reads_the_single_user_folder(data, capsys):
+    # owner_folders() calls the single-user folder "_single"; --owner _single reads it (F-11).
+    _note(None, _page("a", "Buy oat milk", machine="Buy oat mik"))
+    assert ev.main(["--owner", "_single", "--stored", "--json"]) == 0
+    assert json.loads(capsys.readouterr().out)["scored"] == 1
+
+
+async def _transcribe_fails(note_id):
+    async def broken(messages):
+        raise RuntimeError("model down")
+
+    await tr.start("alice", note_id, page_ids=["p0"], reader=("fake-vl", broken))
+    await tr.wait_idle()
+
+
+def test_machine_survives_a_failed_new_run(env):
+    # Transcribe again on the same strokes fails, then the owner reviews: the model text
+    # for these strokes is still kept for the eval (F-08).
+    note_id = str(uuid.uuid4())
+    ink.save("alice", note_id, _doc(150, 194))
+    asyncio.run(_transcribe(note_id, "Buy oat mik"))
+    asyncio.run(_transcribe_fails(note_id))
+    assert _t(note_id)["status"] == "failed"
+    tr.save_review("alice", note_id, "p0", "Buy oat milk")
+    t = _t(note_id)
+    assert t["machine"]["text"] == "Buy oat mik" and t["machine"]["strokes_hash"] == t["strokes_hash"]
+
+
+def test_erasing_a_page_drops_its_machine_text(env):
+    note_id = str(uuid.uuid4())
+    ink.save("alice", note_id, _doc(150, 194))
+    asyncio.run(_transcribe(note_id, "Buy oat mik"))
+    tr.save_review("alice", note_id, "p0", "Buy oat milk")
+    assert "machine" in _t(note_id)
+    ink.save("alice", note_id, {**_doc(), "edited_at": 2000})  # all ink erased
+    asyncio.run(tr.start("alice", note_id, page_ids=["p0"], reader=("fake-vl", None)))
+    t = _t(note_id)
+    assert t["status"] == "none" and "machine" not in t
