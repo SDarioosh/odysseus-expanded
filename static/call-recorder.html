@@ -96,9 +96,15 @@
     .mb-hint { margin-top: 6px; }
     .mb-state { font-size: 0.88rem; margin-top: 10px; }
     .mb-state:empty { display: none; }
+    .mb-signin { font-size: 0.88rem; margin-top: 10px; }
+    .mb-signin-line { display: flex; flex-wrap: wrap; gap: 8px; align-items: center; }
+    .mb-signin-line span:empty { display: none; }
+    .mb-signin a { color: var(--fg); }
+    .mb-paste { display: grid; grid-template-columns: 1fr auto; gap: 8px; margin-top: 8px; }
+    #mb-signin-msg:empty { display: none; }
     [hidden] { display: none !important; }
     @media (max-width: 640px) {
-      .mb-form { grid-template-columns: 1fr; }
+      .mb-form, .mb-paste { grid-template-columns: 1fr; }
       .rc-grid { grid-template-columns: 1fr; }
       .bs-row .bs-btn { flex: 1 1 calc(50% - 8px); }
     }
@@ -127,6 +133,26 @@
           aria-label="Passcode" placeholder="Passcode (with an ID)">
       </div>
       <div class="bs-meta mb-hint">Join the meeting yourself too — Athena records while you're in it.</div>
+      <div class="mb-signin" id="mb-signin" hidden>
+        <div class="mb-signin-line">
+          <span id="mb-signin-text"></span>
+          <button type="button" class="bs-btn" id="mb-signin-btn" hidden>Sign in to Zoom</button>
+        </div>
+        <div id="mb-signin-paste" hidden>
+          <p class="bs-text">In the new tab, sign in to Zoom and click Allow. Zoom then opens a
+            page that can't load — that's expected. Copy that page's address from the address
+            bar and paste it here.</p>
+          <div class="bs-meta mb-hint" id="mb-signin-open" hidden>No tab opened?
+            <a id="mb-signin-link" href="#" target="_blank" rel="noopener noreferrer">Open Zoom's sign-in page</a>.</div>
+          <div class="mb-paste">
+            <input class="bs-input" id="mb-signin-input" type="text" spellcheck="false"
+              autocomplete="off" aria-label="Address of the page Zoom opened"
+              placeholder="Paste the address here">
+            <button type="button" class="bs-btn primary" id="mb-signin-finish">Finish</button>
+          </div>
+        </div>
+        <div class="bs-meta mb-hint" id="mb-signin-msg" role="status" aria-live="polite"></div>
+      </div>
       <div class="bs-row">
         <button type="button" class="bs-btn primary" id="mb-join" disabled>Join</button>
         <button type="button" class="bs-btn" id="mb-leave" hidden>Leave</button>
