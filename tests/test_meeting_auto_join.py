@@ -3,6 +3,7 @@
 Fictional meetings only: numbers, passcodes, hosts and titles below are made up.
 """
 import asyncio
+import importlib
 import json
 import subprocess
 import sys
@@ -443,7 +444,11 @@ def test_routes_read_and_set_the_toggle(env, client):
 
 
 def test_calendar_route_delete_cancels_the_task(env, monkeypatch):
-    import routes.calendar_routes as cr
+    # A fresh import against the real core.database: another test
+    # (test_calendar_owner_scope.py) imports calendar_routes against fake models and
+    # leaves that copy in sys.modules when it ran first.
+    monkeypatch.delitem(sys.modules, "routes.calendar_routes", raising=False)
+    cr = importlib.import_module("routes.calendar_routes")
 
     monkeypatch.setattr(cr, "SessionLocal", cdb.SessionLocal, raising=False)
     add_event(env, "e1", NOW + timedelta(hours=2))
