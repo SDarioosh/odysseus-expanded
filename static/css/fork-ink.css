@@ -1,14 +1,19 @@
 /* Fork: the Write view, handwritten notes (static/js/forkInk.js). Builds on the module
    view look in fork-modules.css (.fm-root, .bs-btn, .bs-input, .bs-card). Colors are the
    Odysseus theme tokens; only the paper and the ink colors are fixed (they are content).
-   Full screen on a tablet (coarse pointer). */
+   Full screen on a tablet (coarse pointer) and on a phone (≤ 768 px wide). */
 
 @media (min-width: 769px) {
   #fork-ink-modal .fm-modal-content { width: min(1200px, 94vw); height: min(900px, 90vh); }
 }
 #fork-ink-modal .fm-modal-body { padding: 0; overflow: hidden; display: flex; flex-direction: column; }
-@media (pointer: coarse) {
-  #fork-ink-modal .fm-modal-content {
+/* Full screen on a touch screen and on a phone-width screen (a Fold, folded or open, is
+   ≤ 768 px wide). The :not() ids outrank upstream's phone drawer rule in 17-research.css
+   (`.modal:not(#theme-modal):not(#styled-confirm-overlay) > .modal-content`, height:
+   auto), which otherwise wins and leaves the page 0 px tall. */
+@media (pointer: coarse), (max-width: 768px) {
+  #fork-ink-modal:not(#theme-modal):not(#styled-confirm-overlay) > .modal-content.fm-modal-content {
+    margin: 0 !important; align-self: stretch !important;
     position: fixed !important; inset: 0 !important; width: 100vw !important;
     height: 100vh !important; height: 100dvh !important; max-width: none !important;
     max-height: none !important; border-radius: 0 !important; transform: none !important;
