@@ -474,7 +474,7 @@ module answers 404 and the Text tab says "update Athena".
 
 ## Pairing a phone
 
-`/modules/sound/pair` (**Pair a phone** on the Conversations page, admin only) sets up
+`/modules/sound/pair` (**Pair a phone** in Settings → Integrations, admin only) sets up
 the module's Android relay with one QR code instead of two server URLs, two tokens and a
 calendar id. The relay then uploads the watch's recordings and syncs the T5 through
 Odysseus only.

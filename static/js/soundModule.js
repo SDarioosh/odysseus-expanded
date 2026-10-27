@@ -996,7 +996,6 @@ function buildView() {
         tabButton('who', 'Who is this?')),
       el('div', { className: 'bs-bar-end' },
         el('a', { className: 'bs-btn', href: '/modules/sound/record' }, 'Record a call'),
-        el('a', { className: 'bs-btn', href: '/modules/sound/pair' }, 'Pair a phone'),
         el('button', { type: 'button', className: 'bs-btn bs-icon-btn bs-refresh', title: 'Refresh',
                        'aria-label': 'Refresh' }, refreshIcon()))),
     list('conversations'), list('voice'), list('written'),
