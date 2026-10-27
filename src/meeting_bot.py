@@ -16,8 +16,20 @@ them to its own ingest API (``/v1/meetings``) with its ingest token, which never
 module. So the MCP token can send the bot into a meeting, as it can already add
 recordings.
 
+The same page signs Athena in to Zoom (Athena joins on the owner's behalf with Zoom's
+on-behalf-of token, so it needs the owner's Zoom sign-in once), through three more relay
+routes of the same server:
+
+    GET  /zoom/signin          {configured, signed_in, join_token, missing}
+    POST /zoom/signin/start    {url, expires_in}: Zoom's authorize page for the owner
+    POST /zoom/signin/finish   {pasted}: the address Zoom redirected to (or its code)
+
+The pasted text carries a one-time Zoom code and the authorize URL a state value: neither
+is ever logged here.
+
 Nothing here runs on its own: no thread, timer or poll. The page asks for the state while
-it is open and a meeting is on (docs/fork/modules/odysseus-sound.md).
+it is open and a meeting is on, and reads the sign-in once when it opens
+(docs/fork/modules/odysseus-sound.md).
 """
 
 from __future__ import annotations
@@ -49,6 +61,15 @@ FINAL_STATES = ("ended", "failed")
 
 UPDATE_MODULE = ("Update Athena to use meetings: its MCP server has no meeting routes yet "
                  "(scripts/fork_deploy.sh deploy).")
+UPDATE_SIGNIN = ("Update Athena to sign in to Zoom from here: its MCP server has no sign-in "
+                 "routes yet (scripts/fork_deploy.sh deploy).")
+SIGNIN_NEEDED = ("Athena's Zoom sign-in is missing or expired — sign in to Zoom on the "
+                 "Record a call page.")
+# Athena exchanges the code with Zoom before it answers: give it a little more time.
+SIGNIN_TIMEOUT = httpx.Timeout(25.0, connect=5.0)
+MAX_PASTE_CHARS = 4096  # an address with a code and a state; an invite never goes here
+JOIN_TOKENS = ("obf", "zak", "none")
+_SETTING = re.compile(r"^[A-Z][A-Z0-9_]{0,63}$")
 
 # The same rules as Athena's launcher (convo_server/meetings.py parse_zoom_link).
 _ZOOM_HOST = re.compile(r"^(?:[a-z0-9](?:[a-z0-9-]{0,61}[a-z0-9])?\.)*zoom\.us$")
@@ -344,7 +365,8 @@ def _route_missing(status: int, body: Any) -> bool:
 
 async def _call(link: recorder.Link, method: str, path: str, timeout: httpx.Timeout, *,
                 params: dict[str, Any] | None = None, json: Any = None,
-                transport: httpx.AsyncBaseTransport | None = None) -> tuple[int, Any]:
+                transport: httpx.AsyncBaseTransport | None = None,
+                update: str = UPDATE_MODULE) -> tuple[int, Any]:
     query = {**(params or {}), "access_token": link.token}
     try:
         async with httpx.AsyncClient(timeout=timeout, transport=transport,
@@ -366,7 +388,7 @@ async def _call(link: recorder.Link, method: str, path: str, timeout: httpx.Time
         raise MeetingError(502, f"Athena refused the token of the {recorder.server_key()!r} "
                                 "MCP server (Settings → MCP).", "token")
     if _route_missing(res.status_code, body):
-        raise MeetingError(502, UPDATE_MODULE, "update")
+        raise MeetingError(502, update, "update")
     return res.status_code, body
 
 
@@ -387,8 +409,7 @@ def _error(status: int, body: Any) -> MeetingError:
         return MeetingError(501, "Meetings aren't set up on the server"
                                  + (f" ({detail})." if detail else "."), "off")
     if status == 503 and detail == "zoom_signin_needed":
-        return MeetingError(503, "Athena's Zoom sign-in is missing or expired — run "
-                                 "`convo-server zoom-login` on the server.", "signin")
+        return MeetingError(503, SIGNIN_NEEDED, "signin")
     if status == 502 and detail == "zoom_unavailable":
         return MeetingError(502, "Zoom didn't give Athena a join token; try again in a "
                                  "minute.", "zoom")
@@ -454,6 +475,104 @@ async def leave(link: recorder.Link, meeting_id: str, *,
     if status != 200:
         raise _error(status, body)
     return public(_meeting(body))
+
+
+# ------------------------------------------------------------------ Zoom sign-in
+def _signin_error(status: int, body: Any) -> MeetingError:
+    """Athena's refusal of a sign-in step, in words for the page."""
+    detail = _detail(body)
+    if status == 400:
+        return MeetingError(400, detail or "Zoom didn't accept that. Click Sign in to Zoom "
+                                           "and try again.", "bad_paste")
+    if status == 501:
+        return MeetingError(501, "Athena's Zoom app isn't set up yet"
+                                 + (f": {detail}" if detail else " (Athena's server/.env)."),
+                            "not_configured")
+    if status == 502:
+        return MeetingError(502, "Athena couldn't reach Zoom"
+                                 + (f": {detail}" if detail else "; try again in a minute."),
+                            "zoom")
+    return MeetingError(502, f"Athena HTTP {status}" + (f": {detail}" if detail else ""))
+
+
+def _signin_state(body: Any) -> dict[str, Any]:
+    if not isinstance(body, dict):
+        raise MeetingError(502, "Athena sent an unreadable answer.")
+    token = body.get("join_token")
+    missing = body.get("missing") if isinstance(body.get("missing"), list) else []
+    return {
+        "configured": bool(body.get("configured")),
+        "signed_in": bool(body.get("signed_in")),
+        "join_token": token if token in JOIN_TOKENS else "none",
+        "missing": [m for m in missing if isinstance(m, str) and _SETTING.match(m)][:20],
+    }
+
+
+def _zoom_url(value: Any) -> str:
+    """Only a Zoom https address is handed to the browser to open."""
+    url = value.strip() if isinstance(value, str) else ""
+    try:
+        parts = urlsplit(url)
+        host = (parts.hostname or "").lower()
+        port = parts.port
+    except ValueError:
+        host, port, parts = "", None, None
+    if (parts is None or parts.scheme != "https" or not _ZOOM_HOST.match(host)
+            or port is not None or parts.username or parts.password or len(url) > 4096):
+        raise MeetingError(502, "Athena sent a sign-in address that isn't Zoom's.")
+    return url
+
+
+async def signin_status(link: recorder.Link, *,
+                        transport: httpx.AsyncBaseTransport | None = None) -> dict[str, Any]:
+    """``{configured, signed_in, join_token, missing}``: is Athena signed in to Zoom."""
+    status, body = await _call(link, "GET", "/zoom/signin", READ_TIMEOUT,
+                               transport=transport, update=UPDATE_SIGNIN)
+    if status != 200:
+        raise _signin_error(status, body)
+    return _signin_state(body)
+
+
+async def signin_start(link: recorder.Link, *,
+                       transport: httpx.AsyncBaseTransport | None = None) -> dict[str, Any]:
+    """``{url, expires_in}``: Zoom's authorize page, for the owner to open in a new tab."""
+    status, body = await _call(link, "POST", "/zoom/signin/start", READ_TIMEOUT, json={},
+                               transport=transport, update=UPDATE_SIGNIN)
+    if status != 200:
+        raise _signin_error(status, body)
+    if not isinstance(body, dict):
+        raise MeetingError(502, "Athena sent an unreadable answer.")
+    expires = body.get("expires_in")
+    expires = expires if isinstance(expires, int) and 0 < expires <= 3600 else 600
+    return {"url": _zoom_url(body.get("url")), "expires_in": expires}
+
+
+def check_paste(pasted: str | None) -> str:
+    pasted = (pasted or "").strip()
+    if not pasted:
+        raise MeetingError(400, "Paste the address of the page Zoom opened after you clicked "
+                                "Allow.", "bad_paste")
+    if len(pasted) > MAX_PASTE_CHARS:
+        raise MeetingError(400, "That's too long: paste only the address from the address "
+                                "bar.", "bad_paste")
+    return pasted
+
+
+async def signin_finish(link: recorder.Link, pasted: str | None, *,
+                        transport: httpx.AsyncBaseTransport | None = None) -> dict[str, Any]:
+    """Hand the pasted address (or code) to Athena, which finishes the sign-in with Zoom.
+    Returns the new state; the pasted text is never logged."""
+    pasted = check_paste(pasted)
+    status, body = await _call(link, "POST", "/zoom/signin/finish", SIGNIN_TIMEOUT,
+                               json={"pasted": pasted}, transport=transport,
+                               update=UPDATE_SIGNIN)
+    if status != 200:
+        raise _signin_error(status, body)
+    if not isinstance(body, dict) or not body.get("ok"):
+        raise MeetingError(502, "Athena sent an unreadable answer.")
+    token = body.get("join_token")
+    return {"ok": True, "configured": True, "signed_in": bool(body.get("signed_in", True)),
+            "join_token": token if token in JOIN_TOKENS else "none", "missing": []}
 
 
 def resolve() -> recorder.Link:

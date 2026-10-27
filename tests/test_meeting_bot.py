@@ -284,8 +284,8 @@ def test_join_posts_json_with_the_mcp_token():
      "isn't answering"),
     (401, {"detail": "unauthorized"}, "token", 502, "refused the token"),
     (503, {"detail": "zoom_signin_needed", "message": "Sign in to Zoom again."}, "signin",
-     503, ("Athena's Zoom sign-in is missing or expired — run `convo-server zoom-login` "
-           "on the server.")),
+     503, ("Athena's Zoom sign-in is missing or expired — sign in to Zoom on the "
+           "Record a call page.")),
     (502, {"detail": "zoom_unavailable", "message": "Zoom ZAK/OBF request failed."}, "zoom",
      502, "Zoom didn't give Athena a join token; try again in a minute."),
     (404, {"detail": "Not Found"}, "update", 502, "Update Athena to use meetings"),
@@ -401,12 +401,137 @@ def test_no_mcp_tool_is_registered():
         assert "meeting_bot" not in f.read_text(encoding="utf-8", errors="replace"), f
 
 
+# ------------------------------------------------------------------ Zoom sign-in
+AUTHORIZE = ("https://zoom.us/oauth/authorize?response_type=code&client_id=FictionalClient"
+             "&redirect_uri=http%3A%2F%2Flocalhost%3A9%2Fzoom&state=FictionalState123")
+PASTED = "http://localhost:9/zoom?code=FictionalCode987&state=FictionalState123"
+
+
+def test_signin_status_reads_and_cleans_the_answer():
+    module = Module(200, {"configured": False, "signed_in": False, "join_token": "weird",
+                          "missing": ["CONVO_ZOOM_CLIENT_ID", "not a setting", 7,
+                                      "CONVO_ZOOM_CLIENT_SECRET"]})
+    got = run(mb.signin_status(LINK, transport=module.transport))
+    assert got == {"configured": False, "signed_in": False, "join_token": "none",
+                   "missing": ["CONVO_ZOOM_CLIENT_ID", "CONVO_ZOOM_CLIENT_SECRET"]}
+    sent = module.requests[0]
+    assert (sent.method, sent.url.path) == ("GET", "/zoom/signin")
+    assert sent.url.params["access_token"] == TOKEN
+    module = Module(200, {"configured": True, "signed_in": True, "join_token": "obf",
+                          "missing": []})
+    got = run(mb.signin_status(LINK, transport=module.transport))
+    assert got["signed_in"] is True and got["join_token"] == "obf"
+
+
+def test_signin_start_returns_zoom_url():
+    module = Module(200, {"url": AUTHORIZE, "expires_in": 600})
+    got = run(mb.signin_start(LINK, transport=module.transport))
+    assert got == {"url": AUTHORIZE, "expires_in": 600}
+    assert (module.requests[0].method, module.requests[0].url.path) == (
+        "POST", "/zoom/signin/start")
+
+
+@pytest.mark.parametrize("url", [
+    "http://zoom.us/oauth/authorize?x=1", "https://zoom.us.example.com/oauth/authorize",
+    "https://evil.example/oauth", "javascript:alert(1)", "https://user@zoom.us/oauth",
+    "https://zoom.us:8443/oauth", "", None,
+])
+def test_signin_start_refuses_a_non_zoom_url(url):
+    module = Module(200, {"url": url, "expires_in": 600})
+    with pytest.raises(mb.MeetingError) as e:
+        run(mb.signin_start(LINK, transport=module.transport))
+    assert e.value.status == 502 and "isn't Zoom's" in e.value.message
+
+
+def test_signin_finish_sends_the_paste():
+    module = Module(200, {"ok": True, "signed_in": True, "join_token": "zak"})
+    got = run(mb.signin_finish(LINK, f"  {PASTED} ", transport=module.transport))
+    assert got["ok"] is True and got["signed_in"] is True and got["join_token"] == "zak"
+    sent = module.requests[0]
+    assert (sent.method, sent.url.path) == ("POST", "/zoom/signin/finish")
+    assert json.loads(sent.content) == {"pasted": PASTED}
+    assert "FictionalCode987" not in str(sent.url)
+
+
+@pytest.mark.parametrize("call", ["status", "start", "finish"])
+@pytest.mark.parametrize("status, body, code, out_status, words", [
+    (400, {"detail": "That sign-in attempt expired. Click Sign in to Zoom again."},
+     "bad_paste", 400, "That sign-in attempt expired"),
+    (501, {"detail": "CONVO_ZOOM_CLIENT_ID is not set"}, "not_configured", 501,
+     "Athena's Zoom app isn't set up yet: CONVO_ZOOM_CLIENT_ID"),
+    (502, {"detail": "Zoom is not reachable"}, "zoom", 502,
+     "Athena couldn't reach Zoom: Zoom is not reachable"),
+    (404, {"detail": "Not Found"}, "update", 502, "Update Athena to sign in to Zoom from here"),
+    (405, {"detail": "Method Not Allowed"}, "update", 502, "Update Athena to sign in"),
+    (404, None, "update", 502, "Update Athena to sign in"),
+    (401, {"detail": "unauthorized"}, "token", 502, "refused the token"),
+    (500, {"detail": "boom"}, "error", 502, "Athena HTTP 500: boom"),
+])
+def test_signin_errors(call, status, body, code, out_status, words):
+    module = Module(status, body) if body is not None else Module(status, text="nope")
+    fn = {"status": lambda: mb.signin_status(LINK, transport=module.transport),
+          "start": lambda: mb.signin_start(LINK, transport=module.transport),
+          "finish": lambda: mb.signin_finish(LINK, PASTED, transport=module.transport)}[call]
+    with pytest.raises(mb.MeetingError) as e:
+        run(fn())
+    assert (e.value.code, e.value.status) == (code, out_status)
+    assert words in e.value.message
+    assert TOKEN not in e.value.message
+
+
+def test_signin_finish_checks_the_paste_without_calling():
+    module = Module(200, {"ok": True})
+    for pasted in ("", "   ", None, "x" * (mb.MAX_PASTE_CHARS + 1)):
+        with pytest.raises(mb.MeetingError) as e:
+            run(mb.signin_finish(LINK, pasted, transport=module.transport))
+        assert e.value.status == 400 and e.value.code == "bad_paste"
+    assert module.requests == []
+
+
+def test_signin_never_logs_the_paste_or_the_url_query(caplog):
+    caplog.set_level("DEBUG")
+    for status, body in ((200, {"ok": True, "signed_in": True, "join_token": "obf"}),
+                         (400, {"detail": "Zoom refused the code."}),
+                         (502, {"detail": "Zoom is not reachable"})):
+        try:
+            run(mb.signin_finish(LINK, PASTED, transport=Module(status, body).transport))
+        except mb.MeetingError:
+            pass
+    run(mb.signin_start(LINK, transport=Module(200, {"url": AUTHORIZE}).transport))
+
+    def boom(request):
+        raise httpx.ConnectError("down")
+
+    with pytest.raises(mb.MeetingError):
+        run(mb.signin_finish(LINK, PASTED, transport=httpx.MockTransport(boom)))
+
+    def slow(request):
+        raise httpx.ReadTimeout("slow")
+
+    with pytest.raises(mb.MeetingError):
+        run(mb.signin_finish(LINK, PASTED, transport=httpx.MockTransport(slow)))
+    assert "FictionalCode987" not in caplog.text
+    assert "FictionalState123" not in caplog.text
+    assert "FictionalClient" not in caplog.text
+
+
+def test_signin_needed_points_at_the_page():
+    err = mb._error(503, {"detail": "zoom_signin_needed"})
+    assert err.code == "signin"
+    assert err.message == mb.SIGNIN_NEEDED
+    assert "Record a call page" in err.message and "convo-server" not in err.message
+
+
 # ------------------------------------------------------------------ routes
 class Router:
     """Answers each relay route like Athena does."""
 
     def __init__(self):
         self.requests: list[httpx.Request] = []
+        self.signin = (200, {"configured": True, "signed_in": False, "join_token": "none",
+                             "missing": []})
+        self.start = (200, {"url": AUTHORIZE, "expires_in": 600})
+        self.finish = (200, {"ok": True, "signed_in": True, "join_token": "obf"})
         self.join = (202, {"id": MID, "state": "starting", "session_id": f"zoom-{MID}"})
         self.list = (200, {"meetings": [row()]})
         self.one = (200, row())
@@ -415,7 +540,13 @@ class Router:
     def __call__(self, request: httpx.Request) -> httpx.Response:
         self.requests.append(request)
         path, method = request.url.path, request.method
-        if path == "/meetings" and method == "POST":
+        if path == "/zoom/signin":
+            status, body = self.signin
+        elif path == "/zoom/signin/start":
+            status, body = self.start
+        elif path == "/zoom/signin/finish":
+            status, body = self.finish
+        elif path == "/meetings" and method == "POST":
             status, body = self.join
         elif path == "/meetings":
             status, body = self.list
@@ -529,6 +660,77 @@ def test_routes_are_admin_only(monkeypatch):
         assert c.post("/api/modules/sound/meetings", headers=H,
                       json={"link": "850 1234 5678"}).status_code == 403
         assert c.delete(f"/api/modules/sound/meetings/{MID}", headers=H).status_code == 403
+        assert c.get("/api/modules/sound/zoom-signin").status_code == 403
+        assert c.post("/api/modules/sound/zoom-signin/start", headers=H).status_code == 403
+        assert c.post("/api/modules/sound/zoom-signin/finish", headers=H,
+                      json={"pasted": PASTED}).status_code == 403
+
+
+def test_route_zoom_signin_flow(client):
+    r = client.get("/api/modules/sound/zoom-signin")
+    assert r.status_code == 200
+    assert r.json() == {"configured": True, "signed_in": False, "join_token": "none",
+                        "missing": []}
+    r = client.post("/api/modules/sound/zoom-signin/start", headers=H)
+    assert r.status_code == 200 and r.json() == {"url": AUTHORIZE, "expires_in": 600}
+    r = client.post("/api/modules/sound/zoom-signin/finish", headers=H, json={"pasted": PASTED})
+    assert r.status_code == 200, r.text
+    assert r.json()["signed_in"] is True and r.json()["join_token"] == "obf"
+    assert json.loads(client.module.requests[-1].content) == {"pasted": PASTED}
+
+
+def test_route_zoom_signin_errors(client):
+    client.module.finish = (400, {"detail": "That address has no Zoom code in it."})
+    r = client.post("/api/modules/sound/zoom-signin/finish", headers=H, json={"pasted": "hi"})
+    assert r.status_code == 400
+    assert r.json() == {"detail": "That address has no Zoom code in it.", "code": "bad_paste"}
+    client.module.start = (501, {"detail": "CONVO_ZOOM_CLIENT_ID is not set"})
+    r = client.post("/api/modules/sound/zoom-signin/start", headers=H)
+    assert r.status_code == 501 and r.json()["code"] == "not_configured"
+    client.module.signin = (404, {"detail": "Not Found"})
+    r = client.get("/api/modules/sound/zoom-signin")
+    assert r.status_code == 502 and r.json()["code"] == "update"
+    assert "Update Athena to sign in to Zoom from here" in r.json()["detail"]
+
+
+def test_route_zoom_signin_writes_need_the_recorder_header(client):
+    assert client.post("/api/modules/sound/zoom-signin/start").status_code == 400
+    assert client.post("/api/modules/sound/zoom-signin/finish",
+                       json={"pasted": PASTED}).status_code == 400
+    assert client.module.requests == []
+
+
+def test_route_zoom_signin_finish_body(client):
+    big = {"pasted": "x" * 9000}
+    r = client.post("/api/modules/sound/zoom-signin/finish", headers=H, json=big)
+    assert r.status_code == 413
+    r = client.post("/api/modules/sound/zoom-signin/finish", headers=H,
+                    json={"pasted": "x" * (mb.MAX_PASTE_CHARS + 1)})
+    assert r.status_code == 400 and r.json()["code"] == "bad_paste"
+    r = client.post("/api/modules/sound/zoom-signin/finish", headers=H,
+                    content=b"not json {FictionalCode987")
+    assert r.status_code == 400 and "FictionalCode987" not in r.text
+    r = client.post("/api/modules/sound/zoom-signin/finish", headers=H, json={"pasted": 5})
+    assert r.status_code == 400
+    assert client.module.requests == []
+
+
+def test_route_zoom_signin_logs_no_paste(client, caplog):
+    caplog.set_level("DEBUG")
+    client.module.finish = (400, {"detail": "Zoom refused the code."})
+    client.post("/api/modules/sound/zoom-signin/finish", headers=H, json={"pasted": PASTED})
+    client.module.finish = (200, {"ok": True, "signed_in": True, "join_token": "obf"})
+    client.post("/api/modules/sound/zoom-signin/finish", headers=H, json={"pasted": PASTED})
+    assert "FictionalCode987" not in caplog.text
+
+
+def test_page_has_the_zoom_signin_line(client):
+    r = client.get("/modules/sound/record")
+    text = " ".join(r.text.split())
+    assert "Sign in to Zoom" in text and 'id="mb-signin-finish"' in text
+    assert ("In the new tab, sign in to Zoom and click Allow. Zoom then opens a page that "
+            "can't load — that's expected. Copy that page's address from the address bar "
+            "and paste it here.") in text
 
 
 def test_waiting_for_owner_still_counts_as_active():
@@ -540,7 +742,8 @@ def test_route_signin_needed(client):
     client.module.join = (503, {"detail": "zoom_signin_needed", "message": "…"})
     r = client.post("/api/modules/sound/meetings", headers=H, json={"link": "850 1234 5678"})
     assert r.status_code == 503 and r.json()["code"] == "signin"
-    assert "convo-server zoom-login" in r.json()["detail"]
+    assert "sign in to Zoom on the Record a call page" in r.json()["detail"]
+    assert "convo-server" not in r.json()["detail"]
 
 
 def test_page_has_the_join_yourself_hint(client):

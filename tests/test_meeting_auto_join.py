@@ -305,7 +305,7 @@ def test_run_joins_through_meeting_bot(env, module, monkeypatch):
 @pytest.mark.parametrize("status,body,code_word", [
     (409, {"detail": "busy", "active": MID}, "busy in another meeting"),
     (501, {"detail": "zoom_disabled"}, "Meetings aren't set up"),
-    (503, {"detail": "zoom_signin_needed"}, "zoom-login"),
+    (503, {"detail": "zoom_signin_needed"}, "sign in to Zoom on the Record a call page"),
 ])
 def test_run_maps_errors_to_a_failed_run(env, module, monkeypatch, status, body, code_word):
     module(status, body)

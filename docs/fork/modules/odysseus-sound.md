@@ -454,7 +454,8 @@ relay routes (SDarioosh/Athena#124, #125) and meetings set up there
   (`/s/`, `zoommtg://…/start`), Zoom for Government (`zoomgov.com`) and any other host
   (look-alikes, user info, ports).
 - **The owner joins too.** Athena joins on the owner's behalf (Zoom's on-behalf-of token,
-  signed in once on the server with `convo-server zoom-login`), so the owner must be in the
+  signed in once with the box's **Sign in to Zoom** button, [below](#signing-athena-in-to-zoom)),
+  so the owner must be in the
   meeting: the bot waits for them (`starting`/`waiting_for_owner`), gives up if they don't
   come (`failed`/`owner_not_joined`) and leaves when they leave (`ended`/`owner_left`). The
   box says so under the link field.
@@ -468,8 +469,9 @@ relay routes (SDarioosh/Athena#124, #125) and meetings set up there
   case they allow it later", "Recording", "Recording, but Zoom isn't sending audio",
   "Ended: the meeting is over" (and the other end reasons), "Couldn't join: wrong
   passcode" (and the other failures), "You didn't join the meeting in time, so Athena gave up", "Ended: you left the
-  meeting, so Athena left too", "Athena's Zoom sign-in is missing or expired — run
-  `convo-server zoom-login` on the server" (the module's 503 `zoom_signin_needed`), "Zoom
+  meeting, so Athena left too", "Athena's Zoom sign-in is missing or expired. Sign in to
+  Zoom, then press Join again" with the **Sign in to Zoom** button (the module's 503
+  `zoom_signin_needed`), "Zoom
   didn't give Athena a join token; try again in a minute" (502 `zoom_unavailable`),
   "Athena is busy in another meeting" with a Leave
   button for that meeting, "Meetings aren't set up on the server", and "Update Athena to
@@ -488,6 +490,9 @@ relay routes (SDarioosh/Athena#124, #125) and meetings set up there
   | `POST /api/modules/sound/meetings` | JSON `{link, passcode?, title?}` → 202 `{meeting}`; errors `{detail, code, active?}` (`code`: `bad_link`, `busy` with `active`, `off`, `signin`, `zoom`, `update`, `setup`, `token`, `bot`, `unreachable`, `timeout`) |
   | `GET /api/modules/sound/meetings/{id}` | `{meeting}`: `id, state, reason, active, session_id, meeting_id, title, created_at, started_at, ended_at` and `text` (the state in words) |
   | `DELETE /api/modules/sound/meetings/{id}` | Leave: answers with the final state once the bot has exited (a few seconds) |
+  | `GET /api/modules/sound/zoom-signin` | `{configured, signed_in, join_token, missing}` ([sign-in](#signing-athena-in-to-zoom)) |
+  | `POST /api/modules/sound/zoom-signin/start` | `{url, expires_in}`: Zoom's authorize page (only an `https://…zoom.us` address is passed on); errors `{detail, code}` (`not_configured`, `zoom`, `update`, …) |
+  | `POST /api/modules/sound/zoom-signin/finish` | JSON `{pasted}` (body ≤ 8 KB, text ≤ 4096 characters) → `{ok, signed_in, join_token, …}`; 400 `bad_paste` with Athena's words, 501 `not_configured`, 502 `zoom`, `update` |
 
 - **Module routes it calls**: the meeting routes of the module's MCP HTTP server
   ([below](#uploads-through-the-mcp-server)), with the `convo` server's URL and
@@ -495,6 +500,39 @@ relay routes (SDarioosh/Athena#124, #125) and meetings set up there
   meeting** (one at a time; the module answers `409 busy` over its limit).
 - Code: `src/meeting_bot.py`, routes in `routes/sound_module_routes.py`,
   `static/call-recorder.html`, `static/js/meetingBot.js`; test `tests/test_meeting_bot.py`.
+
+### Signing Athena in to Zoom
+
+Athena joins on the owner's behalf, so it needs the owner's Zoom sign-in once (and again
+when Zoom drops it). The meeting box does this, with no terminal:
+
+- **The line.** When the page opens it reads the sign-in once (no polling) and shows
+  "Athena is signed in to Zoom.", or a **Sign in to Zoom** button when it isn't (never
+  signed in, or expired), with "Sign in once so Athena can join meetings other people
+  host. Meetings you host work without it." Join stays enabled: meetings the owner hosts
+  need no sign-in (Athena's join token mode `none`). A Join that the module refuses with
+  `zoom_signin_needed` shows the button too and reads the sign-in again. When Athena's
+  Zoom app isn't set up, the line names the missing settings: "Athena's Zoom app isn't set
+  up yet: CONVO_ZOOM_CLIENT_ID, … in Athena's server/.env." An Athena without the sign-in
+  routes shows "Update Athena to sign in to Zoom from here".
+- **Signing in.** The button opens a new tab inside the click (cut from the page: no
+  opener) and sends it to Zoom's authorize address that Athena returns; a link to the same
+  address is shown too, for a blocked popup. The box then says: "In the new tab, sign in
+  to Zoom and click Allow. Zoom then opens a page that can't load — that's expected. Copy
+  that page's address from the address bar and paste it here." **Finish** sends the
+  pasted address to Athena, which trades its code with Zoom and keeps the sign-in on its
+  server. On success the line says "Athena is signed in to Zoom.";
+  otherwise it shows Athena's words (an expired attempt, a wrong paste, Zoom refused or
+  unreachable).
+- **Privacy.** The pasted address holds a one-time Zoom code: Odysseus passes it to
+  Athena and keeps or logs nothing of it, nor of the authorize address. Zoom's tokens
+  live only in Athena.
+- **Routes**: the hub routes in the table above, forwarded to Athena's `/zoom/signin…`
+  relay routes ([below](#uploads-through-the-mcp-server)). Needs Athena with the sign-in
+  routes (branch `feature/zoom-signin-routes`).
+- Code: `src/meeting_bot.py` (`signin_status`, `signin_start`, `signin_finish`), routes in
+  `routes/sound_module_routes.py`, `static/js/meetingBot.js`; tests
+  `tests/test_meeting_bot.py`, `tests/test_meeting_bot_js.py`.
 
 ### Send Athena to calendar meetings (auto-join)
 
@@ -533,8 +571,8 @@ owner's behalf and waits for them (up to its waiting limit), then gives up.
 - **Notifications** (the hub's task notifications: toast, browser notification and the
   notification log): on success "Athena is joining "<title>": … Join the meeting too";
   on failure the run fails with the reason in words, e.g. busy in another meeting
-  (started from the box), meetings off on the server, Zoom sign-in missing
-  (`convo-server zoom-login`), or "update Athena".
+  (started from the box), meetings off on the server, Zoom sign-in missing ("sign in to
+  Zoom on the Record a call page"), or "update Athena".
 - **Stored in the hub, not in Athena:** `<DATA_DIR>/meeting_auto_join/<owner>.json`, per
   event series uid: `on`, the task id, the scheduled start, the last occurrence joined and
   the occurrence a busy notice was sent for. Naive-local events are read in the user's
@@ -566,6 +604,7 @@ transcript links) never leaves the module.
 | `GET /health`, `GET /conversations`, `GET /conversations/{id}`, `GET /conversations/{id}/transcript`, `GET /action-items`, `PATCH /action-items/{id}`, `GET /digests/{date}`, `POST /digests/{date}` | the same `/v1` routes (the phone relay's T5 sync); from MCP 0.12.0 a conversation carries `written: {source_id, link, title}` (null for recordings) |
 | `GET /settings/llm`, `PUT /settings/llm` | the same `/v1` routes (Settings → AI Defaults: the summary model) |
 | `POST /meetings`, `GET /meetings?limit=1..100`, `GET /meetings/{id}`, `DELETE /meetings/{id}` | `/v1/meetings…` (SDarioosh/Athena#125; JSON only, ≤ 16 KB; [Sending Athena to a Zoom meeting](#sending-athena-to-a-zoom-meeting)): join with `{url}` or `{meeting_id, passcode}` and optional `title` → 202 `{id, state, session_id}`, 400 bad link, 409 `busy` with `active`, 501 meetings off; state; leave (waits for the bot, up to 30 s) |
+| `GET /zoom/signin`, `POST /zoom/signin/start`, `POST /zoom/signin/finish` | Athena's Zoom sign-in ([Signing Athena in to Zoom](#signing-athena-in-to-zoom); JSON only): status `{configured, signed_in, join_token: obf\|zak\|none, missing}`; start → `{url, expires_in}` (501 when Athena's Zoom app settings are missing); finish `{pasted}` → `{ok, signed_in, join_token}`, 400 `{detail}` in plain words (no or expired attempt, bad paste, Zoom refused), 502 Zoom unreachable, 501 not configured. An older Athena answers 404/405 ("update Athena") |
 
 So the MCP token can add recordings and send Athena's Zoom bot into a meeting. Odysseus finds the module from the `convo` server's
 URL (`/mcp` stripped) and its `access_token` (`src/call_recorder.py`); Odysseus' HTTP MCP
