@@ -440,8 +440,14 @@ for (const paper of ['lined', 'dotted']) await check(`incremental_matches_full_r
     stroke('pen', 2, [[150, 100], [155, 150], [160, 175]], { buttons: 32 });   // barrel: erase across two lines
     stroke('pen', 2, [[400, 110], [380, 260]], { buttons: 32 });
     await settle(100);
-    const read = () => c.getContext('2d').getImageData(0, 0, c.width, c.height).data;
+    const read = (cv = c) => cv.getContext('2d').getImageData(0, 0, cv.width, cv.height).data;
     const shown = read();
+    // The eraser draws on the visible canvas; the pages canvas catches up when it lifts.
+    const pages = read(document.querySelector('.ink-root .ink-base'));
+    let baseDiff = 0;
+    for (let i = 0; i < shown.length; i += 4) {
+      if (Math.abs(shown[i] - pages[i]) + Math.abs(shown[i + 1] - pages[i + 1]) + Math.abs(shown[i + 2] - pages[i + 2]) > 12) baseDiff++;
+    }
     const { sx, sy, zoom } = view._state;
     view.fit();                       // a full redraw of the same note and view
     Object.assign(view._state, { sx, sy, zoom });
@@ -452,10 +458,10 @@ for (const paper of ['lined', 'dotted']) await check(`incremental_matches_full_r
     for (let i = 0; i < shown.length; i += 4) {
       if (Math.abs(shown[i] - full[i]) + Math.abs(shown[i + 1] - full[i + 1]) + Math.abs(shown[i + 2] - full[i + 2]) > 12) diff++;
     }
-    return { diff, strokes: view.strokeCount(), errors: window.errors.slice() };
+    return { diff, baseDiff, strokes: view.strokeCount(), errors: window.errors.slice() };
   }, paper);
   await page.close();
-  return { ok: got.diff < 30 && got.strokes >= 3 && !got.errors.length, ...got };
+  return { ok: got.diff < 30 && got.baseDiff < 30 && got.strokes >= 3 && !got.errors.length, ...got };
 });
 
 // Predicted points are drawn ahead of the pen and taken back on the next update: after

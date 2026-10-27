@@ -377,14 +377,50 @@ function strokePath(ctx, pts, map) {
   ctx.lineTo(lx, ly);
 }
 
-function drawStroke(ctx, stroke, map, k, { opaque = false } = {}) {
+// The pieces of strokePath's curve that come near `box` (screen px), each run of them
+// as one sub-path: a redraw clipped to a small box then doesn't build the whole of a
+// long stroke. The ends of a run lie farther than `pad` (half the line width and a
+// pixel) outside the box, so their round caps never reach into it. Returns whether
+// anything was added.
+export function strokePathNear(ctx, pts, map, box, pad) {
+  const n = pts.length;
+  if (n < 3) { strokePath(ctx, pts, map); return true; }
+  const x0 = box.x0 - pad; const y0 = box.y0 - pad; const x1 = box.x1 + pad; const y1 = box.y1 + pad;
+  const near = (a, b, c) => !(Math.max(a[0], b[0], c[0]) < x0 || Math.min(a[0], b[0], c[0]) > x1
+    || Math.max(a[1], b[1], c[1]) < y0 || Math.min(a[1], b[1], c[1]) > y1);
+  ctx.beginPath();
+  let open = false;
+  let any = false;
+  let prev = map(pts[0]);           // where the next piece starts
+  let cur = map(pts[1]);
+  for (let i = 1; i < n - 1; i++) {
+    const next = map(pts[i + 1]);
+    const end = [(cur[0] + next[0]) / 2, (cur[1] + next[1]) / 2];
+    if (near(prev, cur, end)) {
+      if (!open) { ctx.moveTo(prev[0], prev[1]); open = true; }
+      ctx.quadraticCurveTo(cur[0], cur[1], end[0], end[1]);
+      any = true;
+    } else open = false;
+    prev = end;
+    cur = next;
+  }
+  if (near(prev, cur, cur)) {         // the last piece: a line to the last point
+    if (!open) ctx.moveTo(prev[0], prev[1]);
+    ctx.lineTo(cur[0], cur[1]);
+    any = true;
+  }
+  return any;
+}
+
+function drawStroke(ctx, stroke, map, k, { opaque = false, box = null } = {}) {
   ctx.save();
   ctx.lineCap = 'round';
   ctx.lineJoin = 'round';
   ctx.strokeStyle = stroke.pen.color;
   ctx.lineWidth = Math.max(0.6, stroke.pen.width * k);
   if (stroke.pen.highlighter && !opaque) ctx.globalAlpha = HIGHLIGHT_ALPHA;
-  strokePath(ctx, stroke.points, map);
+  if (!box) strokePath(ctx, stroke.points, map);
+  else if (!strokePathNear(ctx, stroke.points, map, box, ctx.lineWidth / 2 + 1)) { ctx.restore(); return; }
   ctx.stroke();
   ctx.restore();
 }
@@ -654,6 +690,7 @@ export function mountInk(root, options = {}) {
       const d = dirty;
       dirty = null;
       if (d === 'all') renderNow();
+      else if (d && state.live && state.live.eraser) renderErase(d);
       else if (d) renderPart(d);
     });
   }
@@ -728,10 +765,9 @@ export function mountInk(root, options = {}) {
     paperKey = key;
   }
 
-  // Draw the pages into `base`: all of it, or only inside `box` (a box on whole device
-  // pixels: see snapBox).
-  function drawScene(box) {
-    const ctx = bctx;
+  // Draw the pages into `base` (or `ctx`): all of it, or only inside `box` (a box on
+  // whole device pixels: see snapBox).
+  function drawScene(box, ctx = bctx) {
     ctx.save();
     ctx.setTransform(dpr, 0, 0, dpr, 0, 0);
     if (box) clipRect(ctx, box);
@@ -832,7 +868,7 @@ export function mountInk(root, options = {}) {
         mctx.save();
         clipRect(mctx, rect);
         const map = (p) => toScreen(p[0], p[1] + y0);
-        for (const st of list) drawStroke(mctx, st, map, k, { opaque: true });
+        for (const st of list) drawStroke(mctx, st, map, k, { opaque: true, box });
         mctx.restore();
       }
       mctx.restore();
@@ -846,7 +882,7 @@ export function mountInk(root, options = {}) {
       ctx.save();
       clipRect(ctx, rect);
       const map = (p) => toScreen(p[0], p[1] + y0);
-      for (const st of page.strokes) if (!st.pen.highlighter && wanted(st, y0)) drawStroke(ctx, st, map, k);
+      for (const st of page.strokes) if (!st.pen.highlighter && wanted(st, y0)) drawStroke(ctx, st, map, k, { box });
       ctx.restore();
     }
   }
@@ -855,6 +891,7 @@ export function mountInk(root, options = {}) {
     // Opaque: the stage's own background (a theme color) around the pages.
     bg = getComputedStyle(stage).backgroundColor || bg;
     dirty = null;
+    baseStale = null;
     drawScene(null);
     if (!panning) present(); // while panning `base` itself is on screen
   }
@@ -883,6 +920,24 @@ export function mountInk(root, options = {}) {
     stage.classList.remove('ink-panning');
   }
 
+  // While the eraser moves, what it took is redrawn straight onto the visible canvas
+  // (paper from its cache, then the ink), and `base` is left as it was until the pen
+  // lifts (syncBase). Copying from a canvas that changes every frame is what the pen
+  // never does: on some GPUs each such copy reads the whole canvas back.
+  let baseStale = null;          // screen box where `base` still shows erased strokes
+  function renderErase(rough) {
+    const box = snapBox(rough);
+    drawScene(box, lctx);
+    baseStale = unionBox(baseStale, box);
+    drawRing(state.live);
+  }
+  function syncBase() {
+    if (!baseStale) return;
+    const box = baseStale;
+    baseStale = null;
+    drawScene(box);
+  }
+
   function renderPart(rough) {
     const box = snapBox(rough);
     drawScene(box);
@@ -904,6 +959,7 @@ export function mountInk(root, options = {}) {
   // caller redrawing on top must cover exactly that box.
   function presentBox(box) {
     if (!box) return null;
+    syncBase();
     const x = Math.max(0, Math.floor(box.x0 * dpr) - 1);
     const y = Math.max(0, Math.floor(box.y0 * dpr) - 1);
     const x1 = Math.min(live.width, Math.ceil(box.x1 * dpr) + 1);
@@ -918,6 +974,7 @@ export function mountInk(root, options = {}) {
 
   // The whole visible canvas: the pages, then the stroke being drawn (or the eraser ring).
   function present() {
+    syncBase();
     lctx.setTransform(1, 0, 0, 1, 0, 0);
     lctx.drawImage(base, 0, 0);
     lctx.setTransform(dpr, 0, 0, dpr, 0, 0);
@@ -1053,7 +1110,7 @@ export function mountInk(root, options = {}) {
     lv.tailBox = { x0: x0 - pad, y0: y0 - pad, x1: x1 + pad, y1: y1 + pad };
   }
 
-  // The eraser ring under the pen; the previous one is taken back first.
+  // The eraser ring under the pen, drawn over the pages just redrawn (see liveEraser).
   function drawRing(lv) {
     if (!lv.cursor) return;
     const [x, y] = toScreen(lv.cursor[0], lv.cursor[1] + pageTop(lv.pageIndex));
@@ -1067,9 +1124,13 @@ export function mountInk(root, options = {}) {
     lctx.restore();
     lv.ringBox = { x0: x - ERASER_PX - 2, y0: y - ERASER_PX - 2, x1: x + ERASER_PX + 2, y1: y + ERASER_PX + 2 };
   }
+  // The ring moves with the strokes it takes, in the frame's one redraw (renderErase):
+  // the old ring's box and the new one's are redrawn with the rest.
   function liveEraser(lv) {
-    if (lv.ringBox) presentBox(lv.ringBox);
-    drawRing(lv);
+    if (!lv.cursor) return;
+    const [x, y] = toScreen(lv.cursor[0], lv.cursor[1] + pageTop(lv.pageIndex));
+    const at = { x0: x - ERASER_PX - 2, y0: y - ERASER_PX - 2, x1: x + ERASER_PX + 2, y1: y + ERASER_PX + 2 };
+    renderBox(unionBox(lv.ringBox, at));
   }
 
   // ------------------------------------------------------------- input
