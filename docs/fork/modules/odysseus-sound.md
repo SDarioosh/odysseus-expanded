@@ -66,6 +66,24 @@ Source: `server/convo_server/mcp_server.py` (`build_mcp`).
   on device `handwriting`. Text results mark it, its facts and its action items
   `(written by hand: <link>)` instead of `(voice note)`, where `<link>` is the note in the
   hub (`<hub>/#open=notes&note=<id>`).
+- Zoom meetings (MCP 0.16.0, additive): a conversation recorded by Athena's Zoom bot
+  ([Sending Athena to a Zoom meeting](#sending-athena-to-a-zoom-meeting), once that
+  section lands) is marked `(Zoom meeting: <topic>)` after its title, or `(Zoom meeting)`
+  without a topic. The mark shows in `search_conversations`, `get_conversation`,
+  `search_transcripts`, and in text `list_action_items` and `list_facts`.
+  - `search_conversations` adds `; participants: A, B, …`: everyone in the meeting,
+    including people who never spoke.
+  - `get_conversation` adds `Participants: Name (HH:MM–HH:MM), …`.
+  - A line typed in the meeting chat reads `<name> (chat): …` in `get_transcript`,
+    `search_transcripts` and the transcript page.
+  - JSON fact rows (`list_facts(format="json")`) and action-item rows
+    (`list_action_items(format="json")`) have `source`: `"meeting"` when they come from a
+    Zoom meeting, else `null`. Treat an unknown value as null.
+  - No tool, argument, annotation, link format or auth changed. The bot's own
+    `POST /v1/sessions/{id}/chat` is a module-internal ingest route on Athena's API: not
+    a relay route and not a tool.
+  - For "who was in the X meeting", call `search_conversations` with the topic words and
+    answer from its participants.
 - `list_unnamed_speakers` lists voices nobody has named yet ("Speaker N") with a few
   quotes, links and the closest known voice; for "who is this?" questions and cards.
 - Dates are `YYYY-MM-DD` in `CONVO_TIMEZONE`.
