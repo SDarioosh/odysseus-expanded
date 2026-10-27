@@ -98,12 +98,14 @@ INFO = ("File Athena action items from voice notes into the calendar, to-dos and
         "daily digest to the phone via ntfy. Reads them through the module's MCP tools.")
 MAX_PUSHED_ITEMS = 5
 
-# One line of Athena's list_action_items result, e.g.
+# One line of Athena's list_action_items result (the title may be followed by
+# "(voice note)" or "(written by hand: <hub link>)"), e.g.
 # - #12 [open] Send Alice the spreadsheet (owner Me) due 2026-09-19 (Friday) — from
 #   "Q4 budget" 2026-09-15 10:00 http://host:8000/view/abc?sig=...#t=40
 _LINE = re.compile(
     r"^- #(?P<id>\d+) \[(?P<status>open|done|dismissed)\] (?P<rest>.*) — from "
-    r"\"(?P<title>.*)\"(?: \(voice note\))? (?P<when>\d{4}-\d{2}-\d{2} \d{2}:\d{2}) (?P<link>\S+)$")
+    r"\"(?P<title>.*)\"(?: \(voice note\)| \(written by hand: https?://[^\s)]+\))? "
+    r"(?P<when>\d{4}-\d{2}-\d{2} \d{2}:\d{2}) (?P<link>\S+)$")
 _DUE_DATE = re.compile(r" due (?P<date>\d{4}-\d{2}-\d{2})(?: \((?P<said>[^)]*)\))?$")
 # the last " due ": the item text itself may say "due" ("Check the due date")
 _DUE_TEXT = re.compile(r" due (?P<said>(?:(?! due ).)+)$")

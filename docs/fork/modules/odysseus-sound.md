@@ -454,6 +454,12 @@ module answers 404 and the Text tab says "update Athena".
   reviewed for its strokes as they are now. A resend (after an edit is reviewed) replaces
   the note; Athena keeps the ids of facts and to-dos said again and drops the others,
   which the hourly facts job then retires in the hub.
+- **Reading them back.** In MCP text a written note's title is followed by `(written by
+  hand: <hub link>)` instead of `(voice note)`; `src/sound_module_view.py` and the text
+  fallback of `src/module_action_items.py` read both. The **Conversations** tab of
+  `/modules/sound` lists written notes as "Written by hand", with a link back to the
+  note; its type filter **Notes (spoken or written)** (`kind="note"`) shows voice and
+  written notes.
 - A note deleted in the hub is removed from the module with `DELETE /ingest/text/{source_id}`:
   at once from Write, otherwise by the sweep at the start of the hourly **Module Facts**
   run and when Write lists notes. Its strokes stay until the module answers `deleted` or

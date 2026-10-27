@@ -1113,3 +1113,13 @@ async def test_emptied_voice_notes_list_is_archived(hub):
 
 
 VOICE = bai.VOICE_LIST
+
+
+def test_parse_action_item_from_a_note_written_by_hand():
+    # Athena MCP 0.12.0 marks a note written in the hub after its title
+    link = "http://hub.example.ts.net:7010/#open=notes&note=0b7c1e2a"
+    items = bai.parse_action_items(
+        '- #30 [open] Plant tulips due 2026-10-31 (Saturday) — from "Garden" '
+        f"(written by hand: {link}) 2026-10-26 20:21 http://h:8000/view/w1?sig=a#t=1")
+    assert [(i.id, i.text, i.due_date, i.conversation) for i in items] == [
+        (30, "Plant tulips", "2026-10-31", "Garden")]
