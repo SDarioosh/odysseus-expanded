@@ -265,7 +265,8 @@ Pitfalls met during the switch:
   `ghcr.io/odysseus-dev/odysseus` and only builds locally if the pull fails. The override
   selects `odysseus-fork:current` with `pull_policy: never`.
 - **Variables reach the container only if listed.** `ODYSSEUS_TRUSTED_READONLY_MCP` is
-  not in upstream's `environment:` list, so it lives in the override.
+  not in upstream's `environment:` list, so it lives in the override. So does
+  `INK_AUTO_SEND` (handwritten notes, off unless `.env` sets it to `1`).
 - **Stay in the same folder.** Compose names volumes (ChromaDB, ntfy, SearXNG) after the
   folder; a new checkout elsewhere starts with empty ones.
 - **Ports go in `.env`.** The fallback port is 7011, and a `ports:` entry in the override

@@ -74,10 +74,12 @@ _Last updated: 2026-10-22_
    SDarioosh/Barvis#9 upstream
    ([upstream-sync.md](upstream-sync.md#sending-fixes-upstream)); weekly syncs.
 
-9. **Handwritten notes** (H1 to H4 built; H5 measure and H6 later are next). Write with
+9. **Handwritten notes** (H1 to H6 built; next: the owner's H5 numbers decide whether
+   `INK_AUTO_SEND` is turned on). Write with
    a stylus on a tablet in the PWA (Lenovo Tab Plus), keep the strokes, transcribe with
    the server's vision model, review each page by hand, and send the text to Athena as a
-   written note (replaced when the note is edited and sent again). Plan, phases and open
+   written note (replaced when the note is edited and sent again). Paper pages can be
+   photographed in. Plan, phases and open
    questions:
    [handwritten-notes.md](handwritten-notes.md).
 
