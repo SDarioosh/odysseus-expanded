@@ -36,6 +36,10 @@ The same page's "Send Athena to a meeting" box (``static/js/meetingBot.js``) cal
 ``GET /api/modules/sound/meetings/{id}`` (state) and ``DELETE /api/modules/sound/meetings/{id}``
 (leave). They check the link and forward to the meeting routes of the module's MCP HTTP
 server (``src/meeting_bot.py``); the writes need the ``X-Odysseus-Recorder`` header too.
+Its Zoom sign-in line calls ``GET /api/modules/sound/zoom-signin`` (signed in or not),
+``POST /api/modules/sound/zoom-signin/start`` (Zoom's authorize address, opened in a new
+tab) and ``POST /api/modules/sound/zoom-signin/finish`` {pasted} (the address Zoom opened),
+forwarded the same way; the two writes need the header too.
 
 The calendar's event form (``static/js/forkMeetingAutoJoin.js``) reads and sets an event's
 **Send Athena** toggle with ``GET``/``PUT /api/modules/sound/auto-join`` (``uid``; ``{uid, on}``,
@@ -57,6 +61,7 @@ from __future__ import annotations
 
 import asyncio
 import inspect
+import json
 import logging
 import os
 from typing import Annotated, Any
@@ -112,6 +117,9 @@ class JoinMeeting(BaseModel):
     link: str = Field(default="", max_length=meetings.MAX_INPUT_CHARS)
     passcode: str | None = Field(default=None, max_length=meetings.MAX_PASSCODE_CHARS)
     title: str | None = Field(default=None, max_length=400)  # checked by meeting_bot (400)
+
+
+ZOOM_FINISH_MAX_BYTES = 8 * 1024  # POST /api/modules/sound/zoom-signin/finish
 
 
 class AutoJoin(BaseModel):
@@ -452,6 +460,51 @@ def setup_sound_module_routes() -> APIRouter:
         _recorder_header(x_odysseus_recorder)
         try:
             return {"meeting": await meetings.leave(meetings.resolve(), meeting_id)}
+        except meetings.MeetingError as exc:
+            return JSONResponse(exc.body(), status_code=exc.status)
+
+    # ---------------------------------- sign Athena in to Zoom (src/meeting_bot.py)
+    @router.get("/api/modules/sound/zoom-signin", dependencies=[Depends(require_admin)])
+    async def zoom_signin_status():
+        try:
+            return await meetings.signin_status(meetings.resolve())
+        except meetings.MeetingError as exc:
+            return JSONResponse(exc.body(), status_code=exc.status)
+
+    @router.post("/api/modules/sound/zoom-signin/start", dependencies=[Depends(require_admin)])
+    async def zoom_signin_start(x_odysseus_recorder: Annotated[str | None, Header()] = None):
+        _recorder_header(x_odysseus_recorder)
+        try:
+            return await meetings.signin_start(meetings.resolve())
+        except meetings.MeetingError as exc:
+            return JSONResponse(exc.body(), status_code=exc.status)
+
+    @router.post("/api/modules/sound/zoom-signin/finish", dependencies=[Depends(require_admin)])
+    async def zoom_signin_finish(request: Request,
+                                 x_odysseus_recorder: Annotated[str | None, Header()] = None):
+        _recorder_header(x_odysseus_recorder)
+        # Read by hand, capped, so the pasted code is never echoed in a validation error.
+        try:
+            declared = int(request.headers.get("content-length") or 0)
+        except ValueError:
+            declared = 0
+        if declared > ZOOM_FINISH_MAX_BYTES:
+            raise HTTPException(413, "That's too long: paste only the address.")
+        raw = b""
+        async for part in request.stream():
+            raw += part
+            if len(raw) > ZOOM_FINISH_MAX_BYTES:
+                raise HTTPException(413, "That's too long: paste only the address.")
+        try:
+            body = json.loads(raw or b"{}")
+        except ValueError:
+            body = None
+        pasted = body.get("pasted") if isinstance(body, dict) else None
+        if not isinstance(pasted, str):
+            return JSONResponse({"detail": "Send JSON {\"pasted\": \"…\"}.",
+                                 "code": "bad_paste"}, status_code=400)
+        try:
+            return await meetings.signin_finish(meetings.resolve(), pasted)
         except meetings.MeetingError as exc:
             return JSONResponse(exc.body(), status_code=exc.status)
 
