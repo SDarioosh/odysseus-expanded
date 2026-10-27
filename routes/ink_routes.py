@@ -44,6 +44,16 @@ Stage H4, into Athena (``src/ink_athena.py``):
 * ``DELETE`` above also removes a sent note from Athena (``athena``: ``deleted``,
   ``already`` or ``pending``, retried by the sweep); listing notes runs the sweep.
 
+Stage H6, photos of paper pages (``src/ink_notes.py`` ``add_photos``):
+
+* ``POST /api/ink/notes/{id}/photos`` (multipart): ``photos`` (one or more files, JPEG,
+  PNG or WebP, at most ``ink.MAX_PHOTOS_PER_UPLOAD`` of ``ink.MAX_PHOTO_BYTES`` each),
+  optional ``edited_at`` (ms), ``after`` (a page id: the photos go after it, else at the
+  end), ``title`` and ``paper`` (used when this creates the note). Each photo becomes a
+  page; answers the stored note like ``GET``. 400 not an image, 410 deleted, 411 no
+  ``Content-Length``, 413 too large or the note full.
+* ``GET /api/ink/notes/{id}/photos/{page_id}``: the stored photo (JPEG) of a photo page.
+
 Any signed-in user, for their own notes, like upstream's notes routes
 (``require_user``; API tokens are refused). Another user's note id is a 404.
 """
@@ -56,7 +66,7 @@ import re
 from typing import Any
 
 from fastapi import APIRouter, BackgroundTasks, HTTPException, Request
-from fastapi.responses import JSONResponse
+from fastapi.responses import FileResponse, JSONResponse
 
 from src import ink_athena as athena
 from src import ink_notes as ink
@@ -77,6 +87,8 @@ def _check_id(note_id: str) -> None:
 
 _PAGE_ID = re.compile(r"^[A-Za-z0-9_-]{1,64}$")
 MAX_REVIEW_BODY = 256 * 1024
+# H6: every photo of one upload at its largest, plus the form around them.
+MAX_PHOTO_BODY = ink.MAX_PHOTOS_PER_UPLOAD * ink.MAX_PHOTO_BYTES + 64 * 1024
 
 
 async def _json_body(request: Request, limit: int) -> dict[str, Any]:
@@ -190,6 +202,53 @@ def setup_ink_routes() -> APIRouter:
             return await athena.send(owner, note_id, request_base=str(request.base_url))
         except ink.InkError as exc:
             raise HTTPException(exc.status, str(exc)) from None
+
+    @router.post("/notes/{note_id}/photos")
+    async def add_photos(request: Request, note_id: str):
+        owner = _owner(request)
+        _check_id(note_id)
+        length = request.headers.get("content-length") or ""
+        if not length.isdigit():
+            raise HTTPException(411, "The upload needs a Content-Length")
+        if int(length) > MAX_PHOTO_BODY:
+            raise HTTPException(413, "The upload is too large")
+        if not (request.headers.get("content-type") or "").startswith("multipart/form-data"):
+            raise HTTPException(400, "Send the photos as multipart/form-data")
+        form = await request.form(max_files=ink.MAX_PHOTOS_PER_UPLOAD, max_fields=16,
+                                  max_part_size=64 * 1024)
+        try:
+            files = [v for k, v in form.multi_items() if k == "photos" and not isinstance(v, str)]
+            if not files:
+                raise HTTPException(400, "No photo was sent")
+            fields = {k: v for k, v in form.multi_items() if isinstance(v, str)}
+            edited = fields.get("edited_at") or "0"
+            if not (edited.isascii() and edited.isdigit()):
+                raise HTTPException(400, "edited_at must be a number")
+            prepared = []
+            for upload in files:
+                data = await upload.read(ink.MAX_PHOTO_BYTES + 1)
+                prepared.append(await asyncio.to_thread(ink.prepare_photo, data))
+            return await asyncio.to_thread(
+                ink.add_photos, owner, note_id, prepared, edited_at=int(edited),
+                after=fields.get("after") or None, title=fields.get("title"),
+                paper=fields.get("paper"))
+        except ink.InkError as exc:
+            raise HTTPException(exc.status, str(exc)) from None
+        finally:
+            await form.close()
+
+    @router.get("/notes/{note_id}/photos/{page_id}")
+    async def get_photo(request: Request, note_id: str, page_id: str):
+        owner = _owner(request)
+        _check_id(note_id)
+        if not _PAGE_ID.match(page_id):
+            raise HTTPException(404, "Photo not found")
+        path = await asyncio.to_thread(ink.photo_file, owner, note_id, page_id)
+        if path is None:
+            raise HTTPException(404, "Photo not found")
+        # A page's photo never changes (a new photo is a new page).
+        return FileResponse(path, media_type="image/jpeg", headers={
+            "Cache-Control": "private, max-age=3600", "X-Content-Type-Options": "nosniff"})
 
     return router
 

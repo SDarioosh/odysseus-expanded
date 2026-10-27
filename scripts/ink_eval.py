@@ -247,6 +247,8 @@ def collect_pairs(owners: Sequence[str | None], *, include_photos: bool = False,
                 if why:
                     skipped[why] += 1
                     continue
+                if ink.is_photo(page):  # read from its file, as a transcription run does
+                    page = {**page, "_photo": str(ink.photo_path(owner, note_id, page["id"]))}
                 text, model = stored_machine(page)
                 pairs.append(Pair(owner, note_id, str(page.get("id")), i, page,
                                   page["transcript"]["text"], text, model))

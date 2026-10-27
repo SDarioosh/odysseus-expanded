@@ -40,6 +40,12 @@ How a page is read:
    follow what the page says, answer JSON ``{"text"}`` (:func:`default_reader`).
 4. The bands are joined and stored as ``machine``.
 
+A photo page (H6, ``ink.is_photo``) is read the same way from its photo instead of its
+strokes: at most ``RENDER_PX`` wide, in colour, cut into tiles at most ``PHOTO_BAND``
+page units tall at the quietest row (fewest dark pixels); where no row is blank the two
+tiles overlap by ``PHOTO_OVERLAP`` on each side and the seam is joined like a forced cut
+(:func:`photo_bands`). Each tile's question says it is a photo of a paper page.
+
 The job is an asyncio task started by the routes (a Transcribe button, or the Write view
 leaving a changed page), not a scheduled task. Bands are read one at a time across the
 whole hub (one GPU, shared with chat), and the default reader lets a running chat finish
@@ -71,6 +77,9 @@ PAD = 24                              # page units of paper around a band
 LINE_JOIN = 10                        # strokes closer than this vertically are one line
 PARAGRAPH_GAP = 80                    # a gap this tall between bands is a blank line
 SEAM_LINES = 3                        # lines at most that both bands of a cut can hold
+PHOTO_BAND = 700                      # page units per tile of a photo page (H6)
+PHOTO_OVERLAP = 40                    # page units on each side of a cut through writing
+PHOTO_QUIET = 0.004                   # a row with at most this share of dark pixels is blank
 MAX_PAGE_TEXT = 20_000                # characters kept per page (model or owner)
 UNREADABLE = "[?]"
 AUTO_SEND_ENV = "INK_AUTO_SEND"       # truthy: clean pages are accepted and sent unreviewed
@@ -94,6 +103,8 @@ PROMPT = (
     'Answer with JSON only: {"text": "<the transcription>"}. If the image has no '
     'writing, answer {"text": ""}.'
 )
+PHOTO_HINT = (" This is a photo of a paper page: copy the text on the paper, handwritten "
+              "or printed, and leave out anything around the paper.")
 RETRY = 'Answer again with JSON only, exactly {"text": "<the transcription>"}.'
 
 # Words some models write for an unreadable word instead of [?].
@@ -111,7 +122,8 @@ def _ink_strokes(page: dict[str, Any]) -> list[dict[str, Any]]:
 
 
 def has_ink(page: dict[str, Any]) -> bool:
-    return bool(_ink_strokes(page))
+    """Something to read: ink strokes, or a photo (H6)."""
+    return bool(_ink_strokes(page)) or ink.is_photo(page)
 
 
 def writing_hash(page: dict[str, Any]) -> str:
@@ -201,9 +213,11 @@ def cut_bands(page: dict[str, Any], max_band: float = MAX_BAND
 
 def page_bands(page: dict[str, Any], *, width_px: int = RENDER_PX) -> list[dict[str, Any]]:
     """PNG bands of a page for the model: ``[{"png", "top", "bottom", "overlap"}]``
-    (page units). Empty for a page without ink."""
+    (page units). Empty for a page without ink. A photo page: :func:`photo_bands`."""
     from PIL import Image
 
+    if ink.is_photo(page):
+        return photo_bands(page, width_px=width_px)
     bands = cut_bands(page)
     if not bands:
         return []
@@ -218,15 +232,87 @@ def page_bands(page: dict[str, Any], *, width_px: int = RENDER_PX) -> list[dict[
     return out
 
 
+def dark_rows(img) -> list[float]:
+    """Per pixel row of a photo, the share of dark pixels (after autocontrast), 0..1."""
+    from PIL import Image, ImageOps
+
+    gray = img.convert("L")
+    gray = gray.resize((min(400, gray.width), gray.height), Image.BILINEAR)
+    gray = ImageOps.autocontrast(gray, cutoff=1)
+    dark = gray.point(lambda v: 255 if v < 100 else 0)
+    column = dark.resize((1, dark.height), Image.BOX)  # the mean of each row
+    return [v / 255.0 for v in column.tobytes()]
+
+
+def photo_cuts(rows: list[float], band: float, overlap: float,
+               quiet: float = PHOTO_QUIET) -> list[tuple[int, int, bool]]:
+    """``(top, bottom, overlaps_previous)`` tiles in pixel rows covering a photo whose
+    rows have the dark shares ``rows``. Each cut is at the quietest row in the lower
+    part of a tile; a blank row is cut cleanly, otherwise the tiles overlap by
+    ``overlap`` on each side, so a line cut through is whole in both."""
+    n = len(rows)
+    band, overlap = int(band), int(overlap)
+    if band <= 4 * overlap:  # a forced cut would barely move down the photo
+        raise ValueError("band must be more than 4 x overlap")
+
+    def busy(y: int) -> float:  # a row and its neighbours: a stroke thinner than that
+        return sum(rows[max(0, y - 2):y + 3])
+
+    out: list[tuple[int, int, bool]] = []
+    top, joined = 0, False
+    while n - top > band:
+        lo, hi = top + int(band * 0.55), top + band - overlap
+        best = min(range(lo, hi + 1), key=lambda y: (busy(y), hi - y))
+        if busy(best) <= quiet * 5:
+            out.append((top, best, joined))
+            top, joined = best, False
+        else:
+            out.append((top, best + overlap, joined))
+            top, joined = best - overlap, True
+    out.append((top, n, joined))
+    return out
+
+
+def photo_bands(page: dict[str, Any], *, width_px: int = RENDER_PX) -> list[dict[str, Any]]:
+    """JPEG tiles of a photo page (H6): ``[{"png" (the bytes), "mime", "top", "bottom",
+    "overlap", "photo"}]``, top and bottom in page units (the photo ``PAGE_WIDTH``
+    wide). The photo is read from ``page["_photo"]`` (set by :func:`_prepare`), in
+    colour, scaled down to ``width_px`` wide (never up). Raises when it is missing."""
+    from PIL import Image
+
+    path = page.get("_photo")
+    if not path:
+        raise ValueError("the photo of this page is missing")
+    try:
+        with Image.open(path) as img:
+            img = img.convert("RGB")
+    except OSError:
+        raise ValueError("the photo of this page is missing") from None
+    if img.width > width_px:
+        img = img.resize((width_px, max(1, round(img.height * width_px / img.width))),
+                         Image.LANCZOS)
+    units = float(page.get("width") or ink.PAGE_WIDTH) / img.width  # page units per px
+    cuts = photo_cuts(dark_rows(img), PHOTO_BAND / units, PHOTO_OVERLAP / units)
+    out = []
+    for top, bottom, overlap in cuts:
+        buf = io.BytesIO()
+        img.crop((0, top, img.width, bottom)).save(buf, format="JPEG", quality=90)
+        out.append({"png": buf.getvalue(), "mime": "image/jpeg", "top": top * units,
+                    "bottom": bottom * units, "overlap": overlap, "photo": True})
+    return out
+
+
 # ------------------------------------------------------------------- the model
-def band_messages(png: bytes, index: int, count: int) -> list[dict]:
+def band_messages(png: bytes, index: int, count: int, *, mime: str = "image/png",
+                  photo: bool = False) -> list[dict]:
     data = base64.b64encode(png).decode("ascii")
     where = f" (part {index + 1} of {count}, top to bottom)" if count > 1 else ""
+    hint = PHOTO_HINT if photo else ""
     return [
         {"role": "system", "content": PROMPT},
         {"role": "user", "content": [
-            {"type": "text", "text": f"Transcribe this handwriting{where}."},
-            {"type": "image_url", "image_url": {"url": f"data:image/png;base64,{data}"}},
+            {"type": "text", "text": f"Transcribe this handwriting{where}.{hint}"},
+            {"type": "image_url", "image_url": {"url": f"data:{mime};base64,{data}"}},
         ]},
     ]
 
@@ -299,7 +385,9 @@ async def read_page(page: dict[str, Any], reader: Reader) -> str:
     bands = await asyncio.to_thread(page_bands, page)
     parts = []
     for i, band in enumerate(bands):
-        messages = band_messages(band["png"], i, len(bands))
+        messages = band_messages(band["png"], i, len(bands),
+                                 mime=band.get("mime", "image/png"),
+                                 photo=bool(band.get("photo")))
         async with _gpu():
             text = None
             for attempt in range(2):
@@ -504,6 +592,7 @@ def page_view(page: dict[str, Any], index: int) -> dict[str, Any]:
     out = {"id": page.get("id"), "index": index, "status": status, "text": text,
            "model": t.get("model"), "at": t.get("at"),
            "error": error if status == "failed" else None, "ink": has_ink(page),
+           "photo": ink.is_photo(page),
            "changed": changed, "unreadable": text.count(UNREADABLE),
            "auto": status == "reviewed" and bool(t.get("auto"))}
     prev = t.get("previous")
@@ -630,7 +719,10 @@ def _prepare(owner: str | None, note_id: str, page_ids: list[str] | None,
             t = _transcript(page)
             _keep_reviewed(t)
             t.update(status="pending", job=job, error=None, reading=writing_hash(page))
-            snapshot.append(json.loads(json.dumps(page)))
+            copy = json.loads(json.dumps(page))
+            if ink.is_photo(page):  # H6: the run reads the photo from its file
+                copy["_photo"] = str(ink.photo_path(store, note_id, page["id"]))
+            snapshot.append(copy)
         if job:
             _RUNNING.add(job)
         if empty or work:

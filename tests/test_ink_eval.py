@@ -129,13 +129,14 @@ def _stroke(y, sid):
 def _page(pid, text, *, status="reviewed", machine=None, lines=2, stale=False, **extra):
     page = {"id": pid, "width": 1000, "height": 1414,
             "strokes": [_stroke(150 + 44 * k, f"{pid}-{k}") for k in range(lines)]}
+    transcript = extra.pop("transcript", {})
+    page.update(extra)  # a photo is part of the page's writing hash (H6)
     h = tr.writing_hash(page)
     t = {"text": text, "model": None, "status": status, "strokes_hash": h, "at": "x"}
     if machine is not None:
         t["machine"] = {"text": machine, "model": "fake-vl", "at": "w", "strokes_hash": h}
-    t.update(extra.pop("transcript", {}))
+    t.update(transcript)
     page["transcript"] = t
-    page.update(extra)
     if stale:
         page["strokes"].append(_stroke(500, f"{pid}-new"))
     return page
