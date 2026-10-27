@@ -482,18 +482,32 @@ function convCard(c) {
       handwrittenLink(c.written_link)));
 }
 
-async function loadList() {
-  const box = $('#bs-list');
+// The three list tabs: recorded conversations, voice notes, notes written by hand in
+// Write. Each has its own search form and list.
+const LISTS = {
+  conversations: { kind: 'conversation', empty: 'No conversations found.' },
+  voice: { kind: 'voice', empty: 'No voice notes found.' },
+  written: { kind: 'written', empty: 'No written notes found.' },
+};
+
+// One list tab, or all of them.
+async function loadList(name = null) {
+  if (!name) {
+    await Promise.all(Object.keys(LISTS).map((n) => loadList(n)));
+    return;
+  }
+  const box = $(`#bs-list-${name}`);
   const params = new URLSearchParams();
-  for (const [k, v] of new FormData($('#bs-filter')).entries()) {
+  for (const [k, v] of new FormData($(`#bs-filter-${name}`)).entries()) {
     if (String(v).trim()) params.set(k, String(v).trim());
   }
+  params.set('kind', LISTS[name].kind);
   params.set('limit', '30');
   status(box, 'Loading…');
   try {
     const { conversations } = await api(`/api/modules/sound/conversations?${params}`);
     if (!conversations.length) {
-      status(box, params.get('kind') === 'note' ? 'No notes found.' : 'No conversations found.');
+      status(box, LISTS[name].empty);
       return;
     }
     box.replaceChildren(...conversations.map(convCard));
@@ -874,7 +888,8 @@ async function loadReader(id, keepPages = 1, seekT = null) {
 function showReader(id, t = null) {
   if (!VALID_ID.test(id || '')) {
     showHome();
-    status($('#bs-list'), 'That conversation link is not valid.', true);
+    showTab('conversations');
+    status($('#bs-list-conversations'), 'That conversation link is not valid.', true);
     return;
   }
   const changed = id !== reader.id;
@@ -925,7 +940,7 @@ function route() {
 }
 
 // ---------------------------------------------------------------------- tabs
-const TABS = ['conversations', 'items', 'who'];
+const TABS = ['conversations', 'voice', 'written', 'items', 'who'];
 
 function showTab(name, focus = false) {
   if (!TABS.includes(name)) name = 'conversations';
@@ -944,6 +959,10 @@ function showTab(name, focus = false) {
 
 const TAB_ICON = {
   conversations: KIND_ICON.note.replace(/width="14" height="14"/, 'width="12" height="12"'),
+  voice: _ICON('<rect x="9" y="2" width="6" height="12" rx="3"/><path d="M5 10a7 7 0 0 0 14 0"/>'
+    + '<line x1="12" y1="17" x2="12" y2="21"/>').replace(/width="14" height="14"/, 'width="12" height="12"'),
+  written: _ICON('<path d="M12 20h9"/><path d="M16.5 3.5a2.12 2.12 0 0 1 3 3L7 19l-4 1 1-4z"/>')
+    .replace(/width="14" height="14"/, 'width="12" height="12"'),
   items: KIND_ICON.task.replace(/width="14" height="14"/, 'width="12" height="12"'),
   who: _ICON('<path d="M20 21v-2a4 4 0 0 0-4-4H8a4 4 0 0 0-4 4v2"/><circle cx="12" cy="7" r="4"/>')
     .replace(/width="14" height="14"/, 'width="12" height="12"'),
@@ -957,16 +976,14 @@ function tabButton(name, label) {
 }
 
 function buildView() {
-  const filter = el('form', { className: 'bs-filters', id: 'bs-filter' },
+  const filter = (name) => el('form', { className: 'bs-filters', id: `bs-filter-${name}`,
+                                        'data-list': name },
     el('input', { className: 'bs-input', name: 'query', placeholder: 'Words', 'aria-label': 'Words' }),
     el('input', { className: 'bs-input', name: 'person', placeholder: 'Person', 'aria-label': 'Person' }),
     el('input', { className: 'bs-input', name: 'since', type: 'date', 'aria-label': 'From' }),
     el('input', { className: 'bs-input', name: 'until', type: 'date', 'aria-label': 'To' }),
-    el('select', { className: 'bs-input', name: 'kind', 'aria-label': 'Type' },
-      el('option', { value: '' }, 'All recordings'),
-      el('option', { value: 'conversation' }, 'Conversations'),
-      el('option', { value: 'note' }, 'Notes (spoken or written)')),
     el('button', { type: 'submit', className: 'bs-btn primary' }, 'Search'));
+  const list = (name) => panel(name, filter(name), el('div', { id: `bs-list-${name}` }, loading()));
   const panel = (name, ...children) => el('div', { role: 'tabpanel', id: `bs-panel-${name}`,
                                                     'aria-labelledby': `bs-tab-${name}`, hidden: '' },
     ...children);
@@ -974,14 +991,15 @@ function buildView() {
   const home = el('div', { className: 'bs-home' },
     el('div', { className: 'bs-bar' },
       el('div', { className: 'bs-tabs', role: 'tablist', 'aria-label': 'Conversations sections' },
-        tabButton('conversations', 'Conversations'), tabButton('items', 'Action items'),
+        tabButton('conversations', 'Conversations'), tabButton('voice', 'Voice notes'),
+        tabButton('written', 'Written notes'), tabButton('items', 'Action items'),
         tabButton('who', 'Who is this?')),
       el('div', { className: 'bs-bar-end' },
         el('a', { className: 'bs-btn', href: '/modules/sound/record' }, 'Record a call'),
         el('a', { className: 'bs-btn', href: '/modules/sound/pair' }, 'Pair a phone'),
         el('button', { type: 'button', className: 'bs-btn bs-icon-btn bs-refresh', title: 'Refresh',
                        'aria-label': 'Refresh' }, refreshIcon()))),
-    panel('conversations', filter, el('div', { id: 'bs-list' }, loading())),
+    list('conversations'), list('voice'), list('written'),
     panel('items', el('div', { id: 'bs-items' }, loading())),
     panel('who', el('div', { id: 'bs-who' }, loading())));
   return [home, el('div', { className: 'bs-reader', hidden: '' })];
@@ -1023,9 +1041,11 @@ export function mountSoundModule(root, { embedded = false, scroller = null, onAs
     savedTab = sessionStorage.getItem('bs-tab') || savedTab;
   } catch (e) {}
   showTab(savedTab);
-  $('#bs-filter').addEventListener('submit', (e) => {
-    e.preventDefault();
-    loadList();
+  ctx.root.querySelectorAll('.bs-filters[data-list]').forEach((form) => {
+    form.addEventListener('submit', (e) => {
+      e.preventDefault();
+      loadList(form.dataset.list);
+    });
   });
   $('.bs-refresh').addEventListener('click', refreshAll);
   // Links to a moment of a module transcript (quotes, times, "where it was said") open

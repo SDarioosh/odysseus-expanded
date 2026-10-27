@@ -422,14 +422,32 @@ def server_id(manager: Any, key: str) -> str | None:
     return None
 
 
+# The two sorts of note. Athena >= MCP 0.14.0 filters them itself (kind "voice" /
+# "written"); an older one answers "bad kind", and then ``kind="note"`` (both) is read and
+# split here by the title marker, "(voice note)" or "(written by hand: <link>)".
+NOTE_KINDS = {"voice": False, "written": True}
+MAX_SEARCH = 50  # search_conversations' own cap
+
+
 async def conversations(call: CallTool, *, query: str = "", person: str = "",
                         since: str = "", until: str = "", kind: str = "",
                         limit: int = 30) -> list[dict]:
+    """``kind``: ``conversation``, ``note`` (spoken or written), ``voice``, ``written``,
+    or "" for everything. With an older module, ``voice`` and ``written`` read up to
+    ``MAX_SEARCH`` notes and keep one sort, so with more notes than that in the range the
+    older ones of a sort are left out (narrow the dates to reach them)."""
+    limit = max(1, min(int(limit), MAX_SEARCH))
     args: dict[str, Any] = {"query": query, "person": person, "since": since,
-                            "until": until, "limit": max(1, min(int(limit), 50))}
-    if kind in ("note", "conversation"):  # Athena >= kind filter; "" = both
+                            "until": until, "limit": limit}
+    if kind in ("note", "conversation", *NOTE_KINDS):  # "" = everything
         args["kind"] = kind
     text = await call("search_conversations", args)
+    if kind in NOTE_KINDS and (text or "").startswith("bad kind"):
+        text = await call("search_conversations",
+                          {**args, "kind": "note", "limit": MAX_SEARCH})
+        written = NOTE_KINDS[kind]
+        return as_dicts([c for c in parse_conversations(text)
+                         if bool(c.written_link) is written][:limit])
     return as_dicts(parse_conversations(text))
 
 
