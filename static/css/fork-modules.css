@@ -146,6 +146,11 @@
   .fm-root .bs-tick { width: 20px; height: 20px; }
 }
 @media (max-width: 640px) {
+  /* five tabs don't fit beside the buttons: the buttons on top, the tabs a row of their own */
+  .fm-root .bs-bar { flex-wrap: wrap; justify-content: flex-end; }
+  .fm-root .bs-bar-end { padding-top: 5px; }
+  .fm-root .bs-tabs { flex: 1 1 100%; order: 2; }
+  .fm-root .bs-tab { padding: 8px 10px; }
   .fm-root .bs-actions .bs-btn { flex: 1 1 calc(50% - 6px); }
   .fm-root .bs-time-edit .bs-field { flex: 1 1 calc(50% - 6px); }
   .fm-root .bs-time-edit .bs-input { width: 100%; }

@@ -422,15 +422,31 @@ def server_id(manager: Any, key: str) -> str | None:
     return None
 
 
+# Notes split by how they were made: Athena's ``kind="note"`` returns both, and its
+# text marks each one "(voice note)" or "(written by hand: <link>)".
+NOTE_KINDS = {"voice": False, "written": True}
+MAX_SEARCH = 50  # search_conversations' own cap
+
+
 async def conversations(call: CallTool, *, query: str = "", person: str = "",
                         since: str = "", until: str = "", kind: str = "",
                         limit: int = 30) -> list[dict]:
+    """``kind``: ``conversation``, ``note`` (spoken or written), ``voice``, ``written``,
+    or "" for everything. ``voice`` and ``written`` read up to ``MAX_SEARCH`` notes and
+    keep one sort, so with more notes than that in the range the older ones of a sort
+    are left out (narrow the dates to reach them)."""
+    limit = max(1, min(int(limit), MAX_SEARCH))
+    split = NOTE_KINDS.get(kind)
     args: dict[str, Any] = {"query": query, "person": person, "since": since,
-                            "until": until, "limit": max(1, min(int(limit), 50))}
-    if kind in ("note", "conversation"):  # Athena >= kind filter; "" = both
+                            "until": until, "limit": MAX_SEARCH if split is not None else limit}
+    if split is not None:
+        args["kind"] = "note"
+    elif kind in ("note", "conversation"):  # Athena >= kind filter; "" = both
         args["kind"] = kind
-    text = await call("search_conversations", args)
-    return as_dicts(parse_conversations(text))
+    rows = parse_conversations(await call("search_conversations", args))
+    if split is not None:
+        rows = [c for c in rows if bool(c.written_link) is split][:limit]
+    return as_dicts(rows)
 
 
 async def unnamed_speakers(call: CallTool, limit: int = 10) -> list[dict]:

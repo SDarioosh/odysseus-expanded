@@ -665,3 +665,32 @@ def test_parse_written_by_hand_conversation():
     assert (c.title, c.when, c.link, c.written_link) == (
         "Where Athena stands", "2026-10-26 20:21–20:21 (UTC), device handwriting, type note",
         "http://h:8000/view/w1?sig=a", HUB_NOTE)
+
+
+NOTES = ("2 voice notes (times are UTC).\n"
+         f'- 2026-10-26 20:21–20:21 "Where Athena stands" (written by hand: {HUB_NOTE}) '
+         "id w1; people: Me\n  Bug fixing.\n  http://h:8000/view/w1?sig=a\n"
+         '- 2026-10-16 08:00–08:01 "Grocery list" (voice note) id n1; people: Me\n'
+         "  Buy milk.\n  http://h:8000/view/n1?sig=b")
+
+
+def test_voice_and_written_notes_are_split(client, monkeypatch):
+    calls = client.manager.calls
+    real = client.manager.call_tool
+
+    async def answer(name, args):
+        if name.endswith("search_conversations") and args.get("kind") == "note":
+            calls.append((name, args))
+            return {"stdout": NOTES, "exit_code": 0}
+        return await real(name, args)
+    monkeypatch.setattr(client.manager, "call_tool", answer)
+    get = lambda kind: client.get("/api/modules/sound/conversations",  # noqa: E731
+                                  params={"kind": kind, "limit": 10}).json()["conversations"]
+    written = get("written")
+    assert [(c["id"], c["written_link"]) for c in written] == [("w1", HUB_NOTE)]
+    assert calls[-1][1]["kind"] == "note" and calls[-1][1]["limit"] == 50  # split here
+    assert [(c["id"], c["voice_note"]) for c in get("voice")] == [("n1", True)]
+    assert [c["id"] for c in get("note")] == ["w1", "n1"]
+    assert calls[-1][1]["limit"] == 10
+    get("conversation")
+    assert calls[-1][1]["kind"] == "conversation"
