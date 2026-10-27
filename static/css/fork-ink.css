@@ -50,6 +50,11 @@
 .ink-root .ink-canvas { position: absolute; inset: 0; display: block; }
 .ink-root .ink-live { touch-action: none; user-select: none; -webkit-user-select: none;
                       -webkit-touch-callout: none; cursor: crosshair; }
+/* The pages under the writing canvas, shown instead of it while fingers pan or zoom
+   (a full redraw of the low-latency canvas tears). The writing canvas keeps the input. */
+.ink-root .ink-base { pointer-events: none; visibility: hidden; }
+.ink-root .ink-stage.ink-panning .ink-base { visibility: visible; }
+.ink-root .ink-stage.ink-panning .ink-live { opacity: 0; }
 
 /* H2: the Write / Text tabs, the Text tab (page above, transcript below) and the
    Needs review list. */
