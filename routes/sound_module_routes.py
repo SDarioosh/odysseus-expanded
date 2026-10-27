@@ -37,6 +37,11 @@ The same page's "Send Athena to a meeting" box (``static/js/meetingBot.js``) cal
 (leave). They check the link and forward to the meeting routes of the module's MCP HTTP
 server (``src/meeting_bot.py``); the writes need the ``X-Odysseus-Recorder`` header too.
 
+The calendar's event form (``static/js/forkMeetingAutoJoin.js``) reads and sets an event's
+**Send Athena** toggle with ``GET``/``PUT /api/modules/sound/auto-join`` (``uid``; ``{uid, on}``,
+the write with the same header); ``src/meeting_auto_join.py`` keeps the toggle in the hub
+and the event's one-shot task in the TaskScheduler.
+
 Action items are read live from the module, the source of truth; Done/Dismiss call its
 ``update_action_item``. Filing into the Odysseus calendar and to-dos (and the record of
 what went where) is ``src/module_action_items.py``; the last three routes call its
@@ -50,6 +55,7 @@ so it doesn't go through the chat approval card.
 
 from __future__ import annotations
 
+import asyncio
 import inspect
 import logging
 import os
@@ -62,6 +68,7 @@ from fastapi import (
     Form,
     Header,
     HTTPException,
+    Query,
     Request,
     UploadFile,
 )
@@ -105,6 +112,11 @@ class JoinMeeting(BaseModel):
     link: str = Field(default="", max_length=meetings.MAX_INPUT_CHARS)
     passcode: str | None = Field(default=None, max_length=meetings.MAX_PASSCODE_CHARS)
     title: str | None = Field(default=None, max_length=400)  # checked by meeting_bot (400)
+
+
+class AutoJoin(BaseModel):
+    uid: str = Field(min_length=1, max_length=1000)
+    on: bool
 
 
 class NameSpeaker(BaseModel):
@@ -442,6 +454,29 @@ def setup_sound_module_routes() -> APIRouter:
             return {"meeting": await meetings.leave(meetings.resolve(), meeting_id)}
         except meetings.MeetingError as exc:
             return JSONResponse(exc.body(), status_code=exc.status)
+
+    # ------------------------------ Send Athena on calendar events (src/meeting_auto_join.py)
+    @router.get("/api/modules/sound/auto-join", dependencies=[Depends(require_admin)])
+    async def auto_join_state(request: Request, uid: str = Query(min_length=1, max_length=1000)):
+        from src import meeting_auto_join as auto
+
+        try:
+            return await asyncio.to_thread(auto.describe, _owner(request), uid)
+        except LookupError:
+            raise HTTPException(404, "Event not found") from None
+
+    @router.put("/api/modules/sound/auto-join", dependencies=[Depends(require_admin)])
+    async def auto_join_set(body: AutoJoin, request: Request,
+                            x_odysseus_recorder: Annotated[str | None, Header()] = None):
+        from src import meeting_auto_join as auto
+
+        _recorder_header(x_odysseus_recorder)
+        try:
+            return await asyncio.to_thread(auto.set_toggle, _owner(request), body.uid, body.on)
+        except LookupError:
+            raise HTTPException(404, "Event not found") from None
+        except ValueError as exc:
+            raise HTTPException(400, str(exc)) from None
 
     return router
 
