@@ -218,3 +218,12 @@ html.fm-page body { background: var(--bg); color: var(--fg); margin: 0; display:
                    background: color-mix(in srgb, var(--border) 50%, transparent); overflow: hidden; }
 .fm-root .tt-fill { display: block; height: 100%; background: var(--red); opacity: 0.75; }
 /* end Today: trends (Phase 3) */
+
+/* ---- handwritten notes in the Notes list (static/js/forkInk.js, src/ink_notes.py).
+   A handwritten note's image is its whole first page, a tall A4 sheet. The list crops
+   note images to a short strip from the middle (object-fit: cover), which is usually
+   blank paper, so show the top of the page, where the writing starts. Keyed on the
+   card's #handwritten tag chip; upstream's card markup is unchanged. */
+.note-card:has(.note-card-label-chip[data-note-label-filter="handwritten" i]) .note-card-image {
+  object-position: top;
+}

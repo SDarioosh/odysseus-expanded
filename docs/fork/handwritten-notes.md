@@ -131,6 +131,9 @@ it.
   with most upstream releases and would conflict on every sync).
 - **Display.** The note keeps a rendered PNG of the first page in `image_url`, so the
   Notes window, the Gallery and exports show it without knowing about strokes.
+  The Notes list crops note images to a short strip from the middle, which on a tall
+  page is usually blank paper, so `fork-modules.css` shows the top of the page on cards
+  tagged `#handwritten`.
 
 To check on the Lenovo Tab Plus with the Tab Pen Plus (the sandbox can't): the pen
 arrives as `pointerType "pen"` in Chrome; hover events (`pointerover`/`pointermove`
