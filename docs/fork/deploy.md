@@ -196,7 +196,7 @@ except Exception as e: print('NOT reachable:', e)"
 
 ### Call recording and phone pairing
 
-**Record a call** and **Pair a phone** ([modules/odysseus-sound.md](modules/odysseus-sound.md#uploads-through-the-mcp-server))
+**Meetings** (recording a call) and **Pair a phone** ([modules/odysseus-sound.md](modules/odysseus-sound.md#uploads-through-the-mcp-server))
 need no settings: they use the `convo` MCP server Odysseus already has (Settings → MCP,
 `http://host.docker.internal:8001/mcp?access_token=…`). They need Athena with MCP
 0.8.0 or newer (`scripts/fork_deploy.sh deploy` updates both); with an older module the

@@ -1,4 +1,4 @@
-// Fork: the Athena Conversations view and the Today view as Odysseus windows.
+// Fork: the Athena Conversations and Meetings views and the Today view as Odysseus windows.
 // Loaded by one hook in static/index.html. The sidebar entries stay plain links to the
 // standalone pages (/modules/sound, /today), which still work on their own; here a
 // normal click opens the view in a tool window instead, so the chat and other windows
@@ -7,6 +7,10 @@
 // mobile bottom sheet (the generic .modal rules). Also adds the rail buttons, and
 // opens the Conversations reader for links to a module transcript moment
 // (<CONVO_PUBLIC_URL>/view/<id>?sig=…#t=<s>) clicked in chat.
+//
+// Meetings (static/js/forkMeetings.js: record a call, send Athena to a meeting) has its
+// sidebar entry added here, after Conversations; it is a link to its standalone page
+// (/modules/sound/record) like the entries in index.html.
 //
 // Write (handwritten notes, static/js/forkInk.js) has no standalone page and no entry in
 // index.html: its sidebar entry is added here, after Today. Its code and stylesheet are
@@ -39,6 +43,18 @@ const WINDOWS = {
         onAsk: (text) => askInChat(text, win),
         confirm: styledConfirm,
       });
+    },
+  },
+  meetings: {
+    id: 'fork-meetings-modal',
+    title: 'Meetings',
+    sidebarBtn: 'tool-meetings-btn',
+    railBtn: 'rail-meetings',
+    href: '/modules/sound/record',
+    icon: FORK_SHORTCUT_ICONS.open_meetings,
+    async mount(body) {
+      const { mountMeetings } = await import('./forkMeetings.js');
+      return mountMeetings(body, { openConversations: () => open(WINDOWS.sound) });
     },
   },
   today: {
@@ -228,22 +244,30 @@ function addRailButton(win, after) {
   return btn;
 }
 
-// Write's sidebar entry, after Today, styled like the entries around it.
+// The Meetings and Write sidebar entries, styled like the entries around them. With an
+// href the entry is a link (a modified click opens the standalone page), else a button.
 function addSidebarEntry(win, after) {
   if (document.getElementById(win.sidebarBtn)) return;
   const anchor = document.getElementById(after);
   if (!anchor) return;
-  const item = document.createElement('div');
+  const item = document.createElement(win.href ? 'a' : 'div');
   item.className = 'list-item';
   item.id = win.sidebarBtn;
-  item.setAttribute('role', 'button');
-  item.tabIndex = 0;
+  if (win.href) {
+    item.href = win.href;
+    item.style.color = 'inherit';
+    item.style.textDecoration = 'none';
+  } else {
+    item.setAttribute('role', 'button');
+    item.tabIndex = 0;
+  }
   item.innerHTML = win.icon.replace('<svg ', '<svg style="flex-shrink:0;opacity:0.5;" '); // our own SVG
   const label = document.createElement('span');
   label.className = 'grow';
   label.textContent = win.title;
   item.append(label);
   item.addEventListener('keydown', (e) => {
+    if (win.href) return; // a link: Enter clicks it already
     if (e.target !== item || (e.key !== 'Enter' && e.key !== ' ')) return;
     e.preventDefault(); // Space would scroll the sidebar
     item.click();
@@ -302,10 +326,12 @@ function wireTranscriptLinks() {
 
 function init() {
   loadStylesheet();
+  addSidebarEntry(WINDOWS.meetings, WINDOWS.sound.sidebarBtn);
   addSidebarEntry(WINDOWS.ink, WINDOWS.today.sidebarBtn);
   for (const win of Object.values(WINDOWS)) wireSidebar(win);
   addRailButton(WINDOWS.sound, 'rail-notes');
-  addRailButton(WINDOWS.today, WINDOWS.sound.railBtn);
+  addRailButton(WINDOWS.meetings, WINDOWS.sound.railBtn);
+  addRailButton(WINDOWS.today, WINDOWS.meetings.railBtn);
   addRailButton(WINDOWS.ink, WINDOWS.today.railBtn);
   for (const win of Object.values(WINDOWS)) mirrorVisibility(win);
   preloadParser();

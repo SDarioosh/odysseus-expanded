@@ -1,4 +1,4 @@
-/* Fork: shared look of the module views (Athena Conversations, Today).
+/* Fork: shared look of the module views (Athena Conversations, Meetings, Today).
    Used by their Odysseus windows (static/js/forkModuleWindows.js) and by the
    standalone pages (static/sound-module.html, static/today.html). Mirrors the
    built-in tool windows: Inter type like .modal-content, tabs like .memory-tab,
@@ -163,7 +163,7 @@
 /* ---- the Odysseus windows (static/js/forkModuleWindows.js) */
 @media (min-width: 769px) {
   /* centered in the chat area, like the built-in tool windows */
-  #fork-sound-modal, #fork-today-modal, #fork-ink-modal {
+  #fork-sound-modal, #fork-meetings-modal, #fork-today-modal, #fork-ink-modal {
     left: calc(var(--icon-rail-w, 48px) + var(--sidebar-w, 0px));
     width: calc(100% - (var(--icon-rail-w, 48px) + var(--sidebar-w, 0px)));
     box-sizing: border-box;
@@ -171,6 +171,7 @@
   }
   .fm-modal-content { width: min(860px, 94vw); height: min(82vh, 860px); }
   #fork-today-modal .fm-modal-content { width: min(640px, 94vw); height: min(78vh, 760px); }
+  #fork-meetings-modal .fm-modal-content { width: min(720px, 94vw); height: min(82vh, 860px); }
 }
 .fm-modal-content { background: var(--bg); overflow: hidden; }
 .fm-modal-content .modal-header h4 { display: inline-flex; align-items: center; gap: 6px; }
@@ -218,3 +219,32 @@ html.fm-page body { background: var(--bg); color: var(--fg); margin: 0; display:
                    background: color-mix(in srgb, var(--border) 50%, transparent); overflow: hidden; }
 .fm-root .tt-fill { display: block; height: 100%; background: var(--red); opacity: 0.75; }
 /* end Today: trends (Phase 3) */
+/* Meetings window (static/js/forkMeetings.js): the cards of static/call-recorder.html */
+.fm-meetings { padding-top: 8px; }
+.fm-meetings .bs-text { font-size: 13px; line-height: 1.45; margin: 6px 0 0; }
+.fm-meetings .bs-check { display: inline-flex; gap: 8px; align-items: center; min-height: 32px; cursor: pointer; }
+.fm-meetings .bs-notice:empty { display: none; }
+.fm-meetings a.bs-btn { display: inline-flex; align-items: center; text-decoration: none; }
+.fm-meetings .rc-grid { display: grid; grid-template-columns: 9em 1fr; gap: 8px 12px; align-items: center;
+                    margin-top: 10px; }
+.fm-meetings .rc-meter { height: 8px; border: 1px solid var(--border); border-radius: 999px; overflow: hidden; }
+.fm-meetings .rc-meter > div { height: 100%; width: 0; background: var(--red); transition: width 80ms linear; }
+.fm-meetings .rc-meter.off { opacity: 0.4; }
+.fm-meetings .rc-time { font-variant-numeric: tabular-nums; font-size: 1.2rem; font-weight: 600; }
+.fm-meetings .rc-dot { display: inline-block; width: 10px; height: 10px; border-radius: 50%;
+                   border: 1px solid var(--border); margin-right: 8px; vertical-align: middle; }
+.fm-meetings .rc-dot.on { background: var(--red); border-color: var(--red); }
+.fm-meetings .mb-form { display: grid; grid-template-columns: 1fr 12em; gap: 8px; margin-top: 10px; }
+.fm-meetings .mb-form textarea { resize: vertical; min-height: 32px; height: 32px; line-height: 1.4; }
+.fm-meetings .mb-hint { margin-top: 6px; }
+.fm-meetings .mb-state { margin-top: 10px; }
+.fm-meetings .mb-state:empty, .fm-root #mb-signin-msg:empty, .fm-meetings .mb-signin-line span:empty { display: none; }
+.fm-meetings .mb-signin { margin-top: 10px; }
+.fm-meetings .mb-signin-line { display: flex; flex-wrap: wrap; gap: 8px; align-items: center; }
+.fm-meetings .mb-signin a { color: var(--fg); }
+.fm-meetings .mb-paste { display: grid; grid-template-columns: 1fr auto; gap: 8px; margin-top: 8px; }
+.fm-meetings [hidden] { display: none !important; }
+@media (max-width: 640px) {
+  .fm-meetings .mb-form, .fm-meetings .mb-paste, .fm-meetings .rc-grid { grid-template-columns: 1fr; }
+}
+/* end Meetings window */

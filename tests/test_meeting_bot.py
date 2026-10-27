@@ -285,7 +285,7 @@ def test_join_posts_json_with_the_mcp_token():
     (401, {"detail": "unauthorized"}, "token", 502, "refused the token"),
     (503, {"detail": "zoom_signin_needed", "message": "Sign in to Zoom again."}, "signin",
      503, ("Athena's Zoom sign-in is missing or expired — sign in to Zoom on the "
-           "Record a call page.")),
+           "Meetings page.")),
     (502, {"detail": "zoom_unavailable", "message": "Zoom ZAK/OBF request failed."}, "zoom",
      502, "Zoom didn't give Athena a join token; try again in a minute."),
     (404, {"detail": "Not Found"}, "update", 502, "Update Athena to use meetings"),
@@ -519,7 +519,7 @@ def test_signin_needed_points_at_the_page():
     err = mb._error(503, {"detail": "zoom_signin_needed"})
     assert err.code == "signin"
     assert err.message == mb.SIGNIN_NEEDED
-    assert "Record a call page" in err.message and "convo-server" not in err.message
+    assert "Meetings page" in err.message and "convo-server" not in err.message
 
 
 # ------------------------------------------------------------------ routes
@@ -742,7 +742,7 @@ def test_route_signin_needed(client):
     client.module.join = (503, {"detail": "zoom_signin_needed", "message": "…"})
     r = client.post("/api/modules/sound/meetings", headers=H, json={"link": "850 1234 5678"})
     assert r.status_code == 503 and r.json()["code"] == "signin"
-    assert "sign in to Zoom on the Record a call page" in r.json()["detail"]
+    assert "sign in to Zoom on the Meetings page" in r.json()["detail"]
     assert "convo-server" not in r.json()["detail"]
 
 

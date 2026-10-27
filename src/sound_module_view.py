@@ -24,9 +24,10 @@ CallTool = Callable[[str, dict], Awaitable[str]]
 # in the hub's Write view (Athena MCP 0.12.0)
 _MARK = (r"(?:(?P<note> \(voice note\))"
          r"| \(written by hand: (?P<written>https?://[^\s)]+)\))?")
-# Athena >= MCP 0.16.0: " (Zoom meeting: <topic>)" or " (Zoom meeting)" after the title,
-# and "; participants: A, B" after a meeting's people.
-_MEETING = r"(?P<meeting> \(Zoom meeting(?:: (?P<topic>.*?))?\))?"
+# Athena >= MCP 0.17.0: " (Online meeting: <topic>)" or " (Online meeting)" after the
+# title (0.16.0 said "Zoom meeting"; both are read), and "; participants: A, B" after a
+# meeting's people.
+_MEETING = r"(?P<meeting> \((?:Online|Zoom) meeting(?:: (?P<topic>.*?))?\))?"
 _CONV = re.compile(
     r"^- (?P<start>\d{4}-\d{2}-\d{2} \d{2}:\d{2})–(?P<end>\d{2}:\d{2}) \"(?P<title>.*)\""
     + _MARK + _MEETING + r" id (?P<id>\S+); people: (?P<people>.*?)"
@@ -82,7 +83,7 @@ class Conversation:
     link: str = ""
     voice_note: bool = False
     written_link: str | None = None  # the note in the hub, for a note written by hand
-    meeting: bool = False  # a Zoom meeting (Athena >= MCP 0.16.0)
+    meeting: bool = False  # an online meeting (Athena >= MCP 0.16.0)
     meeting_topic: str = ""
     participants: list[str] = field(default_factory=list)  # a meeting's, also silent ones
 
@@ -161,7 +162,7 @@ class ConversationDetail:
     action_items: list[ConversationItem] = field(default_factory=list)
     facts: list[Fact] = field(default_factory=list)
     written_link: str | None = None  # the note in the hub, for a note written by hand
-    meeting: bool = False  # a Zoom meeting (Athena >= MCP 0.16.0)
+    meeting: bool = False  # an online meeting (Athena >= MCP 0.16.0)
     meeting_topic: str = ""
     participants: str = ""  # "Dana Example (16:00–16:45), Me", as Athena writes it
 

@@ -741,6 +741,20 @@ def test_parse_conversations_zoom_meetings():
     assert not a.voice_note and a.written_link is None
 
 
+def test_parse_online_meetings():
+    # Athena (MCP 0.17.0) says "(Online meeting: <topic>)": meetings may come from other
+    # platforms than Zoom later. Read like the older "(Zoom meeting…)" mark.
+    a, b = view.parse_conversations(MEETING_CONVS.replace("(Zoom meeting", "(Online meeting"))
+    assert (a.id, a.title, a.meeting, a.meeting_topic) == ("m1", "Budget review", True,
+                                                           "Q4 budget (draft)")
+    assert a.participants == ["Dana Example", "Lee Fictional", "Me"]
+    assert (b.id, b.meeting, b.meeting_topic) == ("m2", True, "")
+    c = view.parse_conversation(
+        '"Budget review" (Online meeting: Q4 budget (draft)) — 2026-10-15 15:00–15:40 (UTC), '
+        "device zoom\nSummary: Dana walks through the Q4 numbers.\n", "m1")
+    assert (c.title, c.meeting, c.meeting_topic) == ("Budget review", True, "Q4 budget (draft)")
+
+
 def test_parse_conversation_zoom_meeting():
     text = (
         '"Budget review" (Zoom meeting: Q4 budget (draft)) — 2026-10-15 15:00–15:40 (UTC), '

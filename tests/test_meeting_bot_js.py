@@ -310,7 +310,7 @@ def test_join_answering_signin_shows_the_button_and_rereads():
     els['mb-join'].fire('click');
     await tick();
     answer(find('POST', '{API}'), 503, {{ code: 'signin',
-      detail: "Athena's Zoom sign-in is missing or expired — sign in to Zoom on the Record a call page." }});
+      detail: "Athena's Zoom sign-in is missing or expired — sign in to Zoom on the Meetings page." }});
     await tick();
     const reread = find('GET', '{SIGNIN}') >= 0;
     answer(find('GET', '{SIGNIN}'), 200, {NOT_SIGNED_IN});

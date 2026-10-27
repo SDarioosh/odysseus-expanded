@@ -68,18 +68,21 @@ def test_shortcut_data_matches_the_windows():
     const s = await import('{(_JS / "forkModuleShortcuts.js").as_posix()}');
     console.log(JSON.stringify(s));
     """)
-    assert got["FORK_SHORTCUT_ACTIONS"] == ["open_conversations", "open_today", "open_write"]
+    assert got["FORK_SHORTCUT_ACTIONS"] == [
+        "open_conversations", "open_meetings", "open_today", "open_write"]
     # unbound by default, like upstream's other open-tool shortcuts
     assert got["FORK_SHORTCUT_DEFAULTS"] == {
-        "open_conversations": "", "open_today": "", "open_write": ""}
+        "open_conversations": "", "open_meetings": "", "open_today": "", "open_write": ""}
     assert got["FORK_SHORTCUT_BUTTONS"] == {
-        "open_conversations": "tool-sound-module-btn", "open_today": "tool-today-insight-btn",
-        "open_write": "tool-ink-btn"}
+        "open_conversations": "tool-sound-module-btn", "open_meetings": "tool-meetings-btn",
+        "open_today": "tool-today-insight-btn", "open_write": "tool-ink-btn"}
     assert got["FORK_WINDOW_TRIGGERS"] == {
-        "fork-sound-modal": "tool-sound-module-btn", "fork-today-modal": "tool-today-insight-btn",
-        "fork-ink-modal": "tool-ink-btn"}
+        "fork-sound-modal": "tool-sound-module-btn", "fork-meetings-modal": "tool-meetings-btn",
+        "fork-today-modal": "tool-today-insight-btn", "fork-ink-modal": "tool-ink-btn"}
     assert got["FORK_OPEN_TARGETS"] == {
         "conversations": ["tool-sound-module-btn", "rail-sound-module"],
+        "meetings": ["tool-meetings-btn", "rail-meetings"],
+        "calls": ["tool-meetings-btn", "rail-meetings"],
         "today": ["tool-today-insight-btn", "rail-today-insight"],
         "write": ["tool-ink-btn", "rail-ink"],
         "ink": ["tool-ink-btn", "rail-ink"],
@@ -90,8 +93,8 @@ def test_shortcut_data_matches_the_windows():
     for window_id, button in got["FORK_WINDOW_TRIGGERS"].items():
         assert f"id: '{window_id}'" in windows
         assert f"sidebarBtn: '{button}'" in windows
-        # Write's sidebar entry is added by forkModuleWindows.js, not by index.html.
-        if button == "tool-ink-btn":
+        # The Meetings and Write entries are added by forkModuleWindows.js, not index.html.
+        if button in ("tool-meetings-btn", "tool-ink-btn"):
             assert f'id="{button}"' not in index
         else:
             assert f'id="{button}"' in index
@@ -119,3 +122,27 @@ def test_standalone_pages_mount_the_shared_views():
         assert '<link rel="stylesheet" href="/static/css/fork-modules.css">' in html
         assert f"{fn}(document.getElementById('fm-view'))" in html
         assert 'nonce="{{CSP_NONCE}}"' in html  # inline module script needs the CSP nonce
+
+
+def test_meetings_window_reads_the_meetings_page():
+    # The Meetings window shows the cards of the standalone page; the scripts find their
+    # elements by id there, so every id they look up must be on the page.
+    page = (_REPO / "static" / "call-recorder.html").read_text()
+    assert "<h1>Meetings</h1>" in page and '<div class="bs-wrap">' in page
+    assert 'href="/modules/sound" data-conversations' in page
+    assert "data-in-app hidden" in page
+    meetings = (_JS / "forkMeetings.js").read_text()
+    assert "const PAGE = '/modules/sound/record';" in meetings
+    for script in ("callRecorder.js", "meetingBot.js"):
+        assert f"import('./{script}')" in meetings
+        src = (_JS / script).read_text()
+        import re
+        for el_id in re.findall(r"\$\('#([a-z0-9-]+)'\)", src):
+            assert f'id="{el_id}"' in page, (script, el_id)
+    windows = (_JS / "forkModuleWindows.js").read_text()
+    assert "href: '/modules/sound/record'" in windows
+    assert "addSidebarEntry(WINDOWS.meetings, WINDOWS.sound.sidebarBtn);" in windows
+    # Recording moved out of the Conversations window's toolbar.
+    sound = (_JS / "soundModule.js").read_text()
+    assert "'Record a call'" not in sound
+    assert "ctx.embedded ? null : el('a', { className: 'bs-btn', href: '/modules/sound/record' }" in sound

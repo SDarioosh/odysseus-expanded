@@ -23,10 +23,10 @@ redirects there); its script calls:
   filed one per voice-note item (``unfile_auto_todos``; a dry run unless ``apply``;
   ``scripts/unfile_voice_note_todos.py`` calls it)
 
-``GET /modules/sound/record`` serves ``static/call-recorder.html`` ("Record a call"); its
-script calls ``GET /api/modules/sound/record/config``, ``POST /api/modules/sound/record/chunk``
-(multipart: audio, session_id, sequence, timestamp, codec) and
-``POST /api/modules/sound/record/{session_id}/end``. Those forward to the upload routes
+``GET /modules/sound/record`` serves ``static/call-recorder.html`` (the Meetings page, whose
+cards the Meetings window also shows: ``static/js/forkMeetings.js``); its script calls
+``GET /api/modules/sound/record/config``, ``POST /api/modules/sound/record/chunk``
+(multipart: audio, session_id, sequence, timestamp, codec) and ``POST /api/modules/sound/record/{session_id}/end``. Those forward to the upload routes
 of the module's MCP HTTP server (the connected ``convo`` server's URL and token), not its
 MCP tools (``src/call_recorder.py``).
 
@@ -381,7 +381,7 @@ def setup_sound_module_routes() -> APIRouter:
         message = await view.set_action_item(_caller(), item_id, body.status)
         return {"ok": message.startswith("Action item"), "message": message}
 
-    # ------------------------------------------------ record a call (src/call_recorder.py)
+    # ------------------------------------------------ Meetings: record a call (src/call_recorder.py)
     @router.get("/modules/sound/record")
     async def record_page(request: Request):
         from src.app_helpers import serve_html_with_nonce
