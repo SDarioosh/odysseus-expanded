@@ -73,6 +73,11 @@ class Module:
     ("zoomus://acme.zoom.us/join?confno=85012345678", ("85012345678", None)),
     ("<https://zoom.us/j/85012345678>", ("85012345678", None)),
     ("'https://zoom.us/j/85012345678?pwd=p'", ("85012345678", "p")),
+    # BUG-25: path segments are case-insensitive, like the host and the scheme.
+    ("https://zoom.us/J/85012345678", ("85012345678", None)),
+    ("https://zoom.us/wc/JOIN/85012345678?pwd=p", ("85012345678", "p")),
+    ("https://zoom.us/WC/85012345678/Join", ("85012345678", None)),
+    ("zoommtg://zoom.us/JOIN?confno=85012345678", ("85012345678", None)),
 ])
 def test_accepted_links(text, want):
     got = mb.check_link(text)
@@ -90,6 +95,10 @@ def test_accepted_links(text, want):
     ("https://zoom.us/webinar/register/WN_abc", "registration link"),
     ("https://zoomgov.com/j/1612345678", "Zoom for Government"),
     ("https://acme.zoomgov.com/j/1612345678", "Zoom for Government"),
+    # BUG-25: a zoomgov link pasted without a scheme gets the same specific answer.
+    ("zoomgov.com/j/1612345678", "Zoom for Government"),
+    ("acme.ZOOMGOV.com/j/1612345678", "Zoom for Government"),
+    ("zoommtg://zoom.us/START?confno=85012345678", "start link"),
     ("https://zoom.us.example.com/j/85012345678", "isn't a Zoom meeting link"),
     ("https://example.com/zoom.us/j/85012345678", "isn't a Zoom meeting link"),
     ("https://evilzoom.us/j/85012345678", "isn't a Zoom meeting link"),

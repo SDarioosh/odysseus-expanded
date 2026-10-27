@@ -52,7 +52,8 @@ UPDATE_MODULE = ("Update Athena to use meetings: its MCP server has no meeting r
 
 # The same rules as Athena's launcher (convo_server/meetings.py parse_zoom_link).
 _ZOOM_HOST = re.compile(r"^(?:[a-z0-9](?:[a-z0-9-]{0,61}[a-z0-9])?\.)*zoom\.us$")
-_NO_SCHEME = re.compile(r"^([a-z0-9-]+\.)*zoom\.us/", re.IGNORECASE)
+# zoomgov.com too, so a schemeless zoomgov link gets its own refusal below (QA BUG-25).
+_NO_SCHEME = re.compile(r"^([a-z0-9-]+\.)*zoom(?:\.us|gov\.com)/", re.IGNORECASE)
 _MEETING_NUMBER = re.compile(r"^\d{9,11}$")
 _PASSCODE = re.compile(r"^[!-~]{1,128}$")  # printable ASCII, no spaces
 _MEETING_ID = re.compile(r"^[0-9a-f]{32}$")  # the launcher's ids (uuid4 hex)
@@ -154,7 +155,8 @@ def check_link(text: str) -> JoinRequest:
                    "https://zoom.us/j/<meeting ID>?pwd=…")
     query = parse_qs(parts.query)
     pwd = (query.get("pwd") or [None])[0] or None
-    segs = [s for s in parts.path.split("/") if s]
+    raw_segs = [s for s in parts.path.split("/") if s]
+    segs = [s.lower() for s in raw_segs]  # /J/, /wc/JOIN/, zoommtg://…/JOIN (QA BUG-25)
     if scheme in ("zoommtg", "zoomus"):
         if segs[:1] == ["start"]:
             raise _bad("This is the host's start link; paste the join link instead.")
@@ -163,7 +165,7 @@ def check_link(text: str) -> JoinRequest:
             raise _bad("That Zoom app link has no meeting ID (confno); paste the "
                        "https:// join link instead.")
     else:
-        first = segs[0].lower() if segs else ""
+        first = segs[0] if segs else ""
         if first == "my":
             raise _bad("Personal links (/my/<name>) carry no meeting ID: paste the invite "
                        "link with /j/<number>, or type the meeting ID and passcode.")
@@ -171,15 +173,15 @@ def check_link(text: str) -> JoinRequest:
             raise _bad("Webinars aren't supported yet.")
         if first == "s":
             raise _bad("This is the host's start link; paste the join link instead.")
-        if first in ("meeting", "webinar") and "register" in [s.lower() for s in segs]:
+        if first in ("meeting", "webinar") and "register" in segs:
             raise _bad("This is a registration link: register first, then paste the join "
                        "link from the confirmation.")
         if first == "j" and len(segs) == 2:
-            number = segs[1]
+            number = raw_segs[1]
         elif first == "wc" and len(segs) == 3 and segs[1] == "join":
-            number = segs[2]
+            number = raw_segs[2]
         elif first == "wc" and len(segs) == 3 and segs[2] == "join":
-            number = segs[1]
+            number = raw_segs[1]
         else:
             raise _bad("That isn't a Zoom meeting link: it should look like "
                        "https://zoom.us/j/<meeting ID>?pwd=…")
