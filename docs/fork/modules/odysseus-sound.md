@@ -182,7 +182,7 @@ Where a filed item goes:
 | `task` without a date or list | "add a to-do: oil the bike chain" | one line (the short title) on the to-do list **Voice notes** (see below) |
 | `reminder` | "remind me at 5 to call Mom" | to-do due at that time (Odysseus fires its own reminder), titled like a dated task |
 | any task or reminder with a `list_name` | "add milk to my shopping list" | one line on that to-do list (see below) |
-| `note` | "create a note battery dimensions are 13mm x 14mm x 3mm" | an Odysseus note (type note, label `odysseus-sound`) titled with the module's `note_title` ("Battery dimensions"), the text and the source link as content |
+| `note` | "create a note battery dimensions are 13mm x 14mm x 3mm" | an Odysseus note (type note, label `odysseus-sound`) titled with the module's `note_title` ("Battery dimensions"), the text, the voice note's key points as a list (MCP 0.15.0 `key_points`, when the note is the whole voice note) and the source link as content |
 | `note` with a `list_name` | "add to my hardware notes: the screen is 1.4 inch" | one line `- The screen is 1.4 inch` on those notes (see below) |
 
 - **Named to-do lists.** When the note names a list, the module returns `list_name`
