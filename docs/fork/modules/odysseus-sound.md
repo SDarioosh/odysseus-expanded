@@ -429,10 +429,20 @@ relay routes (SDarioosh/Athena#124, #125) and meetings set up there
   links (`/my/<name>`), webinars (`/w/`), registration links, the host's start links
   (`/s/`, `zoommtg://…/start`), Zoom for Government (`zoomgov.com`) and any other host
   (look-alikes, user info, ports).
-- **What it shows.** The state in plain words: "Joining…", "Waiting in the waiting room —
+- **The owner joins too.** Athena joins on the owner's behalf (Zoom's on-behalf-of token,
+  signed in once on the server with `convo-server zoom-login`), so the owner must be in the
+  meeting: the bot waits for them (`starting`/`waiting_for_owner`), gives up if they don't
+  come (`failed`/`owner_not_joined`) and leaves when they leave (`ended`/`owner_left`). The
+  box says so under the link field.
+- **What it shows.** The state in plain words: "Joining…", "Waiting for you to join the
+  meeting — Athena joins as soon as you're in", "Waiting in the waiting room —
   the host has to admit Athena", "Recording", "Recording, but Zoom isn't sending audio",
   "Ended: the meeting is over" (and the other end reasons), "Couldn't join: wrong
-  passcode" (and the other failures), "Athena is busy in another meeting" with a Leave
+  passcode" (and the other failures), "You didn't join the meeting in time, so Athena gave up", "Ended: you left the
+  meeting, so Athena left too", "Athena's Zoom sign-in is missing or expired — run
+  `convo-server zoom-login` on the server" (the module's 503 `zoom_signin_needed`), "Zoom
+  didn't give Athena a join token; try again in a minute" (502 `zoom_unavailable`),
+  "Athena is busy in another meeting" with a Leave
   button for that meeting, "Meetings aren't set up on the server", and "Update Athena to
   use meetings" for a module without the routes. On load the page shows the meeting the
   bot is in, if any.
@@ -446,7 +456,7 @@ relay routes (SDarioosh/Athena#124, #125) and meetings set up there
   | Route | Does |
   |---|---|
   | `GET /api/modules/sound/meetings/current` | `{meeting}`: the newest active meeting among the module's last five, or null |
-  | `POST /api/modules/sound/meetings` | JSON `{link, passcode?, title?}` → 202 `{meeting}`; errors `{detail, code, active?}` (`code`: `bad_link`, `busy` with `active`, `off`, `update`, `setup`, `token`, `bot`, `unreachable`, `timeout`) |
+  | `POST /api/modules/sound/meetings` | JSON `{link, passcode?, title?}` → 202 `{meeting}`; errors `{detail, code, active?}` (`code`: `bad_link`, `busy` with `active`, `off`, `signin`, `zoom`, `update`, `setup`, `token`, `bot`, `unreachable`, `timeout`) |
   | `GET /api/modules/sound/meetings/{id}` | `{meeting}`: `id, state, reason, active, session_id, meeting_id, title, created_at, started_at, ended_at` and `text` (the state in words) |
   | `DELETE /api/modules/sound/meetings/{id}` | Leave: answers with the final state once the bot has exited (a few seconds) |
 

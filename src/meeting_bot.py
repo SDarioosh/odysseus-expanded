@@ -264,6 +264,7 @@ _ENDED = {
     "max_duration": "Ended: the meeting reached the maximum recording length.",
     "server_stop": "Ended: Athena's server stopped.",
     "exited": "Ended.",
+    "owner_left": "Ended: you left the meeting, so Athena left too.",
 }
 _FAILED = {
     "wrong_passcode": "wrong passcode",
@@ -276,6 +277,11 @@ _FAILED = {
     "bot_crashed": "the meeting bot stopped unexpectedly",
     "server_restarted": "Athena's server restarted",
 }
+# Failures said as a whole sentence. Athena joins on the owner's behalf (Zoom's OBF
+# token), so the owner has to be in the meeting first.
+_FAILED_SENTENCE = {
+    "owner_not_joined": "You didn't join the meeting in time, so Athena gave up.",
+}
 
 
 def describe(meeting: dict[str, Any]) -> str:
@@ -283,6 +289,8 @@ def describe(meeting: dict[str, Any]) -> str:
     state = meeting.get("state")
     reason = meeting.get("reason")
     if state == "starting":
+        if reason == "waiting_for_owner":
+            return "Waiting for you to join the meeting — Athena joins as soon as you're in."
         return "Joining…"
     if state == "waiting_room":
         return "Waiting in the waiting room — the host has to admit Athena."
@@ -293,6 +301,8 @@ def describe(meeting: dict[str, Any]) -> str:
     if state == "ended":
         return _ENDED.get(reason or "", "Ended.")
     if state == "failed":
+        if reason in _FAILED_SENTENCE:
+            return _FAILED_SENTENCE[reason]
         why = _FAILED.get(reason or "") or (str(reason).replace("_", " ") if reason
                                             else "unknown error")
         if meeting.get("started_at"):  # it had recorded: it didn't fail to join
@@ -369,6 +379,12 @@ def _error(status: int, body: Any) -> MeetingError:
     if status == 501:
         return MeetingError(501, "Meetings aren't set up on the server"
                                  + (f" ({detail})." if detail else "."), "off")
+    if status == 503 and detail == "zoom_signin_needed":
+        return MeetingError(503, "Athena's Zoom sign-in is missing or expired — run "
+                                 "`convo-server zoom-login` on the server.", "signin")
+    if status == 502 and detail == "zoom_unavailable":
+        return MeetingError(502, "Zoom didn't give Athena a join token; try again in a "
+                                 "minute.", "zoom")
     if status == 500:
         return MeetingError(502, "Athena couldn't start the meeting bot"
                                  + (f": {detail}" if detail else "."), "bot")

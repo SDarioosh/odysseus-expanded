@@ -93,6 +93,7 @@
     .bs-input:focus { outline: none; border-color: var(--red); }
     .mb-form { display: grid; grid-template-columns: 1fr 12em; gap: 8px; margin-top: 10px; }
     .mb-form textarea { resize: vertical; min-height: 36px; height: 36px; line-height: 1.4; }
+    .mb-hint { margin-top: 6px; }
     .mb-state { font-size: 0.88rem; margin-top: 10px; }
     .mb-state:empty { display: none; }
     [hidden] { display: none !important; }
@@ -125,6 +126,7 @@
         <input class="bs-input" id="mb-pass" type="text" spellcheck="false" autocomplete="off"
           aria-label="Passcode" placeholder="Passcode (with an ID)">
       </div>
+      <div class="bs-meta mb-hint">Join the meeting yourself too — Athena records while you're in it.</div>
       <div class="bs-row">
         <button type="button" class="bs-btn primary" id="mb-join" disabled>Join</button>
         <button type="button" class="bs-btn" id="mb-leave" hidden>Leave</button>

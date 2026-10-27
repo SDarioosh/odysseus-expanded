@@ -221,6 +221,11 @@ def test_title_and_meeting_id_checks():
 
 @pytest.mark.parametrize("state, reason, started, words", [
     ("starting", None, None, "Joining…"),
+    ("starting", "waiting_for_owner", None,
+     "Waiting for you to join the meeting — Athena joins as soon as you're in."),
+    ("failed", "owner_not_joined", None,
+     "You didn't join the meeting in time, so Athena gave up."),
+    ("ended", "owner_left", "x", "Ended: you left the meeting, so Athena left too."),
     ("waiting_room", None, None, "the host has to admit Athena"),
     ("recording", None, "x", "Recording."),
     ("recording", "no_audio", "x", "Zoom isn't sending audio"),
@@ -265,6 +270,11 @@ def test_join_posts_json_with_the_mcp_token():
     (502, {"detail": "Athena's ingest API is not reachable"}, "unreachable", 502,
      "isn't answering"),
     (401, {"detail": "unauthorized"}, "token", 502, "refused the token"),
+    (503, {"detail": "zoom_signin_needed", "message": "Sign in to Zoom again."}, "signin",
+     503, ("Athena's Zoom sign-in is missing or expired — run `convo-server zoom-login` "
+           "on the server.")),
+    (502, {"detail": "zoom_unavailable", "message": "Zoom ZAK/OBF request failed."}, "zoom",
+     502, "Zoom didn't give Athena a join token; try again in a minute."),
     (404, {"detail": "Not Found"}, "update", 502, "Update Athena to use meetings"),
     (405, {"detail": "Method Not Allowed"}, "update", 502, "Update Athena"),
 ])
@@ -506,3 +516,20 @@ def test_routes_are_admin_only(monkeypatch):
         assert c.post("/api/modules/sound/meetings", headers=H,
                       json={"link": "850 1234 5678"}).status_code == 403
         assert c.delete(f"/api/modules/sound/meetings/{MID}", headers=H).status_code == 403
+
+
+def test_waiting_for_owner_still_counts_as_active():
+    got = mb.public(row(state="starting", reason="waiting_for_owner", started_at=None))
+    assert got["active"] is True and got["text"].startswith("Waiting for you to join")
+
+
+def test_route_signin_needed(client):
+    client.module.join = (503, {"detail": "zoom_signin_needed", "message": "…"})
+    r = client.post("/api/modules/sound/meetings", headers=H, json={"link": "850 1234 5678"})
+    assert r.status_code == 503 and r.json()["code"] == "signin"
+    assert "convo-server zoom-login" in r.json()["detail"]
+
+
+def test_page_has_the_join_yourself_hint(client):
+    r = client.get("/modules/sound/record")
+    assert "Join the meeting yourself too — Athena records while you're in it." in r.text
