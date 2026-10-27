@@ -18,6 +18,12 @@ page with writing is reviewed for its writing as it is now (the owner reviews ev
 by hand), and nothing is sent by itself: **Send** in the Text tab is the only way, also
 after an edit (resend replaces the note).
 
+The one exception is ``INK_AUTO_SEND`` (H6, off by default,
+``src/ink_transcribe.py`` :func:`~src.ink_transcribe.auto_send_enabled`): a transcription
+run accepts clean pages itself (``transcript.auto``) and, when it ends with no page
+waiting, sends the note through the same :func:`send` (:func:`auto_send`). Save review
+never sends, with or without it.
+
 Sidecar ``athena``::
 
     {"sent_hash",        # sha256 of the text Athena last accepted (None: never sent)
@@ -26,8 +32,10 @@ Sidecar ``athena``::
      "written_at",       # epoch s sent as written_at: fixed when Athena first accepts
                          # the note, so a resend of the same lines is "unchanged"
      "sending",          # epoch s while a send is in flight (None otherwise)
-     "maybe_sent"}       # True: a send failed without an answer (timeout, Athena down),
+     "maybe_sent",       # True: a send failed without an answer (timeout, Athena down),
                          # so Athena may hold the note although it never confirmed it
+     "auto",             # True: what Athena accepted last came from an automatic send
+     "auto_error"}       # why the last automatic send failed (cleared by a good send)
 
 Deleted notes: a sidecar whose note is gone and that was sent (or is being sent, or
 whose send got no answer) stays until Athena answers ``deleted`` or ``already`` to the
@@ -232,7 +240,8 @@ def view(stored: dict[str, Any], now: float | None = None) -> dict[str, Any]:
             "conversation_id": a.get("conversation_id"),
             "transcript_link": a.get("transcript_link"),
             "waiting": waiting_pages(stored), "has_text": has_words(text),
-            "sending": _sending(a, now)}
+            "sending": _sending(a, now), "auto": bool(a.get("sent_hash") and a.get("auto")),
+            "auto_error": a.get("auto_error") if isinstance(a.get("auto_error"), str) else None}
 
 
 # ---------------------------------------------------------------------------- link
@@ -362,6 +371,7 @@ def _finish(store: str | None, note_id: str, sent: dict[str, Any] | None,
             a.update(sent)
             a["sent_at"] = now_iso if sent.get("sent_hash") else None
             a["maybe_sent"] = False
+            a.pop("auto_error", None)
         elif maybe_sent:
             a["maybe_sent"] = True
         ink._write_json(ink.sidecar_path(store, note_id), stored)
@@ -397,8 +407,9 @@ async def _call(method: str, path: str, *, json: Any = None,
 
 async def send(owner: str | None, note_id: str, *, request_base: str | None = None,
                transport: httpx.AsyncBaseTransport | None = None,
-               clock: Callable[[], float] = time.time) -> dict[str, Any]:
-    """Send the note's reviewed text to Athena, or replace what Athena has. Returns the
+               clock: Callable[[], float] = time.time, auto: bool = False) -> dict[str, Any]:
+    """Send the note's reviewed text to Athena, or replace what Athena has (``auto``: by
+    :func:`auto_send`, stored as ``athena.auto``). Returns the
     transcripts answer (``src/ink_transcribe.py``, with ``athena``) plus ``sent``:
     ``{result, conversation_id, lines, erased_lines, transcript_link}`` (``result``
     ``deleted`` when the note has no words left and Athena had it). Raises ``InkError``
@@ -416,7 +427,7 @@ async def send(owner: str | None, note_id: str, *, request_base: str | None = No
         if payload is None:
             out = await _delete(note_id, transport)
             sent = {"sent_hash": None, "conversation_id": None, "transcript_link": None,
-                    "written_at": None}
+                    "written_at": None, "auto": auto}
             answer = {"result": "deleted" if out == "deleted" else "already",
                       "conversation_id": None}
         else:
@@ -431,7 +442,7 @@ async def send(owner: str | None, note_id: str, *, request_base: str | None = No
             sent = {"sent_hash": digest, "conversation_id": str(body["conversation_id"]),
                     "transcript_link": body.get("transcript_link")
                     if isinstance(body.get("transcript_link"), str) else None,
-                    "written_at": written}
+                    "written_at": written, "auto": auto}
             answer = {k: body.get(k) for k in ("result", "conversation_id", "lines",
                                                "erased_lines", "transcript_link")}
             logger.info("ink: note sent to Athena (%s, %s lines)", answer["result"],
@@ -445,6 +456,74 @@ async def send(owner: str | None, note_id: str, *, request_base: str | None = No
             await after_delete(store, note_id, transport=transport)
     out = await asyncio.to_thread(tr.transcripts, owner, note_id)
     return {**out, "sent": answer}
+
+
+# ------------------------------------------------------------------ auto-send (H6)
+AUTO_SEND_WAIT = 60.0  # seconds a finished run waits for a send of the note in flight
+
+
+def _auto_ready(owner: str | None, note_id: str) -> tuple[str | None, bool]:
+    """(store, whether the note should be sent now): a handwritten note of ``owner``
+    with words, no page waiting (none being read by another run either) and text Athena
+    doesn't have yet."""
+    try:
+        store = tr._check(owner, note_id)
+    except ink.InkError:
+        return None, False  # deleted meanwhile
+    with ink._lock(store):
+        stored = ink.load_sidecar(store, note_id)
+    if stored is None or not isinstance(stored.get("pages"), list):
+        return store, False
+    if waiting_pages(stored) or not has_words(note_text(stored)):
+        return store, False
+    return store, state(stored) != "sent"
+
+
+def _auto_failed(store: str | None, note_id: str, message: str) -> None:
+    """Keep why an automatic send failed, for the Text tab (a good send clears it)."""
+    with ink._lock(store):
+        stored = ink.load_sidecar(store, note_id)
+        if stored is None:
+            return
+        _athena(stored)["auto_error"] = message[:300]
+        ink._write_json(ink.sidecar_path(store, note_id), stored)
+
+
+async def auto_send(owner: str | None, note_id: str, *, request_base: str | None = None,
+                    transport: httpx.AsyncBaseTransport | None = None,
+                    clock: Callable[[], float] = time.time,
+                    wait: float = AUTO_SEND_WAIT) -> str | None:
+    """INK_AUTO_SEND: send the note after a transcription run accepted pages by itself,
+    if it is on, no page waits for review and Athena doesn't have the text yet. Waits
+    for a send of the note already in flight (one send per note), then sends through
+    :func:`send`. Returns Athena's result, ``waiting`` (a page waits or another send
+    holds the note: left for later), ``failed`` (kept as ``athena.auto_error`` for the
+    owner, who can Send by hand) or None (nothing to do)."""
+    if not tr.auto_send_enabled():
+        return None
+    store, ready = await asyncio.to_thread(_auto_ready, owner, note_id)
+    deadline = time.monotonic() + wait
+    while ready and (store or "", note_id) in _SENDING and time.monotonic() < deadline:
+        await asyncio.sleep(0.2)
+    if ready and (store or "", note_id) in _SENDING:
+        return "waiting"
+    if ready:  # the send that ended may have sent this text already
+        store, ready = await asyncio.to_thread(_auto_ready, owner, note_id)
+    if not ready:
+        return None
+    try:
+        out = await send(owner, note_id, request_base=request_base, transport=transport,
+                         clock=clock, auto=True)
+    except ink.InkError as exc:
+        if exc.status == 409:  # a page waits again, or a send holds the note
+            return "waiting"
+        if exc.status == 404:
+            return None
+        logger.warning("ink: automatic send to Athena failed (HTTP %s)", exc.status)
+        await asyncio.to_thread(_auto_failed, store, note_id,
+                                f"The automatic send failed: {exc}")
+        return "failed"
+    return (out.get("sent") or {}).get("result")
 
 
 # ------------------------------------------------------------------ delete, sweep

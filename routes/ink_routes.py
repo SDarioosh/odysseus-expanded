@@ -36,7 +36,11 @@ Stage H4, into Athena (``src/ink_athena.py``):
   there); answers the transcripts plus ``sent: {result, conversation_id, lines,
   erased_lines, transcript_link}``. 409 ``{"detail"}`` while pages wait for review, 413
   over Athena's limits (the detail says what is over), 400 no reviewed text, 503 Athena
-  not set up, 502 Athena unreachable. Nothing is sent by any other route.
+  not set up, 502 Athena unreachable. Nothing is sent by any other route, except with
+  ``INK_AUTO_SEND`` on (H6, off by default): then a transcription run started by
+  ``/transcribe`` accepts clean pages itself (page ``auto``) and sends the note when no
+  page waits (``athena.auto``, ``athena.auto_error``; ``auto_send`` and
+  ``auto_sending`` in the transcripts answer).
 * ``DELETE`` above also removes a sent note from Athena (``athena``: ``deleted``,
   ``already`` or ``pending``, retried by the sweep); listing notes runs the sweep.
 
@@ -155,8 +159,10 @@ def setup_ink_routes() -> APIRouter:
         body = await _json_body(request, 64 * 1024)
         pages = body.get("pages")
         try:
+            # request_base: the note's link if the run sends it itself (INK_AUTO_SEND)
             return await tr.start(owner, note_id, page_ids=pages,
-                                  only_changed=bool(body.get("only_changed")))
+                                  only_changed=bool(body.get("only_changed")),
+                                  request_base=str(request.base_url))
         except tr.NoModel as exc:
             raise HTTPException(503, str(exc)) from None
         except ink.InkError as exc:
