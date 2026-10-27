@@ -111,7 +111,15 @@ def test_legacy_reserved_username_session_cannot_pass_admin_gate(tmp_path, monke
         encoding="utf-8",
     )
     mgr = _fresh_auth_manager(tmp_path)
-    clear_module("core.middleware")
+    # Fork: a fresh core.middleware for this test only. clear_module left the fresh copy
+    # in sys.modules, so routes imported earlier kept the old require_admin and a later
+    # test's dependency_overrides[require_admin] missed them (403); monkeypatch restores it.
+    import sys
+
+    import core
+
+    monkeypatch.delitem(sys.modules, "core.middleware", raising=False)
+    monkeypatch.delattr(core, "middleware", raising=False)
     from core.middleware import require_admin
 
     monkeypatch.setenv("AUTH_ENABLED", "true")
