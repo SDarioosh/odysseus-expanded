@@ -1,6 +1,6 @@
 """Fork: pair a phone relay with Odysseus by QR code (routes/sound_relay_routes.py).
 
-The admin opens **Pair a phone** (``/modules/sound/pair``) and gets a QR code holding a
+The admin opens **Pair a phone** (Settings → Integrations, ``/modules/sound/pair``) and gets a QR code holding a
 link ``odysseus-pair:v1?url=<Odysseus URL>&code=<pairing code>``. The phone relay scans it
 and redeems the code at ``POST /api/pair/redeem``; only then is an API token created,
 named "Phone relay <date>", owned by the admin who made the code, with the relay's scopes
@@ -184,7 +184,7 @@ class Pairings:
             pending = self._by_hash.get(_hash((code or "").strip()))
             if pending is None or pending.redeemed_at is not None or pending.expires <= now:
                 raise PairingError(400, "This pairing code is not valid any more: make a new "
-                                        "one in Odysseus (Conversations → Pair a phone).")
+                                        "one in Odysseus (Settings → Integrations → Pair a phone).")
             pending.redeemed_at = now  # single use, even if the token can't be made
         name = f"{TOKEN_NAME} {datetime.now(UTC).strftime('%Y-%m-%d %H:%M')}"
         token = make_token(pending.owner, name, list(RELAY_SCOPES))
