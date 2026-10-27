@@ -379,7 +379,7 @@ def save(owner: str | None, note_id: str, body: Any, *, title: str | None = None
                 raise InkError("Note not found", 404)
             if current is not None or is_deleted(store, note_id):
                 # The note was deleted (e.g. in the Notes window): don't bring it back.
-                _remove_sidecar(store, note_id)
+                _drop_sidecar(store, note_id, current)
                 _add_tombstones(store, [note_id])
                 raise Gone()
             if not create_note(owner, default_title() if title is None else title, LABEL,
@@ -400,7 +400,16 @@ def save(owner: str | None, note_id: str, body: Any, *, title: str | None = None
             raise
         if exists and title is not None:
             update_note(owner, note_id, title=title)
+        if current is not None and _page_ids(current) != _page_ids(stored):
+            # Pages removed or moved: the note's reviewed text follows them.
+            from src import ink_transcribe  # imports this module
+
+            update_note(owner, note_id, content=ink_transcribe.note_content(stored))
         return public(stored, note_title(owner, note_id))
+
+
+def _page_ids(stored: dict[str, Any]) -> list[Any]:
+    return [p.get("id") for p in stored.get("pages") or [] if isinstance(p, dict)]
 
 
 def _store_owner(owner: str | None, note_id: str) -> str | None:
@@ -479,6 +488,23 @@ def _remove_sidecar(owner: str | None, note_id: str) -> None:
         pass
 
 
+def sent_to_athena(stored: dict[str, Any] | None) -> bool:
+    """Whether Athena may hold this note (sent, a send was started, or a send got no
+    answer): its sidecar is kept after the note is deleted until Athena confirms it
+    removed the note (``src/ink_athena.py``)."""
+    athena = (stored or {}).get("athena")
+    return isinstance(athena, dict) and bool(
+        athena.get("sent_hash") or athena.get("sending") or athena.get("maybe_sent"))
+
+
+def _drop_sidecar(owner: str | None, note_id: str, stored: dict[str, Any] | None) -> None:
+    """The note is gone: remove its strokes, unless Athena may still hold the note. Then
+    the sidecar stays (the note never comes back: its id is a tombstone) until the
+    Athena sweep has asked Athena to remove it."""
+    if not sent_to_athena(stored):
+        _remove_sidecar(owner, note_id)
+
+
 def delete(owner: str | None, note_id: str) -> bool:
     """Delete the note and its strokes. ``False`` when it isn't this owner's note."""
     if not valid_note_id(note_id):
@@ -487,19 +513,41 @@ def delete(owner: str | None, note_id: str) -> bool:
         return False  # not this owner's handwritten note: never deleted from here
     store = _store_owner(owner, note_id)
     with _lock(store):
-        had_sidecar = load_sidecar(store, note_id) is not None
+        stored = load_sidecar(store, note_id)
         removed = delete_note(owner, note_id)
-        if not removed and not had_sidecar:
+        if not removed and stored is None:
             return False
-        _remove_sidecar(store, note_id)
+        _drop_sidecar(store, note_id, stored)
         _add_tombstones(store, [note_id])
     return True
+
+
+def owner_folders() -> list[str | None]:
+    """Every ink folder, as the owner to pass for it: a folder name is its owner's name,
+    or a hash of it (:func:`_owner_dir_name`), which maps to itself; ``_single`` (single-
+    user mode's folder) is ``None``."""
+    from src import constants  # read at call time: tests point DATA_DIR elsewhere
+
+    root = Path(constants.DATA_DIR) / "ink"
+    if not root.is_dir():
+        return []
+    return [None if p.name == "_single" else p.name
+            for p in sorted(root.iterdir()) if p.is_dir()]
 
 
 def sweep(owner: str | None) -> list[str]:
     """Remove sidecars whose note is gone (deleted in the Notes window or by a tool),
     and remember their ids so a queued save from a tablet doesn't bring them back.
-    Returns the removed ids. (H4 also asks Athena to drop notes it was sent.)"""
+    Returns the removed ids. A note sent to Athena keeps its sidecar until Athena
+    confirms it removed the note (``src/ink_athena.py`` ``sweep``). Single-user mode
+    (``owner`` None) sees every note, so it sweeps every owner's folder."""
+    if owner is not None:
+        return sweep_folder(owner)
+    return [i for folder in owner_folders() for i in sweep_folder(folder)]
+
+
+def sweep_folder(owner: str | None) -> list[str]:
+    """:func:`sweep` for one ink folder (``owner`` None: ``_single``)."""
     with _lock(owner):  # no save, delete or tombstone write of this owner meanwhile
         ids = sidecar_ids(owner)
         if not ids:
@@ -507,11 +555,14 @@ def sweep(owner: str | None) -> list[str]:
         # Any note with that id keeps its strokes (also one relabelled in Notes).
         alive = {i for i in ids if note_id_taken(i)}
         removed = []
+        gone = []
         for note_id in ids:
             if note_id not in alive:
-                _remove_sidecar(owner, note_id)
-                removed.append(note_id)
-        _add_tombstones(owner, removed)
+                gone.append(note_id)
+                if not sent_to_athena(load_sidecar(owner, note_id)):
+                    _remove_sidecar(owner, note_id)
+                    removed.append(note_id)
+        _add_tombstones(owner, gone)
         return removed
 
 
@@ -527,8 +578,16 @@ def list_notes(owner: str | None) -> list[dict[str, Any]]:
                     "edited_at": int(stored.get("edited_at") or 0) if stored else 0,
                     "link": note_link(note["id"]),
                     # H2: pages to review, failed, being read (src/ink_transcribe.py)
-                    "transcripts": _transcript_summary(stored)})
+                    "transcripts": _transcript_summary(stored),
+                    # H4: not_sent, sent or changed (src/ink_athena.py)
+                    "athena": _athena_state(stored)})
     return out
+
+
+def _athena_state(stored: dict[str, Any] | None) -> str:
+    from src import ink_athena  # imports this module
+
+    return ink_athena.state(stored) if stored else "not_sent"
 
 
 def _transcript_summary(stored: dict[str, Any] | None) -> dict[str, Any]:

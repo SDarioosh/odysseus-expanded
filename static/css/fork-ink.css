@@ -61,6 +61,7 @@
 .ink-root .ink-trow .bs-btn { height: 34px; min-width: 34px; }
 .ink-root .ink-tspacer { flex: 1; }
 .ink-root .ink-tstate.error { color: var(--red); }
+.ink-root .ink-athena.error { color: var(--red); }
 .ink-root .ink-tfigure { flex: 0 1 auto; max-height: 46%; min-height: 80px; overflow: auto;
                          border: 1px solid var(--border); border-radius: 4px; background: #fff; }
 .ink-root .ink-timage { display: block; }

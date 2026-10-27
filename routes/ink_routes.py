@@ -28,6 +28,18 @@ Stage H2, transcription and review (``src/ink_transcribe.py``):
   reviewed text; status ``reviewed``, and the note's ``content`` becomes the reviewed
   pages' text. Nothing is sent anywhere.
 
+Stage H4, into Athena (``src/ink_athena.py``):
+
+* The transcripts answers above carry ``athena``: ``{state: not_sent|sent|changed,
+  sent_at, conversation_id, transcript_link, waiting: [{page, why}], has_text, sending}``.
+* ``POST /api/ink/notes/{id}/send``: sends the reviewed text to Athena (or replaces it
+  there); answers the transcripts plus ``sent: {result, conversation_id, lines,
+  erased_lines, transcript_link}``. 409 ``{"detail"}`` while pages wait for review, 413
+  over Athena's limits (the detail says what is over), 400 no reviewed text, 503 Athena
+  not set up, 502 Athena unreachable. Nothing is sent by any other route.
+* ``DELETE`` above also removes a sent note from Athena (``athena``: ``deleted``,
+  ``already`` or ``pending``, retried by the sweep); listing notes runs the sweep.
+
 Any signed-in user, for their own notes, like upstream's notes routes
 (``require_user``; API tokens are refused). Another user's note id is a 404.
 """
@@ -39,9 +51,10 @@ import json
 import re
 from typing import Any
 
-from fastapi import APIRouter, HTTPException, Request
+from fastapi import APIRouter, BackgroundTasks, HTTPException, Request
 from fastapi.responses import JSONResponse
 
+from src import ink_athena as athena
 from src import ink_notes as ink
 from src import ink_transcribe as tr
 from src.auth_helpers import require_user
@@ -79,9 +92,12 @@ def setup_ink_routes() -> APIRouter:
     router = APIRouter(prefix="/api/ink", tags=["fork-ink"])
 
     @router.get("/notes")
-    async def list_notes(request: Request):
+    async def list_notes(request: Request, background: BackgroundTasks):
         owner = _owner(request)
-        return {"notes": await asyncio.to_thread(ink.list_notes, owner)}
+        notes = await asyncio.to_thread(ink.list_notes, owner)
+        # Deleted notes Athena still holds: asked after the answer, not before it.
+        background.add_task(_sweep_athena, owner)
+        return {"notes": notes}
 
     @router.get("/notes/{note_id}")
     async def get_note(request: Request, note_id: str):
@@ -117,9 +133,11 @@ def setup_ink_routes() -> APIRouter:
     async def delete_note(request: Request, note_id: str):
         owner = _owner(request)
         _check_id(note_id)
+        store = await asyncio.to_thread(ink._store_owner, owner, note_id)
         if not await asyncio.to_thread(ink.delete, owner, note_id):
             raise HTTPException(404, "Note not found")
-        return {"ok": True}
+        sent = await athena.after_delete(store, note_id)
+        return {"ok": True, "athena": sent} if sent else {"ok": True}
 
     @router.get("/notes/{note_id}/transcripts")
     async def get_transcripts(request: Request, note_id: str):
@@ -157,4 +175,23 @@ def setup_ink_routes() -> APIRouter:
         except ink.InkError as exc:
             raise HTTPException(exc.status, str(exc)) from None
 
+    @router.post("/notes/{note_id}/send")
+    async def send(request: Request, note_id: str):
+        owner = _owner(request)
+        _check_id(note_id)
+        await _json_body(request, 1024)  # no fields; refuses a large or odd body
+        try:
+            return await athena.send(owner, note_id, request_base=str(request.base_url))
+        except ink.InkError as exc:
+            raise HTTPException(exc.status, str(exc)) from None
+
     return router
+
+
+async def _sweep_athena(owner: str | None) -> None:
+    try:
+        await athena.sweep(owner)
+    except Exception as exc:  # noqa: BLE001 -- the next list or the hourly sync retries
+        import logging
+
+        logging.getLogger(__name__).warning("ink: Athena sweep failed: %s", exc)

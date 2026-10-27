@@ -577,8 +577,8 @@ await check('h2_06_drafts_per_user', async () => {
   const id = await page.evaluate(() => view._state.note.id);
   const hubState = await page.evaluate(() => JSON.stringify({ notes: hub.notes, tr: hub.tr }));
   await page.close();
-  const again = await openPage(browser, { user: 'sam', context: ctx });
-  await again.evaluate((st) => { const s = JSON.parse(st); hub.notes = s.notes; hub.tr = s.tr; }, hubState);
+  // The hub has the note before the view mounts: its first list must not see it gone.
+  const again = await openPage(browser, { user: 'sam', context: ctx, hubState });
   await again.evaluate(async (nid) => { await view.openNote(nid, { textPage: 0 }); await settle(300); }, id);
   const restored = await textState(again);
   await again.close();
@@ -907,6 +907,224 @@ await check('live_stroke_is_whole_while_writing', async () => {
   });
   await page.close();
   return { ok: got.diff < 20, ...got };
+});
+
+// ------------------------------------------------------------ H4: Send to Athena
+const sendState = (page) => page.evaluate(() => {
+  const b = document.querySelector('.ink-send');
+  const a = document.querySelector('.ink-athena');
+  return { label: b.textContent, disabled: b.disabled, state: b.getAttribute('data-state'), line: a.textContent,
+    error: a.classList.contains('error'), sends: hub.sends.length };
+});
+const saveReviewClick = (page) => page.evaluate(async () => { document.querySelector('.ink-trow .bs-btn.primary').click(); await settle(400); });
+const clickSend = (page, ms = 400) => page.evaluate(async (wait) => { document.querySelector('.ink-send').click(); await settle(wait); }, ms);
+
+// Send waits for review, then not sent -> sent -> changed since sent -> sent again.
+await check('h4_01_send_button_states', async () => {
+  const page = await openPage(browser, { user: 'sam' });
+  await newNote(page);
+  await page.evaluate((pts) => stroke('pen', 2, pts), line(200));
+  await textTab(page);
+  await waitText(page, () => document.querySelector('.ink-tarea').value.includes('Line one'));
+  const machine = await sendState(page);
+  await typeText(page, 'Buy milk');
+  await saveReviewClick(page);
+  const ready = await sendState(page);
+  await clickSend(page);
+  const sent = await sendState(page);
+  const athena = await page.evaluate(() => Object.values(hub.athena));
+  await typeText(page, 'Buy oat milk');
+  await saveReviewClick(page);
+  const changed = await sendState(page);
+  await clickSend(page);
+  const again = await sendState(page);
+  await page.close();
+  return { ok: machine.disabled && /Waiting: page 1/.test(machine.line) && machine.sends === 0
+    && !ready.disabled && ready.state === 'not_sent' && /Not sent/.test(ready.line) && ready.label === 'Send to Athena'
+    && sent.disabled && sent.state === 'sent' && /Sent to Athena/.test(sent.line) && /Open in Athena/.test(sent.line)
+    && athena[0] === 'Buy milk'
+    && !changed.disabled && changed.state === 'changed' && changed.label === 'Send again' && /replaces/.test(changed.line)
+    && again.disabled && /replaced/.test(again.line) && again.sends === 2,
+  machine, ready, sent, athena, changed, again };
+});
+
+// Edits not saved yet keep Send off, and say which page.
+await check('h4_02_unsaved_edits_block_send', async () => {
+  const page = await openPage(browser, { user: 'tia' });
+  await newNote(page);
+  await page.evaluate((pts) => stroke('pen', 2, pts), line(200));
+  await textTab(page);
+  await waitText(page, () => document.querySelector('.ink-tarea').value.includes('Line one'));
+  await typeText(page, 'Reviewed');
+  await saveReviewClick(page);
+  await typeText(page, 'Reviewed, then changed');
+  await page.waitForTimeout(50);
+  const got = await sendState(page);
+  await page.close();
+  return { ok: got.disabled && /Save review first/.test(got.line) && /page 1/.test(got.line), ...got };
+});
+
+// A slow Send answer for one note never shows in the note opened meanwhile.
+await check('h4_03_stale_send_answer_is_dropped', async () => {
+  const page = await openPage(browser, { user: 'uma' });
+  await newNote(page);
+  await page.evaluate((pts) => stroke('pen', 2, pts), line(200));
+  await textTab(page);
+  await waitText(page, () => document.querySelector('.ink-tarea').value.includes('Line one'));
+  await typeText(page, 'First note');
+  await saveReviewClick(page);
+  const first = await page.evaluate(() => view._state.note.id);
+  await page.evaluate((id) => { hub.delay['POST /api/ink/notes/' + id + '/send'] = 700; }, first);
+  await clickSend(page, 50);
+  const busy = await sendState(page);
+  await newNote(page);                                     // another note while it is sent
+  await page.evaluate((pts) => stroke('pen', 2, pts), line(260));
+  await textTab(page);
+  await waitText(page, () => document.querySelector('.ink-tarea').value.includes('Line one'));
+  await page.waitForTimeout(900);                          // the first answer has arrived
+  const other = await sendState(page);
+  const got = await page.evaluate(() => ({ id: view._state.note.id }));
+  const athena = await page.evaluate(() => Object.keys(hub.athena));
+  await page.close();
+  return { ok: busy.disabled && /Sending/.test(busy.line) && got.id !== first
+    && other.state === 'not_sent' && !/Sent to Athena\./.test(other.line) && !/Sending/.test(other.line)
+    && athena.length === 1 && athena[0] === first,
+  busy, other, got, athena };
+});
+
+// Athena's refusal (over its limits) is shown, nothing changes.
+await check('h4_04_refusal_is_shown', async () => {
+  const page = await openPage(browser, { user: 'val' });
+  await newNote(page);
+  await page.evaluate((pts) => stroke('pen', 2, pts), line(200));
+  await textTab(page);
+  await waitText(page, () => document.querySelector('.ink-tarea').value.includes('Line one'));
+  await typeText(page, 'Long text');
+  await saveReviewClick(page);
+  const id = await page.evaluate(() => view._state.note.id);
+  await page.evaluate((nid) => { hub.answer['POST /api/ink/notes/' + nid + '/send'] = { status: 413,
+    body: { detail: 'The text is 230,000 characters; Athena takes at most 200,000.' } }; }, id);
+  await clickSend(page);
+  const got = await sendState(page);
+  await page.close();
+  return { ok: got.error && /Not sent: The text is 230,000 characters/.test(got.line) && !got.disabled && got.state === 'not_sent', ...got };
+});
+
+// ----------------------------------------------- H4 QC (PR 95 review), one per finding
+const reviewedNote = async (page, text, y = 200) => {
+  await newNote(page);
+  await page.evaluate((pts) => stroke('pen', 2, pts), line(y));
+  await textTab(page);
+  await waitText(page, () => document.querySelector('.ink-tarea').value.includes('Line one'));
+  await typeText(page, text);
+  await saveReviewClick(page);
+  return page.evaluate(() => view._state.note.id);
+};
+const textButtons = (page) => page.evaluate(() => {
+  const b = (label) => [...document.querySelectorAll('.ink-trow button')].find((x) => x.textContent.startsWith(label));
+  return { save: b('Save review').disabled, transcribe: b('Transcribe').disabled,
+    restore: b('Restore reviewed text').disabled, state: document.querySelector('.ink-tstate').textContent };
+});
+
+// F-03: after a Send, typing new text says "Save review first", with no Athena link.
+await check('h4qc_03_unsaved_edits_after_send', async () => {
+  const page = await openPage(browser, { user: 'wes' });
+  await reviewedNote(page, 'Buy milk');
+  await clickSend(page);
+  const sent = await sendState(page);
+  await typeText(page, 'Buy milk and eggs');
+  await page.waitForTimeout(50);
+  const typed = await sendState(page);
+  await page.close();
+  return { ok: /Sent to Athena\./.test(sent.line) && typed.disabled && /Save review first/.test(typed.line)
+    && !/Open in Athena/.test(typed.line) && !/Sent to Athena\./.test(typed.line), sent, typed };
+});
+
+// F-03: a refused Send's red line goes once the text is fixed and saved.
+await check('h4qc_03_error_cleared_by_save', async () => {
+  const page = await openPage(browser, { user: 'xan' });
+  const id = await reviewedNote(page, 'Very long text');
+  await page.evaluate((nid) => { hub.answer['POST /api/ink/notes/' + nid + '/send'] = { status: 413,
+    body: { detail: 'The text is 209,009 characters; Athena takes at most 200,000.' } }; }, id);
+  await clickSend(page);
+  const refused = await sendState(page);
+  await page.evaluate((nid) => { delete hub.answer['POST /api/ink/notes/' + nid + '/send']; }, id);
+  await typeText(page, 'Shortened text');
+  await saveReviewClick(page);
+  const saved = await sendState(page);
+  await page.close();
+  return { ok: refused.error && /209,009/.test(refused.line) && !saved.error && !/209,009/.test(saved.line)
+    && /Not sent to Athena yet/.test(saved.line) && !saved.disabled, refused, saved };
+});
+
+// F-04: a transcripts read that finishes while Send is in flight doesn't drop its answer.
+await check('h4qc_04_send_answer_survives_refresh', async () => {
+  const page = await openPage(browser, { user: 'yul' });
+  const id = await reviewedNote(page, 'Buy milk');
+  await page.evaluate((nid) => { hub.delay['POST /api/ink/notes/' + nid + '/send'] = 600; }, id);
+  await clickSend(page, 50);
+  await page.evaluate(async () => { await view.refresh(); await settle(100); });
+  await page.waitForTimeout(800);
+  const got = await sendState(page);
+  await page.close();
+  return { ok: got.state === 'sent' && got.disabled && /Sent to Athena/.test(got.line), ...got };
+});
+
+// F-08: a slow Send of one note doesn't stop Send on another.
+await check('h4qc_08_send_another_note_meanwhile', async () => {
+  const page = await openPage(browser, { user: 'zed' });
+  const first = await reviewedNote(page, 'First note');
+  await page.evaluate((nid) => { hub.delay['POST /api/ink/notes/' + nid + '/send'] = 8000; }, first);
+  await clickSend(page, 50);
+  const second = await reviewedNote(page, 'Second note', 260);
+  const ready = await sendState(page);
+  await clickSend(page);
+  const got = await sendState(page);
+  const athena = await page.evaluate(() => Object.keys(hub.athena));
+  await page.close();
+  return { ok: !ready.disabled && athena.includes(second) && got.state === 'sent', ready, got, athena, second };
+});
+
+// F-13: Save review, Transcribe and Restore are off while the note is being sent.
+await check('h4qc_13_controls_locked_while_sending', async () => {
+  const page = await openPage(browser, { user: 'abe' });
+  const id = await reviewedNote(page, 'Buy milk');
+  await page.evaluate((nid) => { hub.delay['POST /api/ink/notes/' + nid + '/send'] = 600; }, id);
+  await clickSend(page, 50);
+  const during = await textButtons(page);
+  await page.waitForTimeout(800);
+  const after = await textButtons(page);
+  await page.close();
+  return { ok: during.save && during.transcribe && during.restore && !after.save && !after.transcribe, during, after };
+});
+
+// F-13: typing after Save review says the edits aren't saved yet.
+await check('h4qc_13_state_follows_typing', async () => {
+  const page = await openPage(browser, { user: 'bea' });
+  await reviewedNote(page, 'Buy milk');
+  const saved = await textButtons(page);
+  await typeText(page, 'Buy milk and eggs');
+  await page.waitForTimeout(50);
+  const typed = await textButtons(page);
+  await page.close();
+  return { ok: /Reviewed and saved/.test(saved.state) && /Edits not saved yet/.test(typed.state)
+    && !/Reviewed and saved/.test(typed.state), saved, typed };
+});
+
+// F-14: a sent note whose text became empty is removed from Athena by Send.
+await check('h4qc_14_empty_text_removes_from_athena', async () => {
+  const page = await openPage(browser, { user: 'cal' });
+  const id = await reviewedNote(page, 'Buy milk');
+  await clickSend(page);
+  await typeText(page, '');
+  await saveReviewClick(page);
+  const empty = await sendState(page);
+  await clickSend(page);
+  const got = await sendState(page);
+  const athena = await page.evaluate((nid) => hub.athena[nid], id);
+  await page.close();
+  return { ok: !empty.disabled && /removes the note/.test(empty.line) && athena === undefined
+    && /Removed from Athena/.test(got.line), empty, got, athena };
 });
 
 await browser.close();

@@ -3,6 +3,7 @@
 // failures and the signed-in user. Used by tests/helpers/ink_review_e2e.mjs.
 // H2: the fake hub also transcribes (hub.read(noteId, pageIndex) gives the text, after
 // hub.readMs; hub.noModel answers 503) and stores reviewed text (hub.content).
+// H4: POST .../send stands for Athena (hub.athena[noteId] = the text it has; hub.sends).
 import { createRequire } from 'node:module';
 import fs from 'node:fs';
 import path from 'node:path';
@@ -18,8 +19,10 @@ html,body{margin:0;height:100%}#host{width:900px;height:760px;display:flex;flex-
 <script>
   // The fake hub: notes by id, per user; options per test.
   window.hub = { user: localStorage.getItem('odysseus-auth-user') || 'alice', notes: {}, calls: [],
-    online: true, delay: {}, answer: {}, tr: {}, content: {}, readMs: 200, noModel: false,
+    online: true, delay: {}, answer: {}, tr: {}, content: {}, athena: {}, sends: [], readMs: 200, noModel: false,
     read: (id, i) => ['Line one of page ' + (i + 1), 'the [?] word'].join(String.fromCharCode(10)) };
+  // openPage(..., { hubState }): the hub's notes and transcripts before the view mounts.
+  if (window.__hubSeed) Object.assign(window.hub, window.__hubSeed);
   // Transcripts as the hub keeps them: hub.tr[noteId][pageId] = {status, text, hash, ...}
   const hashOf = (pg) => JSON.stringify(pg.strokes.map((st) => st.id));
   const trOf = (n) => (hub.tr[n.note_id] = hub.tr[n.note_id] || {});
@@ -31,7 +34,19 @@ html,body{margin:0;height:100%}#host{width:900px;height:760px;display:flex;flex-
       changed: (t.status === 'machine' || t.status === 'reviewed') && t.hash !== hashOf(pg),
       ...(t.previous ? { previous: t.previous } : {}) };
   });
-  const views = (n) => { const pages = pageViews(n); return { note_id: n.note_id, pages, running: pages.some((p) => p.status === 'pending') }; };
+  // The text Send gives Athena: pages reviewed now (src/ink_athena.py note_text).
+  const contentOf = (n) => n.pages.map((x) => trOf(n)[x.id]).filter((t) => t && t.status === 'reviewed' && t.text).map((t) => t.text).join(String.fromCharCode(10, 10));
+  const athenaOf = (n, pages) => {
+    const waiting = pages.filter((p) => p.status === 'machine' || p.status === 'failed' || p.status === 'pending'
+      || (p.status === 'none' && p.ink) || (p.status === 'reviewed' && p.changed))
+      .map((p) => ({ page: p.index + 1, why: p.status === 'none' ? 'not transcribed' : p.status }));
+    const text = contentOf(n);
+    const sent = hub.athena[n.note_id];
+    const state = sent == null ? 'not_sent' : (sent === text && !waiting.length ? 'sent' : 'changed');
+    return { state, waiting, has_text: !!text.trim(), sending: false, sent_at: sent == null ? null : '2026-10-26T10:00:00Z',
+      transcript_link: sent == null ? null : 'http://athena.local/view/c1?sig=x' };
+  };
+  const views = (n) => { const pages = pageViews(n); return { note_id: n.note_id, pages, running: pages.some((p) => p.status === 'pending'), athena: athenaOf(n, pages) }; };
   const summary = (n) => { const v = pageViews(n); return { review: v.filter((p) => p.status === 'machine').map((p) => p.index),
     failed: v.filter((p) => p.status === 'failed' && p.ink).map((p) => p.index), pending: v.filter((p) => p.status === 'pending').length }; };
   const realFetch = window.fetch.bind(window);
@@ -51,18 +66,33 @@ html,body{margin:0;height:100%}#host{width:900px;height:760px;display:flex;flex-
     const mine = Object.values(hub.notes).filter((n) => n.owner === hub.user);
     if (u.pathname === '/api/ink/notes' && method === 'GET') {
       return json(200, { notes: mine.map((n) => ({ id: n.note_id, title: n.title, image_url: n.image_url,
-        pages: n.pages.length, edited_at: n.edited_at, transcripts: summary(n) })) });
+        pages: n.pages.length, edited_at: n.edited_at, transcripts: summary(n), athena: athenaOf(n, pageViews(n)).state })) });
     }
     // /api/ink/notes/<id>/transcripts | transcribe | pages/<page>/transcript
     const parts = u.pathname.split('/');
     const sub = parts.slice(5).join('/');
-    const m = parts.length >= 6 && parts[3] === 'notes' && (sub === 'transcripts' || sub === 'transcribe'
+    const m = parts.length >= 6 && parts[3] === 'notes' && (sub === 'transcripts' || sub === 'transcribe' || sub === 'send'
       || (parts.length === 8 && parts[5] === 'pages' && parts[7] === 'transcript'))
-      ? [null, parts[4], sub === 'transcripts' || sub === 'transcribe' ? sub : 'page', parts[6]] : null;
+      ? [null, parts[4], sub === 'transcripts' || sub === 'transcribe' || sub === 'send' ? sub : 'page', parts[6]] : null;
     if (m) {
       const n = hub.notes[decodeURIComponent(m[1])];
       if (!n || n.owner !== hub.user) return json(404, { detail: 'Note not found' });
       if (m[2] === 'transcripts' && method === 'GET') return json(200, views(n));
+      if (m[2] === 'send' && method === 'POST') {
+        const v = views(n);
+        hub.sends.push(n.note_id);
+        if (v.athena.waiting.length) return json(409, { detail: 'Waiting: ' + v.athena.waiting.map((w) => 'page ' + w.page).join(', ') });
+        const text = contentOf(n);
+        const before = hub.athena[n.note_id];
+        if (!text.trim()) {
+          if (before == null) return json(400, { detail: 'No page has reviewed text yet' });
+          delete hub.athena[n.note_id]; // a sent note with no text left leaves Athena
+          return json(200, { ...views(n), sent: { result: 'deleted', conversation_id: null } });
+        }
+        hub.athena[n.note_id] = text;
+        const result = before == null ? 'created' : (before === text ? 'unchanged' : 'replaced');
+        return json(200, { ...views(n), sent: { result, conversation_id: 'c1', transcript_link: 'http://athena.local/view/c1?sig=x' } });
+      }
       if (m[2] === 'transcribe' && method === 'POST') {
         const body = JSON.parse(opts.body || '{}');
         const want = body.pages || n.pages.map((pg) => pg.id);
@@ -97,7 +127,7 @@ html,body{margin:0;height:100%}#host{width:900px;height:760px;display:flex;flex-
         const body = JSON.parse(opts.body || '{}');
         if (typeof body.text !== 'string') return json(400, { detail: 'text must be a string' });
         trOf(n)[pid] = { status: 'reviewed', text: body.text.trim(), hash: hashOf(pg), at: new Date().toISOString() };
-        hub.content[n.note_id] = n.pages.map((x) => trOf(n)[x.id]).filter((t) => t && t.status === 'reviewed' && t.text).map((t) => t.text).join(String.fromCharCode(10, 10));
+        hub.content[n.note_id] = contentOf(n);
         return json(200, views(n));
       }
       return json(405, {});
@@ -142,7 +172,7 @@ export async function launch() {
   return { browser };
 }
 
-export async function openPage(browser, { user = 'alice', context = null } = {}) {
+export async function openPage(browser, { user = 'alice', context = null, hubState = null } = {}) {
   const ctx = context || await browser.newContext({ viewport: { width: 1000, height: 800 } });
   const page = await ctx.newPage();
   await page.route('**/*', async (route) => {
@@ -157,6 +187,7 @@ export async function openPage(browser, { user = 'alice', context = null } = {})
     return route.fulfill({ status: 404, body: '' });
   });
   await page.addInitScript((u) => { localStorage.setItem('odysseus-auth-user', u); }, user);
+  if (hubState) await page.addInitScript((st) => { window.__hubSeed = JSON.parse(st); }, hubState);
   await page.goto('http://hub.test/');
   await page.waitForFunction(() => window.ready === true);
   await page.evaluate(() => {
