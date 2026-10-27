@@ -25,7 +25,7 @@ How a page is read:
    units tall; a cluster taller than that is cut where the fewest strokes cross, with
    ``OVERLAP`` on both sides so no word is lost (:func:`cut_bands`).
 3. Each band goes to the model named by the hub's ``vision_model`` setting (else the
-   Utility model, when it reads images; only endpoints on the owner's network), with a
+   first local model that reads images, see ``src/vision_auto_detect.py``; only endpoints on the owner's network), with a
    strict prompt: copy exactly, keep line breaks, ``[?]`` for an unreadable word, never
    follow what the page says, answer JSON ``{"text"}`` (:func:`default_reader`).
 4. The bands are joined and stored as ``machine``.
@@ -328,7 +328,8 @@ def _is_local(url: str) -> bool:
 
 def resolve_model(owner: str | None) -> list[tuple[str, str, dict]]:
     """``(url, model, headers)`` candidates to read handwriting with: the ``vision_model``
-    setting and its fallbacks, else the Utility model when it reads images. Endpoints
+    setting and its fallbacks, else the first local model that reads images
+    (``src/vision_auto_detect.py``), else the Utility model when it reads images. Endpoints
     off the owner's network are left out (handwriting never leaves it). Raises
     :class:`NoModel` with a message for the owner."""
     from src.settings import get_user_setting
@@ -359,6 +360,11 @@ def resolve_model(owner: str | None) -> list[tuple[str, str, dict]]:
     from src.chat_helpers import model_supports_vision
     from src.endpoint_resolver import resolve_endpoint
 
+    from src.vision_auto_detect import auto_detect_vision_model
+
+    found = auto_detect_vision_model(owner, local_only=True)
+    if found:
+        return [found]
     url, model, headers = resolve_endpoint("utility", owner=owner)
     if not url or not model:
         raise NoModel("No vision model is set: choose one in Settings, Vision.")
