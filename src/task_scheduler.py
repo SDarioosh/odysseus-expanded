@@ -850,10 +850,13 @@ class TaskScheduler:
                     ScheduledTask.id.notin_(executing_snapshot) if executing_snapshot else True,
                 ).all()
                 to_dispatch = []
+                # Fork: Send Athena joins run on time, not deferred while Odysseus is in use (src/meeting_auto_join.py)
+                from src.meeting_auto_join import is_time_critical as _fork_on_time
+                on_time = {t.id for t in due if _fork_on_time(t)}
                 for task in due:
                     if task.id in self._executing:
                         continue
-                    if foreground_active:
+                    if foreground_active and task.id not in on_time:
                         task.next_run = now + timedelta(minutes=15)
                         continue
                     self._executing.add(task.id)
@@ -861,7 +864,7 @@ class TaskScheduler:
                 if foreground_active and due:
                     db.commit()
             for task_id in to_dispatch:
-                asyncio.create_task(self._execute_task(task_id))
+                asyncio.create_task(self._execute_task(task_id, bypass_model_slot=task_id in on_time))  # Fork: on_time above
         finally:
             db.close()
 
