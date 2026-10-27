@@ -43,6 +43,16 @@ const RETRY_MS = 30000;
 const ERASER_PX = 14;
 const RULE_TOP = 120;
 const RULE_STEP = 44;
+// The paper under the ink (not part of it): lines for writing, a dot grid for drafting
+// designs, or plain. The hub stores it as `paper` (src/ink_notes.py).
+export const PAPERS = [
+  { key: 'lined', label: 'Lined' },
+  { key: 'dotted', label: 'Dotted' },
+  { key: 'blank', label: 'Blank' },
+];
+// A note saved before `paper` has only `ruled` (true or missing: lined; false: blank).
+export const paperOf = (note) => (PAPERS.some((p) => p.key === note.paper) ? note.paper
+  : (note.ruled === false ? 'blank' : 'lined'));
 const API = '/api/ink/notes';
 // The hub's limits (src/ink_notes.py): the view never builds a note it would refuse.
 const MAX_PAGES = 60;
@@ -439,7 +449,7 @@ export function mountInk(root, options = {}) {
   let nav = 0;
   const state = {
     screen: 'list',
-    note: null,               // { id, title, ruled, edited_at, pages, synced }
+    note: null,               // { id, title, paper, edited_at, pages, synced }
     pen: 'black',
     width: 'thin',
     eraser: false,
@@ -498,10 +508,11 @@ export function mountInk(root, options = {}) {
   });
   const undoBtn = iconBtn('undo', 'Undo', () => undo());
   const redoBtn = iconBtn('redo', 'Redo', () => redo());
-  const ruledBtn = el('button', { type: 'button', class: 'bs-btn', title: 'Ruled lines (not part of the ink)',
-    text: 'Lines', onclick: () => {
+  const paperBtn = el('button', { type: 'button', class: 'bs-btn ink-paper',
+    title: 'Paper: lined, dotted or blank (not part of the ink)', onclick: () => {
       if (!state.note || state.live) return;
-      state.note.ruled = !state.note.ruled;
+      const i = PAPERS.findIndex((p) => p.key === paperOf(state.note));
+      state.note.paper = PAPERS[(i + 1) % PAPERS.length].key;
       markDirty(); syncTools(); render();
     } });
   const addPageBtn = iconBtn('page', 'Add a page', () => addPage());
@@ -513,7 +524,7 @@ export function mountInk(root, options = {}) {
     title: 'The text of each page: transcribe, check, save', onclick: () => showTextTab() });
   const penGroup = el('div', { class: 'ink-group ink-pens', role: 'group', 'aria-label': 'Pens' },
     ...penBtns, widthBtn, eraserBtn);
-  const editGroup = el('div', { class: 'ink-group' }, undoBtn, redoBtn, ruledBtn, addPageBtn);
+  const editGroup = el('div', { class: 'ink-group' }, undoBtn, redoBtn, paperBtn, addPageBtn);
   const bar = el('div', { class: 'ink-bar' },
     el('div', { class: 'ink-group' }, backBtn, titleInput),
     el('div', { class: 'ink-group ink-tabs', role: 'tablist', 'aria-label': 'View' }, tabInk, tabText),
@@ -705,7 +716,8 @@ export function mountInk(root, options = {}) {
       ctx.shadowBlur = 6;
       ctx.fillRect(rect.x0, rect.y0, rect.x1 - rect.x0, rect.y1 - rect.y0);
       ctx.restore();
-      if (state.note.ruled) {
+      const paper = paperOf(state.note);
+      if (paper === 'lined') {
         ctx.save();
         clipRect(ctx, rect);
         ctx.strokeStyle = '#d6e0ea';
@@ -717,6 +729,27 @@ export function mountInk(root, options = {}) {
           ctx.lineTo(rect.x1, sy);
           ctx.stroke();
         }
+        ctx.restore();
+      } else if (paper === 'dotted') {
+        // A square dot grid on the lines' spacing over the whole page, centred, at
+        // least half a step from each edge.
+        ctx.save();
+        clipRect(ctx, rect);
+        ctx.fillStyle = '#a9b8c7';
+        const r = Math.max(0.8, 1.6 * k);
+        const start = (dim) => ((dim - RULE_STEP) % RULE_STEP) / 2 + RULE_STEP / 2;
+        const x0 = start(page.width);
+        ctx.beginPath();
+        for (let ry = start(page.height); ry < page.height - RULE_STEP / 2; ry += RULE_STEP) {
+          const sy = rect.y0 + ry * k;
+          if (sy < -r || sy > cssH + r) continue;
+          for (let rx = x0; rx < page.width - RULE_STEP / 2; rx += RULE_STEP) {
+            const sx = rect.x0 + rx * k;
+            ctx.moveTo(sx + r, sy);
+            ctx.arc(sx, sy, r, 0, Math.PI * 2);
+          }
+        }
+        ctx.fill();
         ctx.restore();
       }
     }
@@ -1248,7 +1281,8 @@ export function mountInk(root, options = {}) {
     for (const b of penBtns) b.setAttribute('aria-pressed', String(!state.eraser && b.dataset.pen === state.pen));
     eraserBtn.setAttribute('aria-pressed', String(state.eraser));
     widthBtn.textContent = state.width === 'thin' ? 'Thin' : 'Medium';
-    ruledBtn.setAttribute('aria-pressed', String(!!(state.note && state.note.ruled)));
+    const paper = state.note ? paperOf(state.note) : 'lined';
+    paperBtn.textContent = PAPERS.find((p) => p.key === paper).label;
     undoBtn.disabled = !state.undo.length || !!state.live;
     redoBtn.disabled = !state.redo.length || !!state.live;
     addPageBtn.disabled = !!(state.note && state.note.pages.length >= MAX_PAGES);
@@ -1274,7 +1308,8 @@ export function mountInk(root, options = {}) {
     setStatus('Not saved yet');
   }
 
-  const payload = (note) => ({ title: note.title, ruled: !!note.ruled, edited_at: note.edited_at,
+  const payload = (note) => ({ title: note.title, paper: paperOf(note),
+    ruled: paperOf(note) === 'lined', edited_at: note.edited_at,
     final: !!note.final, pages: note.pages.map((p) => ({ id: p.id, width: p.width, height: p.height, strokes: p.strokes })) });
 
   function snapshotNote() {
@@ -1410,7 +1445,7 @@ export function mountInk(root, options = {}) {
   }
 
   function fromServer(n) {
-    return { id: n.note_id, title: n.title || '', ruled: n.ruled !== false, edited_at: n.edited_at || 0,
+    return { id: n.note_id, title: n.title || '', paper: paperOf(n), edited_at: n.edited_at || 0,
       image_url: n.image_url || null, synced: true,
       pages: (n.pages || []).map((p) => ({ id: p.id, width: p.width, height: p.height, strokes: p.strokes || [] })) };
   }
@@ -1975,7 +2010,7 @@ export function mountInk(root, options = {}) {
 
   async function newNote() {
     ++nav;
-    const note = { id: uuid(), title: defaultTitle(), ruled: true, edited_at: Date.now(), synced: false,
+    const note = { id: uuid(), title: defaultTitle(), paper: 'lined', edited_at: Date.now(), synced: false,
       pages: [{ id: `p${shortId()}`, width: PAGE_W, height: PAGE_H, strokes: [] }] };
     try { await store.put('notes', note); } catch (_) { /* memory only */ }
     openLoaded(note);

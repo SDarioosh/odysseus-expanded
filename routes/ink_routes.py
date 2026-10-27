@@ -6,8 +6,8 @@
   Notes window loses its strokes).
 * ``GET    /api/ink/notes/{id}``: the note's sidecar plus ``title``, ``image_url`` and
   ``link``. 404 when it isn't this user's handwritten note.
-* ``PUT    /api/ink/notes/{id}`` ``{title?, ruled, edited_at, pages: [...], final?}``:
-  save. The first save creates the note (the id comes from the client, so a note can be
+* ``PUT    /api/ink/notes/{id}`` ``{title?, paper, edited_at, pages: [...], final?}``:
+  save (``paper`` is ``lined``, ``dotted`` or ``blank``; an older view sends ``ruled``). The first save creates the note (the id comes from the client, so a note can be
   started offline). Page 1's image is redrawn at most once a minute while writing, and
   on a ``final`` save (the view sends it when the page is left or the app hidden).
   Answers the stored note; 409 ``{"detail", "note"}`` when a newer edit is already

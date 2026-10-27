@@ -83,6 +83,29 @@ def test_first_save_creates_a_handwritten_note_and_round_trips(env):
     assert on_disk["pages"][1]["strokes"][0]["id"] == "c"
 
 
+def test_paper_is_lined_dotted_or_blank_and_older_saves_keep_working(env):
+    note_id = nid()
+    doc = body()
+    doc["paper"] = "dotted"
+    saved = ink.save("alice", note_id, doc)
+    assert (saved["paper"], saved["ruled"]) == ("dotted", False)
+    assert ink.load("alice", note_id)["paper"] == "dotted"
+    # A Write view from before ``paper`` sends only ``ruled``.
+    assert ink.clean_document(body(ruled=False))["paper"] == "blank"
+    assert ink.clean_document(body(ruled=True))["paper"] == "lined"
+    # An unknown paper falls back to ``ruled``.
+    odd = body(ruled=False)
+    odd["paper"] = "graph"
+    assert ink.clean_document(odd)["paper"] == "blank"
+    # A sidecar stored before ``paper`` loads with the paper its ``ruled`` meant.
+    path = ink.sidecar_path("alice", note_id)
+    data = json.loads(path.read_text())
+    del data["paper"]
+    data["ruled"] = False
+    path.write_text(json.dumps(data))
+    assert ink.load("alice", note_id)["paper"] == "blank"
+
+
 def test_later_save_keeps_transcript_and_athena_state(env):
     note_id = nid()
     ink.save("alice", note_id, body(edited_at=1))

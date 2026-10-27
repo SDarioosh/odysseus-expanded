@@ -115,8 +115,10 @@ it.
   width, highlighter flag) and an id. `getCoalescedEvents()` for smooth lines,
   `desynchronized` 2D context for low latency, quadratic smoothing through midpoints.
   Undo and redo work on strokes.
-- **Pages.** Fixed-width pages, vertical scroll, optional ruled background that is not
-  part of the ink. Add a page with a button.
+- **Pages.** Fixed-width pages, vertical scroll, and a paper per note that is not part of
+  the ink: lined, dotted (a dot grid for drafting designs) or blank (the paper button
+  cycles them; the sidecar's `paper`, with `ruled` kept for older views). Add a page
+  with a button.
 - **Saving.** Autosave every few seconds and on `visibilitychange`, to IndexedDB first,
   then to the hub. An offline queue syncs when the tablet is back on Tailscale. Last
   write wins per note; the UI says so.

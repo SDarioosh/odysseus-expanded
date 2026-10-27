@@ -6,7 +6,8 @@ A handwritten note is an ordinary upstream note (``label = "handwritten"``, ``im
 
 Sidecar (``version`` 1)::
 
-    {"version": 1, "note_id": str, "ruled": bool,
+    {"version": 1, "note_id": str, "paper": "lined" | "dotted" | "blank",
+     "ruled": bool,               # paper == "lined", for Write views from before ``paper``
      "edited_at": int,            # ms, when the client last changed the strokes
      "saved_at": str,             # ISO, when the hub stored them
      "pages": [{"id", "width", "height",
@@ -46,6 +47,9 @@ LABEL = "handwritten"
 VERSION = 1
 PAGE_WIDTH = 1000
 PAGE_HEIGHT = 1414  # A4 proportions
+# The background the Write view draws under the ink (never part of the ink, never rendered
+# here): lines for writing, a dot grid for drafting designs, or plain paper.
+PAPERS = ("lined", "dotted", "blank")
 MAX_PAGES = 60
 MAX_STROKES_PER_PAGE = 6000
 MAX_POINTS_PER_STROKE = 6000
@@ -231,7 +235,7 @@ def _empty_athena() -> dict[str, Any]:
 
 def clean_document(body: Any) -> dict[str, Any]:
     """Validate a save from the Write view and return the stroke part of a sidecar
-    (``ruled``, ``edited_at``, ``pages`` with ``id``, ``width``, ``height``, ``strokes``).
+    (``paper``, ``ruled``, ``edited_at``, ``pages`` with ``id``, ``width``, ``height``, ``strokes``).
     Raises :class:`InkError` on anything malformed."""
     if not isinstance(body, dict):
         raise InkError("body must be an object")
@@ -266,8 +270,18 @@ def clean_document(body: Any) -> dict[str, Any]:
             raise InkError("the note is too large")
         clean_pages.append({"id": pid, "width": int(width), "height": int(height),
                             "strokes": clean_strokes})
-    return {"ruled": bool(body.get("ruled", True)), "edited_at": edited_at,
+    paper = paper_of(body)
+    return {"paper": paper, "ruled": paper == "lined", "edited_at": edited_at,
             "pages": clean_pages}
+
+
+def paper_of(doc: dict[str, Any]) -> str:
+    """The note's paper: ``paper`` when it is one of :data:`PAPERS`, else from the older
+    ``ruled`` flag (true or missing: lined; false: blank)."""
+    paper = doc.get("paper")
+    if paper in PAPERS:
+        return paper
+    return "lined" if doc.get("ruled", True) else "blank"
 
 
 def strokes_hash(page: dict[str, Any]) -> str:
@@ -434,7 +448,8 @@ def _merge(current: dict[str, Any] | None, doc: dict[str, Any], note_id: str
         pages.append({**page, "transcript": transcript or _empty_transcript()})
     athena = current.get("athena") if isinstance(current.get("athena"), dict) else None
     render = current.get("render") if isinstance(current.get("render"), dict) else None
-    return {"version": VERSION, "note_id": note_id, "ruled": doc["ruled"],
+    return {"version": VERSION, "note_id": note_id, "paper": doc["paper"],
+            "ruled": doc["ruled"],
             "edited_at": doc["edited_at"], "saved_at": _now_iso(), "pages": pages,
             "athena": athena or _empty_athena(),
             "render": render or {"hash": None, "image_url": None, "at": None}}
@@ -463,6 +478,7 @@ def _render_if_changed(owner: str | None, note_id: str, stored: dict[str, Any], 
 def public(stored: dict[str, Any], title: str | None) -> dict[str, Any]:
     """What the Write view gets: the sidecar without the render bookkeeping."""
     out = {k: v for k, v in stored.items() if k != "render"}
+    out["paper"] = paper_of(stored)  # sidecars from before ``paper`` have only ``ruled``
     out["title"] = title or ""
     out["image_url"] = (stored.get("render") or {}).get("image_url")
     out["link"] = note_link(stored.get("note_id") or "")
