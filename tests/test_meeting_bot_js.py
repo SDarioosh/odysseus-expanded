@@ -179,7 +179,7 @@ def test_signed_in_hides_the_button():
     assert out["joinDisabled"] is False
 
 
-def test_not_signed_in_shows_the_button_and_holds_join():
+def test_not_signed_in_shows_the_button_and_join_stays_enabled():
     out = _run(rf"""
     answer(find('GET', '{SIGNIN}'), 200, {NOT_SIGNED_IN});
     answer(0, 200, {{ meeting: null }});
@@ -187,8 +187,9 @@ def test_not_signed_in_shows_the_button_and_holds_join():
     console.log(JSON.stringify(signinState()));
     """, KEEP)
     assert out["shown"] is True and out["button"] is True
-    assert "isn't signed in to Zoom" in out["text"]
-    assert out["joinDisabled"] is True
+    assert out["text"] == ("Sign in once so Athena can join meetings other people host. "
+                           "Meetings you host work without it.")
+    assert out["joinDisabled"] is False
 
 
 def test_not_configured_names_the_missing_settings():
@@ -269,7 +270,7 @@ def test_finish_sends_the_paste_and_shows_a_refusal():
     """, KEEP)
     assert out["sent"] == [[f"{SIGNIN}/finish", '{"pasted":"not an address"}', "1"]]
     assert out["after"]["msg"] == "That address has no Zoom code in it."
-    assert out["after"]["paste"] is True and out["after"]["joinDisabled"] is True
+    assert out["after"]["paste"] is True and out["after"]["joinDisabled"] is False
 
 
 def test_blocked_popup_still_shows_the_link():
@@ -317,5 +318,5 @@ def test_join_answering_signin_shows_the_button_and_rereads():
     console.log(JSON.stringify({{ reread, s: signinState(), text: els['mb-state'].textContent }}));
     """)
     assert out["reread"] is True
-    assert out["s"]["button"] is True and out["s"]["joinDisabled"] is True
+    assert out["s"]["button"] is True and out["s"]["joinDisabled"] is False
     assert "Sign in to Zoom, then press Join again" in out["text"]

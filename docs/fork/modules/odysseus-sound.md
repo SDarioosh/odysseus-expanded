@@ -508,7 +508,9 @@ when Zoom drops it). The meeting box does this, with no terminal:
 
 - **The line.** When the page opens it reads the sign-in once (no polling) and shows
   "Athena is signed in to Zoom.", or a **Sign in to Zoom** button when it isn't (never
-  signed in, or expired; Join waits until it is). A Join that the module refuses with
+  signed in, or expired), with "Sign in once so Athena can join meetings other people
+  host. Meetings you host work without it." Join stays enabled: meetings the owner hosts
+  need no sign-in (Athena's join token mode `none`). A Join that the module refuses with
   `zoom_signin_needed` shows the button too and reads the sign-in again. When Athena's
   Zoom app isn't set up, the line names the missing settings: "Athena's Zoom app isn't set
   up yet: CONVO_ZOOM_CLIENT_ID, … in Athena's server/.env." An Athena without the sign-in
@@ -519,7 +521,7 @@ when Zoom drops it). The meeting box does this, with no terminal:
   to Zoom and click Allow. Zoom then opens a page that can't load — that's expected. Copy
   that page's address from the address bar and paste it here." **Finish** sends the
   pasted address to Athena, which trades its code with Zoom and keeps the sign-in on its
-  server. On success the line says "Athena is signed in to Zoom." and Join is enabled;
+  server. On success the line says "Athena is signed in to Zoom.";
   otherwise it shows Athena's words (an expired attempt, a wrong paste, Zoom refused or
   unreachable).
 - **Privacy.** The pasted address holds a one-time Zoom code: Odysseus passes it to

@@ -88,7 +88,7 @@ function signinLine() {
       ? `Athena's Zoom app isn't set up yet: ${signin.missing.join(', ')} in Athena's server/.env.`
       : "Athena's Zoom app isn't set up yet (Athena's server/.env).";
   }
-  return "Athena isn't signed in to Zoom, or its sign-in expired.";
+  return 'Sign in once so Athena can join meetings other people host. Meetings you host work without it.';
 }
 
 function renderSignin() {
@@ -110,7 +110,7 @@ function renderSignin() {
 function render() {
   renderSignin();
   const active = !!(meeting && meeting.active);
-  ui.join.disabled = !!working || active || needsSignin();
+  ui.join.disabled = !!working || active;
   ui.join.textContent = working === 'join' ? 'Joining…' : 'Join';
   ui.leave.hidden = !(active || busyId);
   ui.leave.disabled = !!working;
