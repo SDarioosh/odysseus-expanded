@@ -160,6 +160,10 @@ def test_athena_group_holds_the_module_entries():
     assert "export function buildAthenaMenu(itemIds, beforeId = 'tools-section')" in menu
     assert "group.className = 'fork-athena-section';" in menu
     assert "'section'" not in menu
+    # same open/close cascade as Tools, from upstream's keyframes
+    assert "a.animationName === 'section-domino-out'" in menu
+    css = (_REPO / "static" / "css" / "fork-modules.css").read_text()
+    assert "animation: section-domino-in" in css and "animation: section-domino-out" in css
     windows = (_JS / "forkModuleWindows.js").read_text()
     assert "import { buildAthenaMenu } from './forkAthenaMenu.js';" in windows
     assert ("buildAthenaMenu([WINDOWS.sound.sidebarBtn, WINDOWS.meetings.sidebarBtn, "

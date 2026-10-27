@@ -252,6 +252,25 @@ html.fm-page body { background: var(--bg); color: var(--fg); margin: 0; display:
 .fork-athena-section { margin-top: 1px; }
 .fork-athena-section .list-item { padding: 8px 8px; }
 .fork-athena-section.collapsed .section-collapse-chevron { transform: rotate(-90deg); }
+/* open/close: the Tools section's domino cascade (upstream keyframes in 01-agent-chat.css) */
+.fork-athena-section.fork-athena-expanding .fork-athena-items > .list-item { animation: section-domino-in 0.36s cubic-bezier(0.22, 1.61, 0.36, 1) backwards; }
+.fork-athena-section.fork-athena-expanding .fork-athena-items > .list-item:nth-child(1) { animation-delay: 0.04s; }
+.fork-athena-section.fork-athena-expanding .fork-athena-items > .list-item:nth-child(2) { animation-delay: 0.08s; }
+.fork-athena-section.fork-athena-expanding .fork-athena-items > .list-item:nth-child(3) { animation-delay: 0.12s; }
+.fork-athena-section.fork-athena-expanding .fork-athena-items > .list-item:nth-child(4) { animation-delay: 0.16s; }
+.fork-athena-section.fork-athena-expanding .fork-athena-items > .list-item:nth-child(5) { animation-delay: 0.20s; }
+.fork-athena-section.fork-athena-expanding .fork-athena-items > .list-item:nth-child(6) { animation-delay: 0.24s; }
+.fork-athena-section.fork-athena-expanding .fork-athena-items > .list-item:nth-child(7) { animation-delay: 0.28s; }
+.fork-athena-section.fork-athena-expanding .fork-athena-items > .list-item:nth-child(8) { animation-delay: 0.32s; }
+.fork-athena-section.fork-athena-collapsing .fork-athena-items > .list-item { animation: section-domino-out 0.22s ease-in forwards; }
+.fork-athena-section.fork-athena-collapsing .fork-athena-items > .list-item:nth-last-child(1) { animation-delay: 0s; }
+.fork-athena-section.fork-athena-collapsing .fork-athena-items > .list-item:nth-last-child(2) { animation-delay: 0.025s; }
+.fork-athena-section.fork-athena-collapsing .fork-athena-items > .list-item:nth-last-child(3) { animation-delay: 0.05s; }
+.fork-athena-section.fork-athena-collapsing .fork-athena-items > .list-item:nth-last-child(4) { animation-delay: 0.075s; }
+.fork-athena-section.fork-athena-collapsing .fork-athena-items > .list-item:nth-last-child(5) { animation-delay: 0.1s; }
+.fork-athena-section.fork-athena-collapsing .fork-athena-items > .list-item:nth-last-child(6) { animation-delay: 0.125s; }
+.fork-athena-section.fork-athena-collapsing .fork-athena-items > .list-item:nth-last-child(7) { animation-delay: 0.15s; }
+.fork-athena-section.fork-athena-collapsing .fork-athena-items > .list-item:nth-last-child(8) { animation-delay: 0.175s; }
 /* end sidebar "Athena" group */
 /* Beliefs window (static/js/forkBeliefsWindow.js): the page's own styles come scoped
    under .fm-beliefs; here only what the window needs on top of them */
