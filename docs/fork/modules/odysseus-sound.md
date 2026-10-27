@@ -407,6 +407,71 @@ conversation (device `computer`, kind `conversation`).
   call audio and microphone arrive mixed, so the module's diarization tells the speakers
   apart; without headphones the microphone also hears the other people.
 
+## Sending Athena to a Zoom meeting
+
+The **Record a call** page (`/modules/sound/record`, admin only) starts with a
+**Send Athena to a meeting** box. The owner pastes a Zoom link and presses Join; Athena's
+own Zoom bot joins on the module's server as a guest called "Athena", records each
+participant on their own track and leaves when the meeting ends. Nothing records on the
+owner's computer, and the tab can be closed. Needs Athena with the meeting launcher and
+relay routes (SDarioosh/Athena#124, #125) and meetings set up there
+(`CONVO_MEETING_BOT_PATH` and the Zoom Meeting SDK credentials; see Athena's
+`server/README.md`).
+
+- **What it accepts.** Odysseus checks the input before it calls the module, with the
+  module's own rules (`src/meeting_bot.py`, `parse_join`): a join link
+  `https://(*.)zoom.us/j/<9-11 digits>?pwd=…` (any subdomain such as `us06web.zoom.us` or a
+  company's `acme.zoom.us`; `http` or no scheme too), the web client's `/wc/join/<n>` and
+  `/wc/<n>/join`, `zoommtg://` / `zoomus://…/join?confno=<n>&pwd=…`; a whole invite pasted
+  as it is (its first join link wins; an invite without a link is read from its
+  "Meeting ID:" and "Passcode:" lines); or a meeting ID with the passcode in the second
+  field. Refused, each with its own message and without calling the module: personal
+  links (`/my/<name>`), webinars (`/w/`), registration links, the host's start links
+  (`/s/`, `zoommtg://…/start`), Zoom for Government (`zoomgov.com`) and any other host
+  (look-alikes, user info, ports).
+- **The owner joins too.** Athena joins on the owner's behalf (Zoom's on-behalf-of token,
+  signed in once on the server with `convo-server zoom-login`), so the owner must be in the
+  meeting: the bot waits for them (`starting`/`waiting_for_owner`), gives up if they don't
+  come (`failed`/`owner_not_joined`) and leaves when they leave (`ended`/`owner_left`). The
+  box says so under the link field.
+- **Recording permission.** In the meeting the bot asks Zoom for recording permission once
+  and then waits (`waiting_permission`, active); if the host declines (reason `denied`) it
+  stays in the meeting in case they allow it later.
+- **What it shows.** The state in plain words: "Joining…", "Waiting for you to join the
+  meeting — Athena joins as soon as you're in", "Waiting in the waiting room —
+  the host has to admit Athena", "In the meeting — waiting for the host to allow recording
+  (Zoom asked them once)", "The host declined recording. Athena stays in the meeting in
+  case they allow it later", "Recording", "Recording, but Zoom isn't sending audio",
+  "Ended: the meeting is over" (and the other end reasons), "Couldn't join: wrong
+  passcode" (and the other failures), "You didn't join the meeting in time, so Athena gave up", "Ended: you left the
+  meeting, so Athena left too", "Athena's Zoom sign-in is missing or expired — run
+  `convo-server zoom-login` on the server" (the module's 503 `zoom_signin_needed`), "Zoom
+  didn't give Athena a join token; try again in a minute" (502 `zoom_unavailable`),
+  "Athena is busy in another meeting" with a Leave
+  button for that meeting, "Meetings aren't set up on the server", and "Update Athena to
+  use meetings" for a module without the routes. On load the page shows the meeting the
+  bot is in, if any.
+- **No idle cost.** The page fetches the state only while it is open and visible and a
+  meeting is on (every 3 s while joining, 6 s while waiting for recording permission or recording, and once when the tab is
+  shown again); it stops when the meeting has ended or failed, when the tab is hidden and
+  when it is closed. Odysseus runs no task, thread or poll for meetings.
+- **Hub routes** (`routes/sound_module_routes.py`, admin only; the writes need the
+  `X-Odysseus-Recorder: 1` header like the call recorder's uploads):
+
+  | Route | Does |
+  |---|---|
+  | `GET /api/modules/sound/meetings/current` | `{meeting}`: the newest active meeting among the module's last five, or null |
+  | `POST /api/modules/sound/meetings` | JSON `{link, passcode?, title?}` → 202 `{meeting}`; errors `{detail, code, active?}` (`code`: `bad_link`, `busy` with `active`, `off`, `signin`, `zoom`, `update`, `setup`, `token`, `bot`, `unreachable`, `timeout`) |
+  | `GET /api/modules/sound/meetings/{id}` | `{meeting}`: `id, state, reason, active, session_id, meeting_id, title, created_at, started_at, ended_at` and `text` (the state in words) |
+  | `DELETE /api/modules/sound/meetings/{id}` | Leave: answers with the final state once the bot has exited (a few seconds) |
+
+- **Module routes it calls**: the meeting routes of the module's MCP HTTP server
+  ([below](#uploads-through-the-mcp-server)), with the `convo` server's URL and
+  `access_token`, like the call recorder. So **the MCP token can send the bot into a
+  meeting** (one at a time; the module answers `409 busy` over its limit).
+- Code: `src/meeting_bot.py`, routes in `routes/sound_module_routes.py`,
+  `static/call-recorder.html`, `static/js/meetingBot.js`; test `tests/test_meeting_bot.py`.
+
 ## Uploads through the MCP server
 
 Since MCP version 0.8.0 the module's MCP HTTP server (`convo-server mcp --http`) has plain
@@ -423,8 +488,9 @@ transcript links) never leaves the module.
 | `DELETE /ingest/text/{source_id}` | `DELETE /v1/ingest/text/{source_id}` (MCP 0.12.0; `deleted` or `already`) |
 | `GET /health`, `GET /conversations`, `GET /conversations/{id}`, `GET /conversations/{id}/transcript`, `GET /action-items`, `PATCH /action-items/{id}`, `GET /digests/{date}`, `POST /digests/{date}` | the same `/v1` routes (the phone relay's T5 sync); from MCP 0.12.0 a conversation carries `written: {source_id, link, title}` (null for recordings) |
 | `GET /settings/llm`, `PUT /settings/llm` | the same `/v1` routes (Settings → AI Defaults: the summary model) |
+| `POST /meetings`, `GET /meetings?limit=1..100`, `GET /meetings/{id}`, `DELETE /meetings/{id}` | `/v1/meetings…` (SDarioosh/Athena#125; JSON only, ≤ 16 KB; [Sending Athena to a Zoom meeting](#sending-athena-to-a-zoom-meeting)): join with `{url}` or `{meeting_id, passcode}` and optional `title` → 202 `{id, state, session_id}`, 400 bad link, 409 `busy` with `active`, 501 meetings off; state; leave (waits for the bot, up to 30 s) |
 
-So the MCP token can add recordings. Odysseus finds the module from the `convo` server's
+So the MCP token can add recordings and send Athena's Zoom bot into a meeting. Odysseus finds the module from the `convo` server's
 URL (`/mcp` stripped) and its `access_token` (`src/call_recorder.py`); Odysseus' HTTP MCP
 settings have no header field, so the query token is the only place it is. A module that
 answers 404 on these routes is older than 0.8.0: Odysseus says "update Athena".

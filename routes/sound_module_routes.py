@@ -30,6 +30,13 @@ script calls ``GET /api/modules/sound/record/config``, ``POST /api/modules/sound
 of the module's MCP HTTP server (the connected ``convo`` server's URL and token), not its
 MCP tools (``src/call_recorder.py``).
 
+The same page's "Send Athena to a meeting" box (``static/js/meetingBot.js``) calls
+``GET /api/modules/sound/meetings/current`` (the meeting the bot is in now, or null),
+``POST /api/modules/sound/meetings`` {link, passcode?, title?} (join),
+``GET /api/modules/sound/meetings/{id}`` (state) and ``DELETE /api/modules/sound/meetings/{id}``
+(leave). They check the link and forward to the meeting routes of the module's MCP HTTP
+server (``src/meeting_bot.py``); the writes need the ``X-Odysseus-Recorder`` header too.
+
 Action items are read live from the module, the source of truth; Done/Dismiss call its
 ``update_action_item``. Filing into the Odysseus calendar and to-dos (and the record of
 what went where) is ``src/module_action_items.py``; the last three routes call its
@@ -58,11 +65,12 @@ from fastapi import (
     Request,
     UploadFile,
 )
-from fastapi.responses import RedirectResponse
+from fastapi.responses import JSONResponse, RedirectResponse
 from pydantic import BaseModel, Field
 
 from core.middleware import require_admin
 from src import call_recorder as recorder
+from src import meeting_bot as meetings
 from src import sound_module_view as view
 from src.auth_helpers import effective_user
 
@@ -91,6 +99,12 @@ class UnfileTodos(BaseModel):
     apply: bool = False
     ids: list[int] | None = Field(default=None, max_length=500)
     all: bool = False  # also entries filed in explicit mode or from the page
+
+
+class JoinMeeting(BaseModel):
+    link: str = Field(default="", max_length=meetings.MAX_INPUT_CHARS)
+    passcode: str | None = Field(default=None, max_length=meetings.MAX_PASSCODE_CHARS)
+    title: str | None = Field(default=None, max_length=400)  # checked by meeting_bot (400)
 
 
 class NameSpeaker(BaseModel):
@@ -390,6 +404,44 @@ def setup_sound_module_routes() -> APIRouter:
             return await recorder.end_session(recorder.resolve(), session_id)
         except recorder.RecorderError as exc:
             raise HTTPException(exc.status, exc.message) from None
+
+    # ------------------------------------- send Athena to a meeting (src/meeting_bot.py)
+    @router.get("/api/modules/sound/meetings/current", dependencies=[Depends(require_admin)])
+    async def meeting_current():
+        try:
+            return {"meeting": await meetings.current(meetings.resolve())}
+        except meetings.MeetingError as exc:
+            return JSONResponse(exc.body(), status_code=exc.status)
+
+    @router.post("/api/modules/sound/meetings", dependencies=[Depends(require_admin)])
+    async def meeting_join(body: JoinMeeting,
+                           x_odysseus_recorder: Annotated[str | None, Header()] = None):
+        _recorder_header(x_odysseus_recorder)
+        try:
+            request = meetings.parse_join(body.link, body.passcode)
+            title = meetings.check_title(body.title)
+            meeting = await meetings.join(meetings.resolve(), request, title)
+            return JSONResponse({"meeting": meeting}, status_code=202)
+        except meetings.MeetingError as exc:
+            return JSONResponse(exc.body(), status_code=exc.status)
+
+    @router.get("/api/modules/sound/meetings/{meeting_id}",
+                dependencies=[Depends(require_admin)])
+    async def meeting_state(meeting_id: str):
+        try:
+            return {"meeting": await meetings.get(meetings.resolve(), meeting_id)}
+        except meetings.MeetingError as exc:
+            return JSONResponse(exc.body(), status_code=exc.status)
+
+    @router.delete("/api/modules/sound/meetings/{meeting_id}",
+                   dependencies=[Depends(require_admin)])
+    async def meeting_leave(meeting_id: str,
+                            x_odysseus_recorder: Annotated[str | None, Header()] = None):
+        _recorder_header(x_odysseus_recorder)
+        try:
+            return {"meeting": await meetings.leave(meetings.resolve(), meeting_id)}
+        except meetings.MeetingError as exc:
+            return JSONResponse(exc.body(), status_code=exc.status)
 
     return router
 
