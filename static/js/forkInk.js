@@ -854,7 +854,9 @@ export function mountInk(root, options = {}) {
       };
       img.onerror = () => {
         entry.failed = true;
-        if (state.note && state.note.id === noteId && photos.get(page.id) === entry) render();
+        if (!state.note || state.note.id !== noteId || photos.get(page.id) !== entry) return;
+        render();
+        if (state.view === 'text') { imageKey = ''; renderText(); } // say it failed there too
       };
       img.src = `${API}/${encodeURIComponent(noteId)}/photos/${encodeURIComponent(page.id)}`;
       photos.set(page.id, entry);
@@ -2163,6 +2165,7 @@ export function mountInk(root, options = {}) {
       for (const p of state.note.pages) if (!note.pages.some((q) => q.id === p.id)) pages.push(p);
       state.note.pages = pages;
       state.note.edited_at = Math.max(state.note.edited_at || 0, note.edited_at);
+      if (note.image_url) state.note.image_url = note.image_url;
       markDirty();
       render();
     } else {
@@ -2423,6 +2426,7 @@ export function mountInk(root, options = {}) {
     sendingIds.clear(); // the last user's sends answer to nobody here
     athenaMsg = null;
     edited.clear();
+    photos.clear(); // H6: the last user's photos
     if (state.note) {
       state.live = null;
       router.reset();
