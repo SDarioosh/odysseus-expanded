@@ -458,10 +458,12 @@ module answers 404 and the Text tab says "update Athena".
   hand: <hub link>)` instead of `(voice note)`; `src/sound_module_view.py` and the text
   fallback of `src/module_action_items.py` read both. `/modules/sound` (and its window)
   has a tab each for **Conversations**, **Voice notes** and **Written notes**, each with
-  its own search. Athena's `kind="note"` returns both sorts of note, so the hub's
-  `/api/modules/sound/conversations` takes `kind=voice` or `kind=written`: it reads up to
-  50 notes (the tool's cap) and keeps one sort, so with more than 50 notes in the search
-  range the older ones of a sort are left out until the dates are narrowed. A written
+  its own search. `/api/modules/sound/conversations` takes `kind=voice` or
+  `kind=written` and passes it to `search_conversations` (MCP 0.14.0, additive:
+  SDarioosh/Athena, `kind` `voice` / `written` besides `note` and `conversation`). An
+  older module answers "bad kind"; the hub then reads `kind="note"` (both sorts, up to 50,
+  the tool's cap) and keeps one sort by the title marker, so with more than 50 notes in the
+  search range the older ones of a sort are left out until the dates are narrowed. A written
   note links back to the note in the hub (**Handwritten note**).
 - A note deleted in the hub is removed from the module with `DELETE /ingest/text/{source_id}`:
   at once from Write, otherwise by the sweep at the start of the hourly **Module Facts**

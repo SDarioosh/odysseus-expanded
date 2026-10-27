@@ -674,23 +674,46 @@ NOTES = ("2 voice notes (times are UTC).\n"
          "  Buy milk.\n  http://h:8000/view/n1?sig=b")
 
 
-def test_voice_and_written_notes_are_split(client, monkeypatch):
+def _notes_client(client, monkeypatch, module_filters):
+    """search_conversations like Athena >= MCP 0.14.0 (``module_filters``) or older."""
     calls = client.manager.calls
     real = client.manager.call_tool
+    voice = NOTES.split("\n", 1)[1].split("\n- ")[1]
 
     async def answer(name, args):
-        if name.endswith("search_conversations") and args.get("kind") == "note":
+        kind = args.get("kind")
+        if name.endswith("search_conversations") and kind in ("note", "voice", "written"):
             calls.append((name, args))
-            return {"stdout": NOTES, "exit_code": 0}
+            if kind == "note":
+                return {"stdout": NOTES, "exit_code": 0}
+            if not module_filters:
+                return {"stdout": f"bad kind {kind!r}; use 'note', 'conversation' or ''",
+                        "exit_code": 0}
+            if kind == "voice":
+                return {"stdout": "1 voice notes (times are UTC).\n- " + voice, "exit_code": 0}
+            return {"stdout": NOTES.split("\n- 2026-10-16")[0], "exit_code": 0}
         return await real(name, args)
     monkeypatch.setattr(client.manager, "call_tool", answer)
-    get = lambda kind: client.get("/api/modules/sound/conversations",  # noqa: E731
-                                  params={"kind": kind, "limit": 10}).json()["conversations"]
-    written = get("written")
-    assert [(c["id"], c["written_link"]) for c in written] == [("w1", HUB_NOTE)]
-    assert calls[-1][1]["kind"] == "note" and calls[-1][1]["limit"] == 50  # split here
+    return lambda kind: client.get("/api/modules/sound/conversations",
+                                   params={"kind": kind, "limit": 10}).json()["conversations"]
+
+
+def test_voice_and_written_notes_from_the_module(client, monkeypatch):
+    get = _notes_client(client, monkeypatch, module_filters=True)
+    calls = client.manager.calls
+    assert [(c["id"], c["written_link"]) for c in get("written")] == [("w1", HUB_NOTE)]
+    assert calls[-1][1]["kind"] == "written" and calls[-1][1]["limit"] == 10
     assert [(c["id"], c["voice_note"]) for c in get("voice")] == [("n1", True)]
+    assert calls[-1][1]["kind"] == "voice"
     assert [c["id"] for c in get("note")] == ["w1", "n1"]
-    assert calls[-1][1]["limit"] == 10
     get("conversation")
     assert calls[-1][1]["kind"] == "conversation"
+
+
+def test_voice_and_written_notes_with_an_older_module(client, monkeypatch):
+    get = _notes_client(client, monkeypatch, module_filters=False)
+    calls = client.manager.calls
+    assert [(c["id"], c["written_link"]) for c in get("written")] == [("w1", HUB_NOTE)]
+    assert [a["kind"] for _, a in calls[-2:]] == ["written", "note"]  # refused, then split
+    assert calls[-1][1]["limit"] == 50
+    assert [(c["id"], c["voice_note"]) for c in get("voice")] == [("n1", True)]
