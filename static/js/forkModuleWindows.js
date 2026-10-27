@@ -12,8 +12,9 @@
 // sidebar entry added here, after Conversations; it is a link to its standalone page
 // (/modules/sound/record) like the entries in index.html.
 //
-// All of these, and Beliefs, sit in the sidebar's collapsible "Athena" group above Tools
-// (static/js/forkAthenaMenu.js).
+// Beliefs ("What I know about you", static/js/forkBeliefsWindow.js) opens as a window too;
+// its sidebar entry stays the link in index.html. All of these sit in the sidebar's
+// collapsible "Athena" group above Tools (static/js/forkAthenaMenu.js).
 //
 // Write (handwritten notes, static/js/forkInk.js) has no standalone page and no entry in
 // index.html: its sidebar entry is added here, after Today. Its code and stylesheet are
@@ -70,6 +71,17 @@ const WINDOWS = {
     async mount(body) {
       const { mountToday } = await import('./today.js');
       return mountToday(body);
+    },
+  },
+  beliefs: {
+    id: 'fork-beliefs-modal',
+    title: 'Beliefs',
+    sidebarBtn: 'tool-beliefs-btn',
+    railBtn: 'rail-beliefs',
+    icon: FORK_SHORTCUT_ICONS.open_beliefs,
+    async mount(body) {
+      const { mountBeliefs } = await import('./forkBeliefsWindow.js');
+      return mountBeliefs(body);
     },
   },
   ink: {
@@ -333,12 +345,13 @@ function init() {
   addSidebarEntry(WINDOWS.meetings, WINDOWS.sound.sidebarBtn);
   addSidebarEntry(WINDOWS.ink, WINDOWS.today.sidebarBtn);
   buildAthenaMenu([WINDOWS.sound.sidebarBtn, WINDOWS.meetings.sidebarBtn, WINDOWS.today.sidebarBtn,
-                   WINDOWS.ink.sidebarBtn, 'tool-beliefs-btn']);
+                   WINDOWS.ink.sidebarBtn, WINDOWS.beliefs.sidebarBtn]);
   for (const win of Object.values(WINDOWS)) wireSidebar(win);
   addRailButton(WINDOWS.sound, 'rail-notes');
   addRailButton(WINDOWS.meetings, WINDOWS.sound.railBtn);
   addRailButton(WINDOWS.today, WINDOWS.meetings.railBtn);
   addRailButton(WINDOWS.ink, WINDOWS.today.railBtn);
+  addRailButton(WINDOWS.beliefs, WINDOWS.ink.railBtn);
   for (const win of Object.values(WINDOWS)) mirrorVisibility(win);
   preloadParser();
   wireTranscriptLinks();

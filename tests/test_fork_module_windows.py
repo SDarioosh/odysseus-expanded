@@ -6,6 +6,7 @@ spread into upstream's tables (static/js/forkModuleShortcuts.js), and that each 
 is in place. The parser runs through `node --input-type=module`; skips without node.
 """
 import json
+import re
 import shutil
 import subprocess
 from pathlib import Path
@@ -69,16 +70,19 @@ def test_shortcut_data_matches_the_windows():
     console.log(JSON.stringify(s));
     """)
     assert got["FORK_SHORTCUT_ACTIONS"] == [
-        "open_conversations", "open_meetings", "open_today", "open_write"]
+        "open_conversations", "open_meetings", "open_today", "open_write", "open_beliefs"]
     # unbound by default, like upstream's other open-tool shortcuts
     assert got["FORK_SHORTCUT_DEFAULTS"] == {
-        "open_conversations": "", "open_meetings": "", "open_today": "", "open_write": ""}
+        "open_conversations": "", "open_meetings": "", "open_today": "", "open_write": "",
+        "open_beliefs": ""}
     assert got["FORK_SHORTCUT_BUTTONS"] == {
         "open_conversations": "tool-sound-module-btn", "open_meetings": "tool-meetings-btn",
-        "open_today": "tool-today-insight-btn", "open_write": "tool-ink-btn"}
+        "open_today": "tool-today-insight-btn", "open_write": "tool-ink-btn",
+        "open_beliefs": "tool-beliefs-btn"}
     assert got["FORK_WINDOW_TRIGGERS"] == {
         "fork-sound-modal": "tool-sound-module-btn", "fork-meetings-modal": "tool-meetings-btn",
-        "fork-today-modal": "tool-today-insight-btn", "fork-ink-modal": "tool-ink-btn"}
+        "fork-today-modal": "tool-today-insight-btn", "fork-ink-modal": "tool-ink-btn",
+        "fork-beliefs-modal": "tool-beliefs-btn"}
     assert got["FORK_OPEN_TARGETS"] == {
         "conversations": ["tool-sound-module-btn", "rail-sound-module"],
         "meetings": ["tool-meetings-btn", "rail-meetings"],
@@ -87,6 +91,7 @@ def test_shortcut_data_matches_the_windows():
         "write": ["tool-ink-btn", "rail-ink"],
         "ink": ["tool-ink-btn", "rail-ink"],
         "handwriting": ["tool-ink-btn", "rail-ink"],
+        "beliefs": ["tool-beliefs-btn", "rail-beliefs"],
     }
     windows = (_JS / "forkModuleWindows.js").read_text()
     index = (_REPO / "static" / "index.html").read_text()
@@ -133,10 +138,9 @@ def test_meetings_window_reads_the_meetings_page():
     assert "data-in-app hidden" in page
     meetings = (_JS / "forkMeetings.js").read_text()
     assert "const PAGE = '/modules/sound/record';" in meetings
+    assert "scripts: ['./callRecorder.js', './meetingBot.js']," in meetings
     for script in ("callRecorder.js", "meetingBot.js"):
-        assert f"import('./{script}')" in meetings
         src = (_JS / script).read_text()
-        import re
         for el_id in re.findall(r"\$\('#([a-z0-9-]+)'\)", src):
             assert f'id="{el_id}"' in page, (script, el_id)
     windows = (_JS / "forkModuleWindows.js").read_text()
@@ -160,10 +164,51 @@ def test_athena_group_holds_the_module_entries():
     assert "import { buildAthenaMenu } from './forkAthenaMenu.js';" in windows
     assert ("buildAthenaMenu([WINDOWS.sound.sidebarBtn, WINDOWS.meetings.sidebarBtn, "
             "WINDOWS.today.sidebarBtn,\n                   WINDOWS.ink.sidebarBtn, "
-            "'tool-beliefs-btn']);") in windows
+            "WINDOWS.beliefs.sidebarBtn]);") in windows
     # built after the entries it moves are added
     assert windows.index("addSidebarEntry(WINDOWS.ink") < windows.index("buildAthenaMenu([")
     index = (_REPO / "static" / "index.html").read_text()
     for entry in ("tool-sound-module-btn", "tool-today-insight-btn", "tool-beliefs-btn"):
         assert f'id="{entry}"' in index
     assert 'id="tools-section"' in index
+
+
+def test_beliefs_window_reads_the_beliefs_page():
+    page = (_REPO / "static" / "beliefs.html").read_text()
+    assert '<div class="bs-wrap">' in page and '<div class="bs-top">' in page
+    assert '<a href="/" title="Back to Odysseus">' in page  # dropped in the window
+    win = (_JS / "forkBeliefsWindow.js").read_text()
+    assert "const PAGE = '/beliefs';" in win
+    assert "scopeStyles: true," in win and "scripts: ['./beliefs.js']," in win
+    src = (_JS / "beliefs.js").read_text()
+    for el_id in set(re.findall(r"\$\('#([a-z0-9-]+)'\)", src)):
+        assert f'id="{el_id}"' in page, el_id
+    windows = (_JS / "forkModuleWindows.js").read_text()
+    assert "id: 'fork-beliefs-modal'" in windows and "sidebarBtn: 'tool-beliefs-btn'" in windows
+
+
+@pytest.mark.skipif(not _HAS_NODE, reason="node binary not on PATH")
+def test_page_styles_are_scoped_to_the_window():
+    # forkPageView.js puts a page's inline styles under the window's class and drops its
+    # html/body rules, so they can't restyle the app.
+    got = _node(f"""
+    class FakeSheet {{
+      replaceSync(text) {{ this.text = text; }}
+      get cssRules() {{
+        return [
+          {{ selectorText: 'html, body', style: {{ cssText: 'overflow: visible;' }} }},
+          {{ selectorText: '.bs-btn, .bs-tab[aria-selected="true"]', style: {{ cssText: 'color: red;' }} }},
+          {{ media: {{ mediaText: '(max-width: 640px)' }},
+             cssRules: [{{ selectorText: 'body .x, .bs-row', style: {{ cssText: 'gap: 0px;' }} }}] }},
+        ];
+      }}
+    }}
+    globalThis.CSSStyleSheet = FakeSheet;
+    const {{ scopedPageStyles }} = await import('{(_JS / "forkPageView.js").as_posix()}');
+    const doc = {{ querySelectorAll: () => [{{ textContent: 'x' }}] }};
+    console.log(JSON.stringify(scopedPageStyles(doc, '.fm-beliefs')));
+    """)
+    assert got.splitlines() == [
+        '.fm-beliefs .bs-btn, .fm-beliefs .bs-tab[aria-selected="true"] { color: red; }',
+        "@media (max-width: 640px) { .fm-beliefs .bs-row { gap: 0px; } }",
+    ]

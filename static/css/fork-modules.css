@@ -163,7 +163,7 @@
 /* ---- the Odysseus windows (static/js/forkModuleWindows.js) */
 @media (min-width: 769px) {
   /* centered in the chat area, like the built-in tool windows */
-  #fork-sound-modal, #fork-meetings-modal, #fork-today-modal, #fork-ink-modal {
+  #fork-sound-modal, #fork-meetings-modal, #fork-today-modal, #fork-ink-modal, #fork-beliefs-modal {
     left: calc(var(--icon-rail-w, 48px) + var(--sidebar-w, 0px));
     width: calc(100% - (var(--icon-rail-w, 48px) + var(--sidebar-w, 0px)));
     box-sizing: border-box;
@@ -253,3 +253,9 @@ html.fm-page body { background: var(--bg); color: var(--fg); margin: 0; display:
 .fork-athena-section .list-item { padding: 8px 8px; }
 .fork-athena-section.collapsed .section-collapse-chevron { transform: rotate(-90deg); }
 /* end sidebar "Athena" group */
+/* Beliefs window (static/js/forkBeliefsWindow.js): the page's own styles come scoped
+   under .fm-beliefs; here only what the window needs on top of them */
+.fm-beliefs { color: var(--fg); font-family: var(--font-family, 'Fira Code', monospace); }
+#fork-beliefs-modal .fm-beliefs .bs-wrap { padding: 8px 4px 16px; }
+#fork-beliefs-modal .fm-beliefs .bs-top h1:empty { margin: 0; }
+/* end Beliefs window */

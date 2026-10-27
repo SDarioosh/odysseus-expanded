@@ -1,5 +1,5 @@
 // Fork: the fork windows' shortcuts ("Open Conversations", "Open Meetings", "Open Today",
-// "Open Write" in
+// "Open Write", "Open Beliefs" in
 // Settings → Shortcuts) and their `/open` targets. Data only (no side effects), spread
 // into upstream's tables by small hooks in static/js/settings.js,
 // static/js/keyboard-shortcuts.js and static/js/slashCommands.js. Unbound by default,
@@ -13,6 +13,9 @@ const MIC = '<svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke=
 const VIDEO = '<svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" '
   + 'stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="m16 13 5.2 3.5a.5.5 0 0 0 '
   + '.8-.4V7.9a.5.5 0 0 0-.8-.4L16 11"/><rect x="2" y="6" width="14" height="12" rx="2"/></svg>';
+const PERSON = '<svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" '
+  + 'stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><circle cx="12" cy="8" r="4"/>'
+  + '<path d="M4 21a8 8 0 0 1 16 0"/></svg>';
 const SUN = '<svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" '
   + 'stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><circle cx="12" cy="12" r="4"/>'
   + '<path d="M12 2v2M12 20v2M4.9 4.9l1.4 1.4M17.7 17.7l1.4 1.4M2 12h2M20 12h2M4.9 19.1l1.4-1.4'
@@ -31,6 +34,8 @@ const SHORTCUTS = {
                 window: 'fork-today-modal', label: 'Open Today', icon: SUN, open: ['today'] },
   open_write: { button: 'tool-ink-btn', rail: 'rail-ink', window: 'fork-ink-modal',
                 label: 'Open Write', icon: PEN, open: ['write', 'ink', 'handwriting'] },
+  open_beliefs: { button: 'tool-beliefs-btn', rail: 'rail-beliefs', window: 'fork-beliefs-modal',
+                  label: 'Open Beliefs', icon: PERSON, open: ['beliefs'] },
 };
 
 const pick = (field) => Object.fromEntries(
