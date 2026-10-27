@@ -1,6 +1,6 @@
 """Fork: "Send Athena to a meeting": start and stop Athena's Zoom bot from the hub.
 
-The "Record a call" page (``static/call-recorder.html``, ``static/js/meetingBot.js``) has a
+The Meetings page (``static/call-recorder.html``, ``static/js/meetingBot.js``) has a
 box where the owner pastes a Zoom link (or an invite, or a meeting ID and passcode).
 Odysseus checks it here, then calls the meeting routes of Athena's MCP HTTP server, next
 to ``/mcp`` and behind the same token, exactly like the call recorder's upload routes
@@ -64,7 +64,7 @@ UPDATE_MODULE = ("Update Athena to use meetings: its MCP server has no meeting r
 UPDATE_SIGNIN = ("Update Athena to sign in to Zoom from here: its MCP server has no sign-in "
                  "routes yet (scripts/fork_deploy.sh deploy).")
 SIGNIN_NEEDED = ("Athena's Zoom sign-in is missing or expired — sign in to Zoom on the "
-                 "Record a call page.")
+                 "Meetings page.")
 # Athena exchanges the code with Zoom before it answers: give it a little more time.
 SIGNIN_TIMEOUT = httpx.Timeout(25.0, connect=5.0)
 MAX_PASTE_CHARS = 4096  # an address with a code and a state; an invite never goes here

@@ -2,7 +2,7 @@
 
 Two callers send audio pieces here, and this file checks each piece and forwards it:
 
-* the "Record a call" page (``static/call-recorder.html``): self-contained 30-second
+* the Meetings page (``static/call-recorder.html``): self-contained 30-second
   WebM/Opus pieces of a meeting captured in the browser (admin session);
 * the phone relay paired through Odysseus (Athena's ``android-relay``): the
   watch's 30-second Ogg/Opus chunks (API token with scope ``sound:ingest``,

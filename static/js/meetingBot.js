@@ -1,4 +1,4 @@
-// Fork: "Send Athena to a meeting" box on the Record a call page
+// Fork: "Send Athena to a meeting" box on the Meetings page
 // (static/call-recorder.html). The owner pastes a Zoom link, an invite or a meeting ID;
 // routes/sound_module_routes.py checks it and asks Athena to send its Zoom bot
 // (src/meeting_bot.py). The state is fetched only while this page is open and visible

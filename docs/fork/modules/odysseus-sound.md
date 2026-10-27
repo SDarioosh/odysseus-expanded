@@ -68,8 +68,10 @@ Source: `server/convo_server/mcp_server.py` (`build_mcp`).
   hub (`<hub>/#open=notes&note=<id>`).
 - Zoom meetings (MCP 0.16.0, additive): a conversation recorded by Athena's Zoom bot
   ([Sending Athena to a Zoom meeting](#sending-athena-to-a-zoom-meeting), once that
-  section lands) is marked `(Zoom meeting: <topic>)` after its title, or `(Zoom meeting)`
-  without a topic. The mark shows in `search_conversations`, `get_conversation`,
+  section lands) is marked `(Online meeting: <topic>)` after its title, or `(Online
+  meeting)` without a topic (MCP 0.17.0; 0.16.0 said `(Zoom meeting…)`. The mark names no
+  platform, since meetings may come from others than Zoom later; the hub reads both,
+  `src/sound_module_view.py`). The mark shows in `search_conversations`, `get_conversation`,
   `search_transcripts`, and in text `list_action_items` and `list_facts`.
   - `search_conversations` adds `; participants: A, B, …`: everyone in the meeting,
     including people who never spoke.
@@ -83,7 +85,7 @@ Source: `server/convo_server/mcp_server.py` (`build_mcp`).
     tracks, or device `zoom`), with or without a chat call. The module's HTTP API
     (`GET /v1/conversations/{id}`) then has `meeting: {topic, participants}` (`topic` null
     without one; participants are the speakers heard when no list was sent), and `meeting:
-    null` for every other conversation. The MCP text tools show the `(Zoom meeting…)`
+    null` for every other conversation. The MCP text tools show the `(Online meeting…)`
     mark instead; there is no conversation-level `source` field.
   - No tool, argument, annotation, link format or auth changed. The bot's own
     `POST /v1/sessions/{id}/chat` is a module-internal ingest route on Athena's API: not
@@ -396,7 +398,8 @@ Audio isn't kept after transcription, so cards quote lines instead of playing th
 
 ## Recording calls from the computer
 
-`/modules/sound/record` (**Record a call** on the Conversations page, admin only) records
+`/modules/sound/record` (**Meetings**: its own sidebar entry, window and rail button, admin
+only; also `/open meetings` and "Open Meetings" in Settings → Shortcuts) records
 a Zoom, Meet or Teams call on any computer with a Chromium browser (Chrome, Brave, Edge)
 and sends it to the module, which transcribes, diarizes and summarizes it like any other
 conversation (device `computer`, kind `conversation`).
@@ -436,11 +439,11 @@ conversation (device `computer`, kind `conversation`).
 
 ## Sending Athena to a Zoom meeting
 
-The **Record a call** page (`/modules/sound/record`, admin only) starts with a
+The **Meetings** window and page (`/modules/sound/record`, admin only) start with a
 **Send Athena to a meeting** box. The owner pastes a Zoom link and presses Join; Athena's
 own Zoom bot joins on the module's server as a guest called "Athena", records each
 participant on their own track and leaves when the meeting ends. Nothing records on the
-owner's computer, and the tab can be closed. Needs Athena with the meeting launcher and
+owner's computer, and the window or page can be closed. Needs Athena with the meeting launcher and
 relay routes (SDarioosh/Athena#124, #125) and meetings set up there
 (`CONVO_MEETING_BOT_PATH` and the Zoom Meeting SDK credentials; see Athena's
 `server/README.md`).
@@ -575,7 +578,7 @@ owner's behalf and waits for them (up to its waiting limit), then gives up.
   notification log): on success "Athena is joining "<title>": … Join the meeting too";
   on failure the run fails with the reason in words, e.g. busy in another meeting
   (started from the box), meetings off on the server, Zoom sign-in missing ("sign in to
-  Zoom on the Record a call page"), or "update Athena".
+  Zoom on the Meetings page"), or "update Athena".
 - **Stored in the hub, not in Athena:** `<DATA_DIR>/meeting_auto_join/<owner>.json`, per
   event series uid: `on`, the task id, the scheduled start, the last occurrence joined and
   the occurrence a busy notice was sent for. Naive-local events are read in the user's

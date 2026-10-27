@@ -463,7 +463,7 @@ function handwrittenLink(url) {
 }
 
 function sourceLabel(c) {
-  if (c.meeting) return c.meeting_topic ? `Zoom meeting: ${c.meeting_topic} · ` : 'Zoom meeting · ';
+  if (c.meeting) return c.meeting_topic ? `Online meeting: ${c.meeting_topic} · ` : 'Online meeting · ';
   return c.written_link ? 'Written by hand · ' : (c.voice_note ? 'Voice note · ' : '');
 }
 
@@ -996,7 +996,8 @@ function buildView() {
         tabButton('written', 'Written notes'), tabButton('items', 'Action items'),
         tabButton('who', 'Who is this?')),
       el('div', { className: 'bs-bar-end' },
-        el('a', { className: 'bs-btn', href: '/modules/sound/record' }, 'Record a call'),
+        // Recording a call lives in Meetings: its own window in the app, a link on this page.
+        ctx.embedded ? null : el('a', { className: 'bs-btn', href: '/modules/sound/record' }, 'Meetings'),
         el('button', { type: 'button', className: 'bs-btn bs-icon-btn bs-refresh', title: 'Refresh',
                        'aria-label': 'Refresh' }, refreshIcon()))),
     list('conversations'), list('voice'), list('written'),

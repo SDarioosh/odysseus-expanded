@@ -277,7 +277,7 @@ def _ensure_task(db: Any, owner: str, uid: str, entry: dict, summary: str,
 def _busy_text(summary: str, start: datetime, winner: str) -> str:
     return (f"Athena is busy in “{winner}” then, so it won't join “{summary}” "
             f"({_iso(start)}). Turn Send Athena off on one of them, or join this one "
-            "from the Record a call page.")
+            "from the Meetings page.")
 
 
 def reconcile(owner: str, *, now: datetime | None = None) -> dict[str, Any]:
@@ -427,7 +427,7 @@ def is_time_critical(task: Any) -> bool:
 def _fail_text(summary: str, exc: meeting_bot.MeetingError) -> str:
     if exc.code == "busy":
         return (f"Athena was busy in another meeting, so it didn't join “{summary}”. "
-                "Leave the other meeting from the Record a call page, then join this one "
+                "Leave the other meeting from the Meetings page, then join this one "
                 "there.")
     return f"Athena couldn't join “{summary}”: {exc.message}"
 

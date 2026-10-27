@@ -309,7 +309,7 @@ def test_routes_not_configured(client, monkeypatch):
 
 def test_record_page_is_served(client):
     r = client.get("/modules/sound/record")
-    assert r.status_code == 200 and "Record a call" in r.text and "callRecorder.js" in r.text
+    assert r.status_code == 200 and "Meetings" in r.text and "callRecorder.js" in r.text
 
 
 def test_routes_are_admin_only(monkeypatch):
