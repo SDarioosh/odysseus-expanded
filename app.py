@@ -895,6 +895,9 @@ app.include_router(setup_sound_relay_routes())
 # Fork: Athena's summary model for Settings → AI Defaults (routes/summary_model_routes.py)
 from routes.summary_model_routes import setup_summary_model_routes  # noqa: E402
 app.include_router(setup_summary_model_routes())
+# Fork: Athena's whisper vocabulary for Settings → AI Defaults (routes/whisper_vocabulary_routes.py)
+from routes.whisper_vocabulary_routes import setup_whisper_vocabulary_routes  # noqa: E402
+app.include_router(setup_whisper_vocabulary_routes())
 # Fork: auto mode switch for Settings → Tools (routes/auto_mode_routes.py)
 from routes.auto_mode_routes import setup_auto_mode_routes  # noqa: E402
 app.include_router(setup_auto_mode_routes())

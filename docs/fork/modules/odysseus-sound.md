@@ -716,6 +716,21 @@ model:
 - Code: `routes/summary_model_routes.py`, `static/js/forkBackgroundModels.js`; test
   `tests/test_summary_model_routes.py`. Module side: `server/convo_server/llm_settings.py`.
 
+## Transcription vocabulary in Settings
+
+Settings → AI Defaults → **Transcription Vocabulary** (admin only): comma-separated words
+(names, products, jargon such as "RokTalk, Meshtastic, Rokland") that the module's whisper
+is nudged toward. `GET`/`PUT /api/fork/whisper-vocabulary` (`{"text": "a, b"}`) → the
+module's `/settings/vocabulary` (`{"words": "a, b" | null}`). The module cleans the list
+(trims, drops duplicates, at most 50 words of 60 characters, 422 past that), stores it and
+puts it into whisper's prompt from the next recording on, after its `CONVO_WHISPER_PROMPT`
+and before known speakers' names. The card shows the prompt whisper gets now. Keep the
+list short: on the module's AMI eval a 12-word list hurt timestamps. A module without the
+route shows "update Athena".
+
+- Code: `routes/whisper_vocabulary_routes.py`, `static/js/forkWhisperVocabulary.js`; test
+  `tests/test_whisper_vocabulary_routes.py`. Module side: `server/convo_server/vocabulary.py`.
+
 ## Today insight
 
 The hub's daily Today insight reads `get_daily_digest` (today) and `list_action_items`
