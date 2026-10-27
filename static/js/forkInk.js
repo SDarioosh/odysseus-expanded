@@ -534,9 +534,12 @@ export function mountInk(root, options = {}) {
   // off-screen on `base` and copied in, with the stroke being drawn on top. A
   // transparent desynchronized canvas over another canvas showed black on Android
   // while writing: Chrome moves it to a hardware overlay that ignores transparency.
-  const base = document.createElement('canvas');
+  // `base` sits under it, hidden, and is shown instead while fingers pan or zoom: a
+  // desynchronized canvas redrawn whole every frame tears (it is drawn straight to the
+  // screen), a normal one doesn't. Only `live` takes input.
+  const base = el('canvas', { class: 'ink-canvas ink-base', 'aria-hidden': 'true' });
   const live = el('canvas', { class: 'ink-canvas ink-live', 'aria-label': 'Writing area' });
-  stage.append(live);
+  stage.append(base, live);
 
   // H2: the Text tab, one page at a time: the page above, its transcript below.
   const tPrev = iconBtn('back', 'Previous page', () => textGo(-1));
@@ -589,11 +592,15 @@ export function mountInk(root, options = {}) {
   const scale = () => baseScale() * state.zoom;
   const pageTop = (i) => i * (PAGE_H + PAGE_GAP);
   const docHeight = () => (state.note ? state.note.pages.length * (PAGE_H + PAGE_GAP) - PAGE_GAP : PAGE_H);
-  const toScreen = (x, y) => [(x - state.sx) * scale(), (y - state.sy) * scale()];
+  // The scroll on screen, rounded to whole device pixels: panning then moves the paper
+  // and the ink by whole pixels together, so lines, dots and ink edges don't shimmer.
+  const offX = () => Math.round(state.sx * scale() * dpr) / dpr;
+  const offY = () => Math.round(state.sy * scale() * dpr) / dpr;
+  const toScreen = (x, y) => { const k = scale(); return [x * k - offX(), y * k - offY()]; };
   function toDoc(clientX, clientY) {
     const r = live.getBoundingClientRect();
     const k = scale();
-    return [(clientX - r.left) / k + state.sx, (clientY - r.top) / k + state.sy];
+    return [(clientX - r.left + offX()) / k, (clientY - r.top + offY()) / k];
   }
 
   function clampScroll() {
@@ -616,9 +623,9 @@ export function mountInk(root, options = {}) {
     for (const c of [base, live]) {
       c.width = Math.round(cssW * dpr);
       c.height = Math.round(cssH * dpr);
+      c.style.width = `${cssW}px`;
+      c.style.height = `${cssH}px`;
     }
-    live.style.width = `${cssW}px`;
-    live.style.height = `${cssH}px`;
     clampScroll();
     renderNow(); // resizing cleared the canvases: draw now, not a frame later (no flash)
   }
@@ -630,6 +637,7 @@ export function mountInk(root, options = {}) {
   // finished ink stroke (it is drawn straight onto the pages). The stroke being drawn
   // goes on the visible canvas only, a piece at a time.
   let frame = 0;
+  let panning = false;           // fingers pan or zoom: `base` is shown (see startPan)
   let dirty = null;              // null, 'all', or a screen box {x0, y0, x1, y1}
   let bg = '#808080';
 
@@ -697,18 +705,69 @@ export function mountInk(root, options = {}) {
   const snapBox = (b) => ({ x0: Math.floor(b.x0 * dpr) / dpr, y0: Math.floor(b.y0 * dpr) / dpr,
     x1: Math.ceil(b.x1 * dpr) / dpr, y1: Math.ceil(b.y1 * dpr) / dpr });
 
-  // Draw the pages into `base`: all of it, or only inside `box`.
+  // The paper without ink (the stage, the pages with their shadow, lines or dots) for
+  // the current view, kept so the eraser's redraws copy it instead of drawing it again.
+  // Built when a part of the view is redrawn, not on a full redraw (a pan would build
+  // it every frame for nothing).
+  const paperCanvas = document.createElement('canvas');
+  const pctx = paperCanvas.getContext('2d');
+  let paperKey = '';
+  function paperFor() {
+    const n = state.note;
+    const key = [state.sx, state.sy, state.zoom, cssW, cssH, dpr, bg, paperOf(n),
+      n.pages.map((p) => `${p.width}x${p.height}`).join(',')].join('|');
+    if (key === paperKey && paperCanvas.width === base.width && paperCanvas.height === base.height) return;
+    paperCanvas.width = base.width;
+    paperCanvas.height = base.height;
+    pctx.save();
+    pctx.setTransform(dpr, 0, 0, dpr, 0, 0);
+    pctx.fillStyle = bg;
+    pctx.fillRect(0, 0, cssW, cssH);
+    drawPaper(pctx, visiblePages(null));
+    pctx.restore();
+    paperKey = key;
+  }
+
+  // Draw the pages into `base`: all of it, or only inside `box` (a box on whole device
+  // pixels: see snapBox).
   function drawScene(box) {
     const ctx = bctx;
     ctx.save();
     ctx.setTransform(dpr, 0, 0, dpr, 0, 0);
     if (box) clipRect(ctx, box);
-    ctx.fillStyle = bg;
-    ctx.fillRect(0, 0, cssW, cssH);
-    if (!state.note) { ctx.restore(); return; }
+    if (!state.note) {
+      ctx.fillStyle = bg;
+      ctx.fillRect(0, 0, cssW, cssH);
+      ctx.restore();
+      return;
+    }
     const k = scale();
     const pages = visiblePages(box);
     const wanted = (st, y0) => !box || meets(screenBox(bboxOf(st), y0), box);
+    if (box) {
+      paperFor();
+      const x = Math.max(0, Math.floor(box.x0 * dpr));
+      const y = Math.max(0, Math.floor(box.y0 * dpr));
+      const w = Math.min(base.width, Math.ceil(box.x1 * dpr)) - x;
+      const h = Math.min(base.height, Math.ceil(box.y1 * dpr)) - y;
+      if (w > 0 && h > 0) {
+        ctx.save();
+        ctx.setTransform(1, 0, 0, 1, 0, 0); // the clip set above still applies
+        ctx.drawImage(paperCanvas, x, y, w, h, x, y, w, h);
+        ctx.restore();
+      }
+    } else {
+      ctx.fillStyle = bg;
+      ctx.fillRect(0, 0, cssW, cssH);
+      drawPaper(ctx, pages);
+    }
+    drawInk(ctx, box, pages, k, wanted);
+    ctx.restore();
+  }
+
+  // The pages' paper (white sheet, shadow, lines or dots), in CSS px.
+  function drawPaper(ctx, pages) {
+    const k = scale();
     for (const [page, , , rect] of pages) {
       ctx.save();
       ctx.fillStyle = '#ffffff';
@@ -720,10 +779,12 @@ export function mountInk(root, options = {}) {
       if (paper === 'lined') {
         ctx.save();
         clipRect(ctx, rect);
+        // About 1 CSS px, on whole device pixels so the lines stay sharp.
+        const lw = Math.max(1, Math.round(dpr));
         ctx.strokeStyle = '#d6e0ea';
-        ctx.lineWidth = 1;
+        ctx.lineWidth = lw / dpr;
         for (let ry = RULE_TOP; ry < page.height - 30; ry += RULE_STEP) {
-          const sy = Math.round(rect.y0 + ry * k) + 0.5;
+          const sy = (Math.round((rect.y0 + ry * k) * dpr) + (lw % 2 ? 0.5 : 0)) / dpr;
           ctx.beginPath();
           ctx.moveTo(rect.x0, sy);
           ctx.lineTo(rect.x1, sy);
@@ -753,6 +814,10 @@ export function mountInk(root, options = {}) {
         ctx.restore();
       }
     }
+  }
+
+  // The strokes over the paper: highlighter marks on their own layer, then the ink.
+  function drawInk(ctx, box, pages, k, wanted) {
     const hl = pages.map(([page, , y0, rect]) => [page.strokes.filter((st) => st.pen.highlighter && wanted(st, y0)), y0, rect]);
     if (hl.some(([list]) => list.length)) {
       if (marks.width !== base.width || marks.height !== base.height) {
@@ -784,7 +849,6 @@ export function mountInk(root, options = {}) {
       for (const st of page.strokes) if (!st.pen.highlighter && wanted(st, y0)) drawStroke(ctx, st, map, k);
       ctx.restore();
     }
-    ctx.restore();
   }
 
   function renderNow() {
@@ -792,7 +856,31 @@ export function mountInk(root, options = {}) {
     bg = getComputedStyle(stage).backgroundColor || bg;
     dirty = null;
     drawScene(null);
-    present();
+    if (!panning) present(); // while panning `base` itself is on screen
+  }
+
+  // Fingers pan or zoom: `base` (a normal canvas, drawn in step with the screen) is
+  // shown instead of the low-latency canvas, which would tear when redrawn whole every
+  // frame. It holds the same picture (no stroke is being drawn during a gesture).
+  function startPan() {
+    if (panning) return;
+    panning = true;
+    stage.classList.add('ink-panning');
+  }
+  // The gesture ended or the pen came down: bring `base` up to date now (not a frame
+  // later: the pen may be drawing), copy it in and show the low-latency canvas again.
+  function endPan() {
+    if (!panning) return;
+    panning = false;
+    if (frame) { cancelAnimationFrame(frame); frame = 0; }
+    const d = dirty;
+    if (d === 'all') renderNow();
+    else {
+      dirty = null;
+      if (d) drawScene(snapBox(d));
+      present();
+    }
+    stage.classList.remove('ink-panning');
   }
 
   function renderPart(rough) {
@@ -1104,6 +1192,7 @@ export function mountInk(root, options = {}) {
   const router = createInputRouter({
     drawStart(e, { eraser }) {
       try { live.setPointerCapture(e.pointerId); } catch (_) { /* synthetic */ }
+      endPan();
       startLive(e, eraser);
     },
     drawMove(e) {
@@ -1150,6 +1239,7 @@ export function mountInk(root, options = {}) {
     gesture(from, to) {
       // The page point under the fingers' old midpoint moves to their new midpoint,
       // zoomed by how much the fingers spread: one step, so pinching doesn't drift.
+      startPan();
       const [dx, dy] = toDoc(from.x, from.y);
       if (to.n > 1 && from.dist > 0) {
         state.zoom = Math.min(MAX_ZOOM, Math.max(MIN_ZOOM, state.zoom * (to.dist / from.dist)));
@@ -1161,6 +1251,7 @@ export function mountInk(root, options = {}) {
       clampScroll();
       render();
     },
+    gestureEnd() { endPan(); },
   }, now);
 
   function zoomAt(factor, clientX, clientY) {

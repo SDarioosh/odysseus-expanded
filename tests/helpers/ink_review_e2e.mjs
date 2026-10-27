@@ -351,7 +351,10 @@ await check('opaque_canvas_while_writing', async () => {
     const px = (x, y) => [...c.getContext('2d').getImageData(Math.round(x * dpr), Math.round(y * dpr), 1, 1).data];
     const attrs = c.getContext('2d').getContextAttributes ? c.getContext('2d').getContextAttributes() : {};
     const out = { paper: px(600, 500), stroke: px(250, 310), alpha: attrs.alpha, desync: attrs.desynchronized,
-      canvases: document.querySelectorAll('.ink-root .ink-stage canvas').length, // the Text tab's page image is not in the stage
+      // Visible canvases in the stage (the Text tab's page image is not in it): the pages
+      // canvas under the writing one is hidden while writing (shown only while panning).
+      canvases: [...document.querySelectorAll('.ink-root .ink-stage canvas')]
+        .filter((el) => getComputedStyle(el).visibility !== 'hidden' && getComputedStyle(el).opacity !== '0').length,
       noSwipe: document.querySelector('.ink-root').hasAttribute('data-no-swipe-dismiss') };
     fire('pointerup', 'pen', 2, 300, 320, { buttons: 0 });
     return out;
@@ -361,13 +364,73 @@ await check('opaque_canvas_while_writing', async () => {
   return { ok: white && got.stroke[0] < 120 && got.alpha === false && got.canvases === 1 && got.noSwipe, ...got };
 });
 
-// Drawn in pieces (pen) and in boxes (eraser, highlighter), the screen must match a
-// full redraw of the note: no leftovers of the open end, the prediction or the ring.
-await check('incremental_matches_full_redraw', async () => {
-  const page = await openPage(browser, { user: 'ola' });
+// Fingers pan: the pages canvas (a normal one) is shown instead of the low-latency
+// writing canvas, which tears when redrawn whole every frame. When the fingers lift, or
+// the pen comes down mid-gesture, the writing canvas is back and shows the same picture.
+await check('pan_shows_normal_canvas', async () => {
+  const page = await openPage(browser, { user: 'pan' });
   await newNote(page);
   const got = await page.evaluate(async () => {
+    const st = view._state;
+    const pts = Array.from({ length: 30 }, (_, i) => [100 + i * 10, 300 + (i % 2) * 12, i * 8]);
+    st.note.pages[0].strokes.push({ id: 'p1', pen: { color: '#1f1f1f', width: 3, highlighter: false }, at: 0, points: pts });
+    view.fit();
+    await settle(50);
+    const stage = document.querySelector('.ink-root .ink-stage');
+    const base = stage.querySelector('.ink-base');
+    const live = canvas();
+    const shown = () => ({ panning: stage.classList.contains('ink-panning'),
+      base: getComputedStyle(base).visibility, live: getComputedStyle(live).opacity });
+    const sy0 = st.sy;
+    fire('pointerdown', 'touch', 31, 400, 500, { buttons: 1, button: 0 });
+    fire('pointermove', 'touch', 31, 400, 470, { buttons: 1 });
+    fire('pointermove', 'touch', 31, 400, 433.3, { buttons: 1 });
+    await settle(50);
+    const during = shown();
+    fire('pointerup', 'touch', 31, 400, 433.3, { buttons: 0, button: 0 });
+    const after = shown();
+    const read = (c) => c.getContext('2d').getImageData(0, 0, c.width, c.height).data;
+    const a = read(live);
+    const b = read(base);
+    let diff = 0;
+    let ink = 0;
+    for (let i = 0; i < a.length; i += 4) {
+      if (Math.abs(a[i] - b[i]) + Math.abs(a[i + 1] - b[i + 1]) + Math.abs(a[i + 2] - b[i + 2]) > 6) diff++;
+      if (a[i] < 100) ink++;
+    }
+    // The pen lands while a finger pans: the writing canvas is back at once.
+    fire('pointerdown', 'touch', 32, 400, 500, { buttons: 1, button: 0 });
+    fire('pointermove', 'touch', 32, 400, 480, { buttons: 1 });
+    const second = shown();
+    stroke('pen', 3, [[150, 600], [250, 620], [350, 600]]);
+    const penDown = shown();
+    fire('pointerup', 'touch', 32, 400, 480, { buttons: 0, button: 0 });
+    return { during, after, second, penDown, scrolled: st.sy !== sy0, diff, ink,
+      strokes: view.strokeCount(), errors: window.errors.slice() };
+  });
+  await page.close();
+  const ok = got.during.panning && got.during.base === 'visible' && got.during.live === '0'
+    && !got.after.panning && got.after.base === 'hidden' && got.after.live === '1'
+    && got.second.panning && !got.penDown.panning && got.scrolled && got.diff === 0 && got.ink > 20
+    && got.strokes === 2 && !got.errors.length;
+  return { ok, ...got };
+});
+
+// Drawn in pieces (pen) and in boxes (eraser, highlighter), the screen must match a
+// full redraw of the note: no leftovers of the open end, the prediction or the ring.
+// Also on dotted paper scrolled by a fraction of a pixel: the eraser's boxes copy the
+// paper from a cache, and the scroll is rounded to whole device pixels.
+for (const paper of ['lined', 'dotted']) await check(`incremental_matches_full_redraw_${paper}`, async () => {
+  const page = await openPage(browser, { user: 'ola' });
+  await newNote(page);
+  const got = await page.evaluate(async (paper) => {
     const c = canvas();
+    if (paper !== 'lined') {
+      view._state.note.paper = paper;
+      view.fit();
+      c.dispatchEvent(new WheelEvent('wheel', { deltaY: 7.3, bubbles: true, cancelable: true }));
+      await settle(50);
+    }
     const zig = (x0, y0, n, dx, dy) => Array.from({ length: n }, (_, i) => [x0 + i * dx, y0 + (i % 2 ? dy : 0)]);
     for (let line = 0; line < 6; line++) stroke('pen', 2, zig(80, 120 + line * 40, 40, 12, 14));
     document.querySelector('[data-pen="highlighter"]').click();
@@ -379,7 +442,10 @@ await check('incremental_matches_full_redraw', async () => {
     await settle(100);
     const read = () => c.getContext('2d').getImageData(0, 0, c.width, c.height).data;
     const shown = read();
+    const { sx, sy, zoom } = view._state;
     view.fit();                       // a full redraw of the same note and view
+    Object.assign(view._state, { sx, sy, zoom });
+    c.dispatchEvent(new WheelEvent('wheel', { deltaY: 0, bubbles: true, cancelable: true }));
     await settle(100);
     const full = read();
     let diff = 0;
@@ -387,7 +453,7 @@ await check('incremental_matches_full_redraw', async () => {
       if (Math.abs(shown[i] - full[i]) + Math.abs(shown[i + 1] - full[i + 1]) + Math.abs(shown[i + 2] - full[i + 2]) > 12) diff++;
     }
     return { diff, strokes: view.strokeCount(), errors: window.errors.slice() };
-  });
+  }, paper);
   await page.close();
   return { ok: got.diff < 30 && got.strokes >= 3 && !got.errors.length, ...got };
 });
