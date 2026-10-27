@@ -461,3 +461,63 @@ def test_the_eval_reads_photo_pages_from_their_file_with_include_photos(env, mon
     assert (rep["scored"], rep["failed"]) == (1, 0)
     assert rep["auto_send"]["exact_share"] == 1.0
     assert seen and all("image" in m for m in seen)       # the photo itself was sent
+
+
+# ------------------------------------------------- QC findings on PR 104 (H5 and H6)
+def test_16_bit_gray_scans_keep_their_writing():
+    # Pillow clips 16-bit gray at 255 when converting: the page came out white (F-06).
+    img = Image.new("I;16", (400, 400), 50000)  # a 16-bit PNG opens as I;16
+    ImageDraw.Draw(img).rectangle([100, 100, 300, 300], fill=5000)
+    buf = io.BytesIO()
+    img.save(buf, format="PNG")
+    out = Image.open(io.BytesIO(ink.prepare_photo(buf.getvalue())["jpeg"])).convert("L")
+    assert out.getpixel((200, 200)) < 40  # 5000 / 257 ~ 19
+    assert 180 < out.getpixel((20, 20)) < 210  # 50000 / 257 ~ 195
+
+
+def _shaded(lines=(), shadow=225, paper_v=240):
+    img = Image.new("L", (1600, 2400), paper_v)
+    d = ImageDraw.Draw(img)
+    d.rectangle([0, 1200, 1600, 2400], fill=shadow)
+    for y in lines:
+        d.line([(100, y), (1400, y)], fill=30, width=5)
+    return img.convert("RGB")
+
+
+def test_a_shadow_on_the_paper_is_not_writing():
+    # Autocontrast stretched a slight shadow into "ink", forcing overlapping cuts across
+    # blank paper (F-07).
+    rows = tr.dark_rows(_shaded([200]))
+    assert max(rows[1250:]) <= tr.PHOTO_QUIET
+    assert rows[200] > 0.5
+    assert not any(joined for _, _, joined in tr.photo_cuts(rows, 700, 40))
+
+
+@pytest.mark.parametrize("paper_v, shadow, ink_v", [(235, 235, 40), (240, 150, 30),
+                                                    (110, 110, 50), (225, 225, 160)])
+def test_writing_is_found_in_light_shadow_dim_and_pencil(paper_v, shadow, ink_v):
+    img = Image.new("L", (1600, 2400), paper_v)
+    d = ImageDraw.Draw(img)
+    d.rectangle([0, 1200, 1600, 2400], fill=shadow)
+    ys = list(range(200, 2300, 120))
+    for y in ys:
+        d.line([(100, y), (1400, y)], fill=ink_v, width=5)
+    rows = tr.dark_rows(img.convert("RGB"))
+    assert all(rows[y] > 0.5 for y in ys)
+    assert max(rows[y] for y in range(240, 300)) <= tr.PHOTO_QUIET
+
+
+def test_a_photo_only_note_is_dated_by_its_photo(env):
+    # A photo page has no strokes: written_at was the moment of sending (F-09).
+    from src import ink_athena as athena
+
+    note_id, _ = with_photos("alice", paper())
+    stored = ink.load_sidecar("alice", note_id)
+    at = stored["pages"][0]["photo"]["at"]
+    from datetime import datetime
+
+    assert athena._first_written(stored) == int(datetime.fromisoformat(at).timestamp())
+    stored["pages"][0]["photo"]["at"] = "not a time"
+    assert athena._first_written(stored) is None
+    stored["pages"][0]["photo"]["at"] = "1970-01-02T00:00:00+00:00"  # a clock not set
+    assert athena._first_written(stored) is None
