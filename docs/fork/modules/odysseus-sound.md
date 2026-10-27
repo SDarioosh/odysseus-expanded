@@ -478,7 +478,7 @@ relay routes (SDarioosh/Athena#124, #125) and meetings set up there
 - **No idle cost.** The page fetches the state only while it is open and visible and a
   meeting is on (every 3 s while joining, 6 s while waiting for recording permission or recording, and once when the tab is
   shown again); it stops when the meeting has ended or failed, when the tab is hidden and
-  when it is closed. Odysseus runs no task, thread or poll for meetings.
+  when it is closed. Odysseus runs no thread or poll for meetings (calendar auto-join below uses one scheduled task per toggled event).
 - **Hub routes** (`routes/sound_module_routes.py`, admin only; the writes need the
   `X-Odysseus-Recorder: 1` header like the call recorder's uploads):
 
@@ -495,6 +495,59 @@ relay routes (SDarioosh/Athena#124, #125) and meetings set up there
   meeting** (one at a time; the module answers `409 busy` over its limit).
 - Code: `src/meeting_bot.py`, routes in `routes/sound_module_routes.py`,
   `static/call-recorder.html`, `static/js/meetingBot.js`; test `tests/test_meeting_bot.py`.
+
+### Send Athena to calendar meetings (auto-join)
+
+Each calendar event with a Zoom link has a **Send Athena** toggle in its event form, off
+by default. When it is on, Athena's bot joins that meeting by itself, one minute before it
+starts, through the same join call as the box above (`src/meeting_bot.py`), so the same
+link rules and error words apply. **The owner still joins too:** Athena joins on the
+owner's behalf and waits for them (up to its waiting limit), then gives up.
+
+- **Which events.** The event's location, then its description, is read with
+  `parse_join`; it needs a real Zoom join link (a bare "Meeting ID:" line doesn't count).
+  A Zoom link Athena can't join (a webinar, a personal link…) shows the toggle greyed out
+  with the reason. All-day events have no start and can't be toggled. The toggle is shown
+  for a saved event only, to admins, and uses the event as stored (save a new link first).
+- **One task per toggled event.** Turning it on creates one one-shot task in the
+  existing task scheduler (action `meeting_auto_join`, named "Send Athena: <title>", in
+  Tasks), due one minute before the start (or right away when the meeting has already
+  started). A moved event moves that task (same task id); a deleted event, a removed
+  Zoom link or turning the toggle off deletes it. A repeating event gets a task for its
+  next occurrence (skipped occurrences are left out); after each run the next one is
+  scheduled. Pausing the task in Tasks keeps it paused; deleting it there only lasts until
+  the next calendar change (turn the toggle off instead).
+- **When tasks follow the calendar.** After every CalDAV pull (`src/caldav_sync.py`),
+  after an event is edited or deleted in the hub (`routes/calendar_routes.py`), when the
+  toggle changes, and when a task runs (an event moved later or deleted without a pull
+  is caught then: the task is put right and nothing joins). Odysseus adds no thread,
+  timer or poll; between meetings only the existing scheduler runs.
+- **On time.** The scheduler normally holds back background tasks for 15 minutes while
+  the owner is using Odysseus; a Send Athena task runs on time anyway, outside the model
+  queue (`src/task_scheduler.py`, hook). If the owner opens Odysseus while the join call is
+  in flight, the call still finishes and its outcome is still reported.
+- **Overlaps.** Of toggled meetings that overlap, the one that starts earlier wins (same
+  start: the event uid decides). The later one gets no task and one notification: "Athena
+  is busy in "<earlier>" then, so it won't join "<later>"…". If the earlier one is
+  turned off, moved or deleted, the later one gets its task back.
+- **Notifications** (the hub's task notifications: toast, browser notification and the
+  notification log): on success "Athena is joining "<title>": … Join the meeting too";
+  on failure the run fails with the reason in words, e.g. busy in another meeting
+  (started from the box), meetings off on the server, Zoom sign-in missing
+  (`convo-server zoom-login`), or "update Athena".
+- **Stored in the hub, not in Athena:** `<DATA_DIR>/meeting_auto_join/<owner>.json`, per
+  event series uid: `on`, the task id, the scheduled start, the last occurrence joined and
+  the occurrence a busy notice was sent for. Naive-local events are read in the user's
+  time zone (`src/user_time.py`; in the background that is the server's zone).
+- **Hub routes** (admin only; the write needs `X-Odysseus-Recorder: 1`):
+  `GET /api/modules/sound/auto-join?uid=<event uid>` → `{uid, eligible, zoom, reason, on,
+  start, due, busy, task_id}`; `PUT /api/modules/sound/auto-join` JSON `{uid, on}` → the
+  same, 400 for an event without a joinable Zoom link, 404 for an unknown event. An
+  occurrence uid (`<series>::<date>`) means its series.
+- Code: `src/meeting_auto_join.py`, `static/js/forkMeetingAutoJoin.js`; hooks in
+  `src/caldav_sync.py`, `routes/calendar_routes.py`, `src/task_scheduler.py`,
+  `src/builtin_actions.py`, `static/js/calendar.js`; routes in
+  `routes/sound_module_routes.py`; test `tests/test_meeting_auto_join.py`.
 
 ## Uploads through the MCP server
 
