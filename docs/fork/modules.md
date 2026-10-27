@@ -91,7 +91,7 @@ name heuristic. So:
 
 ### Slash skill
 
-Each module gets one slash command in Odysseus, e.g. `/sound <question>`, plus a share
+Each module gets one slash command in Odysseus, e.g. `/athena <question>`, plus a share
 of `/context <question>` (every trusted module). For that one message, the model is
 offered only the module's tools (plus `ask_user`/`update_plan`), so a small model
 finds them among Odysseus' ~130 tools. Mechanism: an Odysseus skill whose
@@ -183,7 +183,7 @@ the server's test instance (`127.0.0.1:7010`), then on production (port 7000) pe
    `sound=convo`) and the shared `/context` skill. See
    [Slash skill](#slash-skill). `--trim` gives the old memory-only tool set with
    "Regular tools". With every tool on, plain questions in "Auto" don't reach module
-   tools; `/sound` and `/context` do
+   tools; `/athena` and `/context` do
    ([sandbox.md](sandbox.md#slash-skills-2026-10-18)).
 6. **Run the module's eval** (see "Eval harness"): a few questions in the sandbox, the
    full run by the owner on the server. Record the server score in the module doc.

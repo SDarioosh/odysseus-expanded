@@ -143,11 +143,12 @@ Then, per [../modules.md](../modules.md#registering-a-module-in-odysseus):
    system prompt.
 3. `python scripts/modules_setup.py --url http://127.0.0.1:7010 --password-file <file>`
    (sandbox, or the server's test instance; on production `fork_deploy.sh` runs it).
-   It creates the `/sound` and `/context` skills from that preset text.
+   It creates the `/athena` and `/context` skills from that preset text (and deletes
+   the old `/sound` skill it made before).
 
-## Slash skill: `/sound`
+## Slash skill: `/athena`
 
-- Skill **`sound`**, server **`convo`**: `/sound <question>` gives that one message
+- Skill **`athena`**, server **`convo`**: `/athena <question>` gives that one message
   Athena's 13 tools (plus `ask_user`/`update_plan`) and nothing else. `/context
   <question>` does the same for every trusted module (today only `convo`).
 - The skill's procedure is `INSTRUCTIONS` from `server/convo_server/mcp_server.py`, the
@@ -156,15 +157,17 @@ Then, per [../modules.md](../modules.md#registering-a-module-in-odysseus):
 - Needed because with every Odysseus tool on and "Auto", a plain recording question
   is routed to built-ins (calendar, files) and never sees a convo tool. Sandbox
   numbers: [../sandbox.md](../sandbox.md#slash-skills-2026-10-18).
-- Examples: `/sound what did Alice say about the budget in September?`,
+- Examples: `/athena what did Alice say about the budget in September?`,
   `/context what did Maria ask me to do on Friday?` The model gets today's date on
   every turn, so relative dates work.
-- Write tools (`update_action_item`, `name_speaker`) are offered on `/sound` turns and
+- Write tools (`update_action_item`, `name_speaker`) are offered on `/athena` turns and
   still ask for approval.
-- Follow-ups in the same chat don't need `/sound` again: once a convo tool has run in a
+- Follow-ups in the same chat don't need `/athena` again: once a convo tool has run in a
   chat, every later message there is offered all 13 tools (write tools still ask). So
-  "Speaker 1 and 3 were Marisol, speaker 2 was Kath" after `/sound what did we talk about
+  "Speaker 1 and 3 were Marisol, speaker 2 was Kath" after `/athena what did we talk about
   last night?` calls `name_speaker`.
+- The command was `/sound` until 2026-10-27. Rerunning `modules_setup.py` (or
+  `fork_deploy.sh deploy`) creates `/athena` and deletes the old managed `/sound`.
 - Approving a write tool once covers more calls of that same tool in the same reply:
   one click renames all three speakers. A different write tool in that reply is still
   refused; ask for it in a new message.
@@ -718,6 +721,21 @@ model:
 
 - Code: `routes/summary_model_routes.py`, `static/js/forkBackgroundModels.js`; test
   `tests/test_summary_model_routes.py`. Module side: `server/convo_server/llm_settings.py`.
+
+## Transcription vocabulary in Settings
+
+Settings → AI Defaults → **Transcription Vocabulary** (admin only): comma-separated words
+(names, products, jargon such as "RokTalk, Meshtastic, Rokland") that the module's whisper
+is nudged toward. `GET`/`PUT /api/fork/whisper-vocabulary` (`{"text": "a, b"}`) → the
+module's `/settings/vocabulary` (`{"words": "a, b" | null}`). The module cleans the list
+(trims, drops duplicates, at most 50 words of 60 characters, 422 past that), stores it and
+puts it into whisper's prompt from the next recording on, after its `CONVO_WHISPER_PROMPT`
+and before known speakers' names. The card shows the prompt whisper gets now. Keep the
+list short: on the module's AMI eval a 12-word list hurt timestamps. A module without the
+route shows "update Athena".
+
+- Code: `routes/whisper_vocabulary_routes.py`, `static/js/forkWhisperVocabulary.js`; test
+  `tests/test_whisper_vocabulary_routes.py`. Module side: `server/convo_server/vocabulary.py`.
 
 ## Today insight
 

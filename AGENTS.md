@@ -20,10 +20,11 @@ this repository. Read this file completely before changing anything.
   odysseus-sound; recorded conversations: transcripts, summaries, action items, facts).
   Details: [docs/fork/modules/odysseus-sound.md](docs/fork/modules/odysseus-sound.md).
   The rename is wording only. Code and stored values keep the old names: the MCP server
-  `convo`, the `/sound` skill, `/modules/sound` routes, `sound:*` token scopes, and the
+  `convo`, `/modules/sound` routes, `sound:*` token scopes, and the
   string `"odysseus-sound"` used as the belief source, the label on filed notes, the
   memory source and calendar uid prefixes. Changing them breaks existing data; don't
-  "fix" them.
+  "fix" them. The slash command is the exception: it is now `/athena` (was `/sound`;
+  `scripts/modules_setup.py` deletes the old managed skill).
 - What the fork changes today: [FORK.md](FORK.md). System picture, ports and
   services: [docs/fork/architecture.md](docs/fork/architecture.md). Status and
   next work: [docs/fork/roadmap.md](docs/fork/roadmap.md).
@@ -68,11 +69,11 @@ Fork code so far: `src/mcp_trust.py`, `src/mcp_stdio_owner.py`, `src/mcp_session
 `src/insight_outcomes.py`, `src/insight_weights.py`, `src/insight_push.py`, `src/insight_routines.py`,
 `src/insight_inputs.py`, `src/insight_trends.py`, `routes/insight_outcome_routes.py`,
 `routes/insight_weights_routes.py`, `routes/insight_trends_routes.py`,
-`routes/sound_module_routes.py`, `routes/today_insight_routes.py`, `routes/summary_model_routes.py`, `routes/auto_mode_routes.py`, `routes/beliefs_routes.py`, `routes/belief_search_routes.py`, `static/sound-module.html`,
+`routes/sound_module_routes.py`, `routes/today_insight_routes.py`, `routes/summary_model_routes.py`, `routes/whisper_vocabulary_routes.py`, `routes/auto_mode_routes.py`, `routes/beliefs_routes.py`, `routes/belief_search_routes.py`, `static/sound-module.html`,
 `static/today.html`, `static/js/today.js`, `static/js/todayWeights.js`, `static/js/todayTrends.js`, `static/beliefs.html`, `static/js/beliefs.js`,
 `static/call-recorder.html`, `static/js/callRecorder.js`, `static/js/meetingBot.js`, `static/js/forkMeetingAutoJoin.js`, `static/phone-pairing.html`, `static/js/phonePairing.js`,
 `static/js/soundModule.js`, `static/js/forkMeetings.js`, `static/js/forkChatAsk.js`, `static/js/forkEntityHash.js`,
-`static/js/forkModuleWindows.js`, `static/js/forkAthenaMenu.js`, `static/js/forkModuleShortcuts.js`, `static/js/forkInk.js`, `static/css/fork-ink.css`, `static/js/forkBackgroundModels.js`, `static/js/forkPhonePairing.js`, `static/js/forkAutoMode.js`, `static/js/forkResumeFallback.js`, `static/css/fork-modules.css`,
+`static/js/forkModuleWindows.js`, `static/js/forkAthenaMenu.js`, `static/js/forkModuleShortcuts.js`, `static/js/forkInk.js`, `static/css/fork-ink.css`, `static/js/forkBackgroundModels.js`, `static/js/forkWhisperVocabulary.js`, `static/js/forkPhonePairing.js`, `static/js/forkAutoMode.js`, `static/js/forkResumeFallback.js`, `static/css/fork-modules.css`,
 `scripts/modules_setup.py`, `scripts/belief_eval.py`, `scripts/belief_eval_scale.py`, `scripts/unfile_voice_note_todos.py`,
 `scripts/module_slash_eval.py`, `scripts/insight_eval.py`, `scripts/fork_deploy.sh`, `docker/fork.override.yml`,
 their tests (`tests/test_mcp_trust.py`,
@@ -85,7 +86,7 @@ their tests (`tests/test_mcp_trust.py`,
 `tests/test_belief_eval.py`, `tests/test_subjects.py`, `tests/test_belief_structure.py`, `tests/test_belief_search.py`, `tests/test_belief_eval_scale.py`, `tests/test_ledger_perf.py`, `tests/test_fork_module_windows.py`,
 `tests/test_call_recorder.py`, `tests/test_meeting_bot.py`, `tests/test_meeting_bot_js.py`, `tests/test_meeting_auto_join.py`, `tests/test_sound_relay.py`, `tests/test_insight_outcomes.py`,
 `tests/test_insight_weights.py`, `tests/test_insight_push.py`, `tests/test_insight_routines.py`,
-`tests/test_insight_inputs.py`, `tests/test_insight_eval.py`, `tests/test_summary_model_routes.py`,
+`tests/test_insight_inputs.py`, `tests/test_insight_eval.py`, `tests/test_summary_model_routes.py`, `tests/test_whisper_vocabulary_routes.py`,
 `tests/test_belief_consolidation.py`, `tests/test_module_fact_kinds.py`, `tests/test_belief_forget.py`, `tests/test_belief_move.py`, `tests/test_auto_mode.py`, `tests/test_web_read_recovery.py`, `tests/test_fork_resume_fallback.py`, `tests/test_ink_notes.py`, `tests/test_ink_routes.py`, `tests/test_ink_upstream_contract.py`, `tests/test_ink_palm_rejection.py`, `tests/test_ink_perf.py`, `tests/test_ink_transcribe.py`, `tests/test_ink_athena.py`, `tests/test_vision_auto_detect.py`), and the hooks listed in [FORK.md](FORK.md).
 
 ## Fork rules (merge-friendly)
