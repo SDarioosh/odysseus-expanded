@@ -434,9 +434,14 @@ relay routes (SDarioosh/Athena#124, #125) and meetings set up there
   meeting: the bot waits for them (`starting`/`waiting_for_owner`), gives up if they don't
   come (`failed`/`owner_not_joined`) and leaves when they leave (`ended`/`owner_left`). The
   box says so under the link field.
+- **Recording permission.** In the meeting the bot asks Zoom for recording permission once
+  and then waits (`waiting_permission`, active); if the host declines (reason `denied`) it
+  stays in the meeting in case they allow it later.
 - **What it shows.** The state in plain words: "Joining…", "Waiting for you to join the
   meeting — Athena joins as soon as you're in", "Waiting in the waiting room —
-  the host has to admit Athena", "Recording", "Recording, but Zoom isn't sending audio",
+  the host has to admit Athena", "In the meeting — waiting for the host to allow recording
+  (Zoom asked them once)", "The host declined recording. Athena stays in the meeting in
+  case they allow it later", "Recording", "Recording, but Zoom isn't sending audio",
   "Ended: the meeting is over" (and the other end reasons), "Couldn't join: wrong
   passcode" (and the other failures), "You didn't join the meeting in time, so Athena gave up", "Ended: you left the
   meeting, so Athena left too", "Athena's Zoom sign-in is missing or expired — run
@@ -447,7 +452,7 @@ relay routes (SDarioosh/Athena#124, #125) and meetings set up there
   use meetings" for a module without the routes. On load the page shows the meeting the
   bot is in, if any.
 - **No idle cost.** The page fetches the state only while it is open and visible and a
-  meeting is on (every 3 s while joining, 6 s while recording, and once when the tab is
+  meeting is on (every 3 s while joining, 6 s while waiting for recording permission or recording, and once when the tab is
   shown again); it stops when the meeting has ended or failed, when the tab is hidden and
   when it is closed. Odysseus runs no task, thread or poll for meetings.
 - **Hub routes** (`routes/sound_module_routes.py`, admin only; the writes need the

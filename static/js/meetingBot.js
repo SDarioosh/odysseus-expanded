@@ -7,7 +7,7 @@
 
 const API = '/api/modules/sound/meetings';
 const POLL_JOINING_MS = 3000; // starting / waiting room: show the change soon
-const POLL_RECORDING_MS = 6000;
+const POLL_RECORDING_MS = 6000; // recording, or waiting for the host to allow it
 const POLL_ERROR_MAX_MS = 30000;
 const WRITE_HEADERS = { 'Content-Type': 'application/json', 'X-Odysseus-Recorder': '1' };
 
@@ -100,7 +100,8 @@ function schedule(ms) {
 }
 
 function pollDelay() {
-  return meeting && meeting.state === 'recording' ? POLL_RECORDING_MS : POLL_JOINING_MS;
+  const slow = meeting && (meeting.state === 'recording' || meeting.state === 'waiting_permission');
+  return slow ? POLL_RECORDING_MS : POLL_JOINING_MS;
 }
 
 async function refresh() {

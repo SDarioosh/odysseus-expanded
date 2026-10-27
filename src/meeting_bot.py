@@ -44,7 +44,7 @@ MAX_INPUT_CHARS = 20_000  # an invite pasted whole, with its dial-in numbers
 MAX_TITLE_CHARS = 200
 MAX_PASSCODE_CHARS = 128
 LIST_LIMIT = 5  # the page looks for an active meeting among the newest few
-ACTIVE_STATES = ("starting", "waiting_room", "recording")
+ACTIVE_STATES = ("starting", "waiting_room", "waiting_permission", "recording")
 FINAL_STATES = ("ended", "failed")
 
 UPDATE_MODULE = ("Update Athena to use meetings: its MCP server has no meeting routes yet "
@@ -294,6 +294,11 @@ def describe(meeting: dict[str, Any]) -> str:
         return "Joining…"
     if state == "waiting_room":
         return "Waiting in the waiting room — the host has to admit Athena."
+    if state == "waiting_permission":
+        if reason == "denied":
+            return ("The host declined recording. Athena stays in the meeting in case they "
+                    "allow it later.")
+        return "In the meeting — waiting for the host to allow recording (Zoom asked them once)."
     if state == "recording":
         if reason == "no_audio":
             return "Recording, but Zoom isn't sending audio."

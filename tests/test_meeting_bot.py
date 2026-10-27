@@ -227,6 +227,10 @@ def test_title_and_meeting_id_checks():
      "You didn't join the meeting in time, so Athena gave up."),
     ("ended", "owner_left", "x", "Ended: you left the meeting, so Athena left too."),
     ("waiting_room", None, None, "the host has to admit Athena"),
+    ("waiting_permission", None, None,
+     "In the meeting — waiting for the host to allow recording (Zoom asked them once)."),
+    ("waiting_permission", "denied", None,
+     "The host declined recording. Athena stays in the meeting in case they allow it later."),
     ("recording", None, "x", "Recording."),
     ("recording", "no_audio", "x", "Zoom isn't sending audio"),
     ("ended", "meeting_ended", "x", "the meeting is over"),
@@ -533,3 +537,12 @@ def test_route_signin_needed(client):
 def test_page_has_the_join_yourself_hint(client):
     r = client.get("/modules/sound/record")
     assert "Join the meeting yourself too — Athena records while you're in it." in r.text
+
+
+def test_waiting_permission_is_active():
+    for reason in (None, "denied"):
+        got = mb.public({"id": MID, "state": "waiting_permission", "reason": reason})
+        assert got["active"] is True
+    module = Module(200, {"meetings": [row(state="waiting_permission", reason="denied",
+                                           active=True)]})
+    assert run(mb.current(LINK, transport=module.transport))["id"] == MID
