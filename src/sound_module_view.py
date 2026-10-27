@@ -20,16 +20,20 @@ from typing import Any, Awaitable, Callable
 
 CallTool = Callable[[str, dict], Awaitable[str]]
 
+# After a title: " (voice note)", or " (written by hand: <hub link>)" for a note written
+# in the hub's Write view (Athena MCP 0.12.0)
+_MARK = (r"(?:(?P<note> \(voice note\))"
+         r"| \(written by hand: (?P<written>https?://[^\s)]+)\))?")
 _CONV = re.compile(
     r"^- (?P<start>\d{4}-\d{2}-\d{2} \d{2}:\d{2})–(?P<end>\d{2}:\d{2}) \"(?P<title>.*)\""
-    r"(?P<note> \(voice note\))? id (?P<id>\S+); people: (?P<people>.*)$")
+    + _MARK + r" id (?P<id>\S+); people: (?P<people>.*)$")
 _UNNAMED = re.compile(
     r"^- (?P<label>.+?) in \"(?P<title>.*)\" (?P<when>\d{4}-\d{2}-\d{2} \d{2}:\d{2}) "
     r"\(conversation id (?P<conv>[^)]+)\), (?P<lines>\d+) lines"
     r"(?:; sounds like (?P<guess>.+) \((?P<score>[0-9.]+)\))?$")
 _ITEM = re.compile(
     r"^- #(?P<id>\d+) \[(?P<status>open|done|dismissed)\] (?P<rest>.*) — from "
-    r"\"(?P<title>.*)\"(?P<note> \(voice note\))? (?P<when>\d{4}-\d{2}-\d{2} \d{2}:\d{2}) (?P<link>\S+)$")
+    r"\"(?P<title>.*)\"" + _MARK + r" (?P<when>\d{4}-\d{2}-\d{2} \d{2}:\d{2}) (?P<link>\S+)$")
 _KIND_WORD = re.compile(r"^(?P<kind>event|reminder): ")
 _UNCLEAR = " [time unclear]"
 # "2026-10-21 12:00 (Wednesday at 12 pm)", "2026-10-23 (Friday)", "2026-10-23"
@@ -46,7 +50,7 @@ _DUE = re.compile(r" due (?P<due>(?:(?! due ).)+)$")
 _OWNER = re.compile(r" \(owner (?P<owner>[^)]*)\)$")
 _QUOTE = re.compile(r"^#(?P<id>\d+) \"(?P<text>.*)\" (?P<link>https?://\S+)$")
 # get_conversation
-_HEAD = re.compile(r"^\"(?P<title>.*)\"(?: \(voice note\))? — (?P<when>.+)$")
+_HEAD = re.compile(r"^\"(?P<title>.*)\"" + _MARK + r" — (?P<when>.+)$")
 _SPEAKERS = re.compile(r"^Speakers: (?P<speakers>.*)\. People: (?P<people>.*)$")
 _CONV_ITEM = re.compile(
     r"^Action #(?P<id>\d+) \[(?P<status>open|done|dismissed)\]: (?P<rest>.*) "
@@ -72,6 +76,7 @@ class Conversation:
     summary: str = ""
     link: str = ""
     voice_note: bool = False
+    written_link: str | None = None  # the note in the hub, for a note written by hand
 
 
 @dataclass
@@ -147,6 +152,7 @@ class ConversationDetail:
     key_points: list[str] = field(default_factory=list)
     action_items: list[ConversationItem] = field(default_factory=list)
     facts: list[Fact] = field(default_factory=list)
+    written_link: str | None = None  # the note in the hub, for a note written by hand
 
 
 @dataclass
@@ -313,7 +319,7 @@ def parse_conversations(text: str) -> list[Conversation]:
             people = [] if m["people"].strip() in {"", "—"} else [
                 p.strip() for p in m["people"].split(",") if p.strip()]
             out.append(Conversation(m["id"], m["start"], m["end"], m["title"], people,
-                                    voice_note=bool(m["note"])))
+                                    voice_note=bool(m["note"]), written_link=m["written"]))
             continue
         if not out or not raw.startswith("  "):
             continue
@@ -347,7 +353,7 @@ def parse_conversation(text: str, conversation_id: str) -> ConversationDetail:
     for raw in (text or "").splitlines():
         line = raw.strip()
         if not c.title and (m := _HEAD.match(line)):
-            c.title, c.when = m["title"], m["when"]
+            c.title, c.when, c.written_link = m["title"], m["when"], m["written"]
         elif m := _SPEAKERS.match(line):
             c.speakers, c.people = _names(m["speakers"]), _names(m["people"])
         elif line.startswith("Link: ") and not c.link:

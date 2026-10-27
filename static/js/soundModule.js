@@ -455,19 +455,31 @@ function moduleLink(url, className = 'bs-link') {
     el('span', { html: OPEN_ICON }), 'Transcript') : null;
 }
 
+// A note written by hand in the hub (Athena MCP 0.12.0): a link back to it in Write.
+function handwrittenLink(url) {
+  const href = safeLink(url);
+  return href ? el('a', { className: 'bs-link', href, title: 'Open the handwritten note in the hub' },
+    el('span', { html: OPEN_ICON }), 'Handwritten note') : null;
+}
+
+function sourceLabel(c) {
+  return c.written_link ? 'Written by hand · ' : (c.voice_note ? 'Voice note · ' : '');
+}
+
 function convCard(c) {
   const link = safeLink(c.link);
   return el('div', { className: 'bs-card' },
     el('h2', {}, c.title),
     el('div', { className: 'bs-meta' },
-      (c.voice_note ? 'Voice note · ' : '') +
+      sourceLabel(c) +
       `${c.start}–${c.end}` + (c.people.length ? ` · ${c.people.join(', ')}` : '')),
     c.summary ? el('p', { className: 'bs-summary' }, c.summary) : null,
     el('div', { className: 'bs-row' },
       el('button', { type: 'button', className: 'bs-btn primary',
                      onclick: () => openReader(c.id, c.start) }, 'Open'),
       askButton(c.title, c.id, c.start),
-      moduleLink(link)));
+      moduleLink(link),
+      handwrittenLink(c.written_link)));
 }
 
 async function loadList() {
@@ -481,7 +493,7 @@ async function loadList() {
   try {
     const { conversations } = await api(`/api/modules/sound/conversations?${params}`);
     if (!conversations.length) {
-      status(box, params.get('kind') === 'note' ? 'No voice notes found.' : 'No conversations found.');
+      status(box, params.get('kind') === 'note' ? 'No notes found.' : 'No conversations found.');
       return;
     }
     box.replaceChildren(...conversations.map(convCard));
@@ -590,13 +602,15 @@ function renderReader() {
                    } }, refreshIcon()));
   const actions = el('div', { className: 'bs-row' },
     d ? askButton(d.title, d.id, start) : null,
-    d ? moduleLink(d.link) : null);
+    d ? moduleLink(d.link) : null,
+    d ? handwrittenLink(d.written_link) : null);
   const parts = [top];
   if (reader.notice) parts.push(el('div', { className: 'bs-notice', role: 'status' }, reader.notice));
   if (d) {
     const people = d.people.filter((p) => p !== '—');
     const card = el('div', { className: 'bs-card' },
-      el('div', { className: 'bs-meta' }, d.when + (people.length ? ` · ${people.join(', ')}` : '')),
+      el('div', { className: 'bs-meta' }, (d.written_link ? 'Written by hand · ' : '') + d.when
+        + (people.length ? ` · ${people.join(', ')}` : '')),
       d.summary ? el('p', { className: 'bs-summary' }, d.summary) : null,
       actions);
     if (d.key_points.length) {
@@ -951,7 +965,7 @@ function buildView() {
     el('select', { className: 'bs-input', name: 'kind', 'aria-label': 'Type' },
       el('option', { value: '' }, 'All recordings'),
       el('option', { value: 'conversation' }, 'Conversations'),
-      el('option', { value: 'note' }, 'Voice notes')),
+      el('option', { value: 'note' }, 'Notes (spoken or written)')),
     el('button', { type: 'submit', className: 'bs-btn primary' }, 'Search'));
   const panel = (name, ...children) => el('div', { role: 'tabpanel', id: `bs-panel-${name}`,
                                                     'aria-labelledby': `bs-tab-${name}`, hidden: '' },

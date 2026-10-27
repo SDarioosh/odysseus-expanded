@@ -634,3 +634,34 @@ def test_parse_action_items_result_skips_other_peoples_items():
             {"id": 3, "text": "Call Mom"}]  # an older module sends no flag
     items = view.parse_action_items_result(json.dumps(rows))
     assert [i.id for i in items] == [1, 3]
+
+
+# Notes written by hand in the hub (Athena MCP 0.12.0): Athena marks them after the title
+# with "(written by hand: <hub link>)" instead of "(voice note)".
+HUB_NOTE = "http://hub.example.ts.net:7010/#open=notes&note=0b7c1e2a-5d1f-4a3b-9c2e-1f2a3b4c5d6e"
+
+
+def test_parse_written_by_hand_rows():
+    convs = view.parse_conversations(
+        f'- 2026-10-26 20:21–20:21 "Where Athena stands" (written by hand: {HUB_NOTE}) '
+        "id w1; people: Me\n  Notes on bug fixing and stability.\n  http://h:8000/view/w1?sig=a\n"
+        '- 2026-10-16 08:00–08:01 "Grocery list" (voice note) id n1; people: Me\n'
+        "  Buy milk.\n  http://h:8000/view/n1?sig=b")
+    assert [(c.id, c.title, c.summary, c.link, c.voice_note, c.written_link) for c in convs] == [
+        ("w1", "Where Athena stands", "Notes on bug fixing and stability.",
+         "http://h:8000/view/w1?sig=a", False, HUB_NOTE),
+        ("n1", "Grocery list", "Buy milk.", "http://h:8000/view/n1?sig=b", True, None)]
+    items = view.parse_action_items(
+        '- #30 [open] Plant tulips — from "Garden" '
+        f"(written by hand: {HUB_NOTE}) 2026-10-26 20:21 http://h:8000/view/w1?sig=a#t=1")
+    assert [(i.id, i.text, i.conversation_title) for i in items] == [(30, "Plant tulips", "Garden")]
+
+
+def test_parse_written_by_hand_conversation():
+    c = view.parse_conversation(
+        f'"Where Athena stands" (written by hand: {HUB_NOTE}) — 2026-10-26 20:21–20:21 (UTC), '
+        "device handwriting, type note\nSpeakers: Me. People: —\n"
+        "Link: http://h:8000/view/w1?sig=a\nSummary: Notes on bug fixing.", "w1")
+    assert (c.title, c.when, c.link, c.written_link) == (
+        "Where Athena stands", "2026-10-26 20:21–20:21 (UTC), device handwriting, type note",
+        "http://h:8000/view/w1?sig=a", HUB_NOTE)
