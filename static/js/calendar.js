@@ -3698,18 +3698,26 @@ function _showEventForm(existing, defaultDate, defaultEndDate) {
 
       const dv = document.getElementById('cal-f-date')?.value;
       const dvEndEl = document.getElementById('cal-f-date-end');
-      if (!dv || !dvEndEl || dvEndEl.value !== dv) return;
+      if (!dv || !dvEndEl) return;
 
       const sVal = startEl.value;
       const eVal = endEl.value;
+      const nextDay = _addDays(dv, 1);
 
-      if (sVal && eVal && eVal <= sVal) {
-        const d = new Date(`${dv}T00:00:00`);
-        d.setDate(d.getDate() + 1);
-
-        dvEndEl.value = _ds(d);
+      if (dvEndEl.value === dv && sVal && eVal && eVal <= sVal) {
+        dvEndEl.value = nextDay;
+        dvEndEl.dataset.autoAdvanced = '1';
+      } else if (dvEndEl.dataset.autoAdvanced === '1' && dvEndEl.value === nextDay
+                 && sVal && eVal && eVal > sVal) {
+        // Undo our own advance: typing "15:40" over "16:00" passes through
+        // "15:00", which used to leave the event ending a day later.
+        dvEndEl.value = dv;
+        delete dvEndEl.dataset.autoAdvanced;
       }
     };
+    document.getElementById('cal-f-date-end')?.addEventListener('change', (e) => {
+      delete e.target.dataset.autoAdvanced;
+    });
 
     let prevStartMin = _toMin(startEl.value);
 
