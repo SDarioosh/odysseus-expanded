@@ -38,6 +38,11 @@ _Last updated: 2026-10-22_
 
 ## Next
 
+- **Cleanup of the fork and Athena** ([cleanup-plan.md](cleanup-plan.md), full plan in
+  Athena's `docs/cleanup-plan.md`): safety-net tests, bug fixes, a `fork/` package, one
+  Athena client, shared helpers, fewer upstream hooks. Five phases in lanes for subagents
+  with an overseer. Planned, not started.
+
 0. **Module tools without a slash command** (PR SDarioosh/Barvis#24). A plain question
    with a module cue (conversation words, a person the module knows) runs in agent mode
    and is offered the trusted modules' read tools, through the existing slash-skill
