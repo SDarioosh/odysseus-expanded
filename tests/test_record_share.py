@@ -81,7 +81,8 @@ def test_the_file_comes_from_the_module(monkeypatch):
     assert "sandbox" in r.headers["content-security-policy"]
     (req,) = module.requests
     assert req.url.path == "/conversations/c1/export"
-    assert req.url.params["access_token"] == MCP_TOKEN
+    assert "access_token" not in req.url.params
+    assert req.headers["authorization"] == f"Bearer {MCP_TOKEN}"
     assert req.url.params["format"] == "md"
     assert req.url.params["include"] == "summary,transcript"  # page order
 

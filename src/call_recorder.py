@@ -215,6 +215,12 @@ def check_kind(kind: str | None) -> str:
     return kind
 
 
+def auth_headers(link: Link) -> dict[str, str]:
+    """The token as ``Authorization: Bearer``, which the module's BearerAuth accepts like
+    ``?access_token=``; httpx logs request URLs at INFO, so the token never goes in one."""
+    return {"Authorization": f"Bearer {link.token}"}
+
+
 def _client(transport: httpx.AsyncBaseTransport | None) -> httpx.AsyncClient:
     return httpx.AsyncClient(timeout=TIMEOUT, transport=transport, follow_redirects=False)
 
@@ -244,10 +250,9 @@ async def _post(link: Link, path: str, transport: httpx.AsyncBaseTransport | Non
                 **kwargs: Any) -> httpx.Response:
     try:
         async with _client(transport) as client:
-            return await client.post(f"{link.base}{path}", params={"access_token": link.token},
-                                     **kwargs)
+            return await client.post(f"{link.base}{path}", headers=auth_headers(link), **kwargs)
     except httpx.HTTPError as exc:
-        # The URL carries the token: log only the base and the error's type.
+        # Log only the base and the error's type (never the request).
         logger.warning("Athena unreachable at %s: %s", link.base, type(exc).__name__)
         raise RecorderError(502, "Athena is not reachable") from None
 
@@ -305,10 +310,10 @@ async def forward(link: Link, method: str, path: str, *, params: dict[str, Any] 
     update Athena.
     """
     query = {k: v for k, v in (params or {}).items() if v is not None}
-    query["access_token"] = link.token
     try:
         async with _client(transport) as client:
-            res = await client.request(method, f"{link.base}{path}", params=query, json=json)
+            res = await client.request(method, f"{link.base}{path}", params=query or None,
+                                       json=json, headers=auth_headers(link))
     except httpx.HTTPError as exc:
         logger.warning("Athena unreachable at %s: %s", link.base, type(exc).__name__)
         raise RecorderError(502, "Athena is not reachable") from None

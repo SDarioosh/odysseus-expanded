@@ -47,7 +47,9 @@ class FakeAthena:
         self.requests.append(request)
         if self.down:
             raise httpx.ConnectError("refused", request=request)
-        if request.url.params.get("access_token") != TOKEN:
+        # like Athena's BearerAuth: the header or ?access_token=
+        if (request.headers.get("authorization") != f"Bearer {TOKEN}"
+                and request.url.params.get("access_token") != TOKEN):
             return httpx.Response(401, json={"detail": "bad token"})
         if self.answer is not None:
             status, body = self.answer
@@ -216,8 +218,9 @@ def test_payload_link_title_and_answer(env):
     assert body["written_at"] == datetime.fromtimestamp(
         FIRST_STROKE_MS // 1000, timezone.utc).isoformat().replace("+00:00", "Z")
     req = env.requests[0]
-    assert str(req.url).startswith("http://athena.local:8001/ingest/text?")
-    assert req.url.params["access_token"] == TOKEN
+    assert str(req.url) == "http://athena.local:8001/ingest/text"
+    assert "access_token" not in req.url.params
+    assert req.headers["authorization"] == f"Bearer {TOKEN}"
     assert out["sent"]["result"] == "created"
     a = sidecar(note_id)["athena"]
     assert a["conversation_id"] == out["sent"]["conversation_id"]

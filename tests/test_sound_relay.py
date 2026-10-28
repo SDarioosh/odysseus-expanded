@@ -108,7 +108,8 @@ def test_relay_chunk_forwards_with_device_and_kind(monkeypatch):
     r = relay_chunk(c, kind="note")
     assert r.status_code == 200 and r.json()["ok"] is True and r.json()["duplicate"] is False
     (req,) = c.module.requests
-    assert req.url.path == "/ingest/chunk" and dict(req.url.params) == {"access_token": MCP_TOKEN}
+    assert req.url.path == "/ingest/chunk" and dict(req.url.params) == {}
+    assert req.headers["authorization"] == f"Bearer {MCP_TOKEN}"
     body = req.read()
     for field, value in [("device", "twatch"), ("kind", "note"), ("codec", "ogg"),
                          ("timestamp", "2026-10-20T10:00:00+00:00"), ("sequence", "3")]:
@@ -166,8 +167,8 @@ def test_relay_reads_and_writes(monkeypatch):
                  ).json()["path"] == "/health"
     r = c.get("/api/codex/sound/conversations?since=100&limit=5", headers=read)
     assert r.json()["path"] == "/conversations"
-    assert dict(c.module.requests[-1].url.params) == {
-        "since": "100", "limit": "5", "access_token": MCP_TOKEN}
+    assert dict(c.module.requests[-1].url.params) == {"since": "100", "limit": "5"}
+    assert c.module.requests[-1].headers["authorization"] == f"Bearer {MCP_TOKEN}"
     assert c.get("/api/codex/sound/conversations/c:1 x/transcript", headers=read
                  ).status_code == 200
     assert c.module.requests[-1].url.raw_path.startswith(b"/conversations/c%3A1%20x/transcript")

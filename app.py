@@ -121,6 +121,9 @@ try:
 except Exception as e:
     _root_logger.warning(f"Failed to initialize file logging handler (falling back to console-only): {e}")
 
+from src.log_redact import install as _fork_log_redact  # Fork: no tokens in logs (src/log_redact.py)
+_fork_log_redact(_root_logger)
+
 logger = logging.getLogger(__name__)
 
 # ========= APP =========

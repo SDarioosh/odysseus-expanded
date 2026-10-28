@@ -65,7 +65,8 @@ def test_get_passes_the_module_answer_through(monkeypatch):
     assert r.status_code == 200 and r.json() == {"connected": True, **INFO}
     (req,) = module.requests
     assert req.method == "GET" and req.url.path == "/settings/llm"
-    assert req.url.params["access_token"] == MCP_TOKEN
+    assert "access_token" not in req.url.params
+    assert req.headers["authorization"] == f"Bearer {MCP_TOKEN}"
 
 
 def test_put_sends_only_the_model_name(monkeypatch):
