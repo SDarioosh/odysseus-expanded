@@ -20,12 +20,14 @@
 // index.html: its sidebar entry is added here, after Today. Its code and stylesheet are
 // loaded in idle time after the app starts, so a service worker that controls the app
 // page caches them for an offline start (static/sw.js is left alone; today its scope is
-// /static/, see open question 4 in docs/fork/handwritten-notes.md).
+// /static/, see open question 4 in docs/fork/handwritten-notes.md). Handwritten notes are
+// left out of the Notes window, so links to one open it in Write (forkInkLinks.js).
 
 import * as Modals from './modalManager.js';
 import { makeWindowDraggable } from './windowDrag.js';
 import { FORK_SHORTCUT_ICONS } from './forkModuleShortcuts.js';
 import { buildAthenaMenu } from './forkAthenaMenu.js';
+import { wireHandwrittenNoteLinks } from './forkInkLinks.js';
 
 const STYLESHEET = '/static/css/fork-modules.css';
 const INK_SCRIPT = './forkInk.js';
@@ -355,6 +357,13 @@ function init() {
   for (const win of Object.values(WINDOWS)) mirrorVisibility(win);
   preloadParser();
   wireTranscriptLinks();
+  wireHandwrittenNoteLinks({
+    offered: () => {
+      const entry = document.getElementById(WINDOWS.ink.sidebarBtn);
+      return !!entry && entry.style.display !== 'none';
+    },
+    openInWrite: (id) => open(WINDOWS.ink).then((view) => view && view.openNote(id)),
+  });
   if (document.readyState === 'complete') warmInk();
   else window.addEventListener('load', warmInk, { once: true });
 }
