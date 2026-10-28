@@ -92,6 +92,7 @@ def test_shortcut_data_matches_the_windows():
         "write": ["tool-ink-btn", "rail-ink"],
         "ink": ["tool-ink-btn", "rail-ink"],
         "handwriting": ["tool-ink-btn", "rail-ink"],
+        "wisdom": ["tool-beliefs-btn", "rail-beliefs"],
         "beliefs": ["tool-beliefs-btn", "rail-beliefs"],
     }
     windows = (_JS / "forkModuleWindows.js").read_text()
