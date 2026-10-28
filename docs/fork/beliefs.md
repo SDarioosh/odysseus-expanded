@@ -195,7 +195,7 @@ calls `reject`, then `propagate_forget` with what `reject` returned.
 
 ## Review page (1.3)
 
-`/beliefs` ("What I know about you", sidebar: **Beliefs** in the Athena group; it opens
+`/beliefs` ("What I know about you", sidebar: **Wisdom**, formerly Beliefs, in the Athena group; it opens
 as a window in the app, `static/js/forkBeliefsWindow.js`, and `/beliefs` still works as a page) is where the
 owner sees and decides. Code: `routes/beliefs_routes.py`, `static/beliefs.html`,
 `static/js/beliefs.js`; tests `tests/test_beliefs_routes.py`. Same auth as the Today

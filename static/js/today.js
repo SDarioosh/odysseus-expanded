@@ -217,7 +217,7 @@ function loopRow(row) {
 
 function planRow(row) {
   return el('li', { className: 'ti-item' }, el('div', { className: 'bs-body' },
-    el('a', { className: 'bs-title', href: '/beliefs', title: 'Open in Beliefs' }, row.title || row.ref),
+    el('a', { className: 'bs-title', href: '/beliefs', title: 'Open in Wisdom' }, row.title || row.ref),
     row.why ? el('div', { className: 'bs-why' }, row.why) : null));
 }
 

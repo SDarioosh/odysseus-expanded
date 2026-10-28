@@ -1,5 +1,5 @@
 // Fork: the fork windows' shortcuts ("Open Records", "Open Meetings", "Open Today",
-// "Open Write", "Open Beliefs" in
+// "Open Write", "Open Wisdom" in
 // Settings → Shortcuts) and their `/open` targets. Data only (no side effects), spread
 // into upstream's tables by small hooks in static/js/settings.js,
 // static/js/keyboard-shortcuts.js and static/js/slashCommands.js. Unbound by default,
@@ -35,7 +35,7 @@ const SHORTCUTS = {
   open_write: { button: 'tool-ink-btn', rail: 'rail-ink', window: 'fork-ink-modal',
                 label: 'Open Write', icon: PEN, open: ['write', 'ink', 'handwriting'] },
   open_beliefs: { button: 'tool-beliefs-btn', rail: 'rail-beliefs', window: 'fork-beliefs-modal',
-                  label: 'Open Beliefs', icon: PERSON, open: ['beliefs'] },
+                  label: 'Open Wisdom', icon: PERSON, open: ['wisdom', 'beliefs'] },
 };
 
 const pick = (field) => Object.fromEntries(
