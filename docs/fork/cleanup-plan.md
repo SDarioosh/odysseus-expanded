@@ -45,5 +45,6 @@ the hub lanes and the rules that are specific to this repo.
 
 ## Baseline (2026-10-28, sandbox)
 
-- Focused trio: 286 passed.
-- Fork tests (69 files added since the last upstream base): 1,621 passed in ~4.7 min.
+- Fork tests (70 files added since the last upstream base) plus the focused trio: 1,899
+  passed in ~5.3 min.
+- 39 commits behind upstream `dev` (last base 2026-10-22); lane 0D catches up.
