@@ -483,38 +483,48 @@ function convCard(c) {
       handwrittenLink(c.written_link)));
 }
 
-// The list tabs: conversations recorded in person, online meetings, voice notes, notes
-// written by hand in Write. Each has its own search form and list.
+// The Records tab lists one sort at a time, picked in the "Show" dropdown of its filter
+// row: conversations recorded in person, online meetings, voice notes, notes written by
+// hand in Write, or everything.
 const LISTS = {
-  conversations: { kind: 'in_person', empty: 'No conversations found.' },
-  meetings: { kind: 'meeting', empty: 'No online meetings found.' },
-  voice: { kind: 'voice', empty: 'No voice notes found.' },
-  written: { kind: 'written', empty: 'No written notes found.' },
+  conversations: { kind: 'in_person', label: 'Conversations', empty: 'No conversations found.' },
+  meetings: { kind: 'meeting', label: 'Online meetings', empty: 'No online meetings found.' },
+  voice: { kind: 'voice', label: 'Voice notes', empty: 'No voice notes found.' },
+  written: { kind: 'written', label: 'Written notes', empty: 'No written notes found.' },
+  all: { kind: '', label: 'Everything', empty: 'Nothing found.' },
 };
 
-// One list tab, or all of them.
-async function loadList(name = null) {
-  if (!name) {
-    await Promise.all(Object.keys(LISTS).map((n) => loadList(n)));
-    return;
-  }
-  const box = $(`#bs-list-${name}`);
+function showList(name) {
+  if (!LISTS[name]) name = 'conversations';
+  $('#bs-show').value = name;
+  try {
+    sessionStorage.setItem('bs-list', name);
+  } catch (e) {}
+}
+
+let listGen = 0; // a late answer for a sort no longer picked is dropped
+
+async function loadList() {
+  const gen = ++listGen;
+  const box = $('#bs-list-records');
   const params = new URLSearchParams();
-  for (const [k, v] of new FormData($(`#bs-filter-${name}`)).entries()) {
-    if (String(v).trim()) params.set(k, String(v).trim());
+  for (const [k, v] of new FormData($('#bs-filter-records')).entries()) {
+    if (k !== 'show' && String(v).trim()) params.set(k, String(v).trim());
   }
-  params.set('kind', LISTS[name].kind);
+  const list = LISTS[$('#bs-show').value] || LISTS.conversations;
+  if (list.kind) params.set('kind', list.kind);
   params.set('limit', '30');
   status(box, 'Loading…');
   try {
     const { conversations } = await api(`/api/modules/sound/conversations?${params}`);
+    if (gen !== listGen) return;
     if (!conversations.length) {
-      status(box, LISTS[name].empty);
+      status(box, list.empty);
       return;
     }
     box.replaceChildren(...conversations.map(convCard));
   } catch (e) {
-    status(box, e.message, true);
+    if (gen === listGen) status(box, e.message, true);
   }
 }
 
@@ -890,8 +900,8 @@ async function loadReader(id, keepPages = 1, seekT = null) {
 function showReader(id, t = null) {
   if (!VALID_ID.test(id || '')) {
     showHome();
-    showTab('conversations');
-    status($('#bs-list-conversations'), 'That conversation link is not valid.', true);
+    showTab('records');
+    status($('#bs-list-records'), 'That conversation link is not valid.', true);
     return;
   }
   const changed = id !== reader.id;
@@ -942,10 +952,18 @@ function route() {
 }
 
 // ---------------------------------------------------------------------- tabs
-const TABS = ['conversations', 'meetings', 'voice', 'written', 'items', 'who'];
+const TABS = ['records', 'items', 'who'];
 
+// The old list tabs (and a saved one of them) open Records with that sort picked.
 function showTab(name, focus = false) {
-  if (!TABS.includes(name)) name = 'conversations';
+  if (LISTS[name]) {
+    if ($('#bs-show').value !== name) {
+      showList(name);
+      loadList();
+    }
+    name = 'records';
+  }
+  if (!TABS.includes(name)) name = 'records';
   for (const t of TABS) {
     const tab = $(`#bs-tab-${t}`);
     const on = t === name;
@@ -960,13 +978,7 @@ function showTab(name, focus = false) {
 }
 
 const TAB_ICON = {
-  conversations: KIND_ICON.note.replace(/width="14" height="14"/, 'width="12" height="12"'),
-  meetings: _ICON('<path d="m16 13 5.2 3.5a.5.5 0 0 0 .8-.4V7.9a.5.5 0 0 0-.8-.4L16 11"/>'
-    + '<rect x="2" y="6" width="14" height="12" rx="2"/>').replace(/width="14" height="14"/, 'width="12" height="12"'),
-  voice: _ICON('<rect x="9" y="2" width="6" height="12" rx="3"/><path d="M5 10a7 7 0 0 0 14 0"/>'
-    + '<line x1="12" y1="17" x2="12" y2="21"/>').replace(/width="14" height="14"/, 'width="12" height="12"'),
-  written: _ICON('<path d="M12 20h9"/><path d="M16.5 3.5a2.12 2.12 0 0 1 3 3L7 19l-4 1 1-4z"/>')
-    .replace(/width="14" height="14"/, 'width="12" height="12"'),
+  records: KIND_ICON.note.replace(/width="14" height="14"/, 'width="12" height="12"'),
   items: KIND_ICON.task.replace(/width="14" height="14"/, 'width="12" height="12"'),
   who: _ICON('<path d="M20 21v-2a4 4 0 0 0-4-4H8a4 4 0 0 0-4 4v2"/><circle cx="12" cy="7" r="4"/>')
     .replace(/width="14" height="14"/, 'width="12" height="12"'),
@@ -982,6 +994,8 @@ function tabButton(name, label) {
 function buildView() {
   const filter = (name) => el('form', { className: 'bs-filters', id: `bs-filter-${name}`,
                                         'data-list': name },
+    el('select', { className: 'bs-input', name: 'show', id: 'bs-show', 'aria-label': 'Show' },
+      ...Object.entries(LISTS).map(([value, l]) => el('option', { value }, l.label))),
     el('input', { className: 'bs-input', name: 'query', placeholder: 'Words', 'aria-label': 'Words' }),
     el('input', { className: 'bs-input', name: 'person', placeholder: 'Person', 'aria-label': 'Person' }),
     el('input', { className: 'bs-input', name: 'since', type: 'date', 'aria-label': 'From' }),
@@ -995,16 +1009,14 @@ function buildView() {
   const home = el('div', { className: 'bs-home' },
     el('div', { className: 'bs-bar' },
       el('div', { className: 'bs-tabs', role: 'tablist', 'aria-label': 'Records sections' },
-        tabButton('conversations', 'Conversations'), tabButton('meetings', 'Online meetings'),
-        tabButton('voice', 'Voice notes'),
-        tabButton('written', 'Written notes'), tabButton('items', 'Action items'),
+        tabButton('records', 'Records'), tabButton('items', 'Action items'),
         tabButton('who', 'Who is this?')),
       el('div', { className: 'bs-bar-end' },
         // Recording a call lives in Meetings: its own window in the app, a link on this page.
         ctx.embedded ? null : el('a', { className: 'bs-btn', href: '/modules/sound/record' }, 'Meetings'),
         el('button', { type: 'button', className: 'bs-btn bs-icon-btn bs-refresh', title: 'Refresh',
                        'aria-label': 'Refresh' }, refreshIcon()))),
-    list('conversations'), list('meetings'), list('voice'), list('written'),
+    list('records'),
     panel('items', el('div', { id: 'bs-items' }, loading())),
     panel('who', el('div', { id: 'bs-who' }, loading())));
   return [home, el('div', { className: 'bs-reader', hidden: '' })];
@@ -1041,16 +1053,22 @@ export function mountSoundModule(root, { embedded = false, scroller = null, onAs
       else if (e.key === 'ArrowLeft') showTab(TABS[(i + TABS.length - 1) % TABS.length], true);
     });
   });
-  let savedTab = 'conversations';
+  let savedTab = 'records';
+  let savedList = 'conversations';
   try {
     savedTab = sessionStorage.getItem('bs-tab') || savedTab;
+    savedList = sessionStorage.getItem('bs-list') || savedList;
   } catch (e) {}
+  if (LISTS[savedTab]) savedList = savedTab; // saved before the dropdown
+  showList(savedList);
   showTab(savedTab);
-  ctx.root.querySelectorAll('.bs-filters[data-list]').forEach((form) => {
-    form.addEventListener('submit', (e) => {
-      e.preventDefault();
-      loadList(form.dataset.list);
-    });
+  $('#bs-filter-records').addEventListener('submit', (e) => {
+    e.preventDefault();
+    loadList();
+  });
+  $('#bs-show').addEventListener('change', () => {
+    showList($('#bs-show').value);
+    loadList();
   });
   $('.bs-refresh').addEventListener('click', refreshAll);
   // Links to a moment of a module transcript (quotes, times, "where it was said") open

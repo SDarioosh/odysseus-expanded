@@ -771,8 +771,8 @@ def test_parse_conversation_zoom_meeting():
     assert c.summary == "Dana walks through the Q4 numbers."
 
 
-# Athena MCP 0.18.0: the Records window's Conversations tab lists only in-person
-# conversations (kind "in_person"), its Online meetings tab only meetings ("meeting").
+# Athena MCP 0.18.0: the Records tab's "Show" dropdown lists only in-person
+# conversations (kind "in_person") or only meetings ("meeting").
 MIXED = ('2 conversations (times are UTC).\n'
          '- 2026-10-15 15:00–15:40 "Budget review" (Online meeting: Q4 budget) id m1; '
          "people: Dana Example\n  Q4 numbers.\n  http://h:8000/view/m1?sig=m\n"
@@ -821,9 +821,16 @@ def test_meetings_and_in_person_with_an_older_module(client, monkeypatch):
     assert [c["id"] for c in get("in_person")] == ["c9"]
 
 
-def test_records_window_has_an_online_meetings_tab():
+def test_records_window_picks_the_sort_in_a_dropdown():
     from pathlib import Path
     js = Path("static/js/soundModule.js").read_text()
-    assert "meetings: { kind: 'meeting'" in js and "conversations: { kind: 'in_person'" in js
-    assert "tabButton('meetings', 'Online meetings')" in js
+    for name, kind, label in (("conversations", "in_person", "Conversations"),
+                              ("meetings", "meeting", "Online meetings"),
+                              ("voice", "voice", "Voice notes"),
+                              ("written", "written", "Written notes")):
+        assert f"{name}: {{ kind: '{kind}', label: '{label}'" in js
+    assert "el('select', { className: 'bs-input', name: 'show', id: 'bs-show'" in js
+    # one Records tab instead of a tab per sort
+    assert "const TABS = ['records', 'items', 'who'];" in js
+    assert "tabButton('meetings'" not in js
     assert "title: 'Records'" in Path("static/js/forkModuleWindows.js").read_text()
