@@ -372,12 +372,14 @@ MCP 0.13.0 each row also has `valid_until` (additive).
 
 ## Conversations window
 
-**Conversations** (sidebar, icon rail, `/open conversations`, an optional shortcut; admin
+**Records** (called Conversations until 2026-10-28; sidebar, icon rail, `/open records` or
+`/open conversations`, an optional shortcut; admin
 only) opens a tool window in the app; `/modules/sound` shows the same view as its own page
 (`static/js/forkModuleWindows.js`, `static/js/soundModule.js`). It shows open action items live
 (Done / Dismiss call `update_action_item`; Odysseus keeps no copy), the module's
 conversations (filter by words, person, dates and type: all, conversations, voice notes;
-voice notes are labelled), and a "who is this?" card for every unnamed speaker. **Open** reads one
+voice notes are labelled; online meetings have their own **Online meetings** tab, see
+below), and a "who is this?" card for every unnamed speaker. **Open** reads one
 conversation in place (`get_conversation`, `get_transcript` 200 lines a page); tapping a
 speaker fixes one line (`reassign_line`), a whole unnamed `Speaker N` (`name_speaker`) or
 a name everywhere (`rename_speaker_everywhere`, confirmed first). **Ask in chat** puts
@@ -653,6 +655,12 @@ module answers 404 and the Text tab says "update Athena".
   the tool's cap) and keeps one sort by the title marker, so with more than 50 notes in the
   search range the older ones of a sort are left out until the dates are narrowed. A written
   note links back to the note in the hub (**Handwritten note**).
+- **Online meetings tab.** The Records window's **Conversations** tab lists conversations
+  recorded in person (`kind=in_person`) and **Online meetings** lists meetings
+  (`kind=meeting`), both passed to `search_conversations` (MCP 0.18.0, additive:
+  SDarioosh/Athena). An older module answers "bad kind"; the hub then reads
+  `kind="conversation"` (up to 50) and splits it by the `(Online meeting…)` mark, with the
+  same 50-row limit as the note tabs.
 - A note deleted in the hub is removed from the module with `DELETE /ingest/text/{source_id}`:
   at once from Write, otherwise by the sweep at the start of the hourly **Module Facts**
   run and when Write lists notes. Its strokes stay until the module answers `deleted` or

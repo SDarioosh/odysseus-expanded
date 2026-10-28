@@ -84,6 +84,7 @@ def test_shortcut_data_matches_the_windows():
         "fork-today-modal": "tool-today-insight-btn", "fork-ink-modal": "tool-ink-btn",
         "fork-beliefs-modal": "tool-beliefs-btn"}
     assert got["FORK_OPEN_TARGETS"] == {
+        "records": ["tool-sound-module-btn", "rail-sound-module"],
         "conversations": ["tool-sound-module-btn", "rail-sound-module"],
         "meetings": ["tool-meetings-btn", "rail-meetings"],
         "calls": ["tool-meetings-btn", "rail-meetings"],

@@ -126,7 +126,7 @@ function render() {
   } else if (meeting) {
     let text = meeting.text || '';
     if (meeting.state === 'ended' && meeting.started_at) {
-      text += ' The conversation appears in Conversations once Athena has transcribed it.';
+      text += ' The meeting appears in Records (Online meetings) once Athena has transcribed it.';
     }
     lines.push(text);
     const what = meeting.title || (meeting.meeting_id

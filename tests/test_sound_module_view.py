@@ -769,3 +769,61 @@ def test_parse_conversation_zoom_meeting():
     assert (c.speakers, c.people) == (["Dana Example", "Me"], ["Dana Example"])
     assert c.participants.startswith("Dana Example (15:00–15:40), Lee Fictional")
     assert c.summary == "Dana walks through the Q4 numbers."
+
+
+# Athena MCP 0.18.0: the Records window's Conversations tab lists only in-person
+# conversations (kind "in_person"), its Online meetings tab only meetings ("meeting").
+MIXED = ('2 conversations (times are UTC).\n'
+         '- 2026-10-15 15:00–15:40 "Budget review" (Online meeting: Q4 budget) id m1; '
+         "people: Dana Example\n  Q4 numbers.\n  http://h:8000/view/m1?sig=m\n"
+         '- 2026-10-15 12:00–12:20 "Lunch" id c9; people: Lee Fictional\n'
+         "  Lunch plans.\n  http://h:8000/view/c9?sig=c")
+
+
+def _conv_client(client, monkeypatch, module_filters):
+    calls = client.manager.calls
+    real = client.manager.call_tool
+    meeting, lunch = MIXED.split("\n- ")[1:]
+
+    async def answer(name, args):
+        kind = args.get("kind")
+        if name.endswith("search_conversations") and kind in ("conversation", "meeting",
+                                                               "in_person"):
+            calls.append((name, args))
+            if kind == "conversation":
+                return {"stdout": MIXED, "exit_code": 0}
+            if not module_filters:
+                return {"stdout": f"bad kind {kind!r}; use 'note', 'conversation' or ''",
+                        "exit_code": 0}
+            row = meeting if kind == "meeting" else lunch
+            return {"stdout": "1 conversations (times are UTC).\n- " + row, "exit_code": 0}
+        return await real(name, args)
+    monkeypatch.setattr(client.manager, "call_tool", answer)
+    return lambda kind: client.get("/api/modules/sound/conversations",
+                                   params={"kind": kind, "limit": 10}).json()["conversations"]
+
+
+def test_meetings_and_in_person_from_the_module(client, monkeypatch):
+    get = _conv_client(client, monkeypatch, module_filters=True)
+    calls = client.manager.calls
+    assert [(c["id"], c["meeting"]) for c in get("meeting")] == [("m1", True)]
+    assert calls[-1][1]["kind"] == "meeting" and calls[-1][1]["limit"] == 10
+    assert [(c["id"], c["meeting"]) for c in get("in_person")] == [("c9", False)]
+    assert calls[-1][1]["kind"] == "in_person"
+
+
+def test_meetings_and_in_person_with_an_older_module(client, monkeypatch):
+    get = _conv_client(client, monkeypatch, module_filters=False)
+    calls = client.manager.calls
+    assert [c["id"] for c in get("meeting")] == ["m1"]
+    assert [a["kind"] for _, a in calls[-2:]] == ["meeting", "conversation"]
+    assert calls[-1][1]["limit"] == 50
+    assert [c["id"] for c in get("in_person")] == ["c9"]
+
+
+def test_records_window_has_an_online_meetings_tab():
+    from pathlib import Path
+    js = Path("static/js/soundModule.js").read_text()
+    assert "meetings: { kind: 'meeting'" in js and "conversations: { kind: 'in_person'" in js
+    assert "tabButton('meetings', 'Online meetings')" in js
+    assert "title: 'Records'" in Path("static/js/forkModuleWindows.js").read_text()

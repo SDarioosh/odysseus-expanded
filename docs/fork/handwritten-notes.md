@@ -131,7 +131,10 @@ it.
   opens with no connection. Nothing is added to `sw.js` (its `CACHE_NAME` line changes
   with most upstream releases and would conflict on every sync).
 - **Display.** The note keeps a rendered PNG of the first page in `image_url`, so the
-  Notes window, the Gallery and exports show it without knowing about strokes.
+  Gallery and exports show it without knowing about strokes. Handwritten notes are
+  shown in Write only: the Notes window leaves them out (it would mix pages of ink
+  into the typed notes), and a link to one (`/#open=notes&note=<id>`, Athena's "Written
+  by hand") opens it in Write (`static/js/forkInkLinks.js`).
 
 To check on the Lenovo Tab Plus with the Tab Pen Plus (the sandbox can't): the pen
 arrives as `pointerType "pen"` in Chrome; hover events (`pointerover`/`pointermove`
@@ -281,8 +284,8 @@ As planned, with these details settled while building it:
   `FORK_OPEN_TARGETS` in `forkModuleShortcuts.js`.
 - **Pages** are 1000 × 1414 units (A4); a note has at most 60 pages and 600,000 points.
 - **Sweep** runs when Write lists notes (`GET /api/ink/notes`). Calling it from the
-  hourly fact sync, and asking Athena to drop sent notes, is H4. A note relabelled in
-  the Notes window keeps its strokes but leaves Write; the ink routes answer 404 for
+  hourly fact sync, and asking Athena to drop sent notes, is H4. A note relabelled
+  elsewhere (a tool) keeps its strokes but leaves Write; the ink routes answer 404 for
   any note not labelled `handwritten`, so they never change or delete other notes.
 - **Notes Evidence** already skips `handwritten` notes in H1 (planned for H4), so a
   long handwritten title can't reach the ledger.
@@ -392,7 +395,7 @@ As planned (`src/ink_transcribe.py`, routes on the existing ink router, a Text t
   typing, never strokes; no tab change while the pen is down.
 - **Needs review** is at the top of the Write list (pages with machine text, and failed
   ones), and each note card says how many pages wait. A click opens that page's text.
-  It isn't in the upstream Notes window, which would need a hook there.
+  Handwritten notes aren't in the upstream Notes window at all (see Display).
 
 ### Built in H4
 
@@ -437,7 +440,7 @@ As planned (`src/ink_athena.py`, a route on the ink router, Send in the Text tab
   browser on the server itself would otherwise link to `127.0.0.1`. A resend updates the
   link in Athena.
 - **Deleted notes.** Deleting in Write asks Athena to remove the note at once. A note
-  deleted elsewhere (the Notes window, a tool) is found by the sweep, which runs at the
+  deleted elsewhere (a tool) is found by the sweep, which runs at the
   start of every Module Facts run (`src/module_facts.py`, hourly, also when that sync is
   turned off) and after Write lists notes. The sidecar of a sent note stays, unseen,
   until Athena answers `deleted` or `already`, so an unreachable Athena is asked again
@@ -609,8 +612,8 @@ no new upstream hook.
 
 ## Fork changes
 
-Goal: keep future upstream syncs cheap without giving up any feature. Ink adds **one
-new hook** to an upstream file and changes one existing fork hook once.
+Goal: keep future upstream syncs cheap without giving up any feature. Ink adds **two
+new hooks** to upstream files and changes one existing fork hook once.
 
 ### New files
 
@@ -619,11 +622,12 @@ new hook** to an upstream file and changes one existing fork hook once.
 `static/css/fork-ink.css`, `scripts/ink_eval.py`, `tests/test_ink_notes.py`,
 `tests/test_ink_upstream_contract.py`, `tests/test_ink_transcribe.py`,
 `tests/test_ink_routes.py`, `tests/test_ink_athena.py`, `tests/test_ink_eval.py`,
-`tests/test_ink_auto_send.py`, `tests/test_ink_photos.py`, `tests/test_ink_notebooks.py`. H6 also passes
+`tests/test_ink_auto_send.py`, `tests/test_ink_photos.py`, `tests/test_ink_notebooks.py`,
+`static/js/forkInkLinks.js`, `tests/test_ink_notes_hidden.py`. H6 also passes
 `INK_AUTO_SEND` in `docker/fork.override.yml`.
 
 Existing fork files that gain a few lines: `static/js/forkModuleWindows.js` (the Write
-window and the idle-time import), `static/js/forkModuleShortcuts.js` (rail button,
+window, the idle-time import and wiring `forkInkLinks.js`), `static/js/forkModuleShortcuts.js` (rail button,
 shortcut, `/open write` target), `src/module_facts.py` (calls the sweep),
 `src/notes_evidence.py` (skips `handwritten`).
 
@@ -638,6 +642,9 @@ table of [FORK.md](../../FORK.md):
    lists `conversations` and `today` is changed once to spread a table exported by
    `forkModuleShortcuts.js` (like the keyboard-shortcut and settings hooks already do).
    Write and any later fork window then need no edit to an upstream file.
+3. **`features/notes/application/workflows.js`** (`frontend/src/` and its published copy
+   in `static/js/`): `_fetchNotes` drops notes labelled `handwritten` from the list the
+   Notes window shows, one filter on the existing line.
 
 Deliberately **not** hooked, and how the feature still works:
 

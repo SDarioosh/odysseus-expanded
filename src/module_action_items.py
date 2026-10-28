@@ -246,7 +246,7 @@ def _items_message(items: list[ActionItem], what: str = "new action item"
         due = f" (due {it.due_date or it.due})" if (it.due_date or it.due) else ""
         lines.append(f"- {it.text}{due}")
     if len(items) > MAX_PUSHED_ITEMS:
-        lines.append(f"... and {len(items) - MAX_PUSHED_ITEMS} more on the Conversations page")
+        lines.append(f"... and {len(items) - MAX_PUSHED_ITEMS} more on the Records page")
     return title, "\n".join(lines)
 
 

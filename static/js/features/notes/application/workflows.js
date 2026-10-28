@@ -61,7 +61,8 @@ export function createNotesWorkflows({
       const res = await api.listNotes(state.showingArchived);
       if (!res.ok) { app.replaceNotes([]); return; }
       const data = await res.json();
-      app.replaceNotes(data.notes || data || []);
+      // Fork: handwritten notes are shown in Write only (static/js/forkInk.js).
+      app.replaceNotes((data.notes || data || []).filter(n => !n || n.label !== 'handwritten'));
     } catch (e) {
       console.error('Failed to fetch notes:', e);
       app.replaceNotes([]);
