@@ -90,3 +90,14 @@
 .ink-root .ink-tarea[readonly] { opacity: 0.7; }
 .ink-root .ink-review { margin: 0 0 10px; display: flex; flex-direction: column; gap: 6px; align-items: flex-start; }
 .ink-root .ink-review-item { height: auto; min-height: 34px; text-align: left; white-space: normal; }
+
+/* Notebooks: the Notebooks and Quick notes sections of the list, a notebook's screen, and
+   the notebook's page buttons in the editor bar. */
+.ink-root .ink-section { margin: 14px 0 8px; font-size: 15px; }
+.ink-root .ink-books { margin-bottom: 4px; }
+.ink-root .ink-cover { display: flex; align-items: center; justify-content: center; color: var(--fg); }
+.ink-root .ink-cover svg { width: 28px; height: 28px; opacity: 0.6; }
+.ink-root .ink-book-name { margin: 0; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; max-width: 40vw; }
+.ink-root .ink-list-head .bs-icon-btn, .ink-root .ink-list-head .bs-btn { min-height: 34px; }
+.ink-root .ink-move { margin-top: 4px; max-width: 100%; height: 30px; font-size: 13px; }
+.ink-root .ink-book-label { max-width: 220px; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
