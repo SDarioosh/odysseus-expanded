@@ -398,6 +398,20 @@ This relies on the link format in [../modules.md](../modules.md): a `/view/<id>`
 with a `sig` parameter.
 Audio isn't kept after transcription, so cards quote lines instead of playing them.
 
+**Share** (in the reader, next to Ask in chat) sends a record to someone as a file: the
+owner ticks Summary, Action items, Transcript (all three by default) and Facts (off by
+default), picks Text (Markdown) or Web page (HTML), and presses **Share…** (the system
+share sheet, where the browser can share files: Chrome on Android) or **Download**. The
+choice is remembered in the browser. The hub route
+`GET /api/modules/sound/conversations/{id}/export?format=md|html&include=…` (admin only)
+checks both values and gets the file from the module's relay route
+`GET /conversations/{id}/export` (MCP 0.19.0, additive; SDarioosh/Athena), so the module
+makes the file and decides what is in it: no signed links, no link to the hub, no ids;
+erased lines stay `[forgotten]`. The hub answers it as a download (`Content-Disposition:
+attachment`, `Content-Security-Policy: sandbox`), never as a page on its own origin. An
+older module answers 404: "update Athena" (`src/record_share.py`,
+`static/js/forkShareRecord.js`, test `tests/test_record_share.py`).
+
 ## Recording calls from the computer
 
 `/modules/sound/record` (**Meetings**: its own sidebar entry, window and rail button, admin
@@ -611,6 +625,7 @@ transcript links) never leaves the module.
 | `DELETE /ingest/text/{source_id}` | `DELETE /v1/ingest/text/{source_id}` (MCP 0.12.0; `deleted` or `already`) |
 | `GET /health`, `GET /conversations`, `GET /conversations/{id}`, `GET /conversations/{id}/transcript`, `GET /action-items`, `PATCH /action-items/{id}`, `GET /digests/{date}`, `POST /digests/{date}` | the same `/v1` routes (the phone relay's T5 sync); from MCP 0.12.0 a conversation carries `written: {source_id, link, title}` (null for recordings) |
 | `GET /settings/llm`, `PUT /settings/llm` | the same `/v1` routes (Settings → AI Defaults: the summary model) |
+| `GET /conversations/{id}/export` | `GET /v1/conversations/{id}/export` (MCP 0.19.0; `format` md or html, `include` sections; the file itself, not JSON; errors JSON `detail`): the reader's **Share** button, [Conversations window](#conversations-window) |
 | `POST /meetings`, `GET /meetings?limit=1..100`, `GET /meetings/{id}`, `DELETE /meetings/{id}` | `/v1/meetings…` (SDarioosh/Athena#125; JSON only, ≤ 16 KB; [Sending Athena to a Zoom meeting](#sending-athena-to-a-zoom-meeting)): join with `{url}` or `{meeting_id, passcode}` and optional `title` → 202 `{id, state, session_id}`, 400 bad link, 409 `busy` with `active`, 501 meetings off; state; leave (waits for the bot, up to 30 s) |
 | `GET /zoom/signin`, `POST /zoom/signin/start`, `POST /zoom/signin/finish` | Athena's Zoom sign-in ([Signing Athena in to Zoom](#signing-athena-in-to-zoom); JSON only): status `{configured, signed_in, join_token: obf\|zak\|none, missing}`; start → `{url, expires_in}` (501 when Athena's Zoom app settings are missing); finish `{pasted}` → `{ok, signed_in, join_token}`, 400 `{detail}` in plain words (no or expired attempt, bad paste, Zoom refused), 502 Zoom unreachable, 501 not configured. An older Athena answers 404/405 ("update Athena") |
 

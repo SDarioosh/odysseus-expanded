@@ -5,6 +5,8 @@
 // calls the module's MCP tools. Links to the module's signed /view pages open this
 // reader at that moment (#t=); the "Transcript" buttons still open the module's page.
 
+import { shareControls } from './forkShareRecord.js';
+
 // One mount per document: the window in the main app, or the standalone page.
 let ctx = null;
 const $ = (sel) => ctx.root.querySelector(sel);
@@ -616,8 +618,10 @@ function renderReader() {
                      reader.notice = '';
                      reloadReader();
                    } }, refreshIcon()));
+  const share = d ? shareControls(el, d.id, d.title) : null; // static/js/forkShareRecord.js
   const actions = el('div', { className: 'bs-row' },
     d ? askButton(d.title, d.id, start) : null,
+    share ? share.button : null,
     d ? moduleLink(d.link) : null,
     d ? handwrittenLink(d.written_link) : null);
   const parts = [top];
@@ -628,7 +632,7 @@ function renderReader() {
       el('div', { className: 'bs-meta' }, (d.written_link ? 'Written by hand · ' : '') + d.when
         + (people.length ? ` · ${people.join(', ')}` : '')),
       d.summary ? el('p', { className: 'bs-summary' }, d.summary) : null,
-      actions);
+      actions, share.panel);
     if (d.key_points.length) {
       card.append(el('div', { className: 'bs-sub' }, 'Key points'),
         el('ul', { className: 'bs-list' }, ...d.key_points.map((k) => el('li', {}, k))));
