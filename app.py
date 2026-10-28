@@ -901,6 +901,9 @@ app.include_router(setup_summary_model_routes())
 # Fork: Athena's whisper vocabulary for Settings → AI Defaults (routes/whisper_vocabulary_routes.py)
 from routes.whisper_vocabulary_routes import setup_whisper_vocabulary_routes  # noqa: E402
 app.include_router(setup_whisper_vocabulary_routes())
+# Fork: "Enroll My Voice" in Settings → AI Defaults (routes/voice_enroll_routes.py)
+from routes.voice_enroll_routes import setup_voice_enroll_routes  # noqa: E402
+app.include_router(setup_voice_enroll_routes())
 # Fork: auto mode switch for Settings → Tools (routes/auto_mode_routes.py)
 from routes.auto_mode_routes import setup_auto_mode_routes  # noqa: E402
 app.include_router(setup_auto_mode_routes())

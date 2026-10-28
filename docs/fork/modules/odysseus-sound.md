@@ -625,6 +625,7 @@ transcript links) never leaves the module.
 | `DELETE /ingest/text/{source_id}` | `DELETE /v1/ingest/text/{source_id}` (MCP 0.12.0; `deleted` or `already`) |
 | `GET /health`, `GET /conversations`, `GET /conversations/{id}`, `GET /conversations/{id}/transcript`, `GET /action-items`, `PATCH /action-items/{id}`, `GET /digests/{date}`, `POST /digests/{date}` | the same `/v1` routes (the phone relay's T5 sync); from MCP 0.12.0 a conversation carries `written: {source_id, link, title}` (null for recordings) |
 | `GET /settings/llm`, `PUT /settings/llm` | the same `/v1` routes (Settings → AI Defaults: the summary model) |
+| `GET`, `POST`, `DELETE /speakers/enroll/next` | the same `/v1` routes (MCP 0.20.0; Settings → AI Defaults: [Enroll My Voice](#enroll-my-voice-in-settings)) |
 | `GET /conversations/{id}/export` | `GET /v1/conversations/{id}/export` (MCP 0.19.0; `format` md or html, `include` sections; the file itself, not JSON; errors JSON `detail`): the reader's **Share** button, [Conversations window](#conversations-window) |
 | `POST /meetings`, `GET /meetings?limit=1..100`, `GET /meetings/{id}`, `DELETE /meetings/{id}` | `/v1/meetings…` (SDarioosh/Athena#125; JSON only, ≤ 16 KB; [Sending Athena to a Zoom meeting](#sending-athena-to-a-zoom-meeting)): join with `{url}` or `{meeting_id, passcode}` and optional `title` → 202 `{id, state, session_id}`, 400 bad link, 409 `busy` with `active`, 501 meetings off; state; leave (waits for the bot, up to 30 s) |
 | `GET /zoom/signin`, `POST /zoom/signin/start`, `POST /zoom/signin/finish` | Athena's Zoom sign-in ([Signing Athena in to Zoom](#signing-athena-in-to-zoom); JSON only): status `{configured, signed_in, join_token: obf\|zak\|none, missing}`; start → `{url, expires_in}` (501 when Athena's Zoom app settings are missing); finish `{pasted}` → `{ok, signed_in, join_token}`, 400 `{detail}` in plain words (no or expired attempt, bad paste, Zoom refused), 502 Zoom unreachable, 501 not configured. An older Athena answers 404/405 ("update Athena") |
@@ -760,6 +761,38 @@ route shows "update Athena".
 
 - Code: `routes/whisper_vocabulary_routes.py`, `static/js/forkWhisperVocabulary.js`; test
   `tests/test_whisper_vocabulary_routes.py`. Module side: `server/convo_server/vocabulary.py`.
+
+## Enroll My Voice in Settings
+
+Settings → AI Defaults → **Enroll My Voice** (admin only) enrolls the owner's voice from one
+recording on the watch: the voiceprint then sounds like the owner's daily recordings (same
+microphone, same distance), which a phone or laptop recording doesn't. Without an enrolled
+owner voice the module recognizes the owner only from lines named by hand, and its owner
+hint (the wearer is the loudest voice) is off, so group conversations suffer most.
+
+1. **Start** (`POST /api/fork/voice-enroll` `{"name"}` → the module's
+   `POST /speakers/enroll/next` `{"name", "is_owner": true}`; an empty name is the module's
+   default: the enrolled owner voice, else the owner's person, else `CONVO_OWNER_NAME`).
+2. The card shows tips (watch worn as usual, quiet room, normal voice, one recording), then
+   11 statements one at a time with Back and Next: varied sounds, numbers, names,
+   questions, one line louder and one quieter, 30 s of free talk, and "stop the recording".
+   About 75–90 s in all.
+3. It follows `GET /api/fork/voice-enroll` every 4 s while waiting or processing: the
+   recording coming in (device, seconds received), then the result (samples, seconds of
+   speech, earlier lines of unnamed speakers now named after the owner) or why it failed
+   (under 30 s of speech, …). **Cancel** (`DELETE`) stops waiting.
+
+The module takes the first recording whose first chunk arrives after Start (not a meeting,
+not the Zoom bot, and not one already running), enrolls it as the owner (replacing earlier
+enrollment samples, keeping named ones) and files **no conversation** from it: read-aloud
+statements would give the summarizer made-up facts. Nothing arrives within 30 minutes:
+`expired`. A module without the route shows "update Athena".
+
+Turn off `CONVO_LEARN_MEETING_VOICES` in Athena's `server/.env` first if you use the Zoom
+bot: with an enrolled owner voice, each meeting adds Zoom clips of the owner to it.
+
+- Code: `routes/voice_enroll_routes.py`, `static/js/forkVoiceEnroll.js`; test
+  `tests/test_voice_enroll_routes.py`. Module side: `server/convo_server/voice_enroll.py`.
 
 ## Today insight
 
