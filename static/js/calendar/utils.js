@@ -178,3 +178,15 @@ export function _localDateOf(isoStr) {
   }
   return isoStr.slice(0, 10);
 }
+
+// Last calendar day an event covers, as `YYYY-MM-DD`. End times are
+// exclusive: an all-day event ending on the 3rd covers up to the 2nd, and a
+// timed event ending at 00:00 on the 29th ends on the 28th.
+export function _lastDayOf(ev) {
+  const start = ev.all_day ? ev.dtstart : _localDateOf(ev.dtstart);
+  if (!ev.dtend) return start;
+  if (ev.all_day) return ev.dtend > ev.dtstart ? _addDays(ev.dtend, -1) : start;
+  const s = new Date(ev.dtstart), e = new Date(ev.dtend);
+  if (isNaN(s) || isNaN(e) || e <= s) return start;
+  return _ds(new Date(e.getTime() - 1));
+}

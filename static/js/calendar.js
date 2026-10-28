@@ -15,7 +15,7 @@ import {
   _trashIcon, _moreIcon, _bellIcon,
   _isCalBgImage, _calBgImageUrl, _calBgCss, _cssUrlEscape,
   _calReadableTextColor,
-  _ds, _addDays, _shiftDT, _tzOffset, _localDateOf,
+  _ds, _addDays, _shiftDT, _tzOffset, _localDateOf, _lastDayOf,
 } from './calendar/utils.js';
 
 const API_BASE = window.location.origin;
@@ -400,7 +400,7 @@ function _eventsForDay(dateStr) {
     }
     // Multi-day timed events: show on each day they span
     const startDate = _localDateOf(e.dtstart);
-    const endDate = _localDateOf(e.dtend);
+    const endDate = _lastDayOf(e);
     if (startDate !== endDate) return startDate <= dateStr && endDate >= dateStr;
     return startDate === dateStr;
   });
@@ -1154,8 +1154,8 @@ async function _renderMonth() {
 
   const multiDay = _events.filter(e => {
     if (!_eventVisible(e)) return false;
-    const startD = new Date(e.dtstart), endD = new Date(e.dtend);
-    return Math.round((endD - startD) / 86400000) > 1 || (!e.all_day && _localDateOf(e.dtstart) !== _localDateOf(e.dtend));
+    const startDay = e.all_day ? e.dtstart : _localDateOf(e.dtstart);
+    return _lastDayOf(e) > startDay;
   });
   const multiUids = new Set(multiDay.map(e => e.uid));
 
@@ -1176,7 +1176,7 @@ async function _renderMonth() {
     const rowEnd0 = _ds(rowEndCd0);
     const barsInRow = multiDay.filter(md => {
       const mdStart = _localDateOf(md.dtstart);
-      const mdEnd = _localDateOf(md.dtend);
+      const mdEnd = _lastDayOf(md);
       return !(mdEnd < rowStart0 || mdStart > rowEnd0);
     }).length;
     h += `<div class="cal-week-row" style="--bars:${barsInRow}">`;
@@ -1216,7 +1216,7 @@ async function _renderMonth() {
     let barSlot = 0;
     for (const md of multiDay) {
       const mdStart = _localDateOf(md.dtstart);
-      const mdEnd = _localDateOf(md.dtend);
+      const mdEnd = _lastDayOf(md);
       // Compute the row's date range
       const rowStartCd = new Date(gs); rowStartCd.setDate(gs.getDate() + row * 7);
       const rowEndCd = new Date(gs); rowEndCd.setDate(gs.getDate() + row * 7 + 6);
@@ -1229,38 +1229,11 @@ async function _renderMonth() {
       const startColInt = Math.round(startCol);
       const endColInt = Math.round(endCol);
       const span = endColInt - startColInt + 1;
-      // Proportional offsets for timed events that span across midnight
-      // (e.g. 8 PM Mon → 5 AM Tue). Without this, an overnight serve
-      // window visually fills the ENTIRE next day even when it only
-      // covers a few hours. All-day events keep the full-day shape.
-      // Bar visually spans from column (col+startFrac) to (col+span-1+endFrac),
-      // so a 8 PM→5 AM run shows ~17% of day 1 + ~21% of day 2, not 200%.
-      let startFrac = 0;
-      let endFrac = 1;
-      if (!md.all_day) {
-        try {
-          const sIso = md.dtstart || '';
-          const eIso = md.dtend || '';
-          const sDate = sIso ? new Date(sIso) : null;
-          const eDate = eIso ? new Date(eIso) : null;
-          // First-visible-day fraction (0 = midnight start). Clamp to 0
-          // when the event started before this row, so the bar still
-          // starts at the row's left edge.
-          if (sDate && !isNaN(sDate) && mdStart >= rowStart) {
-            const midnight = new Date(sDate); midnight.setHours(0, 0, 0, 0);
-            startFrac = Math.max(0, Math.min(1, (sDate - midnight) / 86400000));
-          }
-          if (eDate && !isNaN(eDate) && mdEnd <= rowEnd) {
-            const midnight = new Date(eDate); midnight.setHours(0, 0, 0, 0);
-            endFrac = Math.max(0, Math.min(1, (eDate - midnight) / 86400000));
-            // CalDAV end-times are exclusive: an event ending at exactly
-            // 00:00 on day N really ended at end-of-day N-1, so endFrac=0
-            // would visually paint a zero-width slice. Snap to a small
-            // visible minimum (5% of a day) so the bar still registers.
-            if (endFrac === 0) endFrac = 1;
-          }
-        } catch (_) { startFrac = 0; endFrac = 1; }
-      }
+      // Bars fill whole day cells, like a month view in any calendar app:
+      // drawing them at the clock time left a bar floating between two
+      // days. Exact times are in the week and day views.
+      const startFrac = 0;
+      const endFrac = 1;
       h += `<div class="cal-multiday" style="--col:${startColInt};--span:${span};--slot:${barSlot};--start-frac:${startFrac.toFixed(4)};--end-frac:${endFrac.toFixed(4)};background:${_calColor(md)};--cal-event-fg:${_calEventFg(md)}" draggable="true" data-uid="${_e(md.uid)}" title="${_e(md.summary)}">${_e(md.summary)}${_eventReminderHtml(md)}${_eventSourceHtml(md)}</div>`;
       barSlot++;
     }
