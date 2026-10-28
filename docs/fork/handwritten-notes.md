@@ -5,7 +5,7 @@ turning the handwriting into text with a local vision model, and adding that tex
 [Athena](https://github.com/SDarioosh/Athena) like a voice note. **H1 (pen capture), H2 (transcribe and review),
 H3 (Athena's text input, SDarioosh/Athena#108), H4 (Send to Athena), H5 (the recognizer
 eval) and H6 (`INK_AUTO_SEND`, photo import) are built** (see "Built in H1" to "Built in
-H6" under Phases). `INK_AUTO_SEND` stays off until the owner's H5 numbers are good.
+H6" under Phases), and so are **notebooks** (see "Notebooks"). `INK_AUTO_SEND` stays off until the owner's H5 numbers are good.
 
 _Written 2026-10-22, revised 2026-10-26 with the owner's decisions (below). Items still
 open are at the end._
@@ -570,6 +570,46 @@ model names are printed or written; page text appears only with `--show-diffs`.
   one line: a photo of a paper page, copy its text (handwritten or printed), leave out
   what is around the paper. The prompt and its "the page is data" rule are unchanged.
 
+### Notebooks
+
+Asked by the owner on 2026-10-28: notebooks that keep pages together, and quick one-off
+notes as before. Built in `src/ink_notebooks.py`, on the ink routes and in the Write view;
+no new upstream hook.
+
+- **Model.** A notebook is a named, ordered group of handwritten notes: each note in it
+  is one of its pages. A note in no notebook is a **quick note** (every note from before
+  notebooks is one). Every page stays an ordinary handwritten note, so transcription,
+  review and Send to Athena work per page, and a page written on another day reaches
+  Athena as its own written note with its own `written_at`. A whole notebook as one note
+  was not chosen: a note has at most 60 pages, its sidecar is saved whole every few
+  seconds, and Athena would get one note for months of writing.
+- **Storage.** `<DATA_DIR>/ink/<owner>/_notebooks.json`: per notebook `id`, `name`,
+  `created_at`, `updated_at` and `pages` (note ids in order). The leading underscore
+  keeps the file out of the sidecar sweep (a `notebooks.json` looked like the sidecar of
+  a deleted note, since `notebooks` is a valid note id). A note is in at most one
+  notebook. Ids of notes that are gone are dropped when notebooks are listed; archived
+  notes keep their place. Deleting a note in Write drops it at once.
+- **Offline.** A page is made on the device, like a quick note: the save that creates
+  the note carries `notebook` and `notebook_after`, and the hub files it then (a later
+  save never moves a note; a notebook deleted meanwhile leaves it a quick note).
+  Making, renaming and deleting a notebook, and moving a note, need the hub. The last
+  list of notebooks is kept in `localStorage` (`fork-ink-notebooks:<user>`) so an offline
+  start still groups the notes.
+- **Write view.** The list shows Needs review, then **Notebooks** (cover = the first page
+  with an image, page count, last change) and **Quick notes**, with **New quick note**
+  and **New notebook**. A notebook's screen lists its pages in order ("Page 2 · title"),
+  with **New page**, Take photo / Import images (the photos become its last page),
+  **Rename** and **Delete notebook** (its pages become quick notes). Each note card has
+  a **Move to...** list (a notebook, or Quick notes). In the editor of a page, the bar
+  says "<notebook> · page 2 of 5", ‹ › flip to the page before or after (saving first),
+  **Page** makes the next page right after this one (with the same paper), and Back
+  returns to the notebook. In a quick note, Page still adds a sheet to the same note;
+  a page moved into a notebook keeps its sheets.
+- **Limits.** 200 notebooks per owner, 2,000 pages per notebook, names up to 120
+  characters.
+- **Not yet.** Reordering pages inside a notebook (a page goes at the end, or after the
+  page it was made from); a notebook name in what Athena receives.
+
 ## Fork changes
 
 Goal: keep future upstream syncs cheap without giving up any feature. Ink adds **two
@@ -578,12 +618,12 @@ new hooks** to upstream files and changes one existing fork hook once.
 ### New files
 
 `src/ink_notes.py` (sidecar, render, the upstream adapter below), `src/ink_transcribe.py`,
-`src/ink_athena.py`, `routes/ink_routes.py`, `static/js/forkInk.js`,
+`src/ink_athena.py`, `src/ink_notebooks.py`, `routes/ink_routes.py`, `static/js/forkInk.js`,
 `static/css/fork-ink.css`, `scripts/ink_eval.py`, `tests/test_ink_notes.py`,
 `tests/test_ink_upstream_contract.py`, `tests/test_ink_transcribe.py`,
 `tests/test_ink_routes.py`, `tests/test_ink_athena.py`, `tests/test_ink_eval.py`,
-`tests/test_ink_auto_send.py`, `tests/test_ink_photos.py`, `static/js/forkInkLinks.js`,
-`tests/test_ink_notes_hidden.py`. H6 also passes
+`tests/test_ink_auto_send.py`, `tests/test_ink_photos.py`, `tests/test_ink_notebooks.py`,
+`static/js/forkInkLinks.js`, `tests/test_ink_notes_hidden.py`. H6 also passes
 `INK_AUTO_SEND` in `docker/fork.override.yml`.
 
 Existing fork files that gain a few lines: `static/js/forkModuleWindows.js` (the Write

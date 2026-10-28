@@ -77,7 +77,7 @@ const WINDOWS = {
   },
   beliefs: {
     id: 'fork-beliefs-modal',
-    title: 'Beliefs',
+    title: 'Wisdom',
     sidebarBtn: 'tool-beliefs-btn',
     railBtn: 'rail-beliefs',
     icon: FORK_SHORTCUT_ICONS.open_beliefs,

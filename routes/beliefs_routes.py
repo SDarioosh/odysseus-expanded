@@ -1,7 +1,7 @@
 """Fork: the "What do you know about me" review page over the belief ledger
 (``src/evidence_intake.py``; plan stages 1.3 and 1.4, ``docs/fork/beliefs.md``).
 
-* ``GET  /beliefs``: ``static/beliefs.html`` (sidebar: Beliefs).
+* ``GET  /beliefs``: ``static/beliefs.html`` (sidebar: Wisdom).
 * ``GET  /api/beliefs?status=<tentative|confirmed|stale|rejected|all>&subject=<str>``:
   ``{"beliefs": [...], "stats": {...}}``; without ``status``, all but rejected.
 * ``GET  /api/beliefs/{id}``: one belief with its evidence and events.

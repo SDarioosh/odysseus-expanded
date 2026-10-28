@@ -65,7 +65,7 @@ Fork code so far: `src/mcp_trust.py`, `src/mcp_stdio_owner.py`, `src/mcp_session
 `src/sound_module_view.py`, `src/web_turn_scope.py`, `src/chat_mode_scope.py`, `src/module_turn_scope.py`, `src/auto_mode.py`,
 `src/web_read_recovery.py`, `src/checklist_auto_archive.py`, `src/builtin_task_authority.py`, `src/module_facts.py`, `src/evidence_intake.py`, `src/belief_consolidation.py`, `src/belief_forget.py`, `src/belief_move.py`, `src/belief_export.py`, `src/today_insight.py`, `src/vision_auto_detect.py`,
 `src/call_recorder.py`, `src/record_share.py`, `src/meeting_bot.py`, `src/meeting_auto_join.py`, `src/phone_pairing.py`, `routes/sound_relay_routes.py`,
-`src/notes_evidence.py`, `src/belief_structure.py`, `src/belief_search.py`, `src/ink_notes.py`, `src/ink_transcribe.py`, `src/ink_athena.py`, `routes/ink_routes.py`,
+`src/notes_evidence.py`, `src/belief_structure.py`, `src/belief_search.py`, `src/ink_notes.py`, `src/ink_transcribe.py`, `src/ink_athena.py`, `src/ink_notebooks.py`, `routes/ink_routes.py`,
 `src/insight_outcomes.py`, `src/insight_weights.py`, `src/insight_push.py`, `src/insight_routines.py`,
 `src/insight_inputs.py`, `src/insight_trends.py`, `routes/insight_outcome_routes.py`,
 `routes/insight_weights_routes.py`, `routes/insight_trends_routes.py`,
@@ -87,7 +87,7 @@ their tests (`tests/test_mcp_trust.py`,
 `tests/test_call_recorder.py`, `tests/test_record_share.py`, `tests/test_meeting_bot.py`, `tests/test_meeting_bot_js.py`, `tests/test_meeting_auto_join.py`, `tests/test_sound_relay.py`, `tests/test_insight_outcomes.py`,
 `tests/test_insight_weights.py`, `tests/test_insight_push.py`, `tests/test_insight_routines.py`,
 `tests/test_insight_inputs.py`, `tests/test_insight_eval.py`, `tests/test_summary_model_routes.py`, `tests/test_whisper_vocabulary_routes.py`,
-`tests/test_belief_consolidation.py`, `tests/test_module_fact_kinds.py`, `tests/test_belief_forget.py`, `tests/test_belief_move.py`, `tests/test_auto_mode.py`, `tests/test_web_read_recovery.py`, `tests/test_fork_resume_fallback.py`, `tests/test_ink_notes.py`, `tests/test_ink_routes.py`, `tests/test_ink_upstream_contract.py`, `tests/test_ink_palm_rejection.py`, `tests/test_ink_perf.py`, `tests/test_ink_transcribe.py`, `tests/test_ink_athena.py`, `tests/test_ink_eval.py`, `tests/test_ink_auto_send.py`, `tests/test_ink_photos.py`, `tests/test_ink_phone_layout.py`, `tests/test_ink_notes_hidden.py`, `tests/test_vision_auto_detect.py`), and the hooks listed in [FORK.md](FORK.md).
+`tests/test_belief_consolidation.py`, `tests/test_module_fact_kinds.py`, `tests/test_belief_forget.py`, `tests/test_belief_move.py`, `tests/test_auto_mode.py`, `tests/test_web_read_recovery.py`, `tests/test_fork_resume_fallback.py`, `tests/test_ink_notes.py`, `tests/test_ink_routes.py`, `tests/test_ink_upstream_contract.py`, `tests/test_ink_palm_rejection.py`, `tests/test_ink_perf.py`, `tests/test_ink_transcribe.py`, `tests/test_ink_athena.py`, `tests/test_ink_eval.py`, `tests/test_ink_auto_send.py`, `tests/test_ink_photos.py`, `tests/test_ink_phone_layout.py`, `tests/test_ink_notebooks.py`, `tests/test_ink_notes_hidden.py`, `tests/test_vision_auto_detect.py`), and the hooks listed in [FORK.md](FORK.md).
 
 ## Fork rules (merge-friendly)
 

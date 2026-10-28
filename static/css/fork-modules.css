@@ -86,7 +86,7 @@
                      border: 1px solid var(--input-border, var(--border)); border-radius: 6px;
                      height: 28px; padding: 0 8px; font: inherit; font-size: 12px; min-width: 0; }
 .fm-root .bs-input:focus { outline: none; border-color: var(--red); }
-.fm-root .bs-filters { display: grid; grid-template-columns: 2fr 1fr 1fr 1fr auto auto; gap: 6px;
+.fm-root .bs-filters { display: grid; grid-template-columns: auto 2fr 1fr 1fr 1fr auto; gap: 6px;
                        margin-bottom: 10px; }
 .fm-root .bs-chip { display: inline-flex; align-items: center; border: 1px solid var(--border);
                     border-radius: 999px; padding: 1px 8px; font-size: 11px; color: var(--fg);
@@ -155,7 +155,7 @@
   .fm-root .bs-tick { width: 20px; height: 20px; }
 }
 @media (max-width: 640px) {
-  /* five tabs don't fit beside the buttons: the buttons on top, the tabs a row of their own */
+  /* the tabs don't fit beside the buttons: the buttons on top, the tabs a row of their own */
   .fm-root .bs-bar { flex-wrap: wrap; justify-content: flex-end; }
   .fm-root .bs-bar-end { padding-top: 5px; }
   .fm-root .bs-tabs { flex: 1 1 100%; order: 2; }

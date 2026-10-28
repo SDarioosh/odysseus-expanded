@@ -479,7 +479,15 @@ def save(owner: str | None, note_id: str, body: Any, *, title: str | None = None
             from src import ink_transcribe  # imports this module
 
             update_note(owner, note_id, content=ink_transcribe.note_content(stored))
-        return public(stored, note_title(owner, note_id))
+        from src import ink_notebooks  # imports this module
+
+        if created and isinstance(body, dict) and body.get("notebook"):
+            # A page made in a notebook (maybe offline): its first save files it there.
+            ink_notebooks.place_new(owner, note_id, body.get("notebook"),
+                                    body.get("notebook_after"))
+        out = public(stored, note_title(owner, note_id))
+        out["notebook"] = ink_notebooks.notebook_of(owner, note_id)
+        return out
 
 
 def _ensure_note(owner: str | None, note_id: str, store: str | None,
@@ -586,7 +594,11 @@ def load(owner: str | None, note_id: str) -> dict[str, Any] | None:
         stored = load_sidecar(store, note_id)
     if stored is None:
         return None
-    return public(stored, note_title(owner, note_id))
+    from src import ink_notebooks  # imports this module
+
+    out = public(stored, note_title(owner, note_id))
+    out["notebook"] = ink_notebooks.notebook_of(owner, note_id)
+    return out
 
 
 def _remove_sidecar(owner: str | None, note_id: str) -> None:
@@ -646,6 +658,9 @@ def delete(owner: str | None, note_id: str) -> bool:
             return False
         _drop_sidecar(store, note_id, stored)
         _add_tombstones(store, [note_id])
+    from src import ink_notebooks  # imports this module
+
+    ink_notebooks.forget(owner, note_id)
     return True
 
 
@@ -854,8 +869,12 @@ def _sweep_photos(owner: str | None, sidecars: set[str]) -> None:
 
 
 def list_notes(owner: str | None) -> list[dict[str, Any]]:
-    """The owner's handwritten notes, newest first, after a sweep."""
+    """The owner's handwritten notes, newest first, after a sweep. ``notebook`` is the
+    id of the notebook a note is a page of (``src/ink_notebooks.py``), or ``None``."""
+    from src import ink_notebooks  # imports this module
+
     sweep(owner)
+    in_book = ink_notebooks.page_map(owner)
     out = []
     for note in handwritten_notes(owner):
         store = note["owner"] if owner is None else owner
@@ -864,6 +883,7 @@ def list_notes(owner: str | None) -> list[dict[str, Any]]:
         out.append({**note, "pages": pages,
                     "edited_at": int(stored.get("edited_at") or 0) if stored else 0,
                     "link": note_link(note["id"]),
+                    "notebook": in_book.get(note["id"]),
                     # H2: pages to review, failed, being read (src/ink_transcribe.py)
                     "transcripts": _transcript_summary(stored),
                     # H4: not_sent, sent or changed (src/ink_athena.py)
