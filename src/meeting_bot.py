@@ -311,6 +311,19 @@ _FAILED = {
 # token), so the owner has to be in the meeting first.
 _FAILED_SENTENCE = {
     "owner_not_joined": "You didn't join the meeting in time, so Athena gave up.",
+    # Zoom refusing the app itself (MeetingFailCode 63, 62, 64, 503/504): another try
+    # won't help, so say what would.
+    "external_meeting_not_allowed": (
+        "Couldn't join: this meeting is hosted by another Zoom account. Zoom lets Athena's "
+        "Zoom app into other accounts' meetings only once the app is published on the Zoom "
+        "Marketplace; until then it works in meetings you host."),
+    "outside_users_blocked": (
+        "Couldn't join: the host only lets in people from certain Zoom accounts."),
+    "blocked_by_account_admin": (
+        "Couldn't join: a Zoom account admin blocks Athena's Zoom app."),
+    "zoom_signin_required": (
+        "Couldn't join: this meeting needs Athena signed in to Zoom. Sign in to Zoom again "
+        "and retry."),
 }
 
 

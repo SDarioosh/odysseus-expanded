@@ -481,6 +481,13 @@ relay routes (SDarioosh/Athena#124, #125) and meetings set up there
   meeting: the bot waits for them (`starting`/`waiting_for_owner`), gives up if they don't
   come (`failed`/`owner_not_joined`) and leaves when they leave (`ended`/`owner_left`). The
   box says so under the link field.
+- **Other accounts' meetings need a published Zoom app.** Zoom lets an unpublished
+  Meeting SDK app join only meetings of the account it was made in; another account's
+  meeting fails (`failed`/`external_meeting_not_allowed`, Zoom's code 63) and the box says
+  the app must be published on the Zoom Marketplace (unlisted is enough). Notetakers such as
+  Read.ai get in because their apps are published. Similar refusals:
+  `outside_users_blocked`, `blocked_by_account_admin`, `zoom_signin_required`. Setup:
+  Athena's `server/README.md`, "Publishing the Zoom app".
 - **Recording permission.** In the meeting the bot asks Zoom for recording permission once
   and then waits (`waiting_permission`, active); if the host declines (reason `denied`) it
   stays in the meeting in case they allow it later.
