@@ -647,20 +647,21 @@ module answers 404 and the Text tab says "update Athena".
 - **Reading them back.** In MCP text a written note's title is followed by `(written by
   hand: <hub link>)` instead of `(voice note)`; `src/sound_module_view.py` and the text
   fallback of `src/module_action_items.py` read both. `/modules/sound` (and its window)
-  has a tab each for **Conversations**, **Voice notes** and **Written notes**, each with
-  its own search. `/api/modules/sound/conversations` takes `kind=voice` or
-  `kind=written` and passes it to `search_conversations` (MCP 0.14.0, additive:
-  SDarioosh/Athena, `kind` `voice` / `written` besides `note` and `conversation`). An
-  older module answers "bad kind"; the hub then reads `kind="note"` (both sorts, up to 50,
-  the tool's cap) and keeps one sort by the title marker, so with more than 50 notes in the
-  search range the older ones of a sort are left out until the dates are narrowed. A written
+  lists **Conversations**, **Online meetings**, **Voice notes**, **Written notes** or
+  **Everything**, picked in the **Show** dropdown of the Records tab's filter row (one
+  search for all of them; they were separate tabs until 2026-10-28).
+  `/api/modules/sound/conversations` takes `kind=voice` or `kind=written` and passes it
+  to `search_conversations` (MCP 0.14.0, additive: SDarioosh/Athena, `kind` `voice` /
+  `written` besides `note` and `conversation`). An older module answers "bad kind"; the
+  hub then reads `kind="note"` (both sorts, up to 50, the tool's cap) and keeps one sort
+  by the title marker, so with more than 50 notes in the search range the older ones of a sort are left out until the dates are narrowed. A written
   note links back to the note in the hub (**Handwritten note**).
-- **Online meetings tab.** The Records window's **Conversations** tab lists conversations
+- **Online meetings.** In the Records window, Show **Conversations** lists conversations
   recorded in person (`kind=in_person`) and **Online meetings** lists meetings
   (`kind=meeting`), both passed to `search_conversations` (MCP 0.18.0, additive:
   SDarioosh/Athena). An older module answers "bad kind"; the hub then reads
   `kind="conversation"` (up to 50) and splits it by the `(Online meeting…)` mark, with the
-  same 50-row limit as the note tabs.
+  same 50-row limit as the notes.
 - A note deleted in the hub is removed from the module with `DELETE /ingest/text/{source_id}`:
   at once from Write, otherwise by the sweep at the start of the hourly **Module Facts**
   run and when Write lists notes. Its strokes stay until the module answers `deleted` or
