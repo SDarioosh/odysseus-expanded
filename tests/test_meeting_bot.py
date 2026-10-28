@@ -266,7 +266,8 @@ def test_join_posts_json_with_the_mcp_token():
     assert got["meeting_id"] == "85012345678"
     sent = module.requests[0]
     assert sent.method == "POST" and sent.url.path == "/meetings"
-    assert dict(sent.url.params) == {"access_token": TOKEN}
+    assert dict(sent.url.params) == {}  # the token goes in the header, never the URL
+    assert sent.headers["authorization"] == f"Bearer {TOKEN}"
     assert sent.headers["content-type"] == "application/json"
     assert json.loads(sent.content) == {"url": "https://zoom.us/j/85012345678?pwd=p",
                                         "passcode": "p", "title": "Fictional sync"}
@@ -363,8 +364,8 @@ def test_current_picks_the_newest_active_meeting():
                                        row(state="starting", started_at=None)]})
     got = run(mb.current(LINK, transport=module.transport))
     assert got["id"] == MID and got["text"] == "Joining…"
-    assert dict(module.requests[0].url.params) == {"limit": str(mb.LIST_LIMIT),
-                                                   "access_token": TOKEN}
+    assert dict(module.requests[0].url.params) == {"limit": str(mb.LIST_LIMIT)}
+    assert module.requests[0].headers["authorization"] == f"Bearer {TOKEN}"
     idle = Module(200, {"meetings": [row(state="failed", reason="wrong_passcode",
                                          active=False)]})
     assert run(mb.current(LINK, transport=idle.transport)) is None
@@ -416,7 +417,7 @@ def test_signin_status_reads_and_cleans_the_answer():
                    "missing": ["CONVO_ZOOM_CLIENT_ID", "CONVO_ZOOM_CLIENT_SECRET"]}
     sent = module.requests[0]
     assert (sent.method, sent.url.path) == ("GET", "/zoom/signin")
-    assert sent.url.params["access_token"] == TOKEN
+    assert sent.headers["authorization"] == f"Bearer {TOKEN}"
     module = Module(200, {"configured": True, "signed_in": True, "join_token": "obf",
                           "missing": []})
     got = run(mb.signin_status(LINK, transport=module.transport))

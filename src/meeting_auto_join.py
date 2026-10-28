@@ -139,6 +139,10 @@ def _event(db: Any, owner: str, uid: str) -> Any:
           .filter(CalendarEvent.uid == uid).first())
     if ev is None or ev.calendar is None:
         return None
+    # A cancelled event (an emailed CANCEL, src/email_calendar_import.py) stays in the
+    # table but is off the calendar: Athena must not join it.
+    if (getattr(ev, "status", "") or "") == "cancelled":
+        return None
     if owner and ev.calendar.owner != owner:
         return None
     return ev

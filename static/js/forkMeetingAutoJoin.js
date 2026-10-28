@@ -20,6 +20,12 @@ function when(iso) {
                                        hour: '2-digit', minute: '2-digit' });
 }
 
+// Off and not joinable: nothing to turn on. On stays changeable even when the link stopped
+// working (a webinar now, an all-day event), so the owner can still turn it off.
+function locked(info) {
+  return !info.eligible && !info.on;
+}
+
 export function statusText(info) {
   if (!info) return '';
   if (!info.eligible) return info.reason || '';
@@ -57,7 +63,7 @@ export async function attach(form, uid) {
   row.style.cssText = 'align-items:center;gap:8px;flex-wrap:wrap;';
   row.innerHTML = `
     <label style="font-size:12px;display:flex;align-items:center;gap:6px;cursor:pointer;">
-      <input type="checkbox" class="fork-send-athena-toggle" ${info.on ? 'checked' : ''} ${info.eligible ? '' : 'disabled'} />
+      <input type="checkbox" class="fork-send-athena-toggle" ${info.on ? 'checked' : ''} ${locked(info) ? 'disabled' : ''} />
       <span>Send Athena</span>
     </label>
     <span class="fork-send-athena-text" style="font-size:11px;opacity:0.6;flex:1;min-width:12em;">${esc(statusText(info))}</span>`;
@@ -74,7 +80,7 @@ export async function attach(form, uid) {
       box.checked = !box.checked;
       text.textContent = String(err.message || err);
     } finally {
-      box.disabled = !info.eligible;
+      box.disabled = locked(info);
     }
   });
 }
