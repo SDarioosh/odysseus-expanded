@@ -62,18 +62,37 @@ def test_filter_masks_tracebacks():
 
 
 def test_install_is_idempotent():
-    lg, _ = _logger_with_buffer()
+    lg, buf = _logger_with_buffer()
     log_redact.install(lg)
-    assert sum(isinstance(f, log_redact.RedactFilter) for f in lg.handlers[0].filters) == 1
+    fmt = lg.handlers[0].formatter
+    assert isinstance(fmt, log_redact.RedactingFormatter)
+    assert not isinstance(fmt.inner, log_redact.RedactingFormatter)
+    lg.info("x")
+    assert buf.getvalue() == f"{lg.name} x\n"  # the handler's own format is kept
+
+
+def test_other_handlers_see_the_record_unchanged():
+    """Only the hub's own handlers mask: a record isn't rewritten for every other handler
+    (an upstream test asserts a detail stays in the server-side log it captures)."""
+    lg, buf = _logger_with_buffer()
+    seen: list[str] = []
+
+    class Keep(logging.Handler):
+        def emit(self, record):
+            seen.append(record.getMessage())
+    lg.addHandler(Keep())
+    lg.info("GET http://m/x?token=%s", TOKEN)
+    assert TOKEN not in buf.getvalue() and seen == [f"GET http://m/x?token={TOKEN}"]
 
 
 def test_httpx_request_log_has_no_token(caplog):
     """The real leak: httpx's own INFO line for a URL that carries the token (the MCP client)."""
+    # Only this test's own handler: install(root) would also wrap pytest's capture handlers.
     root = logging.getLogger()
     handler = logging.StreamHandler(buf := io.StringIO())
+    handler.setFormatter(log_redact.RedactingFormatter(None))
     root.addHandler(handler)
     try:
-        log_redact.install(root)
         caplog.set_level(logging.INFO, logger="httpx")
         transport = httpx.MockTransport(lambda req: httpx.Response(200, json={}))
         with httpx.Client(transport=transport) as client:
