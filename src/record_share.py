@@ -86,13 +86,14 @@ async def fetch(link: rec.Link, conversation_id: str, fmt: str, include: tuple[s
                 transport: httpx.AsyncBaseTransport | None = None) -> SharedFile:
     """The file from the module. Raises LookupError (no such conversation) or
     :class:`call_recorder.RecorderError` with a status to answer and words to show."""
-    params = {"access_token": link.token, "format": fmt, "include": ",".join(include)}
+    params = {"format": fmt, "include": ",".join(include)}
     path = f"/conversations/{rec.path_part(conversation_id)}/export"
     try:
         async with rec._client(transport) as client:
-            res = await client.get(f"{link.base}{path}", params=params)
+            res = await client.get(f"{link.base}{path}", params=params,
+                                   headers=rec.auth_headers(link))
     except httpx.HTTPError as exc:
-        # The URL carries the token: log only the base and the error's type.
+        # Log only the base and the error's type (never the request).
         logger.warning("Athena unreachable at %s: %s", link.base, type(exc).__name__)
         raise rec.RecorderError(502, "Athena is not reachable") from None
     if res.status_code in (404, 405):

@@ -139,7 +139,8 @@ def test_forward_chunk_posts_to_the_mcp_upload_route(monkeypatch):
     (req,) = module.requests
     assert (req.url.scheme, req.url.host, req.url.port, req.url.path) == (
         "http", "module", 8001, "/ingest/chunk")
-    assert dict(req.url.params) == {"access_token": TOKEN}
+    assert dict(req.url.params) == {}
+    assert req.headers["authorization"] == f"Bearer {TOKEN}"
     body = req.read()
     for field, value in [("device", "computer"), ("session_id", "call-20261022T145930-ab12cd"),
                          ("sequence", "7"), ("timestamp", "2026-10-22T14:59:30+00:00"),
@@ -230,7 +231,8 @@ def test_forward_reads():
                                    params={"since": 5, "until": None},
                                    transport=module.transport))
     assert (status, body) == (200, {"conversations": []})
-    assert dict(module.requests[0].url.params) == {"since": "5", "access_token": TOKEN}
+    assert dict(module.requests[0].url.params) == {"since": "5"}
+    assert module.requests[0].headers["authorization"] == f"Bearer {TOKEN}"
     gone = Module(status=404, body={"detail": "conversation not found"})
     assert run(rec.forward(CFG, "GET", "/conversations/x", transport=gone.transport)) == (
         404, {"detail": "conversation not found"})
