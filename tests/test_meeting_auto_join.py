@@ -297,7 +297,7 @@ def test_run_joins_through_meeting_bot(env, module, monkeypatch):
     sent = json.loads(fake.requests[0].content)
     assert sent == {"url": ZOOM, "passcode": "FictionalPwd1", "title": "Fictional sync"}
     assert fake.requests[0].url.path == "/meetings"
-    assert fake.requests[0].url.params["access_token"] == TOKEN
+    assert fake.requests[0].headers["authorization"] == f"Bearer {TOKEN}"
     assert any(n["status"] == "success" for n in env.notes.items)
     assert auto.load(OWNER)["events"]["e1"]["joined"] == "2099-03-02T11:00:00Z"
 

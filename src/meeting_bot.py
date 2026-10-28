@@ -34,6 +34,7 @@ it is open and a meeting is on, and reads the sign-in once when it opens
 
 from __future__ import annotations
 
+import html
 import logging
 import re
 from dataclasses import dataclass
@@ -79,15 +80,20 @@ _MEETING_NUMBER = re.compile(r"^\d{9,11}$")
 _PASSCODE = re.compile(r"^[!-~]{1,128}$")  # printable ASCII, no spaces
 _MEETING_ID = re.compile(r"^[0-9a-f]{32}$")  # the launcher's ids (uuid4 hex)
 # Link-like words in pasted text: anything with a scheme, or a host name ending in zoom.us
-# or zoomgov.com (look-alikes such as zoom.us.example.com are caught and refused too).
+# or zoomgov.com (look-alikes such as zoom.us.example.com are caught and refused too). A
+# word ends at a quote or an angle bracket too: a calendar description is often HTML
+# (<a href="…">…</a>, "Passcode: 1234<br>") or Outlook's "link<link>", and none of those
+# characters is ever part of a Zoom link or passcode.
+_WORD = r"[^\s<>\"']"
 _LINK_WORD = re.compile(
-    r"(?:[a-z][a-z0-9+.-]*://\S+|(?<![\w@.-])(?:[a-z0-9-]+\.)*zoom(?:gov)?\.(?:us|com)\S*)",
+    rf"(?:[a-z][a-z0-9+.-]*://{_WORD}+|(?<![\w@.-])(?:[a-z0-9-]+\.)*zoom(?:gov)?\.(?:us|com)"
+    rf"{_WORD}*)",
     re.IGNORECASE)
 _TRAILING = ".,;:!?)]}>'\"»”’"
 # An invite's own lines, for an invite pasted without a link ("Meeting ID: 850 1234 5678").
 _INVITE_ID = re.compile(r"meeting\s*id\s*[:#]?\s*(\d[\d \t-]{7,16}\d)", re.IGNORECASE)
-_INVITE_PASSCODE = re.compile(r"\b(?:passcode|password|pass\s*code)\s*[:#]?\s*(\S+)",
-                              re.IGNORECASE)
+_INVITE_PASSCODE = re.compile(
+    rf"\b(?:passcode|password|pass\s*code)\s*[:#]?\s*({_WORD}+)", re.IGNORECASE)
 _ONLY_NUMBER = re.compile(r"^[\d \t-]+$")
 
 
@@ -210,7 +216,8 @@ def check_link(text: str) -> JoinRequest:
 
 
 def _link_words(text: str) -> list[str]:
-    return [w.rstrip(_TRAILING) for w in _LINK_WORD.findall(text)]
+    # html.unescape: an HTML description writes the link's "&" as "&amp;".
+    return [html.unescape(w).rstrip(_TRAILING) for w in _LINK_WORD.findall(text)]
 
 
 def _invite_passcode(text: str) -> str | None:
@@ -367,11 +374,15 @@ async def _call(link: recorder.Link, method: str, path: str, timeout: httpx.Time
                 params: dict[str, Any] | None = None, json: Any = None,
                 transport: httpx.AsyncBaseTransport | None = None,
                 update: str = UPDATE_MODULE) -> tuple[int, Any]:
-    query = {**(params or {}), "access_token": link.token}
+    # The token goes in the Authorization header, which the module's BearerAuth accepts
+    # like ?access_token=: httpx logs every request URL at INFO, so a token in the query
+    # would land in the hub's log on every state poll.
     try:
         async with httpx.AsyncClient(timeout=timeout, transport=transport,
                                      follow_redirects=False) as client:
-            res = await client.request(method, f"{link.base}{path}", params=query, json=json)
+            res = await client.request(method, f"{link.base}{path}", params=params or None,
+                                       json=json,
+                                       headers={"Authorization": f"Bearer {link.token}"})
     except httpx.TimeoutException:
         logger.warning("Athena timed out at %s %s", method, path)
         raise MeetingError(504, "Athena didn't answer in time; check again in a moment.",
