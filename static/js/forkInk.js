@@ -61,6 +61,9 @@ export const PAPERS = [
 export const paperOf = (note) => (PAPERS.some((p) => p.key === note.paper) ? note.paper
   : (note.ruled === false ? 'blank' : 'lined'));
 const API = '/api/ink/notes';
+// Notebooks (src/ink_notebooks.py): a named, ordered group of notes, its pages. A note in
+// no notebook is a quick note.
+const NB_API = '/api/ink/notebooks';
 // The hub's limits (src/ink_notes.py): the view never builds a note it would refuse.
 const MAX_PAGES = 60;
 const MAX_STROKE_POINTS = 5000;     // a longer stroke continues as a new one (hub: 6000)
@@ -318,6 +321,7 @@ const ICONS = {
   page: SVG('<path d="M6 3h8l4 4v14H6z"/><path d="M12 11v6M9 14h6"/>'),
   plus: SVG('<path d="M12 5v14M5 12h14"/>'),
   photo: SVG('<path d="M4 8h3l2-3h6l2 3h3v11H4z"/><circle cx="12" cy="13" r="3.5"/>'),
+  book: SVG('<path d="M5 4h11a3 3 0 0 1 3 3v13H8a3 3 0 0 1-3-3z"/><path d="M5 17a3 3 0 0 1 3-3h11"/>'),
   trash: SVG('<path d="M4 7h16M10 11v6M14 11v6M6 7l1 13h10l1-13M9 7V4h6v3"/>'),
 };
 
@@ -385,6 +389,22 @@ function openStore(user) {
     put: (store, value) => tx(store, 'readwrite', (os, mem) => (os ? os.put(value) : void mem.set(value.id, clone(value)))),
     del: (store, id) => tx(store, 'readwrite', (os, mem) => (os ? os.delete(id) : void mem.delete(id))),
   };
+}
+
+// ------------------------------------------------------------ notebooks cache
+// The notebooks as the hub last listed them, per user, so an offline start still groups
+// the notes. A convenience only: the hub's list always replaces it.
+const booksKey = (user) => `fork-ink-notebooks:${user || '_'}`;
+
+function loadBooks(user) {
+  try {
+    const data = JSON.parse(localStorage.getItem(booksKey(user)) || '[]');
+    return Array.isArray(data) ? data.filter((b) => b && typeof b.id === 'string' && Array.isArray(b.pages)) : [];
+  } catch (_) { return []; }
+}
+
+function saveBooks(user, books) {
+  try { localStorage.setItem(booksKey(user), JSON.stringify(books)); } catch (_) { /* private mode */ }
 }
 
 // ---------------------------------------------------------------- the hub calls
@@ -521,8 +541,9 @@ export function mountInk(root, options = {}) {
   // dropped (a slow note load must not replace the note being written).
   let nav = 0;
   const state = {
-    screen: 'list',
-    note: null,               // { id, title, paper, edited_at, pages, synced }
+    screen: 'list',           // 'list' (notebooks and quick notes), 'book' (one notebook) or 'editor'
+    book: null,               // the notebook shown on the 'book' screen
+    note: null,               // { id, title, paper, edited_at, pages, synced, notebook?, notebook_after? }
     pen: 'black',
     width: 'thin',
     eraser: false,
@@ -551,6 +572,10 @@ export function mountInk(root, options = {}) {
   const sendingIds = new Set();
   let athenaMsg = null;       // { noteId, text, error, link, key }: shown while `key` holds
   const syncing = new Map();  // note id -> { promise, again }
+  // Notebooks as the hub last listed them (kept per user in localStorage, so an offline
+  // start still groups the notes), and the notes of the last listing.
+  let books = loadBooks(user);
+  let lastItems = [];
   let timers = [];
   let suspended = false;
 
@@ -567,6 +592,11 @@ export function mountInk(root, options = {}) {
   const titleInput = el('input', { class: 'bs-input ink-title', type: 'text', maxlength: '200',
     'aria-label': 'Title', placeholder: 'Title' });
   const backBtn = iconBtn('back', 'All notes', () => { if (!state.live) closeNote(); });
+  // In a notebook: the page before and after this one.
+  const prevNoteBtn = iconBtn('back', 'Previous page of the notebook', () => flipPage(-1));
+  const nextNoteBtn = iconBtn('next', 'Next page of the notebook', () => flipPage(1));
+  const bookLabel = el('span', { class: 'bs-meta ink-book-label' });
+  const bookGroup = el('div', { class: 'ink-group ink-book-nav', hidden: true }, prevNoteBtn, bookLabel, nextNoteBtn);
   const penBtns = PENS.map((p) => {
     const b = el('button', { type: 'button', class: 'bs-btn ink-pen', title: p.label, 'aria-label': p.label,
       'data-pen': p.key, 'aria-pressed': 'false' });
@@ -588,7 +618,11 @@ export function mountInk(root, options = {}) {
       state.note.paper = PAPERS[(i + 1) % PAPERS.length].key;
       markDirty(); syncTools(); render();
     } });
-  const addPageBtn = iconBtn('page', 'Add a page', () => addPage());
+  // A quick note gets another sheet; in a notebook this makes the next page of it.
+  const addPageBtn = iconBtn('page', 'Add a page', () => {
+    if (state.note && state.note.notebook && bookById(state.note.notebook)) newBookPage();
+    else addPage();
+  });
   addPageBtn.append('Page');
   // H6: photo pages, after the page shown. Without `capture`, Android offers the camera
   // and the files.
@@ -608,6 +642,7 @@ export function mountInk(root, options = {}) {
   const editGroup = el('div', { class: 'ink-group' }, undoBtn, redoBtn, paperBtn, addPageBtn, photoBtn);
   const bar = el('div', { class: 'ink-bar' },
     el('div', { class: 'ink-group' }, backBtn, titleInput),
+    bookGroup,
     el('div', { class: 'ink-group ink-tabs', role: 'tablist', 'aria-label': 'View' }, tabInk, tabText),
     penGroup, editGroup, status);
   const stage = el('div', { class: 'ink-stage' });
@@ -1546,6 +1581,20 @@ export function mountInk(root, options = {}) {
     tabInk.disabled = !!state.live;
     tabText.disabled = !!state.live; // no tab change while the pen is down
     addPageBtn.title = addPageBtn.disabled ? `A note has at most ${MAX_PAGES} pages` : 'Add a page';
+    // In a notebook: Back goes to it, ‹ › flip its pages, and Page adds the next page.
+    const book = state.note && state.note.notebook ? bookById(state.note.notebook) : null;
+    bookGroup.hidden = !book;
+    backBtn.title = book ? `Back to ${book.name}` : 'All notes';
+    backBtn.setAttribute('aria-label', backBtn.title);
+    if (book) {
+      const order = bookOrder(book.id);
+      const i = order.indexOf(state.note.id);
+      bookLabel.textContent = i >= 0 ? `${book.name} · page ${i + 1} of ${order.length}` : book.name;
+      prevNoteBtn.disabled = i <= 0 || !!state.live;
+      nextNoteBtn.disabled = i < 0 || i >= order.length - 1 || !!state.live;
+      addPageBtn.disabled = !!state.live;
+      addPageBtn.title = `Add the next page to ${book.name}`;
+    }
   }
 
   // -------------------------------------------------------------- saving
@@ -1565,7 +1614,10 @@ export function mountInk(root, options = {}) {
 
   const payload = (note) => ({ title: note.title, paper: paperOf(note),
     ruled: paperOf(note) === 'lined', edited_at: note.edited_at,
-    final: !!note.final, pages: note.pages.map((p) => ({ id: p.id, width: p.width, height: p.height, strokes: p.strokes })) });
+    final: !!note.final,
+    // Only the save that creates the note uses these: it becomes a page of that notebook.
+    ...(note.notebook ? { notebook: note.notebook, notebook_after: note.notebook_after ?? null } : {}),
+    pages: note.pages.map((p) => ({ id: p.id, width: p.width, height: p.height, strokes: p.strokes })) });
 
   function snapshotNote() {
     const copy = JSON.parse(JSON.stringify({ ...state.note, ...payload(state.note) }));
@@ -1630,6 +1682,10 @@ export function mountInk(root, options = {}) {
       const image = (res.body && res.body.image_url) || null;
       latest.image_url = image;
       if (isOpen()) state.note.image_url = image;
+      if (res.body && 'notebook' in res.body) {
+        latest.notebook = res.body.notebook;
+        if (isOpen() && state.note.notebook !== res.body.notebook) { state.note.notebook = res.body.notebook; syncTools(); }
+      }
       if (latest.edited_at === note.edited_at) {
         latest.synced = true;
         latest.synced_at = Date.now();
@@ -1639,9 +1695,10 @@ export function mountInk(root, options = {}) {
         }
       }
       await db.put('notes', latest);
-      if (state.screen === 'list') refreshListSoon();
+      if (state.screen === 'list' || state.screen === 'book') refreshListSoon();
     } else if (res.status === 409 && res.body && res.body.note) {
       const theirs = fromServer(res.body.note);
+      if (!('notebook' in theirs)) theirs.notebook = latest.notebook ?? null;
       if ((latest.edited_at || 0) > theirs.edited_at) {
         // Written on here while the request was out, after the other device's edit:
         // this one is the last edit, so send it again.
@@ -1664,7 +1721,7 @@ export function mountInk(root, options = {}) {
         router.reset();
         state.note = null;
         await showList('This note was deleted elsewhere.');
-      } else if (state.screen === 'list') refreshListSoon();
+      } else if (state.screen === 'list' || state.screen === 'book') refreshListSoon();
     } else if (res.status === 401 || res.status === 403) {
       if (isOpen()) setStatus('Sign in to sync. Saved on this device.', true);
     } else if (res.status >= 400 && res.status < 500 && res.status !== 408 && res.status !== 429) {
@@ -1682,7 +1739,11 @@ export function mountInk(root, options = {}) {
   let listTimer = 0;
   function refreshListSoon() {
     clearTimeout(listTimer);
-    listTimer = setTimeout(() => { if (state.screen === 'list' && !suspended) showList(); }, 300);
+    listTimer = setTimeout(() => {
+      if (suspended) return;
+      if (state.screen === 'list') showList();
+      else if (state.screen === 'book') showBook(state.book);
+    }, 300);
   }
 
   async function flushQueue() {
@@ -1704,7 +1765,7 @@ export function mountInk(root, options = {}) {
 
   function fromServer(n) {
     return { id: n.note_id, title: n.title || '', paper: paperOf(n), edited_at: n.edited_at || 0,
-      image_url: n.image_url || null, synced: true,
+      image_url: n.image_url || null, synced: true, ...('notebook' in n ? { notebook: n.notebook } : {}),
       pages: (n.pages || []).map((p) => ({ id: p.id, width: p.width, height: p.height, strokes: p.strokes || [],
         ...(p.photo ? { photo: p.photo } : {}) })) };
   }
@@ -2218,11 +2279,12 @@ export function mountInk(root, options = {}) {
 
   // ------------------------------------------------- H6: photos of paper pages
   let photoTarget = null; // 'new' (a note from the photos) or the id of the note to add to
+  let photoBook = null;   // 'new' from a notebook: the note becomes its last page
   const online = () => !(globalThis.navigator && navigator.onLine === false);
 
   function listMessage(text, error = false) {
     const box = listView.querySelector('.bs-msg');
-    if (!box || state.screen !== 'list') return;
+    if (!box || (state.screen !== 'list' && state.screen !== 'book')) return;
     box.textContent = text;
     box.classList.toggle('error', !!error);
   }
@@ -2231,6 +2293,7 @@ export function mountInk(root, options = {}) {
     const say = target === 'new' ? listMessage : (t, e) => setStatus(t, e);
     if (!online()) { say('Photo import needs a connection to the hub.', true); return; }
     photoTarget = target;
+    photoBook = target === 'new' && state.screen === 'book' ? state.book : null;
     if (camera) photoInput.setAttribute('capture', 'environment');
     else photoInput.removeAttribute('capture');
     photoInput.value = '';
@@ -2243,7 +2306,7 @@ export function mountInk(root, options = {}) {
     photoTarget = null;
     photoInput.value = '';
     if (!files.length || !target) return;
-    if (target === 'new') importPhotos(files);
+    if (target === 'new') importPhotos(files, photoBook);
     else addPhotoPages(target, files);
   });
 
@@ -2267,7 +2330,7 @@ export function mountInk(root, options = {}) {
   const plural = (n, word) => `${n} ${word}${n === 1 ? '' : 's'}`;
 
   // A new note, one page per photo, then opened. The hub reads the photos at once.
-  async function importPhotos(files) {
+  async function importPhotos(files, bookId = null) {
     const my = nav;
     const db = store;
     if (files.length > MAX_PHOTOS) { listMessage(`At most ${MAX_PHOTOS} photos at a time.`, true); return; }
@@ -2276,8 +2339,15 @@ export function mountInk(root, options = {}) {
     if (db !== store) return; // another user signed in meanwhile
     if (!(res && res.ok && res.body)) { if (my === nav) listMessage(photoError(res), true); return; }
     const note = fromServer(res.body);
+    if (bookId && bookById(bookId)) {
+      // Imported in a notebook: the new note becomes its last page.
+      const order = bookOrder(bookId);
+      const moved = await api(`${API}/${enc(note.id)}/notebook`, { method: 'PUT',
+        body: JSON.stringify({ notebook: bookId, after: order[order.length - 1] || null }) }).catch(() => null);
+      if (moved && moved.ok) { note.notebook = bookId; addToBook(bookId, note.id, order[order.length - 1] || null); }
+    }
     try { await db.put('notes', note); } catch (_) { /* memory only */ }
-    if (my !== nav || state.screen !== 'list') { refreshListSoon(); return; } // moved on: it's in the list
+    if (my !== nav || (state.screen !== 'list' && state.screen !== 'book')) { refreshListSoon(); return; } // moved on: it's in the list
     ++nav;
     openLoaded(note);
     for (const p of note.pages) edited.add(p.id);
@@ -2425,10 +2495,24 @@ export function mountInk(root, options = {}) {
     if (!note.synced) sync(note.id);
   }
 
-  async function newNote() {
+  // A quick note, or with `notebook` a new page of that notebook (after the page `after`,
+  // else at the end). The page is made on the device; its first save files it there.
+  async function newNote({ notebook = null, after = null } = {}) {
     ++nav;
     const note = { id: uuid(), title: defaultTitle(), paper: 'lined', edited_at: Date.now(), synced: false,
       pages: [{ id: `p${shortId()}`, width: PAGE_W, height: PAGE_H, strokes: [] }] };
+    if (notebook && bookById(notebook)) {
+      const book = bookById(notebook);
+      const order = bookOrder(notebook);
+      if (after == null) after = order[order.length - 1] || null;
+      note.notebook = notebook;
+      note.notebook_after = after;
+      // The same paper as the page before it, so a notebook stays one kind of paper.
+      const prev = lastItems.find((n) => n.id === after);
+      if (prev && prev.paper) note.paper = prev.paper;
+      else if (state.note && state.note.id === after) note.paper = paperOf(state.note);
+      addToBook(book.id, note.id, after);
+    }
     try { await store.put('notes', note); } catch (_) { /* memory only */ }
     openLoaded(note);
     state.dirty = true;
@@ -2444,8 +2528,137 @@ export function mountInk(root, options = {}) {
     const running = id && syncing.get(id);
     if (running) await Promise.race([running.promise, new Promise((r) => setTimeout(r, CLOSE_WAIT_MS))]);
     if (my !== nav) return;
+    const bookId = state.note && state.note.notebook;
     state.note = null;
+    if (bookId && bookById(bookId)) await showBook(bookId);
+    else await showList();
+  }
+
+  // ----------------------------------------------------------- notebooks
+  function bookById(id) { return books.find((b) => b.id === id) || null; }
+
+  // The notebook's pages in order: the hub's order, plus pages made on this device that
+  // the hub doesn't have yet (after the page they were made after).
+  function bookOrder(id) {
+    const book = bookById(id);
+    if (!book) return [];
+    const order = [...book.pages];
+    for (const n of lastItems) {
+      if (n.notebook !== id || order.includes(n.id)) continue;
+      const at = n.notebook_after ? order.indexOf(n.notebook_after) : -1;
+      if (at >= 0) order.splice(at + 1, 0, n.id); else order.push(n.id);
+    }
+    return order;
+  }
+
+  function addToBook(id, noteId, after) {
+    const book = bookById(id);
+    if (!book || book.pages.includes(noteId)) return;
+    const at = after ? book.pages.indexOf(after) : -1;
+    if (at >= 0) book.pages.splice(at + 1, 0, noteId); else book.pages.push(noteId);
+    saveBooks(user, books);
+  }
+
+  function dropFromBooks(noteId) {
+    for (const b of books) b.pages = b.pages.filter((p) => p !== noteId);
+    saveBooks(user, books);
+  }
+
+  // From the editor: the next page of the open note's notebook, right after this one.
+  async function newBookPage() {
+    if (!state.note || state.live || !state.note.notebook) return;
+    const { notebook, id } = state.note;
+    await flush();
+    await newNote({ notebook, after: id });
+  }
+
+  // From the editor: the page before (-1) or after (1) in the notebook.
+  async function flipPage(step) {
+    if (!state.note || state.live || !state.note.notebook) return;
+    const order = bookOrder(state.note.notebook);
+    const target = order[order.indexOf(state.note.id) + step];
+    if (!target) return;
+    await flush();
+    await openNote(target);
+  }
+
+  function promptName(message, value = '') {
+    const ui = window.uiModule;
+    if (ui && typeof ui.styledPrompt === 'function') {
+      return ui.styledPrompt(message, { title: 'Notebook', defaultValue: value, placeholder: 'Name', confirmText: 'Save', maxLength: 120 });
+    }
+    return Promise.resolve(window.prompt(message, value));
+  }
+
+  async function newNotebook() {
+    const raw = await promptName('Name of the new notebook');
+    const name = (raw || '').trim();
+    if (!name) return;
+    if (!online()) { listMessage('Making a notebook needs a connection to the hub.', true); return; }
+    const res = await api(NB_API, { method: 'POST', body: JSON.stringify({ id: uuid(), name }) }).catch(() => null);
+    if (!(res && res.ok && res.body)) {
+      listMessage(res ? `The hub refused the notebook: ${(res.body && res.body.detail) || `HTTP ${res.status}`}.`
+        : 'The hub is not reachable: notebooks are made only while it is.', true);
+      return;
+    }
+    if (!bookById(res.body.id)) books.push(res.body);
+    saveBooks(user, books);
+    await showBook(res.body.id);
+  }
+
+  async function renameNotebook(id) {
+    const book = bookById(id);
+    if (!book) return;
+    const raw = await promptName('New name of the notebook', book.name);
+    const name = (raw || '').trim();
+    if (!name || name === book.name) return;
+    const res = await api(`${NB_API}/${enc(id)}`, { method: 'PATCH', body: JSON.stringify({ name }) }).catch(() => null);
+    if (!(res && res.ok)) { listMessage(res ? `Not renamed: ${(res.body && res.body.detail) || `HTTP ${res.status}`}.` : 'Renaming needs a connection to the hub.', true); return; }
+    book.name = res.body.name;
+    saveBooks(user, books);
+    await showBook(id);
+  }
+
+  async function deleteNotebook(id) {
+    const book = bookById(id);
+    if (!book) return;
+    const count = bookOrder(id).length;
+    const ok = await confirmDelete(`Delete the notebook "${book.name}"? Its ${count === 1 ? 'page is' : `${count} pages are`} kept as quick notes.`);
+    if (!ok) return;
+    const res = await api(`${NB_API}/${enc(id)}`, { method: 'DELETE' }).catch(() => null);
+    if (!(res && (res.ok || res.status === 404))) { listMessage(res ? `Not deleted: HTTP ${res.status}.` : 'Deleting a notebook needs a connection to the hub.', true); return; }
+    // Pages made on this device and not synced yet become quick notes too.
+    try {
+      for (const n of await store.all('notes')) {
+        if (n.notebook === id) { n.notebook = null; n.notebook_after = null; await store.put('notes', n); }
+      }
+    } catch (_) { /* memory only */ }
+    books = books.filter((b) => b.id !== id);
+    saveBooks(user, books);
     await showList();
+  }
+
+  // Move a note into a notebook (its last page) or out of it (`target` null: a quick note).
+  async function moveNote(id, target) {
+    const after = target ? (bookOrder(target).filter((x) => x !== id).pop() || null) : null;
+    let local = null;
+    try { local = await store.get('notes', id); } catch (_) { local = null; }
+    const res = online() ? await api(`${API}/${enc(id)}/notebook`, { method: 'PUT',
+      body: JSON.stringify({ notebook: target, after }) }).catch(() => null) : null;
+    if (res && res.ok) {
+      dropFromBooks(id);
+      if (target) addToBook(target, id, after);
+      if (local) { local.notebook = target; local.notebook_after = null; try { await store.put('notes', local); } catch (_) { /* */ } }
+    } else if (res && res.status === 404 && local && !local.synced_at) {
+      // Not on the hub yet: its first save files it.
+      local.notebook = target;
+      local.notebook_after = after;
+      try { await store.put('notes', local); } catch (_) { /* */ }
+    } else {
+      listMessage(res ? `Not moved: ${(res.body && res.body.detail) || `HTTP ${res.status}`}.` : 'Moving a note needs a connection to the hub.', true);
+      return;
+    }
+    refreshListSoon();
   }
 
   // Remove a note from this device and queue its delete for the hub.
@@ -2461,8 +2674,10 @@ export function mountInk(root, options = {}) {
     const ok = await confirmDelete(`Delete "${title || 'this note'}"? Its handwriting is removed too, and Athena's copy if it was sent.`);
     if (!ok) return;
     await deleteLocal(id);
+    dropFromBooks(id);
     await flushQueue();
-    await showList();
+    if (state.screen === 'book' && bookById(state.book)) await showBook(state.book);
+    else await showList();
   }
 
   function confirmDelete(message) {
@@ -2473,36 +2688,24 @@ export function mountInk(root, options = {}) {
     return Promise.resolve(window.confirm(message));
   }
 
-  async function showList(message = '') {
-    const my = ++nav;
-    state.screen = 'list';
-    editor.hidden = true;
-    listView.hidden = false;
-    listView.textContent = '';
-    const head = el('div', { class: 'bs-row ink-list-head' },
-      el('button', { type: 'button', class: 'bs-btn primary', onclick: () => newNote() }, 'New note'),
-      el('button', { type: 'button', class: 'bs-btn ink-take-photo', title: 'Photograph a paper page: it becomes a note',
-        onclick: () => pickPhotos('new', true) }, 'Take photo'),
-      el('button', { type: 'button', class: 'bs-btn ink-import-photo', title: 'Pictures of paper pages: one page each',
-        onclick: () => pickPhotos('new', false) }, 'Import images'),
-      el('span', { class: 'bs-meta', text: 'Write with the pen; one finger scrolls, two fingers zoom. '
-        + 'Saved on this device first, then in your notes. If two devices change the same note, the last edit wins.' }));
-    const msg = el('div', { class: `bs-msg${message ? ' error' : ''}`, text: message });
-    const list = el('div', { class: 'ink-notes' }, el('div', { class: 'bs-status', text: 'Loading...' }));
-    listView.append(head, msg, list);
-
+  // The notes to list: the hub's, plus this device's that the hub doesn't have yet (or
+  // has an older version of). Also takes the hub's notebooks. `null` when the screen
+  // changed meanwhile.
+  async function loadItems(my) {
     await checkUser();
-    if (my !== nav) return;
+    if (my !== nav) return null;
     const db = store;
     const asked = Date.now();
     let remote = null;
+    let remoteBooks = null;
     try {
       const res = await api(API);
-      if (res.ok && res.body) remote = res.body.notes || [];
+      if (res.ok && res.body) { remote = res.body.notes || []; remoteBooks = res.body.notebooks || null; }
     } catch (_) { remote = null; }
     let local = [];
     try { local = await db.all('notes'); } catch (_) { local = []; }
-    if (my !== nav || db !== store) return;
+    if (my !== nav || db !== store) return null;
+    if (remoteBooks) { books = remoteBooks; saveBooks(user, books); }
     const byId = new Map();
     if (remote) {
       const remoteIds = new Set(remote.map((n) => n.id));
@@ -2517,29 +2720,152 @@ export function mountInk(root, options = {}) {
     }
     for (const n of local) {
       const known = byId.get(n.id);
+      if (known) known.paper = paperOf(n);
       if (!known || !n.synced) {
         byId.set(n.id, { id: n.id, title: n.title, image_url: n.image_url || (known && known.image_url),
           edited_at: n.edited_at, pages: n.pages.length, waiting: !n.synced, blocked: n.blocked,
-          transcripts: known && known.transcripts, athena: known && known.athena });
+          transcripts: known && known.transcripts, athena: known && known.athena, paper: paperOf(n),
+          notebook: known ? known.notebook : (n.notebook || null), notebook_after: n.notebook_after || null });
       }
     }
     const items = [...byId.values()].sort((a, b) => (b.edited_at || 0) - (a.edited_at || 0)
       || String(b.updated_at || '').localeCompare(String(a.updated_at || '')));
-    list.textContent = '';
-    if (remote === null) list.append(el('div', { class: 'bs-notice', text: 'The hub is not reachable: showing the notes on this device.' }));
-    const review = reviewList(items);
-    if (review) list.before(review);
-    if (!items.length) { list.append(el('div', { class: 'bs-empty', text: 'No handwritten notes yet.' })); return; }
-    for (const n of items) list.append(noteCard(n));
+    lastItems = items;
+    return { items, remote };
   }
 
-  function noteCard(n) {
+  function screenHead(...kids) {
+    return el('div', { class: 'bs-row ink-list-head' }, ...kids);
+  }
+
+  const photoButtons = (where) => [
+    el('button', { type: 'button', class: 'bs-btn ink-take-photo', title: `Photograph a paper page: it becomes ${where}`,
+      onclick: () => pickPhotos('new', true) }, 'Take photo'),
+    el('button', { type: 'button', class: 'bs-btn ink-import-photo', title: 'Pictures of paper pages: one page each',
+      onclick: () => pickPhotos('new', false) }, 'Import images'),
+  ];
+
+  async function showList(message = '') {
+    const my = ++nav;
+    state.screen = 'list';
+    state.book = null;
+    editor.hidden = true;
+    listView.hidden = false;
+    listView.textContent = '';
+    const head = screenHead(
+      el('button', { type: 'button', class: 'bs-btn primary ink-new-note', title: 'A one-off page, outside any notebook',
+        onclick: () => newNote() }, 'New quick note'),
+      el('button', { type: 'button', class: 'bs-btn ink-new-book', title: 'A notebook keeps its pages together, in order',
+        onclick: () => newNotebook() }, 'New notebook'),
+      ...photoButtons('a quick note'),
+      el('span', { class: 'bs-meta', text: 'Write with the pen; one finger scrolls, two fingers zoom. '
+        + 'Saved on this device first, then in your notes. If two devices change the same note, the last edit wins.' }));
+    const msg = el('div', { class: `bs-msg${message ? ' error' : ''}`, text: message });
+    const list = el('div', { class: 'ink-notes' }, el('div', { class: 'bs-status', text: 'Loading...' }));
+    listView.append(head, msg, list);
+
+    const got = await loadItems(my);
+    if (!got) return;
+    const { items, remote } = got;
+    list.textContent = '';
+    if (remote === null) list.before(el('div', { class: 'bs-notice', text: 'The hub is not reachable: showing the notes on this device.' }));
+    const review = reviewList(items);
+    if (review) list.before(review);
+    if (books.length) {
+      const grid = el('div', { class: 'ink-notes ink-books' });
+      for (const b of books) grid.append(bookCard(b, items));
+      list.before(el('h2', { class: 'ink-section', text: 'Notebooks' }), grid);
+    }
+    const quick = items.filter((n) => !(n.notebook && bookById(n.notebook)));
+    list.before(el('h2', { class: 'ink-section', text: 'Quick notes' }));
+    if (!quick.length) {
+      list.append(el('div', { class: 'bs-empty', text: items.length ? 'No quick notes.' : 'No handwritten notes yet.' }));
+      return;
+    }
+    for (const n of quick) list.append(noteCard(n));
+  }
+
+  // One notebook: its pages in order, a New page button, rename and delete.
+  async function showBook(id) {
+    const my = ++nav;
+    state.screen = 'book';
+    state.book = id;
+    editor.hidden = true;
+    listView.hidden = false;
+    listView.textContent = '';
+    const name = el('h2', { class: 'ink-book-name', text: (bookById(id) || {}).name || 'Notebook' });
+    const back = iconBtn('back', 'All notes', () => showList());
+    const head = screenHead(back, name,
+      el('button', { type: 'button', class: 'bs-btn primary ink-new-page', title: 'Add a page at the end of this notebook',
+        onclick: () => newNote({ notebook: id }) }, 'New page'),
+      ...photoButtons('a page of this notebook'),
+      el('button', { type: 'button', class: 'bs-btn ink-rename-book', onclick: () => renameNotebook(id) }, 'Rename'),
+      el('button', { type: 'button', class: 'bs-btn ink-delete-book', title: 'Delete the notebook; its pages are kept as quick notes',
+        onclick: () => deleteNotebook(id) }, 'Delete notebook'));
+    const msg = el('div', { class: 'bs-msg' });
+    const list = el('div', { class: 'ink-notes' }, el('div', { class: 'bs-status', text: 'Loading...' }));
+    listView.append(head, msg, list);
+
+    const got = await loadItems(my);
+    if (!got) return;
+    const book = bookById(id);
+    if (!book) { await showList('That notebook was deleted.'); return; }
+    name.textContent = book.name;
+    list.textContent = '';
+    if (got.remote === null) list.before(el('div', { class: 'bs-notice', text: 'The hub is not reachable: showing the pages on this device.' }));
+    const byId = new Map(got.items.map((n) => [n.id, n]));
+    const pages = bookOrder(id).map((x) => byId.get(x)).filter(Boolean);
+    const review = reviewList(pages);
+    if (review) list.before(review);
+    if (!pages.length) { list.append(el('div', { class: 'bs-empty', text: 'No pages yet: New page starts the first one.' })); return; }
+    pages.forEach((n, i) => list.append(noteCard(n, { page: i + 1 })));
+  }
+
+  function bookCard(b, items) {
+    const order = bookOrder(b.id);
+    const byId = new Map(items.map((n) => [n.id, n]));
+    const pages = order.map((x) => byId.get(x)).filter(Boolean);
+    const latest = pages.reduce((m, n) => Math.max(m, n.edited_at || 0), 0);
+    const toReview = pages.reduce((m, n) => m + ((n.transcripts && n.transcripts.review && n.transcripts.review.length) || 0), 0);
+    const meta = [`${pages.length} page${pages.length === 1 ? '' : 's'}`, latest ? new Date(latest).toLocaleString() : '',
+      toReview ? `${toReview} to review` : ''].filter(Boolean).join(' · ');
+    const thumb = el('div', { class: 'ink-thumb ink-cover' });
+    const cover = pages.find((n) => n.image_url);
+    if (cover) thumb.append(el('img', { src: cover.image_url, alt: '', loading: 'lazy' }));
+    else thumb.innerHTML = ICONS.book; // our own static SVG
+    const card = el('div', { class: 'bs-card ink-card ink-book-card', role: 'button', tabindex: '0', 'data-book': b.id },
+      thumb, el('div', { class: 'ink-card-text' }, el('h2', { text: b.name || 'Notebook' }), el('div', { class: 'bs-meta', text: meta })));
+    card.addEventListener('click', () => showBook(b.id));
+    card.addEventListener('keydown', (e) => {
+      if (e.target === card && (e.key === 'Enter' || e.key === ' ')) { e.preventDefault(); showBook(b.id); }
+    });
+    return card;
+  }
+
+  // Move: a list of where the note can go (the notebooks, or Quick notes).
+  function moveMenu(n) {
+    const sel = el('select', { class: 'bs-input ink-move', 'aria-label': `Move ${n.title || 'note'} to` });
+    sel.append(el('option', { value: '', text: 'Move to...' }));
+    if (n.notebook && bookById(n.notebook)) sel.append(el('option', { value: '-', text: 'Quick notes' }));
+    for (const b of books) if (b.id !== n.notebook) sel.append(el('option', { value: b.id, text: b.name }));
+    sel.addEventListener('click', (e) => e.stopPropagation());
+    sel.addEventListener('keydown', (e) => e.stopPropagation());
+    sel.addEventListener('change', () => {
+      if (!sel.value) return;
+      moveNote(n.id, sel.value === '-' ? null : sel.value);
+    });
+    return sel.options.length > 1 ? sel : null;
+  }
+
+  function noteCard(n, { page = 0 } = {}) {
     const when = n.edited_at ? new Date(n.edited_at) : (n.updated_at ? new Date(n.updated_at) : null);
     const toReview = (n.transcripts && n.transcripts.review && n.transcripts.review.length) || 0;
     const t = n.transcripts || {};
     const autoPages = (t.auto && t.auto.length) || 0; // H6: accepted by INK_AUTO_SEND, not checked
     const athena = { sent: `sent to Athena${t.auto_sent ? ' automatically' : ''}`, changed: 'changed since sent to Athena' }[n.athena] || '';
-    const meta = [n.pages ? `${n.pages} page${n.pages === 1 ? '' : 's'}` : '', when ? when.toLocaleString() : '',
+    // In a notebook a note is one page; more than one sheet is said as such.
+    const size = page ? (n.pages > 1 ? `${n.pages} sheets` : '') : (n.pages ? `${n.pages} page${n.pages === 1 ? '' : 's'}` : '');
+    const meta = [size, when ? when.toLocaleString() : '',
       toReview ? `${toReview} to review` : '', autoPages ? `${autoPages} accepted automatically, not checked` : '', athena,
       n.blocked ? `not synced: the hub refused it (${n.blocked})` : (n.waiting ? 'waiting to sync' : '')]
       .filter(Boolean).join(' · ');
@@ -2548,8 +2874,10 @@ export function mountInk(root, options = {}) {
     const del = el('button', { type: 'button', class: 'bs-btn bs-icon-btn', title: 'Delete', 'aria-label': `Delete ${n.title}` });
     del.innerHTML = ICONS.trash;
     del.addEventListener('click', (e) => { e.stopPropagation(); deleteNote(n.id, n.title); });
-    const card = el('div', { class: 'bs-card ink-card', role: 'button', tabindex: '0' },
-      thumb, el('div', { class: 'ink-card-text' }, el('h2', { text: n.title || 'Untitled' }), el('div', { class: 'bs-meta', text: meta })),
+    const title = page ? `Page ${page} · ${n.title || 'Untitled'}` : (n.title || 'Untitled');
+    const card = el('div', { class: 'bs-card ink-card', role: 'button', tabindex: '0', 'data-note': n.id },
+      thumb, el('div', { class: 'ink-card-text' }, el('h2', { text: title }), el('div', { class: 'bs-meta', text: meta }),
+        moveMenu(n)),
       del);
     card.addEventListener('click', () => openNote(n.id));
     card.addEventListener('keydown', (e) => {
@@ -2572,6 +2900,8 @@ export function mountInk(root, options = {}) {
     if (who === null || who === user) return;
     user = who;
     store = openStore(user);
+    books = loadBooks(user);
+    lastItems = [];
     syncing.clear();
     drafts.clear(); // the last user's text never shows for this one
     tr = null;
@@ -2585,6 +2915,7 @@ export function mountInk(root, options = {}) {
       state.note = null;
       state.screen = 'list';
     }
+    if (state.screen === 'book') { state.screen = 'list'; state.book = null; }
   }
 
   // --------------------------------------------------------- lifecycle
@@ -2649,6 +2980,7 @@ export function mountInk(root, options = {}) {
   async function refresh() {
     resume();
     if (state.screen === 'list') return showList();
+    if (state.screen === 'book') return showBook(state.book);
     if (state.note && state.view === 'text') loadTranscripts();
     if (!state.note || state.dirty || state.live) return undefined;
     const my = nav;
@@ -2684,6 +3016,7 @@ export function mountInk(root, options = {}) {
     resume,
     newNote,
     openNote,
+    showBook,
     fit() { state.zoom = 1; state.sy = -PAGE_GAP; clampScroll(); render(); },
     destroy() {
       suspend();

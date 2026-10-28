@@ -54,6 +54,24 @@ Stage H6, photos of paper pages (``src/ink_notes.py`` ``add_photos``):
   ``Content-Length``, 413 too large or the note full.
 * ``GET /api/ink/notes/{id}/photos/{page_id}``: the stored photo (JPEG) of a photo page.
 
+Notebooks (``src/ink_notebooks.py``): a notebook is a named, ordered group of handwritten
+notes, its pages; a note in no notebook is a quick note.
+
+* ``GET /api/ink/notes`` above also answers ``notebooks``: ``[{id, name, created_at,
+  updated_at, pages: [note id, ...]}]``, oldest first, and each note's ``notebook`` (id
+  or null). ``GET`` and ``PUT /api/ink/notes/{id}`` answer ``notebook`` too.
+* ``PUT /api/ink/notes/{id}`` takes ``notebook`` (and ``notebook_after``, a page id, or
+  ``""`` for the front) on the save that creates the note: the new note becomes a page
+  of that notebook. Ignored on later saves and when the notebook is gone.
+* ``POST   /api/ink/notebooks`` ``{name, id?}``: a new notebook (``id`` made by the
+  client makes a repeat answer the same one). 400 without a name.
+* ``PATCH  /api/ink/notebooks/{id}`` ``{name}``: rename. 404 unknown.
+* ``DELETE /api/ink/notebooks/{id}``: delete the notebook; its pages become quick notes
+  (``{"ok": true, "pages": [...]}``). 404 unknown.
+* ``PUT    /api/ink/notes/{id}/notebook`` ``{notebook: id | null, after?}``: move a note
+  into a notebook (after the page ``after``, ``""`` at the front, else at the end) or
+  out of it. 404 for a note or notebook that isn't this user's.
+
 Any signed-in user, for their own notes, like upstream's notes routes
 (``require_user``; API tokens are refused). Another user's note id is a 404.
 """
@@ -69,6 +87,7 @@ from fastapi import APIRouter, BackgroundTasks, HTTPException, Request
 from fastapi.responses import FileResponse, JSONResponse
 
 from src import ink_athena as athena
+from src import ink_notebooks as nb
 from src import ink_notes as ink
 from src import ink_transcribe as tr
 from src.auth_helpers import require_user
@@ -111,9 +130,59 @@ def setup_ink_routes() -> APIRouter:
     async def list_notes(request: Request, background: BackgroundTasks):
         owner = _owner(request)
         notes = await asyncio.to_thread(ink.list_notes, owner)
+        notebooks = await asyncio.to_thread(nb.list_notebooks, owner)
         # Deleted notes Athena still holds: asked after the answer, not before it.
         background.add_task(_sweep_athena, owner)
-        return {"notes": notes}
+        return {"notes": notes, "notebooks": notebooks}
+
+    @router.post("/notebooks")
+    async def create_notebook(request: Request):
+        owner = _owner(request)
+        body = await _json_body(request, 8 * 1024)
+        try:
+            return await asyncio.to_thread(nb.create, owner, body.get("name"), body.get("id"))
+        except ink.InkError as exc:
+            raise HTTPException(exc.status, str(exc)) from None
+
+    @router.patch("/notebooks/{notebook_id}")
+    async def rename_notebook(request: Request, notebook_id: str):
+        owner = _owner(request)
+        if not nb.valid_notebook_id(notebook_id):
+            raise HTTPException(404, "Notebook not found")
+        body = await _json_body(request, 8 * 1024)
+        try:
+            return await asyncio.to_thread(nb.rename, owner, notebook_id, body.get("name"))
+        except ink.InkError as exc:
+            raise HTTPException(exc.status, str(exc)) from None
+
+    @router.delete("/notebooks/{notebook_id}")
+    async def delete_notebook(request: Request, notebook_id: str):
+        owner = _owner(request)
+        if not nb.valid_notebook_id(notebook_id):
+            raise HTTPException(404, "Notebook not found")
+        try:
+            pages = await asyncio.to_thread(nb.delete, owner, notebook_id)
+        except ink.InkError as exc:
+            raise HTTPException(exc.status, str(exc)) from None
+        return {"ok": True, "pages": pages}
+
+    @router.put("/notes/{note_id}/notebook")
+    async def move_note(request: Request, note_id: str):
+        owner = _owner(request)
+        _check_id(note_id)
+        body = await _json_body(request, 4 * 1024)
+        target = body.get("notebook")
+        if target is not None and not isinstance(target, str):
+            raise HTTPException(400, "notebook must be an id or null")
+        found = await asyncio.to_thread(ink.existing_note_ids, owner, [note_id])
+        if not found:
+            raise HTTPException(404, "Note not found")
+        try:
+            book = await asyncio.to_thread(nb.move, owner, note_id, target or None,
+                                           body.get("after"))
+        except ink.InkError as exc:
+            raise HTTPException(exc.status, str(exc)) from None
+        return {"ok": True, "note_id": note_id, "notebook": book}
 
     @router.get("/notes/{note_id}")
     async def get_note(request: Request, note_id: str):
