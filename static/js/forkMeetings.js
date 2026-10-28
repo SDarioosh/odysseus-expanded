@@ -15,7 +15,7 @@ let mounted = false;
 
 /**
  * Builds the Meetings view into `root`.
- * - openConversations(): opens the Conversations window (the page links to /modules/sound).
+ * - openConversations(): opens the Records window (the page links to /modules/sound).
  * Returns { refresh }.
  */
 export async function mountMeetings(root, { openConversations = null } = {}) {

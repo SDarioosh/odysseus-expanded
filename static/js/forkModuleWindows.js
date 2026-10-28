@@ -1,15 +1,15 @@
-// Fork: the Athena Conversations and Meetings views and the Today view as Odysseus windows.
+// Fork: the Athena Records (conversations) and Meetings views and the Today view as Odysseus windows.
 // Loaded by one hook in static/index.html. The sidebar entries stay plain links to the
 // standalone pages (/modules/sound, /today), which still work on their own; here a
 // normal click opens the view in a tool window instead, so the chat and other windows
 // stay put. The windows use upstream's window machinery: dragging, resizing and snapping
 // (windowDrag.js), minimize to a dock chip and stacking (modalManager.js), Esc and the
 // mobile bottom sheet (the generic .modal rules). Also adds the rail buttons, and
-// opens the Conversations reader for links to a module transcript moment
+// opens the Records reader for links to a module transcript moment
 // (<CONVO_PUBLIC_URL>/view/<id>?sig=…#t=<s>) clicked in chat.
 //
 // Meetings (static/js/forkMeetings.js: record a call, send Athena to a meeting) has its
-// sidebar entry added here, after Conversations; it is a link to its standalone page
+// sidebar entry added here, after Records; it is a link to its standalone page
 // (/modules/sound/record) like the entries in index.html.
 //
 // Beliefs ("What I know about you", static/js/forkBeliefsWindow.js) opens as a window too;
@@ -36,7 +36,7 @@ const ICON_16 = (svg) => svg.replace('width="14" height="14"', 'width="16" heigh
 const WINDOWS = {
   sound: {
     id: 'fork-sound-modal',
-    title: 'Conversations',
+    title: 'Records',
     sidebarBtn: 'tool-sound-module-btn',
     railBtn: 'rail-sound-module',
     icon: FORK_SHORTCUT_ICONS.open_conversations,
@@ -312,7 +312,7 @@ function mirrorVisibility(win) {
   sync();
 }
 
-// Links to a module transcript moment in chat answers open the Conversations reader.
+// Links to a module transcript moment in chat answers open the Records reader.
 // The click must be recognised before the browser follows the link, so the parser is
 // loaded up front; soundModule.js is small and does nothing until a view is mounted.
 let linkParser = null;

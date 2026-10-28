@@ -1,4 +1,4 @@
-// Fork: the fork windows' shortcuts ("Open Conversations", "Open Meetings", "Open Today",
+// Fork: the fork windows' shortcuts ("Open Records", "Open Meetings", "Open Today",
 // "Open Write", "Open Beliefs" in
 // Settings → Shortcuts) and their `/open` targets. Data only (no side effects), spread
 // into upstream's tables by small hooks in static/js/settings.js,
@@ -26,8 +26,8 @@ const PEN = '<svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke=
 
 const SHORTCUTS = {
   open_conversations: { button: 'tool-sound-module-btn', rail: 'rail-sound-module',
-                        window: 'fork-sound-modal', label: 'Open Conversations', icon: MIC,
-                        open: ['conversations'] },
+                        window: 'fork-sound-modal', label: 'Open Records', icon: MIC,
+                        open: ['records', 'conversations'] },
   open_meetings: { button: 'tool-meetings-btn', rail: 'rail-meetings', window: 'fork-meetings-modal',
                    label: 'Open Meetings', icon: VIDEO, open: ['meetings', 'calls'] },
   open_today: { button: 'tool-today-insight-btn', rail: 'rail-today-insight',

@@ -1,5 +1,5 @@
 // Fork: the sidebar's collapsible "Athena" group (called by static/js/forkModuleWindows.js).
-// Moves the Athena entries (Conversations, Meetings, Today, Write, Beliefs) out of Tools
+// Moves the Athena entries (Records, Meetings, Today, Write, Beliefs) out of Tools
 // into a group of their own, just above Tools, with a header that looks like the Tools
 // header. The entries keep their ids and click handlers, so windows, rail buttons,
 // shortcuts and `/open` work as before. The open/closed choice is kept per browser.

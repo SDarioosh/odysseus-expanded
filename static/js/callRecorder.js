@@ -79,7 +79,7 @@ function render() {
   if (recording) ui.state.textContent = lastError ? `Recording. ${lastError}` : 'Recording.';
   else if (rec) ui.state.textContent = 'Finishing: sending the last pieces…';
   else if (!lastError) ui.state.textContent = sentCount ? 'Done. The conversation appears in ' +
-    'Conversations once Athena has processed it.' : 'Not recording.';
+    'Records once Athena has processed it.' : 'Not recording.';
 }
 
 // ------------------------------------------------------------------ uploads

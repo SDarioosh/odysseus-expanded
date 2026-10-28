@@ -445,20 +445,25 @@ def server_id(manager: Any, key: str) -> str | None:
 # "written"); an older one answers "bad kind", and then ``kind="note"`` (both) is read and
 # split here by the title marker, "(voice note)" or "(written by hand: <link>)".
 NOTE_KINDS = {"voice": False, "written": True}
+# The two sorts of conversation (the Records window's Conversations and Online meetings
+# tabs). Athena >= MCP 0.18.0 filters them itself (kind "in_person" / "meeting"); with an
+# older one ``kind="conversation"`` (both) is read and split by the meeting mark.
+CONVERSATION_KINDS = {"in_person": False, "meeting": True}
 MAX_SEARCH = 50  # search_conversations' own cap
 
 
 async def conversations(call: CallTool, *, query: str = "", person: str = "",
                         since: str = "", until: str = "", kind: str = "",
                         limit: int = 30) -> list[dict]:
-    """``kind``: ``conversation``, ``note`` (spoken or written), ``voice``, ``written``,
-    or "" for everything. With an older module, ``voice`` and ``written`` read up to
-    ``MAX_SEARCH`` notes and keep one sort, so with more notes than that in the range the
-    older ones of a sort are left out (narrow the dates to reach them)."""
+    """``kind``: ``conversation``, ``in_person``, ``meeting``, ``note`` (spoken or
+    written), ``voice``, ``written``, or "" for everything. With an older module, the
+    narrower kinds read up to ``MAX_SEARCH`` rows of the wider one and keep one sort, so
+    with more than that in the range the older ones of a sort are left out (narrow the
+    dates to reach them)."""
     limit = max(1, min(int(limit), MAX_SEARCH))
     args: dict[str, Any] = {"query": query, "person": person, "since": since,
                             "until": until, "limit": limit}
-    if kind in ("note", "conversation", *NOTE_KINDS):  # "" = everything
+    if kind in ("note", "conversation", *NOTE_KINDS, *CONVERSATION_KINDS):  # "" = everything
         args["kind"] = kind
     text = await call("search_conversations", args)
     if kind in NOTE_KINDS and (text or "").startswith("bad kind"):
@@ -467,6 +472,12 @@ async def conversations(call: CallTool, *, query: str = "", person: str = "",
         written = NOTE_KINDS[kind]
         return as_dicts([c for c in parse_conversations(text)
                          if bool(c.written_link) is written][:limit])
+    if kind in CONVERSATION_KINDS and (text or "").startswith("bad kind"):
+        text = await call("search_conversations",
+                          {**args, "kind": "conversation", "limit": MAX_SEARCH})
+        meeting = CONVERSATION_KINDS[kind]
+        return as_dicts([c for c in parse_conversations(text)
+                         if c.meeting is meeting][:limit])
     return as_dicts(parse_conversations(text))
 
 

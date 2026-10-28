@@ -1,6 +1,6 @@
-// Fork: Athena view — conversations list, action items, "who is this?" cards
-// and a transcript reader with click-to-fix speakers. Mounted by the Conversations
-// window in the main app (static/js/forkModuleWindows.js) and by the standalone page
+// Fork: Athena view (Records) — conversations, online meetings and notes lists,
+// action items, "who is this?" cards and a transcript reader with click-to-fix
+// speakers. Mounted by the Records window in the main app (static/js/forkModuleWindows.js) and by the standalone page
 // (static/sound-module.html). Data comes from routes/sound_module_routes.py, which
 // calls the module's MCP tools. Links to the module's signed /view pages open this
 // reader at that moment (#t=); the "Transcript" buttons still open the module's page.
@@ -483,10 +483,11 @@ function convCard(c) {
       handwrittenLink(c.written_link)));
 }
 
-// The three list tabs: recorded conversations, voice notes, notes written by hand in
-// Write. Each has its own search form and list.
+// The list tabs: conversations recorded in person, online meetings, voice notes, notes
+// written by hand in Write. Each has its own search form and list.
 const LISTS = {
-  conversations: { kind: 'conversation', empty: 'No conversations found.' },
+  conversations: { kind: 'in_person', empty: 'No conversations found.' },
+  meetings: { kind: 'meeting', empty: 'No online meetings found.' },
   voice: { kind: 'voice', empty: 'No voice notes found.' },
   written: { kind: 'written', empty: 'No written notes found.' },
 };
@@ -941,7 +942,7 @@ function route() {
 }
 
 // ---------------------------------------------------------------------- tabs
-const TABS = ['conversations', 'voice', 'written', 'items', 'who'];
+const TABS = ['conversations', 'meetings', 'voice', 'written', 'items', 'who'];
 
 function showTab(name, focus = false) {
   if (!TABS.includes(name)) name = 'conversations';
@@ -960,6 +961,8 @@ function showTab(name, focus = false) {
 
 const TAB_ICON = {
   conversations: KIND_ICON.note.replace(/width="14" height="14"/, 'width="12" height="12"'),
+  meetings: _ICON('<path d="m16 13 5.2 3.5a.5.5 0 0 0 .8-.4V7.9a.5.5 0 0 0-.8-.4L16 11"/>'
+    + '<rect x="2" y="6" width="14" height="12" rx="2"/>').replace(/width="14" height="14"/, 'width="12" height="12"'),
   voice: _ICON('<rect x="9" y="2" width="6" height="12" rx="3"/><path d="M5 10a7 7 0 0 0 14 0"/>'
     + '<line x1="12" y1="17" x2="12" y2="21"/>').replace(/width="14" height="14"/, 'width="12" height="12"'),
   written: _ICON('<path d="M12 20h9"/><path d="M16.5 3.5a2.12 2.12 0 0 1 3 3L7 19l-4 1 1-4z"/>')
@@ -991,8 +994,9 @@ function buildView() {
   const loading = () => el('div', { className: 'bs-status' }, 'Loading…');
   const home = el('div', { className: 'bs-home' },
     el('div', { className: 'bs-bar' },
-      el('div', { className: 'bs-tabs', role: 'tablist', 'aria-label': 'Conversations sections' },
-        tabButton('conversations', 'Conversations'), tabButton('voice', 'Voice notes'),
+      el('div', { className: 'bs-tabs', role: 'tablist', 'aria-label': 'Records sections' },
+        tabButton('conversations', 'Conversations'), tabButton('meetings', 'Online meetings'),
+        tabButton('voice', 'Voice notes'),
         tabButton('written', 'Written notes'), tabButton('items', 'Action items'),
         tabButton('who', 'Who is this?')),
       el('div', { className: 'bs-bar-end' },
@@ -1000,7 +1004,7 @@ function buildView() {
         ctx.embedded ? null : el('a', { className: 'bs-btn', href: '/modules/sound/record' }, 'Meetings'),
         el('button', { type: 'button', className: 'bs-btn bs-icon-btn bs-refresh', title: 'Refresh',
                        'aria-label': 'Refresh' }, refreshIcon()))),
-    list('conversations'), list('voice'), list('written'),
+    list('conversations'), list('meetings'), list('voice'), list('written'),
     panel('items', el('div', { id: 'bs-items' }, loading())),
     panel('who', el('div', { id: 'bs-who' }, loading())));
   return [home, el('div', { className: 'bs-reader', hidden: '' })];
