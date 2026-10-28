@@ -6,6 +6,8 @@ redirects there); its script calls:
 * ``GET  /api/modules/sound/conversations``  (query, person, since, until, kind, limit)
 * ``GET  /api/modules/sound/conversations/{id}``  one conversation (``get_conversation``)
 * ``GET  /api/modules/sound/conversations/{id}/transcript``  (start_seconds; 200 lines a page)
+* ``GET  /api/modules/sound/conversations/{id}/export``  (format md|html, include): the
+  record as a file to share, from the module's relay route (``src/record_share.py``)
 * ``POST /api/modules/sound/lines/{line_id}``  {name}: ``reassign_line``
 * ``POST /api/modules/sound/rename-speaker``   {old_name, new_name}:
   ``rename_speaker_everywhere`` (a merge when new_name exists; the page confirms first)
@@ -77,12 +79,13 @@ from fastapi import (
     Request,
     UploadFile,
 )
-from fastapi.responses import JSONResponse, RedirectResponse
+from fastapi.responses import JSONResponse, RedirectResponse, Response
 from pydantic import BaseModel, Field
 
 from core.middleware import require_admin
 from src import call_recorder as recorder
 from src import meeting_bot as meetings
+from src import record_share as share
 from src import sound_module_view as view
 from src.auth_helpers import effective_user
 
@@ -257,6 +260,28 @@ def setup_sound_module_routes() -> APIRouter:
             raise HTTPException(400, str(e)) from e
         except LookupError as e:
             raise HTTPException(404, str(e)) from e
+
+    @router.get("/api/modules/sound/conversations/{conversation_id}/export",
+                dependencies=[Depends(require_admin)])
+    async def export_conversation(conversation_id: str, format: str = "md",
+                                  include: str = "") -> Response:
+        """The record as a file to share (Markdown or one HTML page), made by the module.
+        Always a download: the HTML is never shown on the hub's own origin."""
+        try:
+            view.check_conversation_id(conversation_id)
+            fmt = share.check_format(format)
+            sections = share.check_include(include[:200])
+            shared = await share.fetch(recorder.resolve(), conversation_id, fmt, sections)
+        except ValueError as e:
+            raise HTTPException(400, str(e)) from e
+        except LookupError as e:
+            raise HTTPException(404, str(e)) from e
+        except recorder.RecorderError as e:
+            raise HTTPException(e.status, e.message) from e
+        return Response(shared.data, media_type=shared.content_type, headers={
+            "Content-Disposition": share.content_disposition(shared.filename),
+            "Cache-Control": "no-store", "X-Content-Type-Options": "nosniff",
+            "Content-Security-Policy": "sandbox; default-src 'none'; style-src 'unsafe-inline'"})
 
     @router.post("/api/modules/sound/lines/{line_id}", dependencies=[Depends(require_admin)])
     async def reassign_line(line_id: int, body: ReassignLine) -> dict[str, Any]:
