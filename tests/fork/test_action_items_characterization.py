@@ -60,6 +60,10 @@ def surface(module) -> list[str]:
     return sorted(out)
 
 
+# taken when this file is imported, before any test patches the module
+SURFACE = surface(mai)
+
+
 class Ids:
     """Random uuid4 ids -> ``id1``, ``id2`` ... in order of appearance; stamps of the wall
     clock (``undone_at``, and ``at`` of an entry the page filed) -> ``<now>``."""
@@ -412,7 +416,7 @@ def test_the_action_items_job_behaves_as_recorded(hub, monkeypatch, caplog):
     seen["logged"] = [[r.name, r.levelname, r.getMessage()] for r in caplog.records
                       if r.name.startswith("fork.athena.action_items")]
     seen = ids(json.loads(json.dumps(seen, default=repr)))
-    seen["surface"] = surface(mai)
+    seen["surface"] = SURFACE
     if os.environ.get("UPDATE_CHARACTERIZATION"):
         FIXTURE.write_text(json.dumps(seen, indent=1, sort_keys=True, ensure_ascii=False)
                            + "\n", encoding="utf-8")

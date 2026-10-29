@@ -47,6 +47,10 @@ def surface(module) -> list[str]:
     return sorted(out)
 
 
+# taken when this file is imported, before any test patches the module
+SURFACE = surface(ledger)
+
+
 class Ids:
     """Random memory ids -> ``m1``, ``m2`` ... in order of appearance."""
 
@@ -366,7 +370,7 @@ def ledger_dir(data_dir, monkeypatch):
 
 def test_the_ledger_behaves_as_recorded(ledger_dir):
     seen = json.loads(json.dumps(observe(ledger_dir), default=repr))
-    seen["surface"] = surface(ledger)
+    seen["surface"] = SURFACE
     if os.environ.get("UPDATE_CHARACTERIZATION"):
         FIXTURE.write_text(json.dumps(seen, indent=1, sort_keys=True, ensure_ascii=False)
                            + "\n", encoding="utf-8")

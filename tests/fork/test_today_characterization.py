@@ -53,6 +53,10 @@ def surface(module) -> list[str]:
     return sorted(out)
 
 
+# taken when this file is imported, before any test patches the module
+SURFACE = surface(ti)
+
+
 def note(id, title="Errands", items=(), note_type="checklist", due_date=None, pinned=False,
          archived=False, source="user", label=None):
     return SimpleNamespace(id=id, title=title, note_type=note_type, due_date=due_date,
@@ -360,7 +364,7 @@ def test_the_today_insight_behaves_as_recorded(today, monkeypatch, caplog):
     seen["logged"] = [[r.name, r.levelname, r.getMessage()] for r in caplog.records
                       if r.name.startswith("fork.insight.today")]
     seen = json.loads(json.dumps(seen, default=str))
-    seen["surface"] = surface(ti)
+    seen["surface"] = SURFACE
     if os.environ.get("UPDATE_CHARACTERIZATION"):
         FIXTURE.write_text(json.dumps(seen, indent=1, sort_keys=True, ensure_ascii=False)
                            + "\n", encoding="utf-8")

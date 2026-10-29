@@ -1532,6 +1532,7 @@
   "register_housekeeping",
   "save_state",
   "server_key",
+  "sync",
   "todo_lists",
   "unfile_auto_todos",
   "unfile_item"
