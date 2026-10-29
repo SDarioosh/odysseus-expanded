@@ -157,3 +157,58 @@ def test_empty_module_list_from_the_environment_beats_the_config(checkout):
     assert r.returncode == 0, r.stdout + r.stderr
     assert "module deploy" not in r.stdout
     assert "no FORK_MODULES set; skipping modules" in r.stdout
+
+
+def _remote_lookup(tmp_path: Path, urls: dict[str, str], env=None) -> str:
+    """Run the script's remote() in a repo whose remotes have these URLs."""
+    if not shutil.which("git") or not shutil.which("bash"):
+        pytest.skip("needs git and bash")
+    script = (ROOT / "scripts" / "fork_deploy.sh").read_text()
+    start = script.index("\nremote() {") + 1
+    func = script[start:script.index("\n}\n", start) + 3]
+    repo = tmp_path / "repo"
+    subprocess.run(["git", "init", "-q", str(repo)], check=True)
+    for name, url in urls.items():
+        subprocess.run(["git", "-C", str(repo), "remote", "add", name, url], check=True)
+    base = {k: v for k, v in os.environ.items() if not k.startswith(("FORK_", "BARVIS_"))}
+    r = subprocess.run(["bash", "-c", f"{func}\nremote"], cwd=repo, env={**base, **(env or {})},
+                       capture_output=True, text=True, check=True, timeout=30)
+    return r.stdout.strip()
+
+
+@pytest.mark.parametrize("url", [
+    "https://github.com/SDarioosh/odysseus-expanded",
+    "https://github.com/SDarioosh/odysseus-expanded.git",
+    "git@github.com:SDarioosh/odysseus-expanded.git",
+    "ssh://git@github.com/sdarioosh/Odysseus-Expanded",
+    "https://github.com/SDarioosh/Barvis",
+    "git@github.com:SDarioosh/Barvis.git",
+])
+def test_remote_finds_the_fork_under_its_old_and_new_repo_name(tmp_path, url):
+    urls = {"upstream": "https://github.com/odysseus-dev/odysseus.git", "fork": url}
+    assert _remote_lookup(tmp_path, urls) == "fork"
+
+
+@pytest.mark.parametrize("url", [
+    "https://github.com/odysseus-dev/odysseus.git",
+    "https://github.com/SDarioosh/odysseus-expanded-old",
+    "https://github.com/someone/odysseus-expanded",
+    "https://github.com/SDarioosh/Athena",
+])
+def test_remote_ignores_other_repos(tmp_path, url):
+    assert _remote_lookup(tmp_path, {"other": url}) == ""
+
+
+def test_remote_setting_beats_the_lookup(tmp_path):
+    urls = {"origin": "https://github.com/SDarioosh/odysseus-expanded"}
+    assert _remote_lookup(tmp_path, urls, env={"FORK_REMOTE": "mine"}) == "mine"
+
+
+def test_deploy_from_a_clone_of_odysseus_expanded(checkout, tmp_path):
+    renamed = tmp_path / "SDarioosh" / "odysseus-expanded.git"
+    subprocess.run(["git", "clone", "-q", "--bare", str(checkout.work), str(renamed)], check=True)
+    subprocess.run(["git", "-C", str(checkout.work), "remote", "set-url", "origin", str(renamed)],
+                   check=True)
+    checkout.images.write_text("odysseus-fork:current\n")
+    r = checkout("deploy")
+    assert r.returncode == 0, r.stdout + r.stderr
