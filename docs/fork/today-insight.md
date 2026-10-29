@@ -83,7 +83,8 @@ model-backed built-ins do); the page's Refresh doesn't.
 ## Stored JSON
 
 One file per owner and day: `<DATA_DIR>/today_insight/<owner>/<YYYY-MM-DD>.json`
-(`<owner>` with characters other than letters, digits and `-_.@` replaced by `_`).
+(`<owner>` with characters other than letters, digits and `-_.@` replaced by `_`; see
+[Owner folder names](#owner-folder-names) for `.` and `..`).
 Example from the test's fictional data:
 
 ```json
@@ -595,5 +596,26 @@ Upstreamable: no
 **Today insight learns from outcomes (Phase 3).** The Today Insight task also keeps a per-day outcome log next to each insight (`<day>.outcome.json`: every ref shown, its first section and position, and what happened: done, moved, promoted ("↑ first"), dismissed ("not today"), ignored, gone; ids and counts only), observed from the notes and calendar state on every pass, so ticks from the notes page, chat, the phone or the T5 count; the first pass after midnight finalizes earlier days. Integer rule weights per `note_type`, `list` (note id), `event_type` and `importance` are learned from the last 28 finalized days (0 until a key was shown 6 times; at most ±3 per key, ±6 per item), recomputed once a day and applied only within the rule tiers (overdue and due today, due soon, pinned, undated, later), so the model sees a better order and still picks. `/today` gets "↑ first", "Not today" (with Undo), "Not a task" on open loops (dismisses the module item for good), "Why first?", a "How Today ranks" table with Reset and weekly trends. `GET /api/codex/insight/weights` (scope `insight:read`) gives the T5's offline order the same weights per note. One ntfy push a day after `MODULE_DIGEST_HOUR` (`TODAY_INSIGHT_PUSH=on`, default off) through the module notify channel, never twice. Routines seen in the calendar join the prompt and are submitted once as tentative beliefs (new attribute `routine`; the owner confirms on `/beliefs`); open loops (module action items with `with`, MCP ≥ 0.9.0) and the owner's plans and decisions of the last 7 days are extra candidates (`L…`, `P…`). No new task, no new upstream hook. [docs/fork/today-insight.md](today-insight.md#learning-from-outcomes-phase-3)
 
 Files: `src/insight_outcomes.py`, `src/insight_weights.py`, `src/insight_push.py`, `src/insight_routines.py`, `src/insight_inputs.py`, `src/insight_trends.py`, `routes/insight_outcome_routes.py`, `routes/insight_weights_routes.py`, `routes/insight_trends_routes.py`, `static/js/todayWeights.js`, `static/js/todayTrends.js`, `scripts/insight_eval.py` (new); fork files `src/today_insight.py`, `routes/today_insight_routes.py`, `static/js/today.js`, `src/evidence_intake.py`, `src/belief_structure.py`, `src/belief_search.py`, `static/js/beliefs.js`, `static/css/fork-modules.css`; tests `tests/fork/test_insight_outcomes.py`, `tests/fork/test_insight_weights.py`, `tests/fork/test_insight_push.py`, `tests/fork/test_insight_routines.py`, `tests/fork/test_insight_inputs.py`, `tests/fork/test_insight_eval.py` (new)
+
+Upstreamable: no
+
+### Owner folder names
+
+**Owner folder names.** The per-owner files (the insight, its outcome log, `weights.json`,
+`routines.json` under `<DATA_DIR>/today_insight/<owner>/`, and the flat
+`<prefix>_<owner>.json` state files) take `<owner>` from `owner_slug` in
+`fork/common/state.py`. Since 2026-10-29 an owner whose slug would be `.` or `..` gets `_`
+plus the first 12 hex digits of the name's SHA-256 instead (`.` is `_cdb4ee2aea69`, `..` is
+`_5ec1f7e700f3`). Before, those two names put the owner's files in `today_insight/` itself
+or in `DATA_DIR`, outside the feature folder (a path traversal; owner names come from
+accounts the admin creates, so the risk was low). Every other owner name keeps its slug
+byte for byte, so existing files are still found; a hub that had an account named `.` or
+`..` starts that owner's Today files, and its flat state files, afresh under the new name.
+
+Files: `fork/common/state.py` (`owner_slug`); tests `tests/fork/test_state_files.py`
+(`test_no_owner_name_leaves_its_feature_folder`: every name of up to four of `.`, `/`,
+`\`, `a` and NUL, and a few longer ones, resolves inside the feature folder at the same
+depth as a normal owner's; fixture rows for `.` and `..` updated),
+`tests/fork/test_fork_common_state.py`
 
 Upstreamable: no
