@@ -36,9 +36,7 @@ import asyncio
 import hashlib
 import json
 import logging
-import os
 import re
-import threading
 from datetime import datetime, timezone
 from pathlib import Path
 from typing import Any, Awaitable, Callable, Iterable
@@ -98,26 +96,28 @@ RETRY_MESSAGE = ('That was not valid JSON in the required shape. Reply with the 
 # ----------------------------------------------------------------------- settings
 def enabled() -> bool:
     """``EVIDENCE_NOTES``: off (default) or on."""
-    value = (os.environ.get("EVIDENCE_NOTES") or "off").strip().lower()
-    return value in {"on", "yes", "true", "1"}
+    from fork.common import settings
+
+    return settings.evidence_notes()
 
 
 # -------------------------------------------------------------------------- state
 def _slug(owner: str | None) -> str:
-    return "".join(c if (c.isalnum() or c in "-_.@") else "_" for c in (owner or "default"))
+    from fork.common.state import owner_slug
+
+    return owner_slug(owner)
 
 
 def _state_path(owner: str | None) -> Path:
-    from src.constants import DATA_DIR
+    from fork.common.state import owner_file
 
-    return Path(DATA_DIR) / f"notes_evidence_{_slug(owner)}.json"
+    return owner_file("notes_evidence", owner)
 
 
 def load_state(owner: str | None) -> dict[str, Any]:
-    try:
-        state = json.loads(_state_path(owner).read_text(encoding="utf-8"))
-    except (OSError, ValueError):
-        state = {}
+    from fork.common.state import read_json
+
+    state = read_json(_state_path(owner), {})
     if not isinstance(state, dict):
         state = {}
     if not isinstance(state.get("notes"), dict):
@@ -126,16 +126,9 @@ def load_state(owner: str | None) -> dict[str, Any]:
 
 
 def save_state(owner: str | None, state: dict[str, Any]) -> None:
-    path = _state_path(owner)
-    path.parent.mkdir(parents=True, exist_ok=True)
-    # Unique per process and thread: two writers never share a temp file.
-    tmp = path.with_name(f".{path.name}.{os.getpid()}.{threading.get_ident()}.tmp")
-    try:
-        tmp.write_text(json.dumps(state, indent=1, sort_keys=True), encoding="utf-8")
-        os.replace(tmp, path)
-    except BaseException:
-        tmp.unlink(missing_ok=True)
-        raise
+    from fork.common import state as files
+
+    files.write_json(_state_path(owner), state)
 
 
 _LOCKS: dict[str, asyncio.Lock] = {}
@@ -213,21 +206,9 @@ def parse_facts(raw: str | None) -> list[dict] | None:
     """The model's facts, validated: ``subject``, ``about`` (owner|person|other) and
     ``fact`` (≤ 300 chars), at most 8; rows without subject or fact are dropped. None when
     the answer isn't a JSON object with a ``facts`` list."""
-    text = raw or ""
-    try:
-        from src.text_helpers import strip_think
+    from fork.common.llm import json_object
 
-        text = strip_think(text, prose=False, prompt_echo=False)
-    except Exception:  # noqa: BLE001
-        text = re.sub(r"<think>.*?</think>", "", text, flags=re.S)
-    text = re.sub(r"^```(?:json)?\s*|\s*```$", "", text.strip(), flags=re.M).strip()
-    start, end = text.find("{"), text.rfind("}")
-    if start == -1 or end <= start:
-        return None
-    try:
-        data = json.loads(text[start:end + 1])
-    except ValueError:
-        return None
+    data = json_object(raw)
     if not isinstance(data, dict) or not isinstance(data.get("facts"), list):
         return None
     out, seen = [], set()
@@ -249,35 +230,23 @@ def parse_facts(raw: str | None) -> list[dict] | None:
 
 async def extract(llm: Llm, note: Any) -> list[dict] | None:
     """The note's facts; one retry on unusable JSON; None when both answers fail."""
-    messages = build_messages(note)
-    for attempt in range(2):
-        raw = await llm(messages)
+    from fork.common.llm import ask_with_retry
+
+    def check(raw):
         facts = parse_facts(raw)
-        if facts is not None:
-            return facts
-        logger.warning("notes evidence: model answer %d was not usable JSON", attempt + 1)
-        messages = [*messages, {"role": "assistant", "content": str(raw or "")[:2000]},
-                    {"role": "user", "content": RETRY_MESSAGE}]
-    return None
+        return (facts, None) if facts is not None else (
+            None, ("was not usable JSON", RETRY_MESSAGE))
+
+    return await ask_with_retry(llm, build_messages(note), check, label="notes evidence",
+                                log=logger)
 
 
 async def default_llm(owner: str | None) -> Llm:
     """The background-task model chain; waits for chat to go quiet before each call."""
-    from src.interactive_gate import wait_for_interactive_quiet
-    from src.llm_core import llm_call_async_with_fallback
-    from src.task_endpoint import resolve_task_candidates
+    from fork.common.llm import background_model
 
-    candidates = resolve_task_candidates(owner=owner or None)
-    if not candidates:
-        raise RuntimeError("no model endpoint configured")
-
-    async def call(messages: list[dict]) -> str:
-        await wait_for_interactive_quiet("notes evidence")
-        return await llm_call_async_with_fallback(
-            candidates, messages=messages, temperature=0.1, max_tokens=1200, timeout=180,
-            thinking_mode="off", workload="background")
-
-    return call
+    return await background_model(owner, "notes evidence", temperature=0.1, max_tokens=1200,
+                                  timeout=180)
 
 
 # ---------------------------------------------------------------------- evidence

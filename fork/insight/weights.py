@@ -26,9 +26,7 @@ The rules (docs/fork/today-insight.md#weights):
 
 from __future__ import annotations
 
-import json
 import logging
-import os
 import re
 import threading
 from datetime import date as Date
@@ -77,19 +75,16 @@ def weights_path(owner: str | None) -> Path:
 
 
 def _read_json(path: Path) -> dict | None:
-    try:
-        data = json.loads(path.read_text(encoding="utf-8"))
-    except (OSError, ValueError):
-        return None
+    from fork.common.state import read_json
+
+    data = read_json(path)
     return data if isinstance(data, dict) else None
 
 
 def _write_json(path: Path, data: dict) -> None:
-    path.parent.mkdir(parents=True, exist_ok=True)
-    tmp = path.with_name(f".{path.name}.{os.getpid()}.{threading.get_ident()}.tmp")
-    tmp.write_text(json.dumps(data, indent=1, ensure_ascii=False, sort_keys=True),
-                   encoding="utf-8")
-    tmp.replace(path)
+    from fork.common.state import write_json
+
+    write_json(path, data, ensure_ascii=False, clean_up=False)
 
 
 def _outcome(owner: str | None, day: Date) -> dict | None:

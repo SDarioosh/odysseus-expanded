@@ -52,6 +52,7 @@ is an old path of a module that moved into `fork/`; it only aliases the new modu
 - `docs/fork/qc-ink-h2-2026-10-26.md`
 - `docs/fork/roadmap.md`
 - `docs/fork/sandbox.md`
+- `docs/fork/settings.md`
 - `docs/fork/status-history.md`
 - `docs/fork/today-insight.md`
 - `docs/fork/upstream-sync.md`
@@ -83,6 +84,9 @@ is an old path of a module that moved into `fork/`; it only aliases the new modu
 - `fork/beliefs/search.py`
 - `fork/beliefs/structure.py`
 - `fork/common/__init__.py`
+- `fork/common/llm.py`
+- `fork/common/settings.py`
+- `fork/common/state.py`
 - `fork/hub/__init__.py`
 - `fork/hub/builtin_task_authority.py`
 - `fork/hub/checklist_auto_archive.py`
@@ -268,10 +272,14 @@ is an old path of a module that moved into `fork/`; it only aliases the new modu
 - `tests/fixtures/eval_goldens/module_slash_eval.help.txt`
 - `tests/fork/conftest.py`
 - `tests/fork/fakes.py`
+- `tests/fork/fixtures/background_model_calls.json`
+- `tests/fork/fixtures/settings_readers.json`
+- `tests/fork/fixtures/state_files.json`
 - `tests/fork/fork_dom_golden.json`
 - `tests/fork/test_agent_thinking_switch.py`
 - `tests/fork/test_athena_contract_fixtures.py`
 - `tests/fork/test_auto_mode.py`
+- `tests/fork/test_background_model_calls.py`
 - `tests/fork/test_belief_consolidation.py`
 - `tests/fork/test_belief_eval.py`
 - `tests/fork/test_belief_eval_scale.py`
@@ -290,6 +298,8 @@ is an old path of a module that moved into `fork/`; it only aliases the new modu
 - `tests/fork/test_eval_goldens.py`
 - `tests/fork/test_evidence_intake.py`
 - `tests/fork/test_fork_atomic_writes.py`
+- `tests/fork/test_fork_common_llm.py`
+- `tests/fork/test_fork_common_state.py`
 - `tests/fork/test_fork_deploy.py`
 - `tests/fork/test_fork_dom.py`
 - `tests/fork/test_fork_inventory.py`
@@ -297,6 +307,7 @@ is an old path of a module that moved into `fork/`; it only aliases the new modu
 - `tests/fork/test_fork_override_env.py`
 - `tests/fork/test_fork_package_shims.py`
 - `tests/fork/test_fork_resume_fallback.py`
+- `tests/fork/test_fork_settings.py`
 - `tests/fork/test_fork_tests_layout.py`
 - `tests/fork/test_ink_athena.py`
 - `tests/fork/test_ink_auto_send.py`
@@ -341,9 +352,11 @@ is an old path of a module that moved into `fork/`; it only aliases the new modu
 - `tests/fork/test_personal_store_escalation.py`
 - `tests/fork/test_private_endpoint_thinking.py`
 - `tests/fork/test_record_share.py`
+- `tests/fork/test_settings_readers.py`
 - `tests/fork/test_skill_mcp_toolsets.py`
 - `tests/fork/test_sound_module_view.py`
 - `tests/fork/test_sound_relay.py`
+- `tests/fork/test_state_files.py`
 - `tests/fork/test_subjects.py`
 - `tests/fork/test_summary_model_routes.py`
 - `tests/fork/test_today_insight.py`

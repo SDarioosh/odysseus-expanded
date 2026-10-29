@@ -91,8 +91,8 @@ from src.auth_helpers import effective_user
 
 logger = logging.getLogger(__name__)
 
-SERVER_ENV = "SOUND_MODULE_SERVER"
-LEGACY_SERVER_ENV = "BARVIS_SOUND_SERVER"  # former name, still read
+SERVER_ENV = recorder.SERVER_ENV
+LEGACY_SERVER_ENV = recorder.LEGACY_SERVER_ENV  # former name, still read
 
 
 class ItemStatus(BaseModel):
@@ -148,7 +148,7 @@ class RenameSpeaker(BaseModel):
 def _caller() -> view.CallTool:
     from src.tool_utils import get_mcp_manager
 
-    key = (os.environ.get(SERVER_ENV) or os.environ.get(LEGACY_SERVER_ENV) or "convo").strip()
+    key = recorder.server_key()
     manager = get_mcp_manager()
     server_id = view.server_id(manager, key) if manager is not None else None
     if server_id is None:

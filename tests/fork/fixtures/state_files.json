@@ -1,0 +1,1320 @@
+{
+ "action_items": {
+  "listing": [
+   "barvis_action_items_alice.json"
+  ],
+  "loads": {
+   "'\"s\"'": {
+    "raises": "AttributeError"
+   },
+   "''": {
+    "result": {
+     "items": {}
+    }
+   },
+   "'1'": {
+    "raises": "AttributeError"
+   },
+   "'[1]'": {
+    "raises": "AttributeError"
+   },
+   "'[]'": {
+    "raises": "AttributeError"
+   },
+   "'\\ufeff{}'": {
+    "result": {
+     "items": {}
+    }
+   },
+   "'null'": {
+    "raises": "AttributeError"
+   },
+   "'{\"events\": [1]}'": {
+    "result": {
+     "events": [
+      1
+     ],
+     "items": {}
+    }
+   },
+   "'{\"events\": {\"1\": {}, \"2\": 3}}'": {
+    "result": {
+     "events": {
+      "1": {},
+      "2": 3
+     },
+     "items": {}
+    }
+   },
+   "'{\"items\": []}'": {
+    "result": {
+     "items": []
+    }
+   },
+   "'{\"items\": {\"7\": {\"status\": \"open\"}}}'": {
+    "result": {
+     "items": {
+      "7": {
+       "status": "open"
+      }
+     }
+    }
+   },
+   "'{\"notes\": 5}'": {
+    "result": {
+     "items": {},
+     "notes": 5
+    }
+   },
+   "'{\"notes\": {\"n\": 1}}'": {
+    "result": {
+     "items": {},
+     "notes": {
+      "n": 1
+     }
+    }
+   },
+   "'{\"tried\": []}'": {
+    "result": {
+     "items": {},
+     "tried": []
+    }
+   },
+   "'{\"tried\": {\"b1\": \"x\"}}'": {
+    "result": {
+     "items": {},
+     "tried": {
+      "b1": "x"
+     }
+    }
+   },
+   "'{\"x\": \"\u00e9\", \"date\": \"2026-10-29\"}'": {
+    "result": {
+     "date": "2026-10-29",
+     "items": {},
+     "x": "\u00e9"
+    }
+   },
+   "'{'": {
+    "result": {
+     "items": {}
+    }
+   },
+   "'{} trailing'": {
+    "result": {
+     "items": {}
+    }
+   },
+   "'{}'": {
+    "result": {
+     "items": {}
+    }
+   },
+   "'\u00ff\u00fe'": {
+    "result": {
+     "items": {}
+    }
+   },
+   "None": {
+    "result": {
+     "items": {}
+    }
+   }
+  },
+  "paths": {
+   "\"o'neil\"": "barvis_action_items_o_neil.json",
+   "'#1'": "barvis_action_items__1.json",
+   "''": "barvis_action_items_default.json",
+   "'-_.@'": "barvis_action_items_-_.@.json",
+   "'.'": "barvis_action_items_..json",
+   "'..'": "barvis_action_items_...json",
+   "'../x'": "barvis_action_items_.._x.json",
+   "'Alice.Smith@example.org'": "barvis_action_items_Alice.Smith@example.org.json",
+   "'a b'": "barvis_action_items_a_b.json",
+   "'a.b.c'": "barvis_action_items_a.b.c.json",
+   "'a/b'": "barvis_action_items_a_b.json",
+   "'a\\\\b'": "barvis_action_items_a_b.json",
+   "'aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa'": "barvis_action_items_aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa.json",
+   "'alice'": "barvis_action_items_alice.json",
+   "'t\\tab'": "barvis_action_items_t_ab.json",
+   "'x:y'": "barvis_action_items_x_y.json",
+   "'\u00e4\u00f6\u00fc'": "barvis_action_items_\u00e4\u00f6\u00fc.json",
+   "'\u540d\u524d'": "barvis_action_items_\u540d\u524d.json",
+   "None": "barvis_action_items_default.json"
+  },
+  "rename_fails": [
+   "OSError",
+   []
+  ],
+  "saved": "{\n \"alpha\": \"\\u00e9t\\u00e9 \\u2603\",\n \"date\": \"2026-10-29\",\n \"items\": {\n  \"a\": null,\n  \"b\": [\n   1,\n   2\n  ]\n },\n \"zeta\": 1\n}",
+  "unserializable": [
+   "TypeError",
+   []
+  ]
+ },
+ "facts": {
+  "listing": [
+   "module_facts_alice.json"
+  ],
+  "loads": {
+   "'\"s\"'": {
+    "result": {}
+   },
+   "''": {
+    "result": {}
+   },
+   "'1'": {
+    "result": {}
+   },
+   "'[1]'": {
+    "result": {}
+   },
+   "'[]'": {
+    "result": {}
+   },
+   "'\\ufeff{}'": {
+    "result": {}
+   },
+   "'null'": {
+    "result": {}
+   },
+   "'{\"events\": [1]}'": {
+    "result": {
+     "events": [
+      1
+     ]
+    }
+   },
+   "'{\"events\": {\"1\": {}, \"2\": 3}}'": {
+    "result": {
+     "events": {
+      "1": {},
+      "2": 3
+     }
+    }
+   },
+   "'{\"items\": []}'": {
+    "result": {
+     "items": []
+    }
+   },
+   "'{\"items\": {\"7\": {\"status\": \"open\"}}}'": {
+    "result": {
+     "items": {
+      "7": {
+       "status": "open"
+      }
+     }
+    }
+   },
+   "'{\"notes\": 5}'": {
+    "result": {
+     "notes": 5
+    }
+   },
+   "'{\"notes\": {\"n\": 1}}'": {
+    "result": {
+     "notes": {
+      "n": 1
+     }
+    }
+   },
+   "'{\"tried\": []}'": {
+    "result": {
+     "tried": []
+    }
+   },
+   "'{\"tried\": {\"b1\": \"x\"}}'": {
+    "result": {
+     "tried": {
+      "b1": "x"
+     }
+    }
+   },
+   "'{\"x\": \"\u00e9\", \"date\": \"2026-10-29\"}'": {
+    "result": {
+     "date": "2026-10-29",
+     "x": "\u00e9"
+    }
+   },
+   "'{'": {
+    "result": {}
+   },
+   "'{} trailing'": {
+    "result": {}
+   },
+   "'{}'": {
+    "result": {}
+   },
+   "'\u00ff\u00fe'": {
+    "result": {}
+   },
+   "None": {
+    "result": {}
+   }
+  },
+  "paths": {
+   "\"o'neil\"": "module_facts_o_neil.json",
+   "'#1'": "module_facts__1.json",
+   "''": "module_facts_default.json",
+   "'-_.@'": "module_facts_-_.@.json",
+   "'.'": "module_facts_..json",
+   "'..'": "module_facts_...json",
+   "'../x'": "module_facts_.._x.json",
+   "'Alice.Smith@example.org'": "module_facts_Alice.Smith@example.org.json",
+   "'a b'": "module_facts_a_b.json",
+   "'a.b.c'": "module_facts_a.b.c.json",
+   "'a/b'": "module_facts_a_b.json",
+   "'a\\\\b'": "module_facts_a_b.json",
+   "'aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa'": "module_facts_aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa.json",
+   "'alice'": "module_facts_alice.json",
+   "'t\\tab'": "module_facts_t_ab.json",
+   "'x:y'": "module_facts_x_y.json",
+   "'\u00e4\u00f6\u00fc'": "module_facts_\u00e4\u00f6\u00fc.json",
+   "'\u540d\u524d'": "module_facts_\u540d\u524d.json",
+   "None": "module_facts_default.json"
+  },
+  "rename_fails": [
+   "OSError",
+   []
+  ],
+  "saved": "{\n \"alpha\": \"\\u00e9t\\u00e9 \\u2603\",\n \"date\": \"2026-10-29\",\n \"items\": {\n  \"a\": null,\n  \"b\": [\n   1,\n   2\n  ]\n },\n \"zeta\": 1\n}",
+  "unserializable": [
+   "TypeError",
+   []
+  ]
+ },
+ "ink_bytes": {
+  "listing": [
+   "w/page.json"
+  ],
+  "rename_fails": [
+   "OSError",
+   [
+    "w/.page.json.<pid>.<tid>.tmp"
+   ]
+  ],
+  "saved": "{\"date\": \"2026-10-29\", \"zeta\": 1, \"alpha\": \"\\u00e9t\\u00e9 \\u2603\", \"items\": {\"b\": [1, 2], \"a\": null}}"
+ },
+ "ink_json": {
+  "listing": [
+   "w/page.json"
+  ],
+  "rename_fails": [
+   "OSError",
+   [
+    "w/.page.json.<pid>.<tid>.tmp"
+   ]
+  ],
+  "saved": "{\"alpha\":\"\\u00e9t\\u00e9 \\u2603\",\"date\":\"2026-10-29\",\"items\":{\"a\":null,\"b\":[1,2]},\"zeta\":1}"
+ },
+ "meeting_auto_join": {
+  "listing": [
+   "meeting_auto_join/alice.json"
+  ],
+  "loads": {
+   "'\"s\"'": {
+    "result": {
+     "events": {}
+    }
+   },
+   "''": {
+    "result": {
+     "events": {}
+    }
+   },
+   "'1'": {
+    "result": {
+     "events": {}
+    }
+   },
+   "'[1]'": {
+    "result": {
+     "events": {}
+    }
+   },
+   "'[]'": {
+    "result": {
+     "events": {}
+    }
+   },
+   "'\\ufeff{}'": {
+    "result": {
+     "events": {}
+    }
+   },
+   "'null'": {
+    "result": {
+     "events": {}
+    }
+   },
+   "'{\"events\": [1]}'": {
+    "raises": "AttributeError"
+   },
+   "'{\"events\": {\"1\": {}, \"2\": 3}}'": {
+    "result": {
+     "events": {
+      "1": {}
+     }
+    }
+   },
+   "'{\"items\": []}'": {
+    "result": {
+     "events": {}
+    }
+   },
+   "'{\"items\": {\"7\": {\"status\": \"open\"}}}'": {
+    "result": {
+     "events": {}
+    }
+   },
+   "'{\"notes\": 5}'": {
+    "result": {
+     "events": {}
+    }
+   },
+   "'{\"notes\": {\"n\": 1}}'": {
+    "result": {
+     "events": {}
+    }
+   },
+   "'{\"tried\": []}'": {
+    "result": {
+     "events": {}
+    }
+   },
+   "'{\"tried\": {\"b1\": \"x\"}}'": {
+    "result": {
+     "events": {}
+    }
+   },
+   "'{\"x\": \"\u00e9\", \"date\": \"2026-10-29\"}'": {
+    "result": {
+     "events": {}
+    }
+   },
+   "'{'": {
+    "result": {
+     "events": {}
+    }
+   },
+   "'{} trailing'": {
+    "result": {
+     "events": {}
+    }
+   },
+   "'{}'": {
+    "result": {
+     "events": {}
+    }
+   },
+   "'\u00ff\u00fe'": {
+    "result": {
+     "events": {}
+    }
+   },
+   "None": {
+    "result": {
+     "events": {}
+    }
+   }
+  },
+  "paths": {
+   "\"o'neil\"": "meeting_auto_join/o_neil.json",
+   "'#1'": "meeting_auto_join/_1.json",
+   "''": "meeting_auto_join/default.json",
+   "'-_.@'": "meeting_auto_join/-__@.json",
+   "'.'": "meeting_auto_join/_.json",
+   "'..'": "meeting_auto_join/__.json",
+   "'../x'": "meeting_auto_join/___x.json",
+   "'Alice.Smith@example.org'": "meeting_auto_join/Alice_Smith@example_org.json",
+   "'a b'": "meeting_auto_join/a_b.json",
+   "'a.b.c'": "meeting_auto_join/a_b_c.json",
+   "'a/b'": "meeting_auto_join/a_b.json",
+   "'a\\\\b'": "meeting_auto_join/a_b.json",
+   "'aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa'": "meeting_auto_join/aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa.json",
+   "'alice'": "meeting_auto_join/alice.json",
+   "'t\\tab'": "meeting_auto_join/t_ab.json",
+   "'x:y'": "meeting_auto_join/x_y.json",
+   "'\u00e4\u00f6\u00fc'": "meeting_auto_join/\u00e4\u00f6\u00fc.json",
+   "'\u540d\u524d'": "meeting_auto_join/\u540d\u524d.json",
+   "None": "meeting_auto_join/default.json"
+  },
+  "rename_fails": [
+   "OSError",
+   [
+    "meeting_auto_join/.alice.json.<pid>.<tid>.tmp"
+   ]
+  ],
+  "saved": "{\n \"alpha\": \"\\u00e9t\\u00e9 \\u2603\",\n \"date\": \"2026-10-29\",\n \"items\": {\n  \"a\": null,\n  \"b\": [\n   1,\n   2\n  ]\n },\n \"zeta\": 1\n}",
+  "unserializable": [
+   "TypeError",
+   []
+  ]
+ },
+ "notes_evidence": {
+  "listing": [
+   "notes_evidence_alice.json"
+  ],
+  "loads": {
+   "'\"s\"'": {
+    "result": {
+     "notes": {}
+    }
+   },
+   "''": {
+    "result": {
+     "notes": {}
+    }
+   },
+   "'1'": {
+    "result": {
+     "notes": {}
+    }
+   },
+   "'[1]'": {
+    "result": {
+     "notes": {}
+    }
+   },
+   "'[]'": {
+    "result": {
+     "notes": {}
+    }
+   },
+   "'\\ufeff{}'": {
+    "result": {
+     "notes": {}
+    }
+   },
+   "'null'": {
+    "result": {
+     "notes": {}
+    }
+   },
+   "'{\"events\": [1]}'": {
+    "result": {
+     "events": [
+      1
+     ],
+     "notes": {}
+    }
+   },
+   "'{\"events\": {\"1\": {}, \"2\": 3}}'": {
+    "result": {
+     "events": {
+      "1": {},
+      "2": 3
+     },
+     "notes": {}
+    }
+   },
+   "'{\"items\": []}'": {
+    "result": {
+     "items": [],
+     "notes": {}
+    }
+   },
+   "'{\"items\": {\"7\": {\"status\": \"open\"}}}'": {
+    "result": {
+     "items": {
+      "7": {
+       "status": "open"
+      }
+     },
+     "notes": {}
+    }
+   },
+   "'{\"notes\": 5}'": {
+    "result": {
+     "notes": {}
+    }
+   },
+   "'{\"notes\": {\"n\": 1}}'": {
+    "result": {
+     "notes": {
+      "n": 1
+     }
+    }
+   },
+   "'{\"tried\": []}'": {
+    "result": {
+     "notes": {},
+     "tried": []
+    }
+   },
+   "'{\"tried\": {\"b1\": \"x\"}}'": {
+    "result": {
+     "notes": {},
+     "tried": {
+      "b1": "x"
+     }
+    }
+   },
+   "'{\"x\": \"\u00e9\", \"date\": \"2026-10-29\"}'": {
+    "result": {
+     "date": "2026-10-29",
+     "notes": {},
+     "x": "\u00e9"
+    }
+   },
+   "'{'": {
+    "result": {
+     "notes": {}
+    }
+   },
+   "'{} trailing'": {
+    "result": {
+     "notes": {}
+    }
+   },
+   "'{}'": {
+    "result": {
+     "notes": {}
+    }
+   },
+   "'\u00ff\u00fe'": {
+    "result": {
+     "notes": {}
+    }
+   },
+   "None": {
+    "result": {
+     "notes": {}
+    }
+   }
+  },
+  "paths": {
+   "\"o'neil\"": "notes_evidence_o_neil.json",
+   "'#1'": "notes_evidence__1.json",
+   "''": "notes_evidence_default.json",
+   "'-_.@'": "notes_evidence_-_.@.json",
+   "'.'": "notes_evidence_..json",
+   "'..'": "notes_evidence_...json",
+   "'../x'": "notes_evidence_.._x.json",
+   "'Alice.Smith@example.org'": "notes_evidence_Alice.Smith@example.org.json",
+   "'a b'": "notes_evidence_a_b.json",
+   "'a.b.c'": "notes_evidence_a.b.c.json",
+   "'a/b'": "notes_evidence_a_b.json",
+   "'a\\\\b'": "notes_evidence_a_b.json",
+   "'aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa'": "notes_evidence_aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa.json",
+   "'alice'": "notes_evidence_alice.json",
+   "'t\\tab'": "notes_evidence_t_ab.json",
+   "'x:y'": "notes_evidence_x_y.json",
+   "'\u00e4\u00f6\u00fc'": "notes_evidence_\u00e4\u00f6\u00fc.json",
+   "'\u540d\u524d'": "notes_evidence_\u540d\u524d.json",
+   "None": "notes_evidence_default.json"
+  },
+  "rename_fails": [
+   "OSError",
+   []
+  ],
+  "saved": "{\n \"alpha\": \"\\u00e9t\\u00e9 \\u2603\",\n \"date\": \"2026-10-29\",\n \"items\": {\n  \"a\": null,\n  \"b\": [\n   1,\n   2\n  ]\n },\n \"zeta\": 1\n}",
+  "unserializable": [
+   "TypeError",
+   []
+  ]
+ },
+ "outcomes": {
+  "listing": [
+   "today_insight/alice/2026-10-29.outcome.json"
+  ],
+  "loads": {
+   "'\"s\"'": {
+    "result": null
+   },
+   "''": {
+    "result": null
+   },
+   "'1'": {
+    "result": null
+   },
+   "'[1]'": {
+    "result": null
+   },
+   "'[]'": {
+    "result": null
+   },
+   "'\\ufeff{}'": {
+    "result": null
+   },
+   "'null'": {
+    "result": null
+   },
+   "'{\"events\": [1]}'": {
+    "result": {
+     "events": [
+      1
+     ],
+     "items": {}
+    }
+   },
+   "'{\"events\": {\"1\": {}, \"2\": 3}}'": {
+    "result": {
+     "events": {
+      "1": {},
+      "2": 3
+     },
+     "items": {}
+    }
+   },
+   "'{\"items\": []}'": {
+    "result": {
+     "items": {}
+    }
+   },
+   "'{\"items\": {\"7\": {\"status\": \"open\"}}}'": {
+    "result": {
+     "items": {
+      "7": {
+       "status": "open"
+      }
+     }
+    }
+   },
+   "'{\"notes\": 5}'": {
+    "result": {
+     "items": {},
+     "notes": 5
+    }
+   },
+   "'{\"notes\": {\"n\": 1}}'": {
+    "result": {
+     "items": {},
+     "notes": {
+      "n": 1
+     }
+    }
+   },
+   "'{\"tried\": []}'": {
+    "result": {
+     "items": {},
+     "tried": []
+    }
+   },
+   "'{\"tried\": {\"b1\": \"x\"}}'": {
+    "result": {
+     "items": {},
+     "tried": {
+      "b1": "x"
+     }
+    }
+   },
+   "'{\"x\": \"\u00e9\", \"date\": \"2026-10-29\"}'": {
+    "result": {
+     "date": "2026-10-29",
+     "items": {},
+     "x": "\u00e9"
+    }
+   },
+   "'{'": {
+    "result": null
+   },
+   "'{} trailing'": {
+    "result": null
+   },
+   "'{}'": {
+    "result": {
+     "items": {}
+    }
+   },
+   "'\u00ff\u00fe'": {
+    "result": null
+   },
+   "None": {
+    "result": null
+   }
+  },
+  "paths": {
+   "\"o'neil\"": "today_insight/o_neil/2026-10-29.outcome.json",
+   "'#1'": "today_insight/_1/2026-10-29.outcome.json",
+   "''": "today_insight/default/2026-10-29.outcome.json",
+   "'-_.@'": "today_insight/-_.@/2026-10-29.outcome.json",
+   "'.'": "today_insight/2026-10-29.outcome.json",
+   "'..'": "today_insight/../2026-10-29.outcome.json",
+   "'../x'": "today_insight/.._x/2026-10-29.outcome.json",
+   "'Alice.Smith@example.org'": "today_insight/Alice.Smith@example.org/2026-10-29.outcome.json",
+   "'a b'": "today_insight/a_b/2026-10-29.outcome.json",
+   "'a.b.c'": "today_insight/a.b.c/2026-10-29.outcome.json",
+   "'a/b'": "today_insight/a_b/2026-10-29.outcome.json",
+   "'a\\\\b'": "today_insight/a_b/2026-10-29.outcome.json",
+   "'aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa'": "today_insight/aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa/2026-10-29.outcome.json",
+   "'alice'": "today_insight/alice/2026-10-29.outcome.json",
+   "'t\\tab'": "today_insight/t_ab/2026-10-29.outcome.json",
+   "'x:y'": "today_insight/x_y/2026-10-29.outcome.json",
+   "'\u00e4\u00f6\u00fc'": "today_insight/\u00e4\u00f6\u00fc/2026-10-29.outcome.json",
+   "'\u540d\u524d'": "today_insight/\u540d\u524d/2026-10-29.outcome.json",
+   "None": "today_insight/default/2026-10-29.outcome.json"
+  },
+  "rename_fails": [
+   "OSError",
+   []
+  ],
+  "saved": "{\n \"date\": \"2026-10-29\",\n \"zeta\": 1,\n \"alpha\": \"\u00e9t\u00e9 \u2603\",\n \"items\": {\n  \"b\": [\n   1,\n   2\n  ],\n  \"a\": null\n }\n}",
+  "unserializable": [
+   "TypeError",
+   []
+  ]
+ },
+ "routines": {
+  "listing": [
+   "today_insight/alice/routines.json"
+  ],
+  "loads": {
+   "'\"s\"'": {
+    "result": {}
+   },
+   "''": {
+    "result": {}
+   },
+   "'1'": {
+    "result": {}
+   },
+   "'[1]'": {
+    "result": {}
+   },
+   "'[]'": {
+    "result": {}
+   },
+   "'\\ufeff{}'": {
+    "result": {}
+   },
+   "'null'": {
+    "result": {}
+   },
+   "'{\"events\": [1]}'": {
+    "result": {
+     "events": [
+      1
+     ]
+    }
+   },
+   "'{\"events\": {\"1\": {}, \"2\": 3}}'": {
+    "result": {
+     "events": {
+      "1": {},
+      "2": 3
+     }
+    }
+   },
+   "'{\"items\": []}'": {
+    "result": {
+     "items": []
+    }
+   },
+   "'{\"items\": {\"7\": {\"status\": \"open\"}}}'": {
+    "result": {
+     "items": {
+      "7": {
+       "status": "open"
+      }
+     }
+    }
+   },
+   "'{\"notes\": 5}'": {
+    "result": {
+     "notes": 5
+    }
+   },
+   "'{\"notes\": {\"n\": 1}}'": {
+    "result": {
+     "notes": {
+      "n": 1
+     }
+    }
+   },
+   "'{\"tried\": []}'": {
+    "result": {
+     "tried": []
+    }
+   },
+   "'{\"tried\": {\"b1\": \"x\"}}'": {
+    "result": {
+     "tried": {
+      "b1": "x"
+     }
+    }
+   },
+   "'{\"x\": \"\u00e9\", \"date\": \"2026-10-29\"}'": {
+    "result": {
+     "date": "2026-10-29",
+     "x": "\u00e9"
+    }
+   },
+   "'{'": {
+    "result": {}
+   },
+   "'{} trailing'": {
+    "result": {}
+   },
+   "'{}'": {
+    "result": {}
+   },
+   "'\u00ff\u00fe'": {
+    "result": {}
+   },
+   "None": {
+    "result": {}
+   }
+  },
+  "paths": {
+   "\"o'neil\"": "today_insight/o_neil/routines.json",
+   "'#1'": "today_insight/_1/routines.json",
+   "''": "today_insight/default/routines.json",
+   "'-_.@'": "today_insight/-_.@/routines.json",
+   "'.'": "today_insight/routines.json",
+   "'..'": "today_insight/../routines.json",
+   "'../x'": "today_insight/.._x/routines.json",
+   "'Alice.Smith@example.org'": "today_insight/Alice.Smith@example.org/routines.json",
+   "'a b'": "today_insight/a_b/routines.json",
+   "'a.b.c'": "today_insight/a.b.c/routines.json",
+   "'a/b'": "today_insight/a_b/routines.json",
+   "'a\\\\b'": "today_insight/a_b/routines.json",
+   "'aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa'": "today_insight/aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa/routines.json",
+   "'alice'": "today_insight/alice/routines.json",
+   "'t\\tab'": "today_insight/t_ab/routines.json",
+   "'x:y'": "today_insight/x_y/routines.json",
+   "'\u00e4\u00f6\u00fc'": "today_insight/\u00e4\u00f6\u00fc/routines.json",
+   "'\u540d\u524d'": "today_insight/\u540d\u524d/routines.json",
+   "None": "today_insight/default/routines.json"
+  },
+  "rename_fails": [
+   "OSError",
+   []
+  ],
+  "saved": "{\n \"date\": \"2026-10-29\",\n \"zeta\": 1,\n \"alpha\": \"\u00e9t\u00e9 \u2603\",\n \"items\": {\n  \"b\": [\n   1,\n   2\n  ],\n  \"a\": null\n }\n}",
+  "unserializable": [
+   "TypeError",
+   []
+  ]
+ },
+ "structure": {
+  "listing": [
+   "belief_structure_alice.json"
+  ],
+  "loads": {
+   "'\"s\"'": {
+    "result": {
+     "tried": {}
+    }
+   },
+   "''": {
+    "result": {
+     "tried": {}
+    }
+   },
+   "'1'": {
+    "result": {
+     "tried": {}
+    }
+   },
+   "'[1]'": {
+    "result": {
+     "tried": {}
+    }
+   },
+   "'[]'": {
+    "result": {
+     "tried": {}
+    }
+   },
+   "'\\ufeff{}'": {
+    "result": {
+     "tried": {}
+    }
+   },
+   "'null'": {
+    "result": {
+     "tried": {}
+    }
+   },
+   "'{\"events\": [1]}'": {
+    "result": {
+     "events": [
+      1
+     ],
+     "tried": {}
+    }
+   },
+   "'{\"events\": {\"1\": {}, \"2\": 3}}'": {
+    "result": {
+     "events": {
+      "1": {},
+      "2": 3
+     },
+     "tried": {}
+    }
+   },
+   "'{\"items\": []}'": {
+    "result": {
+     "items": [],
+     "tried": {}
+    }
+   },
+   "'{\"items\": {\"7\": {\"status\": \"open\"}}}'": {
+    "result": {
+     "items": {
+      "7": {
+       "status": "open"
+      }
+     },
+     "tried": {}
+    }
+   },
+   "'{\"notes\": 5}'": {
+    "result": {
+     "notes": 5,
+     "tried": {}
+    }
+   },
+   "'{\"notes\": {\"n\": 1}}'": {
+    "result": {
+     "notes": {
+      "n": 1
+     },
+     "tried": {}
+    }
+   },
+   "'{\"tried\": []}'": {
+    "result": {
+     "tried": {}
+    }
+   },
+   "'{\"tried\": {\"b1\": \"x\"}}'": {
+    "result": {
+     "tried": {
+      "b1": "x"
+     }
+    }
+   },
+   "'{\"x\": \"\u00e9\", \"date\": \"2026-10-29\"}'": {
+    "result": {
+     "date": "2026-10-29",
+     "tried": {},
+     "x": "\u00e9"
+    }
+   },
+   "'{'": {
+    "result": {
+     "tried": {}
+    }
+   },
+   "'{} trailing'": {
+    "result": {
+     "tried": {}
+    }
+   },
+   "'{}'": {
+    "result": {
+     "tried": {}
+    }
+   },
+   "'\u00ff\u00fe'": {
+    "result": {
+     "tried": {}
+    }
+   },
+   "None": {
+    "result": {
+     "tried": {}
+    }
+   }
+  },
+  "paths": {
+   "\"o'neil\"": "belief_structure_o_neil.json",
+   "'#1'": "belief_structure__1.json",
+   "''": "belief_structure_default.json",
+   "'-_.@'": "belief_structure_-_.@.json",
+   "'.'": "belief_structure_..json",
+   "'..'": "belief_structure_...json",
+   "'../x'": "belief_structure_.._x.json",
+   "'Alice.Smith@example.org'": "belief_structure_Alice.Smith@example.org.json",
+   "'a b'": "belief_structure_a_b.json",
+   "'a.b.c'": "belief_structure_a.b.c.json",
+   "'a/b'": "belief_structure_a_b.json",
+   "'a\\\\b'": "belief_structure_a_b.json",
+   "'aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa'": "belief_structure_aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa.json",
+   "'alice'": "belief_structure_alice.json",
+   "'t\\tab'": "belief_structure_t_ab.json",
+   "'x:y'": "belief_structure_x_y.json",
+   "'\u00e4\u00f6\u00fc'": "belief_structure_\u00e4\u00f6\u00fc.json",
+   "'\u540d\u524d'": "belief_structure_\u540d\u524d.json",
+   "None": "belief_structure_default.json"
+  },
+  "rename_fails": [
+   "OSError",
+   []
+  ],
+  "saved": "{\n \"alpha\": \"\\u00e9t\\u00e9 \\u2603\",\n \"date\": \"2026-10-29\",\n \"items\": {\n  \"a\": null,\n  \"b\": [\n   1,\n   2\n  ]\n },\n \"zeta\": 1\n}",
+  "unserializable": [
+   "TypeError",
+   []
+  ]
+ },
+ "today": {
+  "listing": [
+   "today_insight/alice/2026-10-29.json"
+  ],
+  "loads": {
+   "'\"s\"'": {
+    "result": null
+   },
+   "''": {
+    "result": null
+   },
+   "'1'": {
+    "result": null
+   },
+   "'[1]'": {
+    "result": null
+   },
+   "'[]'": {
+    "result": null
+   },
+   "'\\ufeff{}'": {
+    "result": null
+   },
+   "'null'": {
+    "result": null
+   },
+   "'{\"events\": [1]}'": {
+    "result": {
+     "events": [
+      1
+     ]
+    }
+   },
+   "'{\"events\": {\"1\": {}, \"2\": 3}}'": {
+    "result": {
+     "events": {
+      "1": {},
+      "2": 3
+     }
+    }
+   },
+   "'{\"items\": []}'": {
+    "result": {
+     "items": []
+    }
+   },
+   "'{\"items\": {\"7\": {\"status\": \"open\"}}}'": {
+    "result": {
+     "items": {
+      "7": {
+       "status": "open"
+      }
+     }
+    }
+   },
+   "'{\"notes\": 5}'": {
+    "result": {
+     "notes": 5
+    }
+   },
+   "'{\"notes\": {\"n\": 1}}'": {
+    "result": {
+     "notes": {
+      "n": 1
+     }
+    }
+   },
+   "'{\"tried\": []}'": {
+    "result": {
+     "tried": []
+    }
+   },
+   "'{\"tried\": {\"b1\": \"x\"}}'": {
+    "result": {
+     "tried": {
+      "b1": "x"
+     }
+    }
+   },
+   "'{\"x\": \"\u00e9\", \"date\": \"2026-10-29\"}'": {
+    "result": {
+     "date": "2026-10-29",
+     "x": "\u00e9"
+    }
+   },
+   "'{'": {
+    "result": null
+   },
+   "'{} trailing'": {
+    "result": null
+   },
+   "'{}'": {
+    "result": {}
+   },
+   "'\u00ff\u00fe'": {
+    "result": null
+   },
+   "None": {
+    "result": null
+   }
+  },
+  "paths": {
+   "\"o'neil\"": "today_insight/o_neil/2026-10-29.json",
+   "'#1'": "today_insight/_1/2026-10-29.json",
+   "''": "today_insight/default/2026-10-29.json",
+   "'-_.@'": "today_insight/-_.@/2026-10-29.json",
+   "'.'": "today_insight/2026-10-29.json",
+   "'..'": "today_insight/../2026-10-29.json",
+   "'../x'": "today_insight/.._x/2026-10-29.json",
+   "'Alice.Smith@example.org'": "today_insight/Alice.Smith@example.org/2026-10-29.json",
+   "'a b'": "today_insight/a_b/2026-10-29.json",
+   "'a.b.c'": "today_insight/a.b.c/2026-10-29.json",
+   "'a/b'": "today_insight/a_b/2026-10-29.json",
+   "'a\\\\b'": "today_insight/a_b/2026-10-29.json",
+   "'aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa'": "today_insight/aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa/2026-10-29.json",
+   "'alice'": "today_insight/alice/2026-10-29.json",
+   "'t\\tab'": "today_insight/t_ab/2026-10-29.json",
+   "'x:y'": "today_insight/x_y/2026-10-29.json",
+   "'\u00e4\u00f6\u00fc'": "today_insight/\u00e4\u00f6\u00fc/2026-10-29.json",
+   "'\u540d\u524d'": "today_insight/\u540d\u524d/2026-10-29.json",
+   "None": "today_insight/default/2026-10-29.json"
+  },
+  "rename_fails": [
+   "OSError",
+   []
+  ],
+  "saved": "{\n \"date\": \"2026-10-29\",\n \"zeta\": 1,\n \"alpha\": \"\u00e9t\u00e9 \u2603\",\n \"items\": {\n  \"b\": [\n   1,\n   2\n  ],\n  \"a\": null\n }\n}",
+  "unserializable": [
+   "TypeError",
+   []
+  ]
+ },
+ "weights": {
+  "listing": [
+   "today_insight/alice/weights.json"
+  ],
+  "loads": {
+   "'\"s\"'": {
+    "result": null
+   },
+   "''": {
+    "result": null
+   },
+   "'1'": {
+    "result": null
+   },
+   "'[1]'": {
+    "result": null
+   },
+   "'[]'": {
+    "result": null
+   },
+   "'\\ufeff{}'": {
+    "result": null
+   },
+   "'null'": {
+    "result": null
+   },
+   "'{\"events\": [1]}'": {
+    "result": {
+     "events": [
+      1
+     ]
+    }
+   },
+   "'{\"events\": {\"1\": {}, \"2\": 3}}'": {
+    "result": {
+     "events": {
+      "1": {},
+      "2": 3
+     }
+    }
+   },
+   "'{\"items\": []}'": {
+    "result": {
+     "items": []
+    }
+   },
+   "'{\"items\": {\"7\": {\"status\": \"open\"}}}'": {
+    "result": {
+     "items": {
+      "7": {
+       "status": "open"
+      }
+     }
+    }
+   },
+   "'{\"notes\": 5}'": {
+    "result": {
+     "notes": 5
+    }
+   },
+   "'{\"notes\": {\"n\": 1}}'": {
+    "result": {
+     "notes": {
+      "n": 1
+     }
+    }
+   },
+   "'{\"tried\": []}'": {
+    "result": {
+     "tried": []
+    }
+   },
+   "'{\"tried\": {\"b1\": \"x\"}}'": {
+    "result": {
+     "tried": {
+      "b1": "x"
+     }
+    }
+   },
+   "'{\"x\": \"\u00e9\", \"date\": \"2026-10-29\"}'": {
+    "result": {
+     "date": "2026-10-29",
+     "x": "\u00e9"
+    }
+   },
+   "'{'": {
+    "result": null
+   },
+   "'{} trailing'": {
+    "result": null
+   },
+   "'{}'": {
+    "result": {}
+   },
+   "'\u00ff\u00fe'": {
+    "result": null
+   },
+   "None": {
+    "result": null
+   }
+  },
+  "paths": {
+   "\"o'neil\"": "today_insight/o_neil/weights.json",
+   "'#1'": "today_insight/_1/weights.json",
+   "''": "today_insight/default/weights.json",
+   "'-_.@'": "today_insight/-_.@/weights.json",
+   "'.'": "today_insight/weights.json",
+   "'..'": "today_insight/../weights.json",
+   "'../x'": "today_insight/.._x/weights.json",
+   "'Alice.Smith@example.org'": "today_insight/Alice.Smith@example.org/weights.json",
+   "'a b'": "today_insight/a_b/weights.json",
+   "'a.b.c'": "today_insight/a.b.c/weights.json",
+   "'a/b'": "today_insight/a_b/weights.json",
+   "'a\\\\b'": "today_insight/a_b/weights.json",
+   "'aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa'": "today_insight/aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa/weights.json",
+   "'alice'": "today_insight/alice/weights.json",
+   "'t\\tab'": "today_insight/t_ab/weights.json",
+   "'x:y'": "today_insight/x_y/weights.json",
+   "'\u00e4\u00f6\u00fc'": "today_insight/\u00e4\u00f6\u00fc/weights.json",
+   "'\u540d\u524d'": "today_insight/\u540d\u524d/weights.json",
+   "None": "today_insight/default/weights.json"
+  },
+  "rename_fails": [
+   "OSError",
+   [
+    "today_insight/alice/.weights.json.<pid>.<tid>.tmp"
+   ]
+  ],
+  "saved": "{\n \"alpha\": \"\u00e9t\u00e9 \u2603\",\n \"date\": \"2026-10-29\",\n \"items\": {\n  \"a\": null,\n  \"b\": [\n   1,\n   2\n  ]\n },\n \"zeta\": 1\n}",
+  "unserializable": [
+   "TypeError",
+   []
+  ]
+ }
+}

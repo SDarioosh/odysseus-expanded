@@ -32,7 +32,6 @@ upstream exclusion always applies).
 from __future__ import annotations
 
 import logging
-import os
 import re
 from collections.abc import Iterable, Mapping
 from datetime import datetime
@@ -105,8 +104,9 @@ def restore_sourced(saved: list, pool: Iterable[Mapping]) -> list:
 
 # ------------------------------------------------------------------ the merge
 def enabled() -> bool:
-    return (os.environ.get("BELIEF_CONSOLIDATE") or "on").strip().lower() not in (
-        "off", "0", "false", "no")
+    from fork.common import settings
+
+    return settings.belief_consolidate()
 
 
 def _words(text: str) -> list[str]:
