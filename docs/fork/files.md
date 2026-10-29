@@ -127,6 +127,8 @@ is an old path of a module that moved into `fork/`; it only aliases the new modu
 - `fork/routing/skill_mcp_toolsets.py`
 - `fork/routing/web_read_recovery.py`
 - `fork/routing/web_turn_scope.py`
+- `fork/tasks.py`
+- `fork/upstream.py`
 
 ## routes/
 
@@ -278,7 +280,11 @@ is an old path of a module that moved into `fork/`; it only aliases the new modu
 - `tests/fork/test_fork_override_env.py`
 - `tests/fork/test_fork_package_shims.py`
 - `tests/fork/test_fork_resume_fallback.py`
+- `tests/fork/test_fork_routes_mount.py`
+- `tests/fork/test_fork_task_registry.py`
+- `tests/fork/test_fork_tasks.py`
 - `tests/fork/test_fork_tests_layout.py`
+- `tests/fork/test_fork_upstream.py`
 - `tests/fork/test_ink_athena.py`
 - `tests/fork/test_ink_auto_send.py`
 - `tests/fork/test_ink_eval.py`
