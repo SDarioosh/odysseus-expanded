@@ -479,5 +479,7 @@ def test_route_needs_an_admin_session(data):
 
 
 def test_route_is_mounted_before_the_review_pages_belief_id_route():
-    src = open("app.py", encoding="utf-8").read()
-    assert src.index("setup_belief_search_routes())") < src.index("setup_beliefs_routes())")
+    from fork.routes import ROUTERS
+
+    factories = [factory for _, factory in ROUTERS]
+    assert factories.index("setup_belief_search_routes") < factories.index("setup_beliefs_routes")
