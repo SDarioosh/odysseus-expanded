@@ -253,6 +253,7 @@ is an old path of a module that moved into `fork/`; it only aliases the new modu
 - `tests/fixtures/athena_contract/list_people_after_merge.json`
 - `tests/fork/conftest.py`
 - `tests/fork/fakes.py`
+- `tests/fork/fixtures/settings_readers.json`
 - `tests/fork/test_agent_thinking_switch.py`
 - `tests/fork/test_athena_contract_fixtures.py`
 - `tests/fork/test_auto_mode.py`
@@ -321,6 +322,7 @@ is an old path of a module that moved into `fork/`; it only aliases the new modu
 - `tests/fork/test_personal_store_escalation.py`
 - `tests/fork/test_private_endpoint_thinking.py`
 - `tests/fork/test_record_share.py`
+- `tests/fork/test_settings_readers.py`
 - `tests/fork/test_skill_mcp_toolsets.py`
 - `tests/fork/test_sound_module_view.py`
 - `tests/fork/test_sound_relay.py`
