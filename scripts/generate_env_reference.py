@@ -50,6 +50,7 @@ SOURCE_ROOTS = (
     "companion",
     "config",
     "core",
+    "fork",  # Fork: the fork's own package (fork/)
     "integrations",
     "mcp_servers",
     "routes",
@@ -492,20 +493,20 @@ VARIABLE_NOTES: dict[str, tuple[str, str, str]] = {
         "tools that execute code, mutate state or cause external side effects need "
         "a separate approval. Set to 0 to opt out.",
     ),
-    # Fork: personal-store reads and escalation (src/personal_read_grants.py, src/personal_store_escalation.py)
+    # Fork: personal-store reads and escalation (fork/routing/personal_read_grants.py, fork/routing/personal_store_escalation.py)
     "ODYSSEUS_PERSONAL_READ_GRANTS": (
         "Agent loop and tool execution", USER,
         "Fork. On by default; `0`/`false` stops granting read-only access to the "
         "owner's contacts, calendar, tasks, notes and memory on every turn "
-        "(`src/personal_read_grants.py`).",
+        "(`fork/routing/personal_read_grants.py`).",
     ),
     "ODYSSEUS_PERSONAL_STORE_ESCALATION": (
         "Agent loop and tool execution", USER,
         "Fork. On by default; `0`/`false` keeps chat-mode lookups in the owner's "
         "personal stores in chat mode instead of running them in agent mode "
-        "(`src/personal_store_escalation.py`).",
+        "(`fork/routing/personal_store_escalation.py`).",
     ),
-    # Fork: trusted read-only MCP servers (src/mcp_trust.py)
+    # Fork: trusted read-only MCP servers (fork/mcp/trust.py)
     "ODYSSEUS_TRUSTED_READONLY_MCP": (
         "Agent loop and tool execution", USER,
         "Security-relevant. Comma-separated MCP server names or ids whose tools "

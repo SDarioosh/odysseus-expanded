@@ -80,12 +80,12 @@ The source tree reads **151** `ODYSSEUS_*` variables: 93 an operator may want to
 | `ODYSSEUS_MAX_VISUAL_EVIDENCE_FRAMES` | `'3'` | `src/agent_loop.py` | How many video frames one tool result may contribute. Clamped to 1-8. |
 | `ODYSSEUS_MAX_VISUAL_EVIDENCE_IMAGES` | `'1'` | `src/agent_loop.py` | How many images one tool result may contribute to the model turn. Clamped to 1-8. |
 | `ODYSSEUS_MCP_ALLOWED_COMMANDS` | `''` | `src/agent_tools/admin_tools.py` | Security-relevant. Comma-separated allowlist of MCP launcher basenames the agent may start. Empty by default, and the deny list still wins. |
-| `ODYSSEUS_PERSONAL_READ_GRANTS` | `'1'` | `src/personal_read_grants.py` | Fork. On by default; `0`/`false` stops granting read-only access to the owner's contacts, calendar, tasks, notes and memory on every turn (`src/personal_read_grants.py`). |
-| `ODYSSEUS_PERSONAL_STORE_ESCALATION` | `'1'` | `src/personal_store_escalation.py` | Fork. On by default; `0`/`false` keeps chat-mode lookups in the owner's personal stores in chat mode instead of running them in agent mode (`src/personal_store_escalation.py`). |
+| `ODYSSEUS_PERSONAL_READ_GRANTS` | `'1'` | `fork/routing/personal_read_grants.py` | Fork. On by default; `0`/`false` stops granting read-only access to the owner's contacts, calendar, tasks, notes and memory on every turn (`fork/routing/personal_read_grants.py`). |
+| `ODYSSEUS_PERSONAL_STORE_ESCALATION` | `'1'` | `fork/routing/personal_store_escalation.py` | Fork. On by default; `0`/`false` keeps chat-mode lookups in the owner's personal stores in chat mode instead of running them in agent mode (`fork/routing/personal_store_escalation.py`). |
 | `ODYSSEUS_PYTHON_TOOL_SITE_PACKAGES` | `''` | `src/agent_runtime/process_resources.py` (+1 more) | Security-relevant. Absolute package roots, separated by the platform path separator, exposed to the sandboxed Python tool. Empty exposes none. |
 | `ODYSSEUS_SCRIPT_HOST` | `'localhost'` | `src/builtin_actions.py` | Default host for the run-script action. `localhost`, `127.0.0.1`, `local` and empty run locally; any other value runs over SSH. |
 | `ODYSSEUS_TOOL_APPROVAL_GATE` | `'1'` | `src/tool_capabilities.py` | Security-relevant. On by default: after external content enters a run, tools that execute code, mutate state or cause external side effects need a separate approval. Set to 0 to opt out. |
-| `ODYSSEUS_TRUSTED_READONLY_MCP` | `''` | `src/mcp_trust.py` (+2 more) | Security-relevant. Comma-separated MCP server names or ids whose tools declare `readOnlyHint: true` run without per-call approval. Empty by default. |
+| `ODYSSEUS_TRUSTED_READONLY_MCP` | `''` | `fork/mcp/trust.py` (+2 more) | Security-relevant. Comma-separated MCP server names or ids whose tools declare `readOnlyHint: true` run without per-call approval. Empty by default. |
 
 ### Browser automation
 
@@ -286,7 +286,7 @@ Listed for completeness. Setting one of these on a real install is either a no-o
 
 ## How this page is generated
 
-The generator walks the Python sources under `app.py`, `launcher.py`, `setup.py`, `companion`, `config`, `core`, `integrations`, `mcp_servers`, `routes`, `scripts`, `services`, `src`, `tests` and finds
+The generator walks the Python sources under `app.py`, `launcher.py`, `setup.py`, `companion`, `config`, `core`, `fork`, `integrations`, `mcp_servers`, `routes`, `scripts`, `services`, `src`, `tests` and finds
 reads three ways, because no single pattern covers the codebase:
 
 - Direct reads: `os.getenv(...)`, and any `.get` / `.setdefault` / `.pop` call or
