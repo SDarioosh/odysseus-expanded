@@ -50,12 +50,12 @@ eval; one feature branch and one PR per repo, linked to each other.
 | 0.2 Facts into memory | hub | Hourly job: pulls every confirmed fact and reconciles against its copies by module fact id (a copy carries `source: "odysseus-sound"`, the fact id, the link, `times_said`, `days`). Facts no longer returned are retired. Category from `about`, mapped onto the hub's existing memory categories. Idempotent, so it survives the upstream memory consolidation job. |
 | 0.3 Insight job | hub | Every 15 min: gathers calendar (today to +7 days), to-do notes of types `checklist`, `todo`, `goal`, memory, and the module's digest and open action items over MCP. Code buckets items (overdue, due today, due soon, undated), drops shopping-type lists without a due date (titles configurable; default Shopping, Groceries, Grocery), caps candidates, and hashes the inputs. The LLM runs only when the hash changed or the day rolled over, and only picks and writes the "why". Refs not in the input are dropped. Stored per owner and day as `{"date", "generated", "headline", "focus", "coming_up", "also"}`. Built: [today-insight.md](today-insight.md). |
 | 0.4 Surfaces | hub | Today card in the web UI (tickable to-dos, events linking to the calendar, 👍/👎 stored); chat answers "what should I do first today?" from the stored insight through the memory-context hook, no new tool; `GET /api/codex/insight/today` with scope `insight:read` (404 when there is none). Built: [today-insight.md](today-insight.md). |
-| 0.5 Relays | Athena | PC and Android relays fetch the insight with the Odysseus token, put it in the T5 feed as `insight`, drop refs not in the feed's `todos` or `calendar`; 404, 403 or no hub leaves `insight` out. The `type` filter stays: the hub already reports `todo` and `goal` notes as `checklist` (SDarioosh/Barvis#36); a test documents it. |
+| 0.5 Relays | Athena | PC and Android relays fetch the insight with the Odysseus token, put it in the T5 feed as `insight`, drop refs not in the feed's `todos` or `calendar`; 404, 403 or no hub leaves `insight` out. The `type` filter stays: the hub already reports `todo` and `goal` notes as `checklist` (SDarioosh/odysseus-expanded#36); a test documents it. |
 | 0.6 T5 firmware | Athena | `feed.c` parses `insight` (unknown keys ignored); `draw_today` shows INSIGHT, DO FIRST, COMING UP, ALSO WORTH A LOOK with the reasons, tickable to-dos, upcoming timed events in order, "Digest ready on Brief ›". Without an insight, `today_plan.c` orders the same sections by rule (overdue → due today by time → next days → pinned → undated; shopping lists only when dated). Host tests render the screens from fictional fixtures. |
 | 0.7 Measure | both | Bakeoff rerun with `--frontend odysseus` (contract change). Server verification: confirmed-fact counts at the default thresholds (counts only), insight time on `qwen3.5-35b`, the insight on the owner's data on the test instance, phone and T5 steps. |
 
 **Open questions for the owner** (from the design review): reconcile instead of
-`changed_since`; whether the server's hub predates SDarioosh/Barvis#36; whether the
+`changed_since`; whether the server's hub predates SDarioosh/odysseus-expanded#36; whether the
 existing memory categories are enough.
 
 **Done when:** the insight shows on all three surfaces from fictional data in the
@@ -80,7 +80,7 @@ the same way.
 ("stop prioritizing side projects") are facts in the module now, so they reach the
 ledger as evidence instead of becoming to-dos, and the hub files only explicit
 voice-note action items (`MODULE_FILE_ITEMS=explicit`,
-[odysseus-sound.md](modules/odysseus-sound.md#action-items-in-odysseus)).
+[athena.md](modules/athena.md#action-items-in-odysseus)).
 
 **Depends on:** Phase 0 merged. **Risk:** more sources means more wrong beliefs; keep the
 sources switched off until the review page exists (1.3 before 1.2 in roll-out).

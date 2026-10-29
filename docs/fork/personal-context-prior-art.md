@@ -235,7 +235,7 @@ and upgrade on purpose, rereading this table each time.
   evidence with links. Raw screen text never goes into hub memory.
 - Audio: Athena owns conversations, including Zoom and other calls on the
   computer, recorded with the hub's **Record a call** page into the module's normal ingest
-  path ([modules/odysseus-sound.md](modules/odysseus-sound.md#recording-calls-from-the-computer)).
+  path ([modules/athena.md](modules/athena.md#recording-calls-from-the-computer)).
   Run Screenpipe with audio capture off, so a meeting isn't recorded and transcribed
   twice.
 

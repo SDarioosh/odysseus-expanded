@@ -154,7 +154,7 @@ in the one hook in `MemoryManager.__init__`. Defaults stay `json` until the owne
 verified the migration, so merging the code changes nothing at runtime.
 
 **Fork bookkeeping.** Each hook gets a `# Fork: ... (src/memory_store.py)` comment and a
-row in the "Changes from upstream" table in `FORK.md`. No reformatting of `memory.py`.
+row in the "Hooks into upstream files" table in `FORK.md`. No reformatting of `memory.py`.
 
 ## Migration and rollback
 

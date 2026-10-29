@@ -32,16 +32,26 @@ Hooks in upstream files are listed in [FORK.md](../../FORK.md).
 - `docs/fork/cleanup-plan.md`
 - `docs/fork/context-module.md`
 - `docs/fork/deploy.md`
+- `docs/fork/features/chat-ui.md`
+- `docs/fork/features/logs-and-tests.md`
+- `docs/fork/features/mcp-servers.md`
+- `docs/fork/features/models.md`
+- `docs/fork/features/notes-and-tasks.md`
+- `docs/fork/features/tool-routing.md`
+- `docs/fork/features/web-and-auto-mode.md`
+- `docs/fork/features/windows.md`
 - `docs/fork/files.md`
 - `docs/fork/handwritten-notes.md`
 - `docs/fork/memory-sqlite.md`
 - `docs/fork/modules.md`
+- `docs/fork/modules/athena.md`
 - `docs/fork/modules/odysseus-sound.md`
 - `docs/fork/personal-context-prior-art.md`
 - `docs/fork/personal-context.md`
 - `docs/fork/qc-ink-h2-2026-10-26.md`
 - `docs/fork/roadmap.md`
 - `docs/fork/sandbox.md`
+- `docs/fork/status-history.md`
 - `docs/fork/today-insight.md`
 - `docs/fork/upstream-sync.md`
 

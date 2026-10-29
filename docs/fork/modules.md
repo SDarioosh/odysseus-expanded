@@ -7,7 +7,7 @@ Registered modules:
 
 | Module | What it provides | Doc |
 |---|---|---|
-| Athena | recorded conversations: transcripts, summaries, action items, facts, digests | [modules/odysseus-sound.md](modules/odysseus-sound.md) |
+| Athena | recorded conversations: transcripts, summaries, action items, facts, digests | [modules/athena.md](modules/athena.md) |
 
 ## Repo and ownership
 
@@ -188,7 +188,7 @@ the server's test instance (`127.0.0.1:7010`), then on production (port 7000) pe
 6. **Run the module's eval** (see "Eval harness"): a few questions in the sandbox, the
    full run by the owner on the server. Record the server score in the module doc.
 7. **Document it:** add `docs/fork/modules/<name>.md` (copy the structure of
-   [odysseus-sound.md](modules/odysseus-sound.md)), a row in the table at the top of this
+   [athena.md](modules/athena.md)), a row in the table at the top of this
    file, and its services in [architecture.md](architecture.md).
 
 ## Deploying a module
@@ -280,3 +280,25 @@ like tools: adding one is non-breaking, renaming or removing one is breaking.
 - [ ] Eval run against Odysseus; score recorded.
 - [ ] `docs/fork/modules/<name>.md`, the table above, and
       [architecture.md](architecture.md) updated.
+
+## Feature summaries
+
+Each section below was a row of the "Changes from upstream" table in
+[FORK.md](../../FORK.md) until 2026-10-29, moved here word for word; FORK.md now lists the
+features and the hooks into upstream files.
+
+### Setup
+
+**Setup.** Keeps every Odysseus feature: leaves the tool toggles alone, sets the default model to "Auto" tool mode, checks that module MCP servers are connected, resumes the "Module Action Items" task (`--no-action-items` skips it; on a fresh install it also marks the Tasks onboarding as seen, because upstream re-pauses ship-paused built-ins until then), and creates or updates the `/athena` skill (requires `mcp:convo`; deletes the old managed `/sound` it replaced; procedure = the module's instructions from the Custom preset) and `/context` (requires every server in `ODYSSEUS_TRUSTED_READONLY_MCP`). `--trim` turns off the built-ins a memory-only setup doesn't use, hides the built-in email/browser/image MCP tools and sets "Regular tools"; `--untrim` turns them back on. Configuration through the admin API, not code. Untagged questions in "Auto" still don't reach module tools; use `/athena` or `/context` ([roadmap](roadmap.md)).
+
+Files: `scripts/modules_setup.py` (new)
+
+Upstreamable: no
+
+### Slash eval
+
+**Slash eval.** Runs a module's bakeoff (Athena's `eval/bakeoff.py`, unmodified) with each question sent as `/<skill> <question>`, and reports approvals and `tools_sent` from the Odysseus log. Development tool.
+
+Files: `scripts/module_slash_eval.py` (new)
+
+Upstreamable: no
