@@ -201,9 +201,11 @@ Hooks in upstream files are listed in [FORK.md](../../FORK.md).
 - `tests/test_checklist_auto_archive.py`
 - `tests/test_codex_todos_json.py`
 - `tests/test_evidence_intake.py`
+- `tests/test_fork_atomic_writes.py`
 - `tests/test_fork_deploy.py`
 - `tests/test_fork_inventory.py`
 - `tests/test_fork_module_windows.py`
+- `tests/test_fork_override_env.py`
 - `tests/test_fork_resume_fallback.py`
 - `tests/test_ink_athena.py`
 - `tests/test_ink_auto_send.py`

@@ -85,7 +85,7 @@ The source tree reads **151** `ODYSSEUS_*` variables: 93 an operator may want to
 | `ODYSSEUS_PYTHON_TOOL_SITE_PACKAGES` | `''` | `src/agent_runtime/process_resources.py` (+1 more) | Security-relevant. Absolute package roots, separated by the platform path separator, exposed to the sandboxed Python tool. Empty exposes none. |
 | `ODYSSEUS_SCRIPT_HOST` | `'localhost'` | `src/builtin_actions.py` | Default host for the run-script action. `localhost`, `127.0.0.1`, `local` and empty run locally; any other value runs over SSH. |
 | `ODYSSEUS_TOOL_APPROVAL_GATE` | `'1'` | `src/tool_capabilities.py` | Security-relevant. On by default: after external content enters a run, tools that execute code, mutate state or cause external side effects need a separate approval. Set to 0 to opt out. |
-| `ODYSSEUS_TRUSTED_READONLY_MCP` | `''` | `src/mcp_trust.py` (+1 more) | Security-relevant. Comma-separated MCP server names or ids whose tools declare `readOnlyHint: true` run without per-call approval. Empty by default. |
+| `ODYSSEUS_TRUSTED_READONLY_MCP` | `''` | `src/mcp_trust.py` (+2 more) | Security-relevant. Comma-separated MCP server names or ids whose tools declare `readOnlyHint: true` run without per-call approval. Empty by default. |
 
 ### Browser automation
 

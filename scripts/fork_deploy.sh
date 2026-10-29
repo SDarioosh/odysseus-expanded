@@ -15,7 +15,8 @@
 #                       "deploy" or "status" (docs/fork/modules.md#deploying-a-module),
 #                       e.g. ~/projects/barvis-sound/server/scripts/deploy.sh
 #   DOCKER              docker command (default: "sudo docker")
-#   FORK_REMOTE         git remote of this repo (default: the one pointing at */Barvis)
+#   FORK_REMOTE         git remote of this repo (default: the one pointing at
+#                       SDarioosh/odysseus-expanded or SDarioosh/Barvis)
 #   FORK_BACKUP_DIR     where data backups go (default: ~/odysseus-backups)
 #   FORK_KEEP_BACKUPS   how many backups to keep (default: 5)
 #   FORK_PASSWORD_FILE  admin password file for modules_setup.py (default: ~/.config/odysseus-fork/admin.txt)
@@ -135,7 +136,8 @@ run_setup() {
 
 remote() {
   if [ -n "${FORK_REMOTE:-}" ]; then echo "$FORK_REMOTE"; return; fi
-  git remote -v | awk 'tolower($2) ~ /[\/:]sdarioosh\/barvis(\.git)?$/ {print $1; exit}'
+  # The repo is SDarioosh/odysseus-expanded, formerly SDarioosh/Barvis: match both.
+  git remote -v | awk 'tolower($2) ~ /[\/:]sdarioosh\/(barvis|odysseus-expanded)(\.git)?$/ {print $1; exit}'
 }
 
 module_cmds() {  # FORK_MODULES, one per line, ~ expanded
@@ -176,7 +178,7 @@ cmd_deploy() {
   git diff --quiet HEAD -- || die "tracked files have local changes; move them to .env or docker-compose.override.yml first (git status)"
   deploy_modules
   local r ref sha
-  r=$(remote); [ -n "$r" ] || die "no git remote points at the fork's repo (SDarioosh/Barvis); set FORK_REMOTE"
+  r=$(remote); [ -n "$r" ] || die "no git remote points at the fork's repo (SDarioosh/odysseus-expanded or SDarioosh/Barvis); set FORK_REMOTE"
   ref=${1:-$r/barvis}
   log "fetching $r"
   git fetch -q "$r"

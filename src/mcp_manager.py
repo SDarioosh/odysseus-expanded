@@ -397,7 +397,7 @@ class McpManager:
                     "name": tool.name,
                     "description": tool.description or "",
                     "input_schema": tool.inputSchema if hasattr(tool, "inputSchema") else {},
-                    # Same as stdio/SSE: keep readOnlyHint / destructiveHint.
+                    # Fork: like stdio/SSE, keep readOnlyHint / destructiveHint (FORK.md).
                     "annotations": getattr(tool, "annotations", None),
                 })
 

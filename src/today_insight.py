@@ -37,6 +37,7 @@ import json
 import logging
 import os
 import re
+import threading
 from datetime import date as Date
 from datetime import datetime, time, timedelta, timezone, tzinfo
 from pathlib import Path
@@ -929,9 +930,14 @@ def load(owner: str | None, day: str) -> dict | None:
 def save(owner: str | None, insight: dict) -> None:
     path = insight_path(owner, insight["date"])
     path.parent.mkdir(parents=True, exist_ok=True)
-    tmp = path.with_suffix(".tmp")
-    tmp.write_text(json.dumps(insight, indent=1, ensure_ascii=False), encoding="utf-8")
-    tmp.replace(path)
+    # Unique per process and thread: two writers never share a temp file.
+    tmp = path.with_name(f".{path.name}.{os.getpid()}.{threading.get_ident()}.tmp")
+    try:
+        tmp.write_text(json.dumps(insight, indent=1, ensure_ascii=False), encoding="utf-8")
+        os.replace(tmp, path)
+    except BaseException:
+        tmp.unlink(missing_ok=True)
+        raise
 
 
 def _utc_iso(now: datetime | None = None) -> str:

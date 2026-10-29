@@ -1881,6 +1881,7 @@ def setup_calendar_routes(upload_handler=None) -> APIRouter:
                 temperature=0.0,
                 max_tokens=1024,
                 timeout=30,
+                # Fork: quick-parse with thinking off and a larger budget (FORK.md).
                 # A thinking model otherwise burns the token budget on
                 # reasoning and returns no JSON ("Could not extract JSON").
                 thinking_mode="off",

@@ -25,8 +25,10 @@ from __future__ import annotations
 
 import json
 import logging
+import os
 import re
 import statistics
+import threading
 from datetime import date as Date
 from datetime import datetime, time, timedelta, timezone, tzinfo
 from pathlib import Path
@@ -177,9 +179,14 @@ def _load_cache(owner: str | None) -> dict:
 def _save_cache(owner: str | None, data: dict) -> None:
     path = cache_path(owner)
     path.parent.mkdir(parents=True, exist_ok=True)
-    tmp = path.with_suffix(".tmp")
-    tmp.write_text(json.dumps(data, indent=1, ensure_ascii=False), encoding="utf-8")
-    tmp.replace(path)
+    # Unique per process and thread: two writers never share a temp file.
+    tmp = path.with_name(f".{path.name}.{os.getpid()}.{threading.get_ident()}.tmp")
+    try:
+        tmp.write_text(json.dumps(data, indent=1, ensure_ascii=False), encoding="utf-8")
+        os.replace(tmp, path)
+    except BaseException:
+        tmp.unlink(missing_ok=True)
+        raise
 
 
 # ------------------------------------------------------------------------- evidence

@@ -64,6 +64,38 @@ environment (which wins): `FORK_MODULES`, `DOCKER` (default `sudo docker`),
 `FORK_PY`, `FORK_SETUP_ARGS`. See the top of the script. The former `BARVIS_*`
 names, `~/.config/barvis/` and `~/barvis-backups` still work ([below](#moving-from-the-barvis-name-once)).
 
+### Fork settings in `.env`
+
+The fork's own settings go as `KEY=value` lines in `~/models/odysseus/.env`, next to
+`docker-compose.yml`. Only variables a compose file lists reach the container, and
+`docker/fork.override.yml` lists them all (`tests/test_fork_override_env.py` keeps it
+complete); a setting left out of `.env` keeps the code's default:
+
+- Athena: `MODULE_ACTION_ITEMS_SERVER`, `MODULE_NOTIFY_CHANNEL`, `MODULE_DIGEST_HOUR`,
+  `MODULE_FILE_ITEMS`, `MODULE_FACTS_SYNC` (former names `BARVIS_*`),
+  `SOUND_MODULE_SERVER` (former `BARVIS_SOUND_SERVER`), `SOUND_MODULE_CALL_DEVICE`;
+- beliefs: `BELIEF_CONFIRM_SOURCES`, `BELIEF_CONFIRM_TIMES`, `BELIEF_CONFIRM_DAYS`,
+  `BELIEF_STALE_DAYS`, `BELIEF_CONSOLIDATE`, `BELIEF_STRUCTURE`, `BELIEF_STRUCTURE_BATCH`,
+  `EVIDENCE_NOTES`;
+- today insight: `TODAY_INSIGHT_ENABLED`, `TODAY_INSIGHT_PUSH`, `TODAY_INSIGHT_SKIP_LISTS`;
+- agent turns: `ODYSSEUS_PERSONAL_READ_GRANTS`, `ODYSSEUS_PERSONAL_STORE_ESCALATION`,
+  `FORK_CHECKLIST_ARCHIVE_MINUTES`;
+- handwritten notes: `INK_AUTO_SEND`, and `APP_PUBLIC_URL` (link base when Settings has no
+  public URL; upstream's MCP OAuth redirect reads it too).
+
+`ODYSSEUS_TRUSTED_READONLY_MCP=convo` is fixed in the override. Production runs the copy
+`docker-compose.override.yml`, so after a deploy that changes `docker/fork.override.yml`,
+compare and copy it (keep any lines you added by hand); the container gets it at the next
+`odysseus-deploy deploy` (run it again right away if you need the settings now):
+
+```bash
+cd ~/models/odysseus
+diff docker/fork.override.yml docker-compose.override.yml
+cp docker/fork.override.yml docker-compose.override.yml
+sudo docker compose config | grep -E 'MODULE_|BELIEF_|TODAY_INSIGHT|INK_AUTO_SEND'  # read-only check
+odysseus-deploy deploy
+```
+
 ### One-command setup (once)
 
 On the owner's server, with Athena in `~/projects/barvis-ai-wt/main` (adjust the
