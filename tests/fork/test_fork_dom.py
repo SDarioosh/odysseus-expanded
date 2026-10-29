@@ -150,3 +150,19 @@ def test_each_script_keeps_what_its_el_and_dollar_did(got):
     if "__skip" in got:
         pytest.skip(got["__skip"])
     assert not _differences(got, ("el", "$"))
+
+
+@pytest.mark.skipif(not shutil.which("node"), reason="node binary not on PATH")
+def test_the_shared_helpers_are_the_widest_copies(got):
+    # forkDom.js: api is the copy of beliefs.js and today.js (status and data on the error,
+    # `detail` or `error` as the message, 401 to the login page unless redirect401 is
+    # false), request is Write's, and el is beliefs.js's plus the `text` key of Write's.
+    golden = json.loads(GOLDEN.read_text())
+    shared = got["forkDom.js"]
+    assert shared["api"] == golden["beliefs.js"]["api"] == golden["today.js"]["api"]
+    assert shared["request"] == golden["forkInk.js"]["api"]
+    if "__skip" in got:
+        pytest.skip(got["__skip"])
+    assert shared["$"] == golden["beliefs.js"]["$"]
+    assert shared["el"] == {**golden["beliefs.js"]["el"],
+                            "text_key": golden["forkInk.js"]["el"]["text_key"]}

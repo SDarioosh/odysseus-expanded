@@ -219,6 +219,7 @@ is an old path of a module that moved into `fork/`; it only aliases the new modu
 - `static/js/forkBackgroundModels.js`
 - `static/js/forkBeliefsWindow.js`
 - `static/js/forkChatAsk.js`
+- `static/js/forkDom.js`
 - `static/js/forkEntityHash.js`
 - `static/js/forkInk.js`
 - `static/js/forkInkLinks.js`

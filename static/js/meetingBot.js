@@ -10,6 +10,8 @@
 // "signin", never on a timer. Sign in to Zoom opens Zoom's page in a new tab; the owner
 // pastes back the address Zoom ends on and Athena finishes the sign-in.
 
+import { $ } from './forkDom.js';
+
 const API = '/api/modules/sound/meetings';
 const POLL_JOINING_MS = 3000; // starting / waiting room: show the change soon
 const POLL_RECORDING_MS = 6000; // recording, or waiting for the host to allow it
@@ -21,7 +23,6 @@ const JOIN_SIGNIN = "Athena's Zoom sign-in is missing or expired. Sign in to Zoo
 // Answers that the meeting box already explains (no module, no token, unreachable).
 const SIGNIN_QUIET = ['setup', 'token', 'unreachable', 'timeout'];
 
-const $ = (sel) => document.querySelector(sel);
 const ui = {
   link: $('#mb-link'), pass: $('#mb-pass'), join: $('#mb-join'), leave: $('#mb-leave'),
   state: $('#mb-state'),

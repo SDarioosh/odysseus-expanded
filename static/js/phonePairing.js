@@ -2,6 +2,8 @@
 // Makes a single-use pairing code, shows it as a QR code rendered by the server, and
 // polls until the phone has redeemed it. The page never sees the phone's token.
 
+import { api } from './forkDom.js';
+
 const URL_KEY = 'odysseus-pair-url';
 
 const ui = {
@@ -29,18 +31,6 @@ function savedUrl() {
 
 function saveUrl(value) {
   try { localStorage.setItem(URL_KEY, value); } catch (e) { /* private window */ }
-}
-
-async function api(path, options = {}) {
-  const res = await fetch(path, { credentials: 'same-origin', ...options });
-  if (res.status === 401) {
-    window.location.href = '/login';
-    throw new Error('not signed in');
-  }
-  let data = {};
-  try { data = await res.json(); } catch (e) { /* empty answer */ }
-  if (!res.ok) throw new Error(data.detail || data.error || `HTTP ${res.status}`);
-  return data;
 }
 
 function stopPolling() {
