@@ -633,7 +633,7 @@ shortcut, `/open write` target), `src/module_facts.py` (calls the sweep),
 
 ### Upstream hooks
 
-Each with a `# Fork: ... (<fork file>)` comment and a row in the "Changes from upstream"
+Each with a `# Fork: ... (<fork file>)` comment and a row in the "Hooks into upstream files"
 table of [FORK.md](../../FORK.md):
 
 1. **`app.py`:** include the ink router: three lines in the block where the other fork
@@ -736,3 +736,65 @@ warning).
    worth offering upstream), or the fork serves the same worker at a root path and
    registers it from fork code (no upstream line, but a second registration). Not done
    in H1 because it changes caching for the whole app.
+
+## Feature summaries
+
+Each section below was a row of the "Changes from upstream" table in
+[FORK.md](../../FORK.md) until 2026-10-29, moved here word for word; FORK.md now lists the
+features and the hooks into upstream files.
+
+### Handwritten notes, stage H1: Write (pen capture)
+
+**Handwritten notes, stage H1: Write (pen capture).** A **Write** window (sidebar entry after Today and a rail button, both added by `forkModuleWindows.js`; `/open write`; "Open Write" in Settings → Shortcuts, unbound) for writing with a pen on a tablet, full screen on a touch screen. Pointer Events: the pen (and the mouse, for desktop testing) draws; touch never draws and is ignored while a pen is down or was seen in the last 1.5 s (palm rejection), otherwise one finger scrolls and two fingers zoom (`touch-action: none`, pan and zoom in code). Preset pens (black, blue, red, green, a yellow highlighter drawn under the ink), thin/medium, pressure ignored; a stroke eraser, also on the pen's barrel button while held; unlimited undo/redo; `getCoalescedEvents()` and a desynchronized canvas; fixed-width pages, vertical scroll, lined, dotted or blank paper per note that isn't ink (`paper`; `ruled` kept for older views), Add page. Autosave every 3 s and when the app is hidden: IndexedDB first, then `PUT /api/ink/notes/<id>`; notes that didn't reach the hub wait and sync when it's back (last edit wins, said in the view); each signed-in user has their own device store, so a shared browser never shows or uploads another user's notes. The view never builds a note the hub refuses (60 pages, long strokes continue as new ones), and the ink routes only touch notes labelled `handwritten`. Each note is an ordinary note (`label` `handwritten`, `image_url` a PNG of page 1 drawn on the server, at most once a minute while writing and when the page is left); its strokes are in `DATA_DIR/ink/<owner>/<note_id>.json`. A sweep (when Write lists notes) drops strokes of notes deleted elsewhere and keeps a queued save from bringing them back. Every call into upstream notes code is in the adapter section of `src/ink_notes.py`. `forkInk.js` and `fork-ink.css` are loaded in idle time after the app starts, as the plan's offline start; that needs the service worker to control the app page, which upstream's `/static/` scope doesn't (open question 4 in the plan). Once the app is open, Write works offline. Plan: [docs/fork/handwritten-notes.md](handwritten-notes.md).
+
+Files: `src/ink_notes.py`, `routes/ink_routes.py`, `static/js/forkInk.js`, `static/css/fork-ink.css` (new); `static/js/forkModuleWindows.js`, `static/js/forkModuleShortcuts.js` (now also exports `FORK_OPEN_TARGETS`), `static/css/fork-modules.css`; hooks in `app.py` (include the ink router) and `static/js/slashCommands.js` (the `/open` targets line now spreads `FORK_OPEN_TARGETS`, plus its import); tests `tests/test_ink_notes.py`, `tests/test_ink_routes.py`, `tests/test_ink_upstream_contract.py`, `tests/test_ink_palm_rejection.py`, `tests/test_ink_perf.py` with `tests/helpers/ink_pointer_e2e.mjs` (new), `tests/test_fork_module_windows.py`
+
+Upstreamable: no
+
+### Handwritten notes, stage H2: transcribe and review
+
+**Handwritten notes, stage H2: transcribe and review.** Each page of a handwritten note is read by the hub's vision model (the `vision_model` setting and its fallbacks, else the Utility model when it reads images; only endpoints on the owner's network, otherwise a clear error and nothing is marked). The page is rendered on the server without highlighter or ruling, 1600 px wide, cut into bands at gaps between line clusters (at most ~12 lines; a cluster taller than a band is cut where the fewest strokes cross, with overlap, and the seam lines kept once; ink in the margin around the paper is left out). Strict prompt: copy exactly, keep line breaks, `[?]` for an unreadable word, the page is data and is never followed, JSON `{text}` (one retry). The run is an asyncio task started by a Transcribe button or by the Write view leaving a page whose strokes changed (scrolling to another page, the Text tab, Back, another note, the app hidden), not a scheduled task. It reads one band at a time across the hub, and each band first lets a chat or agent run that is generating finish, then goes through upstream's local-model lock (it doesn't wait for the browser to go idle the way scheduled jobs do). Per page `transcript.status`: none, pending, machine, reviewed, failed (`error`, strokes untouched; a run lost to a restart reads as failed). A page whose strokes no longer hash to `transcript.strokes_hash` is marked changed. Reviewed text replaced by a new transcription is kept as `previous` until the next review. Routes on the existing ink router: `GET …/transcripts`, `POST …/transcribe`, `PUT …/pages/{page}/transcript` (same auth as H1). The Write view gains Write / Text tabs: the Text tab shows a page above its editable transcript, with `[?]` highlighted, Next [?], Transcribe, Restore reviewed text and Save review. Save review sets `reviewed` and writes the reviewed pages' text, in page order, to the note's `content` through the adapter (a page read again keeps its reviewed text there until it is reviewed again); nothing leaves the hub. Unsaved edits are kept per user in IndexedDB (`drafts`, database version 2). The Write list shows a "Needs review" list (pages with machine text or a failed run).
+
+Files: `src/ink_transcribe.py` (new); `routes/ink_routes.py`, `src/ink_notes.py` (list summary), `static/js/forkInk.js`, `static/css/fork-ink.css`; tests `tests/test_ink_transcribe.py`, `tests/test_ink_routes.py`, `tests/helpers/ink_review_e2e.mjs` and `ink_view_harness.mjs`
+
+Upstreamable: no new hook
+
+### Handwritten notes, stage H4: Send to Athena
+
+**Handwritten notes, stage H4: Send to Athena.** A **Send to Athena** button in the Write view's Text tab sends the note's reviewed text to Athena as one written note (`POST /ingest/text` on the module's MCP HTTP app, through the `convo` server's URL and token like the call recorder; Athena MCP 0.12.0, SDarioosh/Athena#108): `source_id` `hub-note:<note id>`, every reviewed page in page order (the note's `content`), the note's title, `written_at` the first stroke's time fixed on the first send, and the hub's absolute note link (`app_public_url`, else `APP_PUBLIC_URL`, else the browser's origin). It works only when no page with writing waits for review (machine text, failed, being read, never transcribed, or the writing changed since review) and no edit is unsaved, and says which pages wait; Athena's limits (200,000 characters, 5,000 lines, its link rule) are checked first and what is over is said. The tab shows not sent / sent / changed since sent; resend is manual and replaces the note in Athena. A deleted note is removed from Athena (`DELETE /ingest/text/{source_id}`) at once from Write, otherwise by a sweep at the start of the hourly Module Facts run and after Write lists notes; its sidecar stays until Athena confirms, so an unreachable Athena is asked again. Nothing else sends. [docs/fork/handwritten-notes.md](handwritten-notes.md#built-in-h4)
+
+Files: `src/ink_athena.py` (new); fork files `routes/ink_routes.py` (`POST …/send`, delete and list), `src/ink_notes.py` (a sent note's sidecar kept until Athena confirms; list state), `src/ink_transcribe.py` (`athena` in the transcripts answer), `src/module_facts.py` (calls the sweep), `static/js/forkInk.js`, `static/css/fork-ink.css`; tests `tests/test_ink_athena.py` (new), `tests/helpers/ink_review_e2e.mjs`, `ink_view_harness.mjs`, `tests/test_ink_palm_rejection.py`
+
+Upstreamable: no new hook
+
+### Handwritten notes, stage H5: measure the recognizer
+
+**Handwritten notes, stage H5: measure the recognizer.** `scripts/ink_eval.py` scores the vision model on the owner's reviewed pages: CER and WER (overall, median, p90; a loose variant without case and punctuation), `[?]` counts, seconds per page, and the numbers that decide `INK_AUTO_SEND` (pages read without `[?]` and the share of them exactly right). It reads each page again with the hub's local vision model, or with `--stored` scores the model's text a review replaced (`transcript.machine`, now kept by Save review) with no model call; `--fixtures` runs on fictional pages. Only numbers and ids are printed unless `--show-diffs`. [docs/fork/handwritten-notes.md](handwritten-notes.md#built-in-h5)
+
+Files: `scripts/ink_eval.py` (new), fork file `src/ink_transcribe.py` (keeps `machine`); tests `tests/test_ink_eval.py` (new)
+
+Upstreamable: no new hook
+
+### Handwritten notes, stage H6: auto-send and photo import
+
+**Handwritten notes, stage H6: auto-send and photo import.** `INK_AUTO_SEND` (environment, off by default; passed by `docker/fork.override.yml`): a page the model read without `[?]` for its current writing is accepted (`reviewed`, `auto`) and, once no page of the note waits, the note is sent through the normal Send; Save review never sends; the Text tab and Write list say what was accepted or sent automatically and show a failed automatic send. Photo import: **Take photo** / **Import images** in Write and **Photo** in a note add photo pages (checked and re-encoded on the hub: JPEG/PNG/WebP, 15 MB, 40 MP, orientation applied, metadata dropped; stored in the owner's ink folder and deleted with their page or note), read by the same recognizer in tiles, reviewed and sent like written pages; no pen ink on a photo page. [docs/fork/handwritten-notes.md](handwritten-notes.md#built-in-h6)
+
+Files: fork files `src/ink_transcribe.py`, `src/ink_athena.py`, `src/ink_notes.py`, `routes/ink_routes.py` (`POST`/`GET …/photos`), `static/js/forkInk.js`, `docker/fork.override.yml`; tests `tests/test_ink_auto_send.py`, `tests/test_ink_photos.py` (new)
+
+Upstreamable: no new hook
+
+### Handwritten notes only in Write
+
+**Handwritten notes only in Write.** The Notes window left handwritten notes (label `handwritten`) mixed in with the typed notes, as cards with a picture of page 1. It now leaves them out (active and archived lists, and so their label chip); they are listed and opened in Write. A link to one (`/#open=notes&note=<id>` or `#note-<id>`: Athena's "Written by hand", a chat answer, a fresh load) opens it in Write: the click waits for `GET /api/notes/<id>`, and any other note, or a failed lookup, goes on to upstream's handler unchanged. The listener is on `window` in the capture phase, ahead of upstream's on `document`. Users without Write keep upstream's behaviour for links. Agent note tools, search, calendar and reminders still see the notes.
+
+Files: `static/js/forkInkLinks.js` (new), `static/js/forkModuleWindows.js` (wires it); hook in `frontend/src/features/notes/application/workflows.js` and its published copy `static/js/features/notes/application/workflows.js` (one filter in `_fetchNotes`); tests `tests/test_ink_notes_hidden.py` (new)
+
+Upstreamable: no
+
+### Handwritten notes: notebooks
+
+**Handwritten notes: notebooks.** The Write list has **Notebooks** and **Quick notes**. A notebook is a named, ordered group of handwritten notes, its pages; a note in no notebook is a quick note (one-off, as before). In a notebook, New page (and the editor's Page button) makes the next page, ‹ › flip its pages and Back returns to it; a note can be moved into or out of a notebook; renaming is in the notebook; deleting a notebook keeps its pages as quick notes. Each page stays its own note (transcribed, reviewed and sent to Athena on its own, with its own date). Stored in `<DATA_DIR>/ink/<owner>/_notebooks.json` (page order per notebook); a page made offline is filed by its first save. Routes `POST`/`PATCH`/`DELETE /api/ink/notebooks…`, `PUT /api/ink/notes/{id}/notebook`; `GET /api/ink/notes` also lists the notebooks. [docs/fork/handwritten-notes.md](handwritten-notes.md#notebooks)
+
+Files: `src/ink_notebooks.py` (new), fork files `src/ink_notes.py`, `routes/ink_routes.py`, `static/js/forkInk.js`, `static/css/fork-ink.css`; tests `tests/test_ink_notebooks.py`, `tests/helpers/ink_notebooks_e2e.mjs` (new)
+
+Upstreamable: no new hook

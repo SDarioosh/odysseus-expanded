@@ -279,3 +279,17 @@ Pitfalls met during the switch:
   compose file has no default for it) and "current commit information was not captured"
   during `sudo docker build` (root can't read a repo owned by your user; the script labels
   the image with the commit instead).
+
+## Feature summaries
+
+Each section below was a row of the "Changes from upstream" table in
+[FORK.md](../../FORK.md) until 2026-10-29, moved here word for word; FORK.md now lists the
+features and the hooks into upstream files.
+
+### Deployment
+
+**Deployment.** Production runs the locally built `odysseus-fork:<commit>` image with Docker Compose; one command (from any directory) first runs each module's own deploy command (`FORK_MODULES`), then builds, backs up data, switches, health-checks and rolls back. A `host-relay` service forwards loopback-only host services (Proton Mail Bridge) to the Docker bridge, so the container reaches them at `host.docker.internal` (`HOST_RELAY_PORTS`).
+
+Files: `scripts/fork_deploy.sh`, `docker/fork.override.yml` (new); [docs/fork/deploy.md](deploy.md)
+
+Upstreamable: no
