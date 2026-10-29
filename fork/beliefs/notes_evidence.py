@@ -36,9 +36,7 @@ import asyncio
 import hashlib
 import json
 import logging
-import os
 import re
-import threading
 from datetime import datetime, timezone
 from pathlib import Path
 from typing import Any, Awaitable, Callable, Iterable
@@ -105,20 +103,21 @@ def enabled() -> bool:
 
 # -------------------------------------------------------------------------- state
 def _slug(owner: str | None) -> str:
-    return "".join(c if (c.isalnum() or c in "-_.@") else "_" for c in (owner or "default"))
+    from fork.common.state import owner_slug
+
+    return owner_slug(owner)
 
 
 def _state_path(owner: str | None) -> Path:
-    from src.constants import DATA_DIR
+    from fork.common.state import owner_file
 
-    return Path(DATA_DIR) / f"notes_evidence_{_slug(owner)}.json"
+    return owner_file("notes_evidence", owner)
 
 
 def load_state(owner: str | None) -> dict[str, Any]:
-    try:
-        state = json.loads(_state_path(owner).read_text(encoding="utf-8"))
-    except (OSError, ValueError):
-        state = {}
+    from fork.common.state import read_json
+
+    state = read_json(_state_path(owner), {})
     if not isinstance(state, dict):
         state = {}
     if not isinstance(state.get("notes"), dict):
@@ -127,16 +126,9 @@ def load_state(owner: str | None) -> dict[str, Any]:
 
 
 def save_state(owner: str | None, state: dict[str, Any]) -> None:
-    path = _state_path(owner)
-    path.parent.mkdir(parents=True, exist_ok=True)
-    # Unique per process and thread: two writers never share a temp file.
-    tmp = path.with_name(f".{path.name}.{os.getpid()}.{threading.get_ident()}.tmp")
-    try:
-        tmp.write_text(json.dumps(state, indent=1, sort_keys=True), encoding="utf-8")
-        os.replace(tmp, path)
-    except BaseException:
-        tmp.unlink(missing_ok=True)
-        raise
+    from fork.common import state as files
+
+    files.write_json(_state_path(owner), state)
 
 
 _LOCKS: dict[str, asyncio.Lock] = {}

@@ -45,7 +45,6 @@ from __future__ import annotations
 import hashlib
 import io
 import json
-import os
 import re
 import shutil
 import threading
@@ -176,10 +175,9 @@ def _lock(owner: str | None) -> threading.RLock:
 
 
 def _write_json(path: Path, data: Any) -> None:
-    path.parent.mkdir(parents=True, exist_ok=True)
-    tmp = path.with_name(f".{path.name}.{os.getpid()}.{threading.get_ident()}.tmp")
-    tmp.write_text(json.dumps(data, separators=(",", ":"), sort_keys=True), encoding="utf-8")
-    os.replace(tmp, path)
+    from fork.common.state import write_json
+
+    write_json(path, data, indent=None, separators=(",", ":"), clean_up=False)
 
 
 def load_sidecar(owner: str | None, note_id: str) -> dict[str, Any] | None:
@@ -719,10 +717,9 @@ def prepare_photo(data: bytes) -> dict[str, Any]:
 
 
 def _write_bytes(path: Path, data: bytes) -> None:
-    path.parent.mkdir(parents=True, exist_ok=True)
-    tmp = path.with_name(f".{path.name}.{os.getpid()}.{threading.get_ident()}.tmp")
-    tmp.write_bytes(data)
-    os.replace(tmp, path)
+    from fork.common.state import write_atomic
+
+    write_atomic(path, data, clean_up=False)
 
 
 def add_photos(owner: str | None, note_id: str, photos: list[dict[str, Any]], *,

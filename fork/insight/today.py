@@ -35,9 +35,7 @@ import asyncio
 import hashlib
 import json
 import logging
-import os
 import re
-import threading
 from datetime import date as Date
 from datetime import datetime, time, timedelta, timezone, tzinfo
 from pathlib import Path
@@ -909,7 +907,9 @@ def _run_lock(owner: str | None) -> asyncio.Lock:
 
 
 def _slug(owner: str | None) -> str:
-    return "".join(c if (c.isalnum() or c in "-_.@") else "_" for c in (owner or "default"))
+    from fork.common.state import owner_slug
+
+    return owner_slug(owner)
 
 
 def insight_path(owner: str | None, day: str) -> Path:
@@ -921,24 +921,17 @@ def insight_path(owner: str | None, day: str) -> Path:
 
 
 def load(owner: str | None, day: str) -> dict | None:
-    try:
-        data = json.loads(insight_path(owner, day).read_text(encoding="utf-8"))
-    except (OSError, ValueError):
-        return None
+    from fork.common.state import read_json
+
+    data = read_json(insight_path(owner, day))
     return data if isinstance(data, dict) else None
 
 
 def save(owner: str | None, insight: dict) -> None:
-    path = insight_path(owner, insight["date"])
-    path.parent.mkdir(parents=True, exist_ok=True)
-    # Unique per process and thread: two writers never share a temp file.
-    tmp = path.with_name(f".{path.name}.{os.getpid()}.{threading.get_ident()}.tmp")
-    try:
-        tmp.write_text(json.dumps(insight, indent=1, ensure_ascii=False), encoding="utf-8")
-        os.replace(tmp, path)
-    except BaseException:
-        tmp.unlink(missing_ok=True)
-        raise
+    from fork.common.state import write_json
+
+    write_json(insight_path(owner, insight["date"]), insight, sort_keys=False,
+               ensure_ascii=False)
 
 
 def _utc_iso(now: datetime | None = None) -> str:
