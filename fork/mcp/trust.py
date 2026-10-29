@@ -26,6 +26,8 @@ import os
 from collections.abc import Iterable
 from typing import Any
 
+from fork.upstream import mcp_connections, mcp_tools
+
 TRUSTED_READONLY_MCP_ENV = "ODYSSEUS_TRUSTED_READONLY_MCP"
 
 
@@ -58,8 +60,8 @@ def _manager():
 
 
 def _trusted_server_ids(manager, keys: frozenset[str]) -> Iterable[str]:
-    connections = getattr(manager, "_connections", {}) or {}
-    for server_id in (getattr(manager, "_tools", {}) or {}):
+    connections = mcp_connections(manager)
+    for server_id in mcp_tools(manager):
         if manager.is_builtin(server_id):
             continue
         conn = connections.get(server_id) or {}
@@ -80,7 +82,7 @@ def trusted_readonly_mcp_tools(manager=None) -> frozenset[str]:
         return frozenset()
     names = set()
     for server_id in _trusted_server_ids(manager, keys):
-        for tool in manager._tools.get(server_id, []):
+        for tool in mcp_tools(manager).get(server_id, []):
             if tool_declares_read_only(tool):
                 names.add(f"mcp__{server_id}__{tool['name']}")
     return frozenset(names)

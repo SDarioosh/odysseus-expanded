@@ -70,9 +70,9 @@ class Redeem(BaseModel):
 def _allow(request: Request, scopes: set[str]) -> str:
     """The caller's owner: an API token with one of ``scopes``, or an admin session."""
     if getattr(request.state, "api_token", False):
-        from routes.codex_routes import _scope_owner
+        from fork.upstream import scope_owner
 
-        return _scope_owner(request, scopes)
+        return scope_owner(request, scopes)
     require_admin(request)
     return effective_user(request) or ""
 

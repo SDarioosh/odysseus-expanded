@@ -35,7 +35,8 @@ logger = logging.getLogger(__name__)
 def problem(snapshot: Any, prompt: Any, task_type: Any, action: Any, owner: Any) -> str:
     """Why a stored snapshot does not admit the task, in a few words (for the run log);
     "" when it does (a denied run then comes from policy, ``disabled_tools``)."""
-    from src.agent_runtime.authority import RequestAuthority, _owner, task_operation
+    from fork.upstream import authority_owner
+    from src.agent_runtime.authority import RequestAuthority, task_operation
 
     if not snapshot:
         return "no stored authority"
@@ -46,7 +47,7 @@ def problem(snapshot: Any, prompt: Any, task_type: Any, action: Any, owner: Any)
         authority = RequestAuthority.from_dict(value["authority"])
     except (ValueError, TypeError, KeyError, AttributeError):
         return "stored authority is unreadable"
-    if authority.owner != _owner(owner):
+    if authority.owner != authority_owner(owner):
         return "stored authority belongs to another owner"
     operation = task_operation(task_type, action, prompt)
     if operation is None or not any(g.permits(operation) for g in authority.grants):

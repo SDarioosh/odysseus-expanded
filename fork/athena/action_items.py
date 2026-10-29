@@ -210,7 +210,9 @@ CallTool = Callable[[str, dict], Awaitable[str]]
 def module_server_id(manager: Any, key: str | None = None) -> str | None:
     """Id of the connected module MCP server named ``key`` (name or id)."""
     key = (key or server_key()).casefold()
-    connections = getattr(manager, "_connections", {}) or {}
+    from fork.upstream import mcp_connections
+
+    connections = mcp_connections(manager)
     for server_id, conn in connections.items():
         if (conn or {}).get("status") != "connected":
             continue

@@ -53,7 +53,6 @@ import logging
 import os
 import re
 import sqlite3
-import sys
 import threading
 from collections.abc import Iterable, Iterator, Mapping
 from contextlib import contextmanager
@@ -2154,8 +2153,9 @@ def sync_memory(owner: str | None, *, now: datetime | None = None,
 
 def update_vector_index(indexed: list[dict], removed: list[str]) -> None:
     """Best effort, like upstream's manage_memory: the index Odysseus loaded, if any."""
-    ai = sys.modules.get("src.ai_interaction")
-    vector = getattr(ai, "_memory_vector", None) if ai is not None else None
+    from fork.upstream import memory_vector
+
+    vector = memory_vector()
     if vector is None or not getattr(vector, "healthy", False):
         return
     for entry in indexed:

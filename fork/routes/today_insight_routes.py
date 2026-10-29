@@ -115,9 +115,9 @@ def setup_today_insight_routes() -> APIRouter:
 
     @router.get("/api/codex/insight/today")
     async def token_insight(request: Request):
-        from routes.codex_routes import _scope_owner
+        from fork.upstream import scope_owner
 
-        owner = _scope_owner(request, INSIGHT_READ_SCOPES)
+        owner = scope_owner(request, INSIGHT_READ_SCOPES)
         insight = ti.load_today(owner)
         return ti.public(_owner_order(owner, insight)) if insight else _no_insight()
 

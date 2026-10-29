@@ -43,15 +43,15 @@ def with_personal_store_reads(authority):
     """Add read-only grants for the personal-store tools to ``authority``."""
     if authority is None or not enabled() or getattr(authority, "block_all", False):
         return authority
+    from fork.upstream import private_action_reads
     from src.agent_runtime.authority import OperationGrant, canonical_tool
     from src.agent_runtime.resources import seal_owned_scopes
-    from src.tool_capabilities import _PRIVATE_ACTION_READS
 
     grants = {g.tool: g for g in authority.grants}
     added = []
     for name in PERSONAL_STORE_TOOLS:
         tool = canonical_tool(name)
-        reads = _PRIVATE_ACTION_READS.get(tool)
+        reads = private_action_reads().get(tool)
         if not reads or tool in authority.denied:
             continue
         current = grants.get(tool)
