@@ -203,7 +203,7 @@ hook.
 The candidates the model sees (at most 30 to-dos and events) are sorted in code by
 `(tier, -weight, date, time, input order)` (`order_candidates` in `src/today_insight.py`).
 This order is published: the T5 PDA's rule-based fallback (no insight for today) follows
-the same rules ([Athena `docs/t5-pda-plan.md`](https://github.com/SDarioosh/barvis-sound/blob/main/docs/t5-pda-plan.md) §5).
+the same rules ([Athena `docs/t5-pda-plan.md`](https://github.com/SDarioosh/Athena/blob/main/docs/t5-pda-plan.md) §5).
 
 | tier | items | within the tier |
 |---|---|---|

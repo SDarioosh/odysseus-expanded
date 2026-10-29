@@ -91,7 +91,7 @@ BARVIS_SOUND_WHISPER_CMD=/path/to/whisper-server -m /path/to/ggml-large-v3-turbo
 Stop any `convo-server` or `whisper-server` started by hand (the module's deploy refuses
 to start next to them), then run `odysseus-deploy deploy`. After that the module services
 start at boot and restart on a crash. Athena's side:
-[server/README.md](https://github.com/SDarioosh/barvis-sound/blob/main/server/README.md#deploy-one-command-runs-in-the-background).
+[server/README.md](https://github.com/SDarioosh/Athena/blob/main/server/README.md#deploy-one-command-runs-in-the-background).
 
 ### Moving from the Barvis name (once)
 
@@ -184,7 +184,7 @@ For Athena on this server:
   `http://host.docker.internal:8001/mcp?access_token=<CONVO_MCP_TOKEN>`.
 - `ODYSSEUS_TRUSTED_READONLY_MCP=convo` is set in `docker-compose.override.yml`.
 - Paste its `INSTRUCTIONS` text into a Custom preset
-  ([modules/odysseus-sound.md](modules/odysseus-sound.md#connect-it)).
+  ([modules/athena.md](modules/athena.md#connect-it)).
 
 Check reachability from inside the container:
 
@@ -197,7 +197,7 @@ except Exception as e: print('NOT reachable:', e)"
 
 ### Call recording and phone pairing
 
-**Meetings** (recording a call) and **Pair a phone** ([modules/odysseus-sound.md](modules/odysseus-sound.md#uploads-through-the-mcp-server))
+**Meetings** (recording a call) and **Pair a phone** ([modules/athena.md](modules/athena.md#uploads-through-the-mcp-server))
 need no settings: they use the `convo` MCP server Odysseus already has (Settings → MCP,
 `http://host.docker.internal:8001/mcp?access_token=…`). They need Athena with MCP
 0.8.0 or newer (`scripts/fork_deploy.sh deploy` updates both); with an older module the
@@ -248,7 +248,7 @@ cd ~/models/odysseus
 git status                                    # local edits to tracked files? move them to .env first
 sudo docker compose stop odysseus
 sudo tar czf ~/odysseus-data-$(date +%F).tgz data/
-git remote add barvis https://github.com/SDarioosh/Barvis.git
+git remote add barvis https://github.com/SDarioosh/odysseus-expanded.git
 git fetch barvis && git checkout -b barvis barvis/barvis
 cp docker/fork.override.yml docker-compose.override.yml
 printf 'APP_BIND=0.0.0.0\nAPP_PORT=7000\n' >> .env

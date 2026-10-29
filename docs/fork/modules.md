@@ -7,7 +7,7 @@ Registered modules:
 
 | Module | What it provides | Doc |
 |---|---|---|
-| Athena | recorded conversations: transcripts, summaries, action items, facts, digests | [modules/odysseus-sound.md](modules/odysseus-sound.md) |
+| Athena | recorded conversations: transcripts, summaries, action items, facts, digests | [modules/athena.md](modules/athena.md) |
 
 ## Repo and ownership
 
@@ -188,7 +188,7 @@ the server's test instance (`127.0.0.1:7010`), then on production (port 7000) pe
 6. **Run the module's eval** (see "Eval harness"): a few questions in the sandbox, the
    full run by the owner on the server. Record the server score in the module doc.
 7. **Document it:** add `docs/fork/modules/<name>.md` (copy the structure of
-   [odysseus-sound.md](modules/odysseus-sound.md)), a row in the table at the top of this
+   [athena.md](modules/athena.md)), a row in the table at the top of this
    file, and its services in [architecture.md](architecture.md).
 
 ## Deploying a module

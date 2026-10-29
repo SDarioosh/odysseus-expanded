@@ -7,8 +7,9 @@ this repository. Read this file completely before changing anything.
 
 - Our fork of [Odysseus](https://github.com/odysseus-dev/odysseus), a self-hosted AI
   workspace (chat, agents, MCP, documents, email, notes, tasks, calendar). License
-  AGPL-3.0. It was called Barvis until 2026-10-19; the repo URL (`SDarioosh/Barvis`) and
-  the `barvis` branch keep that name.
+  AGPL-3.0. It was called Barvis until 2026-10-19. The repo is now
+  `SDarioosh/odysseus-expanded` (the old URL `SDarioosh/Barvis` redirects); the `barvis`
+  branch keeps its name.
 - Odysseus is the **hub** of a personal, fully local AI system: the one chat and agent
   interface the owner uses from an Android phone and a Mac over Tailscale. The fork
   keeps the Odysseus name and adds capabilities through modules.
@@ -18,7 +19,7 @@ this repository. Read this file completely before changing anything.
   them.
 - First module: [Athena](https://github.com/SDarioosh/Athena) (formerly
   odysseus-sound; recorded conversations: transcripts, summaries, action items, facts).
-  Details: [docs/fork/modules/odysseus-sound.md](docs/fork/modules/odysseus-sound.md).
+  Details: [docs/fork/modules/athena.md](docs/fork/modules/athena.md).
   The rename is wording only. Code and stored values keep the old names: the MCP server
   `convo`, `/modules/sound` routes, `sound:*` token scopes, and the
   string `"odysseus-sound"` used as the belief source, the label on filed notes, the

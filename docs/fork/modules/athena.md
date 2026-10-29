@@ -1,9 +1,9 @@
 # Module: Athena (formerly odysseus-sound)
 
-- Repo: [SDarioosh/barvis-sound](https://github.com/SDarioosh/barvis-sound) (renamed from
-  `barvis-ai`; older docs call it "convo-ai"). Default branch `main`.
-- Agent guide: [AGENTS.md](https://github.com/SDarioosh/barvis-sound/blob/main/AGENTS.md).
-  Server docs: [server/README.md](https://github.com/SDarioosh/barvis-sound/blob/main/server/README.md).
+- Repo: [SDarioosh/Athena](https://github.com/SDarioosh/Athena) (renamed from
+  `barvis-sound`, before that `barvis-ai`; older docs call it "convo-ai"). Default branch `main`.
+- Agent guide: [AGENTS.md](https://github.com/SDarioosh/Athena/blob/main/AGENTS.md).
+  Server docs: [server/README.md](https://github.com/SDarioosh/Athena/blob/main/server/README.md).
 - Contract it follows: [../modules.md](../modules.md).
 
 Code identifiers keep the old name: the Python package `convo_server`, the CLI
@@ -833,13 +833,13 @@ is a candidate (`loop:<id>`); an older module without `with` gives no loops. Det
 | Frontend (same model, same MCP server) | Score |
 |---|---|
 | upstream Odysseus | 3/20 |
-| our fork, PR SDarioosh/Barvis#1 | 9/20 (right fact 18/20, link cited 9/20) |
+| our fork, PR SDarioosh/odysseus-expanded#1 | 9/20 (right fact 18/20, link cited 9/20) |
 | tuned Hermes Agent | 15/20 |
 
 **Target: ≥ 15/20.** Remaining failures: answers with the right fact but no transcript
 link, and 2 replies that were just "Done." because the model returned empty text after
 its tool calls. Full analysis: Athena
-[docs/frontend-decision.md](https://github.com/SDarioosh/barvis-sound/blob/main/docs/frontend-decision.md).
+[docs/frontend-decision.md](https://github.com/SDarioosh/Athena/blob/main/docs/frontend-decision.md).
 
 ## Known gaps
 
@@ -852,4 +852,4 @@ its tool calls. Full analysis: Athena
 - A malformed date argument (e.g. `'2026-09-30”,'` from the 4B sandbox model) makes
   `search_conversations` raise instead of returning a readable error, so Odysseus only
   sees `exit_code=1` and the model reports a vague failure. An Athena fix, listed
-  under "Next" in SDarioosh/Barvis#9.
+  under "Next" in SDarioosh/odysseus-expanded#9.
