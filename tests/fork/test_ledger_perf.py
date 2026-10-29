@@ -19,12 +19,11 @@ CHUNK = 500
 
 
 @pytest.fixture
-def data(tmp_path, monkeypatch):
-    monkeypatch.setattr("src.constants.DATA_DIR", str(tmp_path))
+def data(data_dir, monkeypatch):
     for var in ("BELIEF_CONFIRM_SOURCES", "BELIEF_CONFIRM_TIMES", "BELIEF_CONFIRM_DAYS",
                 "BELIEF_STALE_DAYS"):
         monkeypatch.delenv(var, raising=False)
-    return tmp_path
+    return data_dir
 
 
 def ev(i, *, confirmed=False):

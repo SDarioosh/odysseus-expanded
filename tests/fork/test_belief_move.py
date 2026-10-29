@@ -30,8 +30,7 @@ def ev(sid, text, subject="Ana", about="owner", t=42, **kw):
 
 
 @pytest.fixture
-def data(tmp_path, monkeypatch):
-    monkeypatch.setattr("src.constants.DATA_DIR", str(tmp_path))
+def data(data_dir, monkeypatch):
     monkeypatch.setattr(mf, "_LOCKS", {})
     for var in ("MODULE_FACTS_SYNC", "BELIEF_CONFIRM_SOURCES", "BELIEF_CONFIRM_TIMES",
                 "BELIEF_CONFIRM_DAYS", "BELIEF_STALE_DAYS", "BELIEF_CONSOLIDATE"):
@@ -40,7 +39,7 @@ def data(tmp_path, monkeypatch):
                             ev(2, "Ana plays the cello."),
                             ev(3, "Dana Reyes lives in Porto.", subject="Dana Reyes",
                                about="person")], now=T0)
-    return tmp_path
+    return data_dir
 
 
 def belief(text, owner="alice"):

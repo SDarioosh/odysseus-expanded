@@ -29,15 +29,14 @@ REPO = Path(__file__).resolve().parents[2]
 
 
 @pytest.fixture
-def env(tmp_path, monkeypatch):
+def env(data_dir, monkeypatch):
     factory, engine, _tmp = make_temp_sqlite(cdb.Base.metadata)
     monkeypatch.setattr(cdb, "SessionLocal", factory)
     monkeypatch.setattr(note_routes, "SessionLocal", factory)
     monkeypatch.setattr(upload_routes, "SessionLocal", factory)
-    monkeypatch.setattr("src.constants.DATA_DIR", str(tmp_path))
-    uploads = tmp_path / "uploads"
+    uploads = data_dir / "uploads"
     uploads.mkdir()
-    handler = UploadHandler(str(tmp_path), str(uploads))
+    handler = UploadHandler(str(data_dir), str(uploads))
     monkeypatch.setattr(tool_utils, "_upload_handler", handler)
     yield handler
     engine.dispose()

@@ -46,7 +46,7 @@ class FakeModule:
 
 
 @pytest.fixture
-def pushes(tmp_path, monkeypatch):
+def pushes(data_dir, monkeypatch):
     from routes import note_routes
 
     sent = []
@@ -56,7 +56,6 @@ def pushes(tmp_path, monkeypatch):
         return {"ntfy_sent": True}
 
     monkeypatch.setattr(note_routes, "dispatch_reminder", fake_dispatch)
-    monkeypatch.setattr("src.constants.DATA_DIR", str(tmp_path))
     for var in ("MODULE_NOTIFY_CHANNEL", "MODULE_DIGEST_HOUR",
                 "BARVIS_NOTIFY_CHANNEL", "BARVIS_DIGEST_HOUR"):
         monkeypatch.delenv(var, raising=False)

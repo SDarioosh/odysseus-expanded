@@ -115,10 +115,9 @@ def test_summary_micro_rates_percentiles_and_auto_send_numbers():
 
 # ---------------------------------------------------------------------- the set
 @pytest.fixture
-def data(tmp_path, monkeypatch):
-    monkeypatch.setattr("src.constants.DATA_DIR", str(tmp_path))
+def data(data_dir, monkeypatch):
     monkeypatch.setattr(ink, "_LOCKS", {})
-    return tmp_path
+    return data_dir
 
 
 def _stroke(y, sid):
@@ -276,13 +275,12 @@ def test_fixtures_run_end_to_end_without_a_model(monkeypatch, tmp_path, capsys, 
 
 # ------------------------------------------------------- save_review keeps machine
 @pytest.fixture
-def env(tmp_path, monkeypatch):
+def env(data_dir, monkeypatch):
     factory, engine, _tmp = make_temp_sqlite(cdb.Base.metadata)
     monkeypatch.setattr(cdb, "SessionLocal", factory)
-    monkeypatch.setattr("src.constants.DATA_DIR", str(tmp_path))
-    uploads = tmp_path / "uploads"
+    uploads = data_dir / "uploads"
     uploads.mkdir()
-    monkeypatch.setattr(tool_utils, "_upload_handler", UploadHandler(str(tmp_path), str(uploads)))
+    monkeypatch.setattr(tool_utils, "_upload_handler", UploadHandler(str(data_dir), str(uploads)))
     monkeypatch.setattr(ink, "_LOCKS", {})
     monkeypatch.setattr(tr, "_RUNNING", set())
     yield factory

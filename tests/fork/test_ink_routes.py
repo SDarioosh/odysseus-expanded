@@ -24,13 +24,12 @@ PEN = {"color": "#1f5fbf", "width": 2.5, "highlighter": False}
 
 
 @pytest.fixture
-def env(tmp_path, monkeypatch):
+def env(data_dir, monkeypatch):
     factory, engine, _tmp = make_temp_sqlite(cdb.Base.metadata)
     monkeypatch.setattr(cdb, "SessionLocal", factory)
-    monkeypatch.setattr("src.constants.DATA_DIR", str(tmp_path))
-    uploads = tmp_path / "uploads"
+    uploads = data_dir / "uploads"
     uploads.mkdir()
-    monkeypatch.setattr(tool_utils, "_upload_handler", UploadHandler(str(tmp_path), str(uploads)))
+    monkeypatch.setattr(tool_utils, "_upload_handler", UploadHandler(str(data_dir), str(uploads)))
     monkeypatch.setattr(ink, "_LOCKS", {})
     yield factory
     engine.dispose()

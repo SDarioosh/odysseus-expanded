@@ -62,12 +62,6 @@ WRITERS = [_belief_structure, _module_action_items, _module_facts, _notes_eviden
            _today_insight, _insight_outcomes, _insight_routines]
 
 
-@pytest.fixture
-def data_dir(tmp_path, monkeypatch):
-    monkeypatch.setattr("src.constants.DATA_DIR", str(tmp_path))
-    return tmp_path
-
-
 def _leftovers(folder: Path) -> list[str]:
     return sorted(p.name for p in folder.rglob("*") if p.name.endswith(".tmp"))
 

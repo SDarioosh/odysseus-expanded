@@ -23,6 +23,7 @@ from src.skill_invocation import (
 from src.skill_mcp_toolsets import expand_toolsets, with_mcp_toolsets
 from src.tool_policy import build_effective_tool_policy
 from src.turn_contract import resolve_turn_contract
+from tests.fork.fakes import FakeMcpManager
 
 CONVO = ["search_transcripts", "search_conversations", "get_conversation", "update_action_item"]
 
@@ -32,19 +33,15 @@ def _schema(name: str) -> dict:
                                              "parameters": {"type": "object", "properties": {}}}}
 
 
-class FakeManager:
+class FakeManager(FakeMcpManager):
     def __init__(self, status="connected"):
-        self._tools = {
+        super().__init__(tools={
             "8bd5fb02": [{"name": n} for n in CONVO],
             "notes01": [{"name": "search_notes"}],
-        }
-        self._connections = {
+        }, connections={
             "8bd5fb02": {"status": status, "name": "convo"},
             "notes01": {"status": "connected", "name": "Notes"},
-        }
-
-    def is_builtin(self, server_id):
-        return False
+        })
 
 
 def _q(tool, server="8bd5fb02"):

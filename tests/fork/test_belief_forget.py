@@ -42,15 +42,14 @@ class Module:
 
 
 @pytest.fixture
-def data(tmp_path, monkeypatch):
-    monkeypatch.setattr("src.constants.DATA_DIR", str(tmp_path))
+def data(data_dir, monkeypatch):
     monkeypatch.setattr(mf, "_LOCKS", {})
     for var in ("MODULE_FACTS_SYNC", "BELIEF_CONFIRM_SOURCES", "BELIEF_CONFIRM_TIMES",
                 "BELIEF_CONFIRM_DAYS", "BELIEF_STALE_DAYS", "BELIEF_CONSOLIDATE"):
         monkeypatch.delenv(var, raising=False)
     ledger.submit("alice", [ev(1, "Keeps bees on the roof terrace"),
                             ev(2, "Plays the cello")], now=T0)
-    return tmp_path
+    return data_dir
 
 
 def belief_id(text, owner="alice"):

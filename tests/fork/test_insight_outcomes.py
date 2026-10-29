@@ -20,8 +20,7 @@ LATER = NOW + timedelta(hours=2)
 
 
 @pytest.fixture
-def store(tmp_path, monkeypatch):
-    monkeypatch.setattr("src.constants.DATA_DIR", str(tmp_path))
+def store(data_dir, monkeypatch):
     monkeypatch.setattr(ti, "owner_timezone", lambda owner: TZ)
     monkeypatch.setattr(ti, "_FILE_LOCKS", {})
     monkeypatch.setattr(ti, "_RUN_LOCKS", {})
@@ -31,7 +30,7 @@ def store(tmp_path, monkeypatch):
     archived = {}
     monkeypatch.setattr(io, "_load_notes_by_id",
                         lambda owner, ids: {i: archived[i] for i in ids if i in archived})
-    return {"path": tmp_path, "archived": archived}
+    return {"path": data_dir, "archived": archived}
 
 
 def _inputs(notes=(), events=(), rows=(), extra=(), now=NOW):

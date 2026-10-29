@@ -16,10 +16,9 @@ TODAY = date(2026, 10, 22)  # a Thursday, ISO week 2026-W43
 
 
 @pytest.fixture
-def store(tmp_path, monkeypatch):
-    monkeypatch.setattr("src.constants.DATA_DIR", str(tmp_path))
+def store(data_dir, monkeypatch):
     monkeypatch.setattr(ti, "owner_timezone", lambda owner: TZ)
-    return tmp_path / "today_insight" / "alice"
+    return data_dir / "today_insight" / "alice"
 
 
 def _insight(folder, day, votes=()):

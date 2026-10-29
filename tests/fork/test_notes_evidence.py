@@ -51,13 +51,12 @@ class FakeLlm:
 
 
 @pytest.fixture
-def db(tmp_path, monkeypatch):
+def db(data_dir, monkeypatch):
     import core.database as cdb
     from tests.helpers.sqlite_db import make_temp_sqlite
 
     factory, engine, _tmp = make_temp_sqlite(cdb.Base.metadata)
     monkeypatch.setattr(cdb, "SessionLocal", factory)
-    monkeypatch.setattr("src.constants.DATA_DIR", str(tmp_path))
     monkeypatch.setattr(ne, "_LOCKS", {})
     monkeypatch.setattr(mf, "_LOCKS", {})
     for var in ("EVIDENCE_NOTES", "BELIEF_CONFIRM_SOURCES", "BELIEF_CONFIRM_TIMES",
@@ -86,7 +85,7 @@ def db(tmp_path, monkeypatch):
         pass
 
     out = Db()
-    out.add, out.edit, out.remove, out.path = add, edit, remove, tmp_path
+    out.add, out.edit, out.remove, out.path = add, edit, remove, data_dir
     yield out
     engine.dispose()
 
@@ -357,23 +356,9 @@ def test_prompt_rules_and_note_as_data():
     assert len(messages[1]["content"]) < ne.MAX_NOTE_CHARS + 100
 
 
-def test_default_llm_runs_in_the_background_without_thinking(monkeypatch):
-    import src.interactive_gate as gate
-    import src.llm_core as llm_core
-    import src.task_endpoint as te
-
-    waited, sent = [], []
-
-    async def fake_wait(label):
-        waited.append(label)
-
-    async def fake_call(cands, messages, **kw):
-        sent.append(kw)
-        return '{"facts": []}'
-
-    monkeypatch.setattr(gate, "wait_for_interactive_quiet", fake_wait)
-    monkeypatch.setattr(llm_core, "llm_call_async_with_fallback", fake_call)
-    monkeypatch.setattr(te, "resolve_task_candidates", lambda **kw: [("http://llm", "m", {})])
+def test_default_llm_runs_in_the_background_without_thinking(fake_local_model):
+    waited, sent = fake_local_model.waited, fake_local_model.sent
+    fake_local_model.answer = '{"facts": []}'
 
     async def go():
         call = await ne.default_llm("alice")

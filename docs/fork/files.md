@@ -251,6 +251,8 @@ is an old path of a module that moved into `fork/`; it only aliases the new modu
 - `tests/fixtures/athena_contract/list_facts_confirmed.json`
 - `tests/fixtures/athena_contract/list_people.json`
 - `tests/fixtures/athena_contract/list_people_after_merge.json`
+- `tests/fork/conftest.py`
+- `tests/fork/fakes.py`
 - `tests/fork/test_agent_thinking_switch.py`
 - `tests/fork/test_athena_contract_fixtures.py`
 - `tests/fork/test_auto_mode.py`
@@ -276,6 +278,7 @@ is an old path of a module that moved into `fork/`; it only aliases the new modu
 - `tests/fork/test_fork_override_env.py`
 - `tests/fork/test_fork_package_shims.py`
 - `tests/fork/test_fork_resume_fallback.py`
+- `tests/fork/test_fork_tests_layout.py`
 - `tests/fork/test_ink_athena.py`
 - `tests/fork/test_ink_auto_send.py`
 - `tests/fork/test_ink_eval.py`

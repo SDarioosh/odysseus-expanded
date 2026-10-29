@@ -33,8 +33,7 @@ class Sender:
 
 
 @pytest.fixture
-def env(tmp_path, monkeypatch):
-    monkeypatch.setattr("src.constants.DATA_DIR", str(tmp_path))
+def env(data_dir, monkeypatch):
     monkeypatch.setattr(ti, "owner_timezone", lambda owner: TZ)
     monkeypatch.setenv("TODAY_INSIGHT_PUSH", "on")
     monkeypatch.setenv("MODULE_NOTIFY_CHANNEL", "ntfy")

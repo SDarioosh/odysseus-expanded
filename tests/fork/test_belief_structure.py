@@ -17,13 +17,12 @@ T1 = T0 + datetime.timedelta(hours=1)
 
 
 @pytest.fixture
-def data(tmp_path, monkeypatch):
-    monkeypatch.setattr("src.constants.DATA_DIR", str(tmp_path))
+def data(data_dir, monkeypatch):
     monkeypatch.setattr(bs, "_LOCKS", {})
     for var in ("BELIEF_CONFIRM_SOURCES", "BELIEF_CONFIRM_TIMES", "BELIEF_CONFIRM_DAYS",
                 "BELIEF_STALE_DAYS", "BELIEF_STRUCTURE", "BELIEF_STRUCTURE_BATCH"):
         monkeypatch.delenv(var, raising=False)
-    return tmp_path
+    return data_dir
 
 
 def seed(*facts, owner="alice", confirmed=True, last="2026-10-15"):
@@ -371,23 +370,9 @@ def test_text_changed_while_the_model_answered_waits(data):
     assert ei.get_belief("alice", bid)["structured_at"] is None
 
 
-def test_default_llm_runs_in_the_background_without_thinking(monkeypatch):
-    import src.interactive_gate as gate
-    import src.llm_core as llm_core  # noqa: PLR0402
-    import src.task_endpoint as te
-
-    waited, sent = [], []
-
-    async def fake_wait(label):
-        waited.append(label)
-
-    async def fake_call(cands, messages, **kw):
-        sent.append(kw)
-        return '{"items": []}'
-
-    monkeypatch.setattr(gate, "wait_for_interactive_quiet", fake_wait)
-    monkeypatch.setattr(llm_core, "llm_call_async_with_fallback", fake_call)
-    monkeypatch.setattr(te, "resolve_task_candidates", lambda **kw: [("http://llm", "m", {})])
+def test_default_llm_runs_in_the_background_without_thinking(fake_local_model, monkeypatch):
+    waited, sent = fake_local_model.waited, fake_local_model.sent
+    fake_local_model.answer = '{"items": []}'
     monkeypatch.setenv("BELIEF_STRUCTURE_BATCH", "3")
 
     async def go():

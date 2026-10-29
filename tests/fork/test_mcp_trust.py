@@ -8,16 +8,17 @@ from src import mcp_trust
 from src.agent_runtime.authority import ExactOperation, create_request_authority
 from src.tool_capabilities import ToolRunSecurityContext
 from src.tool_policy import ToolPolicy
+from tests.fork.fakes import FakeMcpManager
 
 
-class FakeManager:
+class FakeManager(FakeMcpManager):
     def __init__(self):
-        self._connections = {
+        connections = {
             "srv1": {"status": "connected", "name": "convo"},
             "srv2": {"status": "connected", "name": "other"},
         }
         ro = {"readOnlyHint": True}
-        self._tools = {
+        tools = {
             "srv1": [
                 {"name": "search_transcripts", "annotations": ro},
                 # pydantic-style annotations object, as the mcp client returns
@@ -29,9 +30,7 @@ class FakeManager:
             ],
             "srv2": [{"name": "search_web", "annotations": ro}],
         }
-
-    def is_builtin(self, server_id):
-        return False
+        super().__init__(tools, connections)
 
 
 @pytest.fixture

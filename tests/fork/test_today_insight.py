@@ -39,12 +39,11 @@ def _event(uid, start, end, summary="Meeting", all_day=False, is_utc=False, stat
 
 
 @pytest.fixture
-def store(tmp_path, monkeypatch):
-    monkeypatch.setattr("src.constants.DATA_DIR", str(tmp_path))
+def store(data_dir, monkeypatch):
     monkeypatch.setattr(ti, "owner_timezone", lambda owner: TZ)
     monkeypatch.setattr(ti, "_FILE_LOCKS", {})
     monkeypatch.setattr(ti, "_RUN_LOCKS", {})
-    return tmp_path
+    return data_dir
 
 
 # ------------------------------------------------------------------ buckets and lists

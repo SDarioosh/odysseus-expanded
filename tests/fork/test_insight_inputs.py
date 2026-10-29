@@ -28,14 +28,8 @@ def _row(id, title="Send the slides", status="open", with_=("Alice",), mine=True
     return row
 
 
-@pytest.fixture
-def store(tmp_path, monkeypatch):
-    monkeypatch.setattr("src.constants.DATA_DIR", str(tmp_path))
-    return tmp_path
-
-
 # --------------------------------------------------------------------------- loops
-def test_loop_candidate_shape(store):
+def test_loop_candidate_shape(data_dir):
     [c] = ii.loop_candidates("alice", TODAY, [_row(7, with_=("Alice Smith", "Bob"),
                                                   due_date="2026-10-22")])
     assert c == {"ref": "loop:7", "kind": "loop", "bucket": "due_today",
@@ -44,7 +38,7 @@ def test_loop_candidate_shape(store):
                  "weight": 0}
 
 
-def test_loops_need_mine_with_open_and_not_filed(store):
+def test_loops_need_mine_with_open_and_not_filed(data_dir):
     rows = [_row(1), _row(2, mine=False), _row(3, with_=None), _row(4, with_=()),
             _row(5, status="done"), _row(6), _row(8, mine=None, owner="Me"),
             _row(9, mine=None, owner="Bob"), _row(10, with_=("Me",))]
@@ -52,7 +46,7 @@ def test_loops_need_mine_with_open_and_not_filed(store):
     assert sorted(refs) == ["loop:1", "loop:8"]
 
 
-def test_a_loop_names_its_person_in_its_text(store):
+def test_a_loop_names_its_person_in_its_text(data_dir):
     rows = [_row(1, title="Buy milk", text="Buy milk", with_=("Ana", "Tom")),  # just there
             _row(2, title="Lend the tent", text="Lend Tom the tent", with_=("Ana", "Tom")),
             _row(3, title="Send ANA SILVA the photos", text="", with_=("Ana Silva",)),
@@ -66,7 +60,7 @@ def test_a_loop_names_its_person_in_its_text(store):
     assert lines == ["Buy milk", "Call Anabel"]
 
 
-def test_filed_items_from_the_module_state(store):
+def test_filed_items_from_the_module_state(data_dir):
     from src import module_action_items as mai
 
     mai.save_state("alice", {"items": {}, "filed": {"1": {"target": "todo"}}})
@@ -74,7 +68,7 @@ def test_filed_items_from_the_module_state(store):
     assert refs == ["loop:2"]
 
 
-def test_loops_by_due_date_then_newest_capped(store):
+def test_loops_by_due_date_then_newest_capped(data_dir):
     rows = [_row(1, created="2026-10-01T00:00:00Z"), _row(2, created="2026-10-21T00:00:00Z"),
             _row(3, due_date="2026-10-25"), _row(4, due_date="2026-10-21"),
             _row(5, created="2026-10-10T00:00:00Z"), _row(6, created="2026-09-01T00:00:00Z"),
@@ -109,7 +103,7 @@ def test_plans_window_status_and_order():
     assert len(ii.plan_candidates("alice", TODAY, beliefs=many)) == 5
 
 
-def test_plans_from_the_ledger(store):
+def test_plans_from_the_ledger(data_dir):
     ledger.submit("alice", [ledger.Evidence(
         source="notes", source_id="n1:0", subject="", about="owner",
         text="Plans to visit Alice in Lisbon", link="/#note-n1", seen_first="2026-10-20",
@@ -154,7 +148,7 @@ def test_the_owners_correction_is_the_title_source():
     assert c["title"] == "Repaint the kitchen blue"
 
 
-def test_extra_candidates_fail_soft(store, monkeypatch):
+def test_extra_candidates_fail_soft(data_dir, monkeypatch):
     def boom(*a, **k):
         raise RuntimeError("ledger locked")
 
@@ -229,7 +223,7 @@ def test_prompt_blocks_only_when_non_empty():
     assert "L1" in system and "P1" in system
 
 
-def test_loop_rows_leave_the_action_item_lines(store):
+def test_loop_rows_leave_the_action_item_lines(data_dir):
     rows = [_row(1), _row(2, with_=None, title="Water the plants")]
     raw = json.dumps(rows)
     assert len(ti._action_item_lines("alice", raw)) == 2
@@ -237,7 +231,7 @@ def test_loop_rows_leave_the_action_item_lines(store):
     assert lines == ["Water the plants to Alice"]
 
 
-def test_gather_moves_loops_out_of_the_context(store, monkeypatch):
+def test_gather_moves_loops_out_of_the_context(data_dir, monkeypatch):
     import asyncio
 
     monkeypatch.setattr(ti, "owner_timezone", lambda owner: TZ)
@@ -255,7 +249,7 @@ def test_gather_moves_loops_out_of_the_context(store, monkeypatch):
     assert inputs["action_items"] == ["Water the plants to Alice"]
 
 
-def test_a_title_is_not_a_first_name(store):
+def test_a_title_is_not_a_first_name(data_dir):
     rows = [_row(1, title="Send Dr. Patel the forms", text="", with_=("Dr. Patel",)),
             _row(2, title="Book Dr. Weiss", text="", with_=("Dr. Patel",)),  # another doctor
             _row(3, title="Call Patel back", text="", with_=("Dr. Patel",))]

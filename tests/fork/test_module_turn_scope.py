@@ -17,6 +17,7 @@ from src.module_turn_scope import (
 from src.skill_invocation import INVOKE_PREFIX
 from src.tool_policy import build_effective_tool_policy
 from src.turn_contract import requested_capabilities, resolve_turn_contract
+from tests.fork.fakes import FakeMcpManager
 
 RO = {"readOnlyHint": True, "destructiveHint": False}
 RW = {"readOnlyHint": False, "destructiveHint": False}
@@ -32,19 +33,15 @@ Mentioned:
 """
 
 
-class FakeManager:
+class FakeManager(FakeMcpManager):
     def __init__(self, status="connected", people=PEOPLE, fail=False):
-        self._tools = {
+        super().__init__(tools={
             "c0nv0": [{"name": n, "annotations": RO} for n in READS]
                      + [{"name": n, "annotations": RW} for n in WRITES],
             "other": [{"name": "search_web", "annotations": RO}],
-        }
-        self._connections = {"c0nv0": {"status": status, "name": "convo"},
-                             "other": {"status": "connected", "name": "other"}}
+        }, connections={"c0nv0": {"status": status, "name": "convo"},
+                        "other": {"status": "connected", "name": "other"}})
         self.people, self.fail, self.calls = people, fail, 0
-
-    def is_builtin(self, server_id):
-        return False
 
     async def call_tool(self, name, args):
         self.calls += 1

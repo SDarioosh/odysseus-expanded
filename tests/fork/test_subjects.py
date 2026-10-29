@@ -31,13 +31,12 @@ def module_ev(fid, text, *, about="person", subject="Priya Nair", person_id=None
 
 
 @pytest.fixture
-def data(tmp_path, monkeypatch):
-    monkeypatch.setattr("src.constants.DATA_DIR", str(tmp_path))
+def data(data_dir, monkeypatch):
     monkeypatch.setattr(mf, "_LOCKS", {})
     for var in ("BELIEF_CONFIRM_SOURCES", "BELIEF_CONFIRM_TIMES", "BELIEF_CONFIRM_DAYS",
                 "BELIEF_STALE_DAYS", "MODULE_FACTS_SYNC"):
         monkeypatch.delenv(var, raising=False)
-    return tmp_path
+    return data_dir
 
 
 def belief(text, owner="alice"):

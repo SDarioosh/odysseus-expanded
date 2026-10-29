@@ -3,8 +3,6 @@
 from datetime import date, datetime, timedelta, timezone
 from zoneinfo import ZoneInfo
 
-import pytest
-
 from src import evidence_intake as ledger
 from src import insight_routines as ir
 
@@ -16,12 +14,6 @@ TUESDAYS = [TODAY - timedelta(days=2 + 7 * w) for w in range(6)]  # 20 Oct back 
 def _ev(day, hour, minute=0, summary="Gym", **kw):
     return {"summary": summary, "dtstart": datetime(day.year, day.month, day.day, hour, minute),
             **kw}
-
-
-@pytest.fixture
-def store(tmp_path, monkeypatch):
-    monkeypatch.setattr("src.constants.DATA_DIR", str(tmp_path))
-    return tmp_path
 
 
 # ------------------------------------------------------------------------ the rule
@@ -93,12 +85,12 @@ def test_summary_text_is_short_and_ordered():
 
 
 # -------------------------------------------------------------- cache and evidence
-def test_cached_daily_and_submitted_once_never_confirmed(store):
+def test_cached_daily_and_submitted_once_never_confirmed(data_dir):
     events = [_ev(d, 18) for d in TUESDAYS[:4]]
     now = datetime(2026, 10, 22, 7, tzinfo=timezone.utc)
     found = ir.routines("alice", TODAY, now=now, events=events, tz=TZ)
     assert [r["id"] for r in found] == ["gym:1"]
-    cache = (store / "today_insight" / "alice" / "routines.json")
+    cache = (data_dir / "today_insight" / "alice" / "routines.json")
     assert cache.is_file()
     [belief] = ledger.list_beliefs("alice")
     assert belief["status"] == "tentative"
@@ -120,7 +112,7 @@ def test_cached_daily_and_submitted_once_never_confirmed(store):
     assert belief["evidence"][0]["times"] == 1
 
 
-def test_repeated_submission_alone_cannot_confirm(store):
+def test_repeated_submission_alone_cannot_confirm(data_dir):
     r = ir.detect([_ev(d, 18) for d in TUESDAYS[:4]], TZ, TODAY)
     for i in range(5):  # even if the same routine were submitted again and again
         ir.submit_new("alice", [dict(r[0], last=(TODAY + timedelta(days=7 * i)).isoformat())],
@@ -129,7 +121,7 @@ def test_repeated_submission_alone_cannot_confirm(store):
     assert belief["status"] == "tentative"
 
 
-def test_owner_confirms_on_the_review_page(store):
+def test_owner_confirms_on_the_review_page(data_dir):
     ir.routines("alice", TODAY, events=[_ev(d, 18) for d in TUESDAYS[:3]], tz=TZ)
     [belief] = ledger.list_beliefs("alice")
     assert ledger.confirm("alice", belief["id"])["status"] == "confirmed"
@@ -138,7 +130,7 @@ def test_owner_confirms_on_the_review_page(store):
         "Gym on Tuesdays 18:00"
 
 
-def test_summary_reads_the_calendar_of_the_owner(store, monkeypatch):
+def test_summary_reads_the_calendar_of_the_owner(data_dir, monkeypatch):
     import core.database as cdb
     from tests.helpers.sqlite_db import make_temp_sqlite
 

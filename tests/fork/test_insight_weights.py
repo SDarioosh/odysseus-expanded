@@ -19,12 +19,11 @@ NOW = datetime(2026, 10, 22, 7, 0, tzinfo=timezone.utc)
 
 
 @pytest.fixture
-def store(tmp_path, monkeypatch):
-    monkeypatch.setattr("src.constants.DATA_DIR", str(tmp_path))
+def store(data_dir, monkeypatch):
     monkeypatch.setattr(ti, "owner_timezone", lambda owner: TZ)
     monkeypatch.setattr(ti, "_FILE_LOCKS", {})
     monkeypatch.setattr(ti, "_RUN_LOCKS", {})
-    return tmp_path
+    return data_dir
 
 
 def _todo(note, outcome, note_type="checklist", index=0):
