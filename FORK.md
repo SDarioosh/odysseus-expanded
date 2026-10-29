@@ -179,6 +179,7 @@ to be offered) upstream, "with discussion" a change upstream may want in another
 | `app.py` | routers | `fork/routes/auto_mode_routes.py` | auto mode default | no |
 | `app.py` | routers | `fork/routes/ink_routes.py` | handwritten notes | no |
 | `app.py` | `_startup_event` | `fork/hub/checklist_auto_archive.py` | start the checklist archiver | with discussion |
+| `.github/workflows/ci.yml` | byte-compile step | none | compile `fork/` too | no |
 | `frontend/src/features/notes/application/workflows.js` | `_fetchNotes` | none (a filter; Write is `static/js/forkInk.js`) | handwritten notes left out of the Notes window | no |
 | `static/js/features/notes/application/workflows.js` | `_fetchNotes` (published copy of the above) | none | same filter | no |
 | `routes/api_token_routes.py` | `ALLOWED_SCOPES` | `fork/routes/today_insight_routes.py` | scope `insight:read` | no |

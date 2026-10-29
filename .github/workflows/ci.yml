@@ -80,7 +80,7 @@ jobs:
         with:
           python-version: "3.11"
       # Byte-compile sources — catches syntax errors without installing deps.
-      - run: python -m compileall -q app.py core routes src services scripts tests
+      - run: python -m compileall -q app.py core fork routes src services scripts tests  # Fork: fork/ too
       - name: Check committed frontend deployment modules
         run: python scripts/build_frontend.py --check
 

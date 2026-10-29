@@ -67,5 +67,5 @@ the hub lanes and the rules that are specific to this repo.
   Athena names (`fork/athena/view.py`, `routes.py`, `relay_routes.py`). Every old path is
   a shim that aliases the new module (removed in 4C); hooks changed only their import
   line and comment; route table and OpenAPI paths are unchanged; URLs, action ids,
-  stored names and logger-independent behaviour stay. Logger names follow the module
+  and stored names stay. Logger names follow the module
   (`fork.athena.facts` instead of `src.module_facts`).
