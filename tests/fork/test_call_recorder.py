@@ -67,7 +67,7 @@ def test_link_repr_hides_the_token():
 def test_resolve_finds_the_convo_server(monkeypatch):
     monkeypatch.delenv(rec.SERVER_ENV, raising=False)
     monkeypatch.delenv(rec.LEGACY_SERVER_ENV, raising=False)
-    monkeypatch.setattr(rec, "_server_rows", lambda: [
+    monkeypatch.setattr("fork.athena.client._server_rows", lambda: [
         ("other", "github", "http://x/mcp?access_token=zzz", True), *ROWS])
     assert rec.resolve() == CFG
     assert rec.status() == {"configured": True, "problem": None}
@@ -83,7 +83,7 @@ def test_resolve_finds_the_convo_server(monkeypatch):
 ])
 def test_resolve_says_what_to_fix(monkeypatch, rows, words):
     monkeypatch.delenv(rec.SERVER_ENV, raising=False)
-    monkeypatch.setattr(rec, "_server_rows", lambda: rows)
+    monkeypatch.setattr("fork.athena.client._server_rows", lambda: rows)
     with pytest.raises(rec.RecorderError) as e:
         rec.resolve()
     assert e.value.status == 503 and words in e.value.message
@@ -256,11 +256,11 @@ class _FixedDatetime(datetime):
 def client(monkeypatch):
     monkeypatch.delenv(rec.SERVER_ENV, raising=False)
     monkeypatch.delenv(rec.DEVICE_ENV, raising=False)
-    monkeypatch.setattr(rec, "_server_rows", lambda: ROWS)
+    monkeypatch.setattr("fork.athena.client._server_rows", lambda: ROWS)
     monkeypatch.setattr(rec, "datetime", _FixedDatetime)
     module = Module()
     real_client = rec._client
-    monkeypatch.setattr(rec, "_client", lambda transport: real_client(module.transport))
+    monkeypatch.setattr("fork.athena.client._client", lambda transport, timeout=None: real_client(module.transport))
     app = FastAPI()
     app.include_router(setup_sound_module_routes())
     app.dependency_overrides[require_admin] = lambda: None
@@ -301,7 +301,7 @@ def test_routes_pass_errors_through(client):
 
 
 def test_routes_not_configured(client, monkeypatch):
-    monkeypatch.setattr(rec, "_server_rows", lambda: [])
+    monkeypatch.setattr("fork.athena.client._server_rows", lambda: [])
     cfg = client.get("/api/modules/sound/record/config").json()
     assert cfg["configured"] is False and "No MCP server named 'convo'" in cfg["problem"]
     r = post_chunk(client)

@@ -23,6 +23,7 @@ from urllib.parse import quote, unquote
 import httpx
 
 from fork.athena import call_recorder as rec
+from fork.athena import client as athena
 
 logger = logging.getLogger(__name__)
 
@@ -88,14 +89,7 @@ async def fetch(link: rec.Link, conversation_id: str, fmt: str, include: tuple[s
     :class:`call_recorder.RecorderError` with a status to answer and words to show."""
     params = {"format": fmt, "include": ",".join(include)}
     path = f"/conversations/{rec.path_part(conversation_id)}/export"
-    try:
-        async with rec._client(transport) as client:
-            res = await client.get(f"{link.base}{path}", params=params,
-                                   headers=rec.auth_headers(link))
-    except httpx.HTTPError as exc:
-        # Log only the base and the error's type (never the request).
-        logger.warning("Athena unreachable at %s: %s", link.base, type(exc).__name__)
-        raise rec.RecorderError(502, "Athena is not reachable") from None
+    res = await athena.request(link, "GET", path, params=params, transport=transport)
     if res.status_code in (404, 405):
         detail = rec._detail(res)
         if detail and detail != "Not Found":

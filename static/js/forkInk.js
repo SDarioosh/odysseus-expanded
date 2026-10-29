@@ -37,6 +37,8 @@
 //   the hub renders it); it takes the highlighter but no pen ink. The hub transcribes it
 //   like a written page; the Text tab shows the photo, and can remove a photo page.
 
+import { el, request as api } from './forkDom.js';
+
 export const PAGE_W = 1000;
 export const PAGE_H = 1414;
 export const PALM_MS = 1500;
@@ -297,19 +299,6 @@ function defaultTitle(date = new Date()) {
     + `${p(date.getHours())}:${p(date.getMinutes())}`;
 }
 
-function el(tag, attrs = {}, ...kids) {
-  const node = document.createElement(tag);
-  for (const [k, v] of Object.entries(attrs)) {
-    if (v == null || v === false) continue;
-    if (k === 'class') node.className = v;
-    else if (k === 'text') node.textContent = v;
-    else if (k.startsWith('on')) node.addEventListener(k.slice(2), v);
-    else node.setAttribute(k, v === true ? '' : v);
-  }
-  for (const kid of kids) if (kid != null) node.append(kid);
-  return node;
-}
-
 const SVG = (body) => `<svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" `
   + `stroke-width="2" stroke-linecap="round" stroke-linejoin="round">${body}</svg>`;
 const ICONS = {
@@ -405,18 +394,6 @@ function loadBooks(user) {
 
 function saveBooks(user, books) {
   try { localStorage.setItem(booksKey(user), JSON.stringify(books)); } catch (_) { /* private mode */ }
-}
-
-// ---------------------------------------------------------------- the hub calls
-async function api(path, options = {}) {
-  const res = await fetch(path, {
-    credentials: 'same-origin',
-    headers: options.body ? { 'Content-Type': 'application/json' } : undefined,
-    ...options,
-  });
-  let body = null;
-  try { body = await res.json(); } catch (_) { /* empty */ }
-  return { status: res.status, ok: res.ok, body };
 }
 
 // ------------------------------------------------------------------- drawing

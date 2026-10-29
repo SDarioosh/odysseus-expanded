@@ -3,14 +3,9 @@
 // routes/sound_relay_routes.py). Loaded by one hook in static/index.html. The phone's
 // token then shows in the integrations list above the card, where it is revoked.
 
-const CARD_ID = 'fork-phone-pairing-card';
+import { el } from './forkDom.js';
 
-function el(tag, attrs = {}, text) {
-  const node = document.createElement(tag);
-  Object.entries(attrs).forEach(([k, v]) => node.setAttribute(k, v));
-  if (text !== undefined) node.textContent = text;
-  return node;
-}
+const CARD_ID = 'fork-phone-pairing-card';
 
 const PHONE_ICON = '<svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" '
   + 'stroke-width="2" stroke-linecap="round" stroke-linejoin="round" '

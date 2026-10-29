@@ -41,9 +41,9 @@ class Module:
 
 def make_app(monkeypatch, module: Module, admin: bool = True, rows=ROWS) -> TestClient:
     monkeypatch.delenv(rec.SERVER_ENV, raising=False)
-    monkeypatch.setattr(rec, "_server_rows", lambda: rows)
+    monkeypatch.setattr("fork.athena.client._server_rows", lambda: rows)
     real_client = rec._client
-    monkeypatch.setattr(rec, "_client", lambda transport: real_client(httpx.MockTransport(module)))
+    monkeypatch.setattr("fork.athena.client._client", lambda transport, timeout=None: real_client(httpx.MockTransport(module)))
     monkeypatch.setattr("core.middleware.auth_disabled", lambda: False)
     app = FastAPI()
 

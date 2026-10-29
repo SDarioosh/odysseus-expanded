@@ -44,6 +44,7 @@ from urllib.parse import parse_qs, urlsplit
 import httpx
 
 from fork.athena import call_recorder as recorder
+from fork.athena import client as athena
 
 logger = logging.getLogger(__name__)
 
@@ -64,6 +65,8 @@ UPDATE_MODULE = ("Update Athena to use meetings: its MCP server has no meeting r
                  "(scripts/fork_deploy.sh deploy).")
 UPDATE_SIGNIN = ("Update Athena to sign in to Zoom from here: its MCP server has no sign-in "
                  "routes yet (scripts/fork_deploy.sh deploy).")
+TIMED_OUT = "Athena didn't answer in time; check again in a moment."
+UNREACHABLE = "Athena is not reachable."
 SIGNIN_NEEDED = ("Athena's Zoom sign-in is missing or expired — sign in to Zoom on the "
                  "Meetings page.")
 # Athena exchanges the code with Zoom before it answers: give it a little more time.
@@ -97,15 +100,13 @@ _INVITE_PASSCODE = re.compile(
 _ONLY_NUMBER = re.compile(r"^[\d \t-]+$")
 
 
-class MeetingError(Exception):
+class MeetingError(athena.AthenaError):
     """A request the page can be shown: ``status`` is the HTTP status to answer with,
     ``code`` a word the page acts on (``busy`` shows a Leave button for ``active``)."""
 
     def __init__(self, status: int, message: str, code: str = "error",
                  active: str | None = None):
-        super().__init__(message)
-        self.status = status
-        self.message = message
+        super().__init__(status, message, code)
         self.code = code
         self.active = active
 
@@ -374,30 +375,21 @@ async def _call(link: recorder.Link, method: str, path: str, timeout: httpx.Time
                 params: dict[str, Any] | None = None, json: Any = None,
                 transport: httpx.AsyncBaseTransport | None = None,
                 update: str = UPDATE_MODULE) -> tuple[int, Any]:
-    # The token goes in the Authorization header, which the module's BearerAuth accepts
-    # like ?access_token=: httpx logs every request URL at INFO, so a token in the query
-    # would land in the hub's log on every state poll.
+    # The token goes in the Authorization header (fork/athena/client.py): httpx logs every
+    # request URL at INFO, so a token in the query would land in the hub's log on every
+    # state poll.
     try:
-        async with httpx.AsyncClient(timeout=timeout, transport=transport,
-                                     follow_redirects=False) as client:
-            res = await client.request(method, f"{link.base}{path}", params=params or None,
-                                       json=json,
-                                       headers={"Authorization": f"Bearer {link.token}"})
-    except httpx.TimeoutException:
-        logger.warning("Athena timed out at %s %s", method, path)
-        raise MeetingError(504, "Athena didn't answer in time; check again in a moment.",
-                           "timeout") from None
-    except httpx.HTTPError as exc:
-        # The URL carries the token: log only the base and the error's type.
-        logger.warning("Athena unreachable at %s: %s", link.base, type(exc).__name__)
-        raise MeetingError(502, "Athena is not reachable.", "unreachable") from None
+        res = await athena.request(link, method, path, params=params, json=json,
+                                   timeout=timeout, transport=transport,
+                                   timed_out=(504, TIMED_OUT), unreachable=UNREACHABLE)
+    except athena.AthenaError as exc:  # "timeout" or "unreachable"
+        raise MeetingError(exc.status, exc.message, exc.kind) from None
     try:
         body = res.json()
     except ValueError:
         body = None
     if res.status_code in (401, 403):
-        raise MeetingError(502, f"Athena refused the token of the {recorder.server_key()!r} "
-                                "MCP server (Settings → MCP).", "token")
+        raise MeetingError(502, athena.RECORDER.refused_token().message, "token")
     if _route_missing(res.status_code, body):
         raise MeetingError(502, update, "update")
     return res.status_code, body

@@ -100,11 +100,8 @@ def test_shortcut_data_matches_the_windows():
     for window_id, button in got["FORK_WINDOW_TRIGGERS"].items():
         assert f"id: '{window_id}'" in windows
         assert f"sidebarBtn: '{button}'" in windows
-        # The Meetings and Write entries are added by forkModuleWindows.js, not index.html.
-        if button in ("tool-meetings-btn", "tool-ink-btn"):
-            assert f'id="{button}"' not in index
-        else:
-            assert f'id="{button}"' in index
+        # Every sidebar entry is added by forkModuleWindows.js; none is in index.html.
+        assert f'id="{button}"' not in index
     for _name, (button, rail) in got["FORK_OPEN_TARGETS"].items():
         assert f"railBtn: '{rail}'" in windows
 
@@ -174,9 +171,27 @@ def test_athena_group_holds_the_module_entries():
     # built after the entries it moves are added
     assert windows.index("addSidebarEntry(WINDOWS.ink") < windows.index("buildAthenaMenu([")
     index = (_REPO / "static" / "index.html").read_text()
-    for entry in ("tool-sound-module-btn", "tool-today-insight-btn", "tool-beliefs-btn"):
-        assert f'id="{entry}"' in index
     assert 'id="tools-section"' in index
+
+
+def test_the_sidebar_entries_come_from_the_windows_script():
+    # index.html only loads forkModuleWindows.js; the script adds the five entries after
+    # upstream's Notes entry, in this order, before it moves them into the Athena group.
+    windows = (_JS / "forkModuleWindows.js").read_text()
+    index = (_REPO / "static" / "index.html").read_text()
+    assert "const NOTES_ENTRY = 'tool-notes-btn';" in windows
+    assert 'id="tool-notes-btn"' in index
+    adds = ["addSidebarEntry(WINDOWS.sound, NOTES_ENTRY);",
+            "addSidebarEntry(WINDOWS.meetings, WINDOWS.sound.sidebarBtn);",
+            "addSidebarEntry(WINDOWS.today, WINDOWS.meetings.sidebarBtn);",
+            "addSidebarEntry(WINDOWS.ink, WINDOWS.today.sidebarBtn);",
+            "addSidebarEntry(WINDOWS.beliefs, WINDOWS.ink.sidebarBtn);"]
+    at = [windows.index(line) for line in adds]
+    assert at == sorted(at) and at[-1] < windows.index("buildAthenaMenu([")
+    # the entries with a standalone page are links to it (a modified click opens it)
+    for href in ("/modules/sound", "/modules/sound/record", "/today", "/beliefs"):
+        assert f"href: '{href}'," in windows
+    assert "Fork: Athena conversations page" not in index
 
 
 def test_beliefs_window_reads_the_beliefs_page():

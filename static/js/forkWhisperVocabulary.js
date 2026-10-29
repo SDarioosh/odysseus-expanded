@@ -3,14 +3,9 @@
 // is nudged toward, through /api/fork/whisper-vocabulary
 // (routes/whisper_vocabulary_routes.py). The module stores and cleans the list.
 
-const CARD_ID = 'fork-whisper-vocabulary-card';
+import { el } from './forkDom.js';
 
-function el(tag, attrs = {}, text) {
-  const node = document.createElement(tag);
-  Object.entries(attrs).forEach(([k, v]) => node.setAttribute(k, v));
-  if (text !== undefined) node.textContent = text;
-  return node;
-}
+const CARD_ID = 'fork-whisper-vocabulary-card';
 
 function note(text) {
   const n = el('div', { class: 'admin-toggle-sub' }, text);

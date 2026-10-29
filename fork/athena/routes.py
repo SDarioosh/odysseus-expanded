@@ -146,20 +146,19 @@ class RenameSpeaker(BaseModel):
 
 
 def _caller() -> view.CallTool:
-    from src.tool_utils import get_mcp_manager
+    from fork.athena.client import RECORDER, AthenaError
 
-    key = recorder.server_key()
-    manager = get_mcp_manager()
-    server_id = view.server_id(manager, key) if manager is not None else None
-    if server_id is None:
-        raise HTTPException(503, f"The Athena MCP server ({key!r}) is not connected.")
+    found = RECORDER.caller()
+    if found is None:
+        raise HTTPException(503, f"The Athena MCP server ({RECORDER.server_key()!r}) is not "
+                                 "connected.")
 
     async def call(tool: str, args: dict) -> str:
-        res = await manager.call_tool(f"mcp__{server_id}__{tool}", args)
-        if res.get("exit_code") or res.get("error"):
-            logger.warning("Athena %s failed: %s", tool, res.get("error") or res.get("stderr"))
-            raise HTTPException(502, f"Athena {tool} failed")
-        return res.get("stdout") or ""
+        try:
+            return await found(tool, args)
+        except AthenaError as e:  # the tool answered with an error
+            logger.warning("Athena %s failed: %s", tool, e.reason)
+            raise HTTPException(502, f"Athena {tool} failed") from None
 
     return call
 

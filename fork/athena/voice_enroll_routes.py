@@ -38,11 +38,7 @@ class EnrollStart(BaseModel):
 
 
 async def _module(method: str, json: Any = None) -> tuple[int, Any]:
-    try:
-        return await rec.forward(rec.resolve(), method, PATH, json=json)
-    except rec.RecorderError as exc:
-        message = OLD_MODULE if exc.message == rec.UPDATE_MODULE else exc.message
-        raise rec.RecorderError(exc.status, message) from None
+    return await rec.module_json(method, PATH, json=json, old_module=OLD_MODULE)
 
 
 def _answer(status: int, body: Any) -> dict[str, Any]:

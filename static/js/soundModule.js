@@ -6,6 +6,7 @@
 // reader at that moment (#t=); the "Transcript" buttons still open the module's page.
 
 import { shareControls } from './forkShareRecord.js';
+import { el, api } from './forkDom.js';
 
 // One mount per document: the window in the main app, or the standalone page.
 let ctx = null;
@@ -38,38 +39,8 @@ const OPEN_ICON = '<svg width="12" height="12" viewBox="0 0 24 24" fill="none" s
   'a2 2 0 0 1-2-2V8a2 2 0 0 1 2-2h6"/><polyline points="15 3 21 3 21 9"/><line x1="10" y1="14" ' +
   'x2="21" y2="3"/></svg>';
 
-function el(tag, attrs = {}, ...children) {
-  const node = document.createElement(tag);
-  for (const [k, v] of Object.entries(attrs)) {
-    if (v === undefined || v === null) continue;
-    if (k === 'className') node.className = v;
-    else if (k === 'html') node.innerHTML = v; // only for our own static SVG strings
-    else if (k.startsWith('on')) node.addEventListener(k.slice(2), v);
-    else node.setAttribute(k, v);
-  }
-  for (const c of children) {
-    if (c === null || c === undefined) continue;
-    node.append(c instanceof Node ? c : document.createTextNode(String(c)));
-  }
-  return node;
-}
-
 function safeLink(url) {
   return /^https?:\/\//.test(url || '') ? url : null;
-}
-
-async function api(path, options = {}) {
-  const res = await fetch(path, { credentials: 'same-origin', ...options });
-  if (res.status === 401) {
-    window.location.href = '/login';
-    throw new Error('not logged in');
-  }
-  let data = {};
-  try {
-    data = await res.json();
-  } catch (e) {}
-  if (!res.ok) throw new Error(data.detail || `HTTP ${res.status}`);
-  return data;
 }
 
 function status(target, text, error = false) {

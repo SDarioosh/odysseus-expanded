@@ -431,16 +431,9 @@ def as_dicts(rows: list[Any]) -> list[dict]:
 
 def server_id(manager: Any, key: str) -> str | None:
     """Id of the connected MCP server called ``key`` (name or id)."""
-    key = key.casefold()
-    from fork.upstream import mcp_connections
+    from fork.athena.client import server_id as connected
 
-    for sid, conn in mcp_connections(manager).items():
-        conn = conn or {}
-        if conn.get("status") != "connected":
-            continue
-        if str(sid).casefold() == key or str(conn.get("name") or "").strip().casefold() == key:
-            return sid
-    return None
+    return connected(manager, key)
 
 
 # The two sorts of note. Athena >= MCP 0.14.0 filters them itself (kind "voice" /

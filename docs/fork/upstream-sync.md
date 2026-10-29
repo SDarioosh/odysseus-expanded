@@ -67,8 +67,8 @@ Merge, don't rebase: `barvis` is shared history.
 - Upstream private names (`_`-prefixed) the fork reads are all in `fork/upstream.py`;
   `tests/fork/test_fork_upstream.py` names any that a sync renamed or dropped. Fix the
   function there, not its callers.
-- `static/index.html`: the fork's sidebar links (Conversations, Today, and the other
-  module pages).
+- `static/index.html`: the fork's script tags at the end of the body (the sidebar entries
+  are added by `static/js/forkModuleWindows.js`).
 
 Before merging, list the files both sides changed since the last sync; those are where
 conflicts can happen:

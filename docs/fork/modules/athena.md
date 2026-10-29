@@ -633,9 +633,23 @@ transcript links) never leaves the module.
 | `GET /zoom/signin`, `POST /zoom/signin/start`, `POST /zoom/signin/finish` | Athena's Zoom sign-in ([Signing Athena in to Zoom](#signing-athena-in-to-zoom); JSON only): status `{configured, signed_in, join_token: obf\|zak\|none, missing}`; start → `{url, expires_in}` (501 when Athena's Zoom app settings are missing); finish `{pasted}` → `{ok, signed_in, join_token}`, 400 `{detail}` in plain words (no or expired attempt, bad paste, Zoom refused), 502 Zoom unreachable, 501 not configured. An older Athena answers 404/405 ("update Athena") |
 
 So the MCP token can add recordings and send Athena's Zoom bot into a meeting. Odysseus finds the module from the `convo` server's
-URL (`/mcp` stripped) and its `access_token` (`src/call_recorder.py`); Odysseus' HTTP MCP
+URL (`/mcp` stripped) and its `access_token` (`fork/athena/client.py`); Odysseus' HTTP MCP
 settings have no header field, so the query token is the only place it is. A module that
 answers 404 on these routes is older than 0.8.0: Odysseus says "update Athena".
+
+### How the hub calls Athena
+
+Every call the fork makes to Athena goes through one client, `fork/athena/client.py`:
+`AthenaClient.tool(name, args)` (or `.caller()` for several calls) for MCP tools through
+Odysseus' MCP manager, and `AthenaClient.http(method, path, ...)` (or `request(link, ...)`)
+for the routes above, with the token as `Authorization: Bearer` (never in a URL, since
+httpx logs request URLs) and a 60 s timeout unless the caller sets its own. Failures are
+one error type, `AthenaError` (`status`, `message`, `kind`); each feature keeps its own
+words for the page. Two settings name the server, as before: `MODULE_ACTION_ITEMS_SERVER`
+(`AthenaClient()`: to-dos, facts, today insight, beliefs) and `SOUND_MODULE_SERVER`
+(`AthenaClient(recorder=True)`: everything else); both default to `convo`
+([settings](../settings.md)). `tests/fork/test_athena_callers.py` pins what every caller
+sends and does with each answer.
 
 ## Handwritten notes (written notes)
 

@@ -3,30 +3,10 @@
 // Routes: routes/insight_weights_routes.py (GET /api/insight/weights,
 // POST /api/insight/weights/reset, GET /api/insight/today/why).
 
-function el(tag, attrs = {}, ...children) {
-  const node = document.createElement(tag);
-  for (const [k, v] of Object.entries(attrs)) {
-    if (v === undefined || v === null || v === false) continue;
-    if (k === 'className') node.className = v;
-    else if (k.startsWith('on')) node.addEventListener(k.slice(2), v);
-    else node.setAttribute(k, v === true ? '' : v);
-  }
-  for (const c of children) {
-    if (c === null || c === undefined) continue;
-    node.append(c instanceof Node ? c : document.createTextNode(String(c)));
-  }
-  return node;
-}
+import { el, api as hubApi } from './forkDom.js';
 
-async function api(path, options = {}) {
-  const res = await fetch(path, { credentials: 'same-origin', ...options });
-  let data = {};
-  try {
-    data = await res.json();
-  } catch (e) {}
-  if (!res.ok) throw new Error(data.detail || data.error || `HTTP ${res.status}`);
-  return data;
-}
+// Inside the Today view a 401 shows as an error here; it doesn't leave for the login page.
+const api = (path, options) => hubApi(path, options, { redirect401: false });
 
 const signed = (n) => (n > 0 ? `+${n}` : String(n || 0));
 

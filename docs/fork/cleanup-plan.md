@@ -80,3 +80,12 @@ the hub lanes and the rules that are specific to this repo.
   (`tests/fork/test_fork_tests_layout.py`). CI is unchanged: its sharded run collects
   `tests/` recursively, so `tests/fork/` was in the shards already; a separate
   `pytest tests/fork` step would only run them twice.
+- **3J done (branch `feature/cleanup-3j`, 2026-10-29):** `static/js/forkDom.js` has
+  `el`, `$`, `api` (`redirect401` option) and `request`; the 11 `el`, 6 `api` and 3 `$`
+  copies in the fork's page scripts import them. `tests/fork/test_fork_dom.py` runs every
+  script's helper over a table of inputs against a record of its old copy
+  (`tests/fork/fork_dom_golden.json`); the inputs where they differ are listed there with
+  the reason. All five Athena sidebar entries are added by `static/js/forkModuleWindows.js`;
+  `static/index.html` keeps only the fork's script tags. Sidebar DOM, layout, rail buttons
+  and clicks, the windows' and standalone pages' content: identical before and after in
+  Chromium.

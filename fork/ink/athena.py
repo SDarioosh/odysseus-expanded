@@ -63,6 +63,7 @@ from urllib.parse import urlsplit, urlunsplit
 import httpx
 
 from fork.athena import call_recorder as rec
+from fork.athena import client as athena_client
 from fork.ink import notes as ink
 from fork.ink import transcribe as tr
 
@@ -413,7 +414,7 @@ def _module_failure(status: int, body: Any) -> ink.InkError:
 
 async def _link() -> rec.Link:
     try:
-        return await asyncio.to_thread(rec.resolve)
+        return await asyncio.to_thread(athena_client.RECORDER.link)
     except rec.RecorderError as exc:
         raise ink.InkError(exc.message, exc.status) from None
 

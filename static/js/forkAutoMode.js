@@ -11,6 +11,7 @@
 // * Settings → Tools (admin): the default for new chats (GET/PUT /api/fork/auto-mode).
 
 import { getCurrentSessionId } from './sessions.js';
+import { el } from './forkDom.js';
 
 const FIELD = 'fork_tool_mode';
 const STORE_KEY = 'fork.toolModeByChat';
@@ -20,13 +21,6 @@ const MAX_CHATS = 500;
 
 let defaultAuto = true;       // server default, loaded below
 let pendingChoice = null;     // chosen on a new chat before it has an id
-
-function el(tag, attrs = {}, text) {
-  const node = document.createElement(tag);
-  Object.entries(attrs).forEach(([k, v]) => node.setAttribute(k, v));
-  if (text !== undefined) node.textContent = text;
-  return node;
-}
 
 // ── Per-chat choice ──────────────────────────────────────────────────────────
 
