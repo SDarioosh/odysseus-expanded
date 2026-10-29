@@ -13,6 +13,10 @@ itself declares ``readOnlyHint: true`` (and not ``destructiveHint: true``) are:
 * granted by request authority for every turn, and
 * allowed by the post-external-context approval gate.
 
+Athena's server is trusted under its new name ``athena`` when the setting names its old
+name ``convo``, and the other way round (``fork/common/athena_names.py``), so renaming the
+server in Settings → MCP keeps its read-only trust.
+
 Everything else is unchanged: write tools on a trusted server, and every tool
 on any other server, keep the normal approval flow. There is no name
 heuristic here; a tool without an explicit read-only annotation is not trusted.
@@ -25,7 +29,7 @@ from __future__ import annotations
 from collections.abc import Iterable
 from typing import Any
 
-from fork.common import settings
+from fork.common import athena_names, settings
 from fork.upstream import mcp_connections, mcp_tools
 
 TRUSTED_READONLY_MCP_ENV = settings.TRUSTED_READONLY_MCP.name  # ODYSSEUS_TRUSTED_READONLY_MCP
@@ -59,6 +63,7 @@ def _manager():
 
 
 def _trusted_server_ids(manager, keys: frozenset[str]) -> Iterable[str]:
+    keys = athena_names.with_server_aliases(keys)
     connections = mcp_connections(manager)
     for server_id in mcp_tools(manager):
         if manager.is_builtin(server_id):

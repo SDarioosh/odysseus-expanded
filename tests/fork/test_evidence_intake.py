@@ -64,15 +64,15 @@ def test_new_evidence_is_a_tentative_belief_outside_memory(data):
 
 
 def test_source_confirmed_evidence_is_confirmed_and_mirrored(data):
-    counts = ei.submit("alice", [ev("odysseus-sound", "7", "Prefers oat milk in coffee",
+    counts = ei.submit("alice", [ev("athena", "7", "Prefers oat milk in coffee",
                                     source_confirmed=True, times=3, days=2)], now=T0)
     assert (counts["beliefs_added"], counts["confirmed"]) == (1, 1)
     belief = only()
     assert (belief["status"], belief["confirmed_by"]) == ("confirmed", "source")
     entry = mirrored(data)[belief["id"]]
-    assert entry["text"] == "Prefers oat milk in coffee (source: http://h/odysseus-sound/7)"
+    assert entry["text"] == "Prefers oat milk in coffee (source: http://h/athena/7)"
     assert (entry["source"], entry["category"], entry["owner"]) == \
-        ("odysseus-sound", "preference", "alice")
+        ("athena", "preference", "alice")
     assert (entry["module_fact_id"], entry["times_said"], entry["days"]) == (7, 3, 2)
     assert ei.get_belief("alice", belief["id"])["memory_id"] == entry["id"]
 
@@ -83,7 +83,7 @@ def test_evidence_without_provenance_is_skipped(data):
 
 
 def test_same_text_from_two_sources_is_one_belief_confirmed_by_rule(data):
-    ei.submit("alice", [ev("odysseus-sound", "7", "Likes jazz.", seen_last="2026-10-02")],
+    ei.submit("alice", [ev("athena", "7", "Likes jazz.", seen_last="2026-10-02")],
               now=T0)
     assert only()["status"] == "tentative"
     counts = ei.submit("alice", [ev("notes", "n9", "  likes   JAZZ ", seen_last="2026-10-09")],
@@ -92,16 +92,16 @@ def test_same_text_from_two_sources_is_one_belief_confirmed_by_rule(data):
                       "confirmed": 1, "unconfirmed": 0, "unchanged": 0, "skipped": 0}
     belief = only()
     assert (belief["status"], belief["confirmed_by"]) == ("confirmed", "rule")
-    assert {e["source"] for e in belief["evidence"]} == {"odysseus-sound", "notes"}
+    assert {e["source"] for e in belief["evidence"]} == {"athena", "notes"}
     assert belief["last_seen"] == "2026-10-09"
     entry = mirrored(data)[belief["id"]]
     # the module's absolute link outranks the newer note's; module fields stay on
-    assert entry["text"] == "Likes jazz. (source: http://h/odysseus-sound/7)"
-    assert (entry["source"], entry["module_fact_id"]) == ("odysseus-sound", 7)
+    assert entry["text"] == "Likes jazz. (source: http://h/athena/7)"
+    assert (entry["source"], entry["module_fact_id"]) == ("athena", 7)
 
 
 def test_memory_link_prefers_the_transcript_link(data):
-    ei.submit("alice", [ev("odysseus-sound", "4", "Jonas is allergic to peanuts",
+    ei.submit("alice", [ev("athena", "4", "Jonas is allergic to peanuts",
                            about="person", subject="Jonas", source_confirmed=True,
                            seen_last="2026-10-02",
                            link="http://h:8000/view/c4?sig=abc#t=40")], now=T0)
@@ -112,12 +112,12 @@ def test_memory_link_prefers_the_transcript_link(data):
     assert entry["link"] == "http://h:8000/view/c4?sig=abc#t=40"
     assert entry["text"] == ("Jonas is allergic to peanuts "
                              "(source: http://h:8000/view/c4?sig=abc#t=40)")
-    assert entry["source"] == "odysseus-sound"
+    assert entry["source"] == "athena"
     assert only()["link"] == "http://h:8000/view/c4?sig=abc#t=40"
 
 
 def test_link_rank_order():
-    module = {"source": "odysseus-sound", "link": "https://h/view/c1", "seen_last": "2026-01-01",
+    module = {"source": "athena", "link": "https://h/view/c1", "seen_last": "2026-01-01",
               "id": 1}
     web = {"source": "email", "link": "http://mail/x", "seen_last": "2026-10-01", "id": 2}
     note = {"source": "notes", "link": "/#open=notes&note=1", "seen_last": "2026-10-20",
@@ -191,19 +191,19 @@ def test_resubmitting_is_unchanged_and_updates_count(data):
 
 
 def test_source_edit_follows_or_moves(data):
-    ei.submit("alice", [ev("odysseus-sound", "1", "Prefers oat milk", source_confirmed=True)],
+    ei.submit("alice", [ev("athena", "1", "Prefers oat milk", source_confirmed=True)],
               now=T0)
     first = only()
     # the only evidence changes its text: the belief follows, memory updated in place
     memory_id = mirrored(data)[first["id"]]["id"]
-    ei.submit("alice", [ev("odysseus-sound", "1", "Prefers soy milk", source_confirmed=True)],
+    ei.submit("alice", [ev("athena", "1", "Prefers soy milk", source_confirmed=True)],
               now=T1)
     belief = only()
     assert (belief["id"], belief["text"]) == (first["id"], "Prefers soy milk")
     assert mirrored(data)[belief["id"]]["id"] == memory_id
     # with a second source behind it, a changed text is a different claim: it moves
     ei.submit("alice", [ev("notes", "n1", "Prefers soy milk")], now=T1)
-    ei.submit("alice", [ev("odysseus-sound", "1", "Prefers rice milk")], now=T1)
+    ei.submit("alice", [ev("athena", "1", "Prefers rice milk")], now=T1)
     beliefs = {b["text"]: b for b in ei.list_beliefs("alice")}
     assert set(beliefs) == {"Prefers soy milk", "Prefers rice milk"}
     assert [e["source"] for e in beliefs["Prefers soy milk"]["evidence"]] == ["notes"]
@@ -217,9 +217,9 @@ def test_source_rewording_keeps_the_owners_decision(data):
     bike = "Marisol owns a carbureted motorcycle with no computer on it."
     reworded = "Marisol owns a carbureted motorcycle that has no computer."
     person = {"about": "person", "subject": "Marisol"}
-    ei.submit("alice", [ev("odysseus-sound", "7", bike, **person)], now=T0)
+    ei.submit("alice", [ev("athena", "7", bike, **person)], now=T0)
     ei.confirm("alice", only()["id"], now=T0)
-    ei.submit("alice", [ev("odysseus-sound", "7", reworded, source_confirmed=True, **person)],
+    ei.submit("alice", [ev("athena", "7", reworded, source_confirmed=True, **person)],
               now=T1)
     belief = only()
     assert (belief["text"], belief["status"], belief["confirmed_by"]) == \
@@ -228,20 +228,20 @@ def test_source_rewording_keeps_the_owners_decision(data):
     assert [m["belief_id"] for m in memories(data)] == [belief["id"]]
 
     cat = "Has a cat called Luna"
-    ei.submit("alice", [ev("odysseus-sound", "8", cat, **person)], now=T0)
+    ei.submit("alice", [ev("athena", "8", cat, **person)], now=T0)
     luna = next(b for b in ei.list_beliefs("alice") if b["text"] == cat)
     ei.reject("alice", luna["id"], now=T0)
-    ei.submit("alice", [ev("odysseus-sound", "8", "Has a cat that is called Luna", **person)],
+    ei.submit("alice", [ev("athena", "8", "Has a cat that is called Luna", **person)],
               now=T1)
     assert [(b["text"], b["status"]) for b in ei.list_beliefs("alice", status=None)
             if b["id"] != belief["id"]] == [(cat, "rejected")]
     # new words are a different claim: it splits off, as before
-    ei.submit("alice", [ev("odysseus-sound", "8", "Has a cat called Bruno", **person)],
+    ei.submit("alice", [ev("athena", "8", "Has a cat called Bruno", **person)],
               now=T1)
     assert len(ei.list_beliefs("alice", status=None)) == 3
 
     # about someone else now (a speaker renamed): a different claim, a new belief
-    ei.submit("alice", [ev("odysseus-sound", "7", "Bob owns a carbureted motorcycle.",
+    ei.submit("alice", [ev("athena", "7", "Bob owns a carbureted motorcycle.",
                            about="person", subject="Bob")], now=T1)
     texts = {b["text"]: b for b in ei.list_beliefs("alice", status=None)}
     assert texts[bike]["evidence"] == []
@@ -266,17 +266,17 @@ def test_owner_confirm_wins_over_the_rule_and_survives_retraction(data):
 
 
 def test_reject_leaves_memory_and_stays_rejected(data):
-    ei.submit("alice", [ev("odysseus-sound", "3", "Plays the cello", source_confirmed=True)],
+    ei.submit("alice", [ev("athena", "3", "Plays the cello", source_confirmed=True)],
               now=T0)
     belief = only()
     assert belief["id"] in mirrored(data)
     evidence = ei.reject("alice", belief["id"], "never did", now=T1)
-    assert [(e["source"], e["source_id"]) for e in evidence] == [("odysseus-sound", "3")]
+    assert [(e["source"], e["source_id"]) for e in evidence] == [("athena", "3")]
     assert mirrored(data) == {}
     assert ei.get_belief("alice", belief["id"])["note"] == "never did"
     assert ei.get_belief("alice", belief["id"])["memory_id"] is None
     # new evidence, even confirmed by its source, doesn't bring it back
-    ei.submit("alice", [ev("odysseus-sound", "3", "Plays the cello", source_confirmed=True,
+    ei.submit("alice", [ev("athena", "3", "Plays the cello", source_confirmed=True,
                            times=5), ev("notes", "n4", "plays the cello")], now=T1)
     belief = only()
     assert belief["status"] == "rejected" and len(belief["evidence"]) == 2
@@ -285,7 +285,7 @@ def test_reject_leaves_memory_and_stays_rejected(data):
 
 
 def test_correct_changes_what_memory_shows(data):
-    ei.submit("alice", [ev("odysseus-sound", "5", "Kath lives in Lisbon", about="person",
+    ei.submit("alice", [ev("athena", "5", "Kath lives in Lisbon", about="person",
                            subject="Kath", source_confirmed=True)], now=T0)
     belief = only()
     memory_id = mirrored(data)[belief["id"]]["id"]
@@ -296,12 +296,12 @@ def test_correct_changes_what_memory_shows(data):
     assert fixed["text"] == "Kath lives in Lisbon" and fixed["shown_text"] == "Kath lives in Porto"
     entry = mirrored(data)[belief["id"]]
     assert (entry["id"], entry["uses"]) == (memory_id, 1)
-    assert entry["text"] == "Kath lives in Porto (source: http://h/odysseus-sound/5)"
+    assert entry["text"] == "Kath lives in Porto (source: http://h/athena/5)"
     assert entry["category"] == "contact"
     # the module still says Lisbon, and is retracted later: the correction stays
-    ei.submit("alice", [ev("odysseus-sound", "5", "Kath lives in Lisbon", about="person",
+    ei.submit("alice", [ev("athena", "5", "Kath lives in Lisbon", about="person",
                            subject="Kath", source_confirmed=False)], now=T1)
-    ei.reconcile_source("alice", "odysseus-sound", set(), now=T1)
+    ei.reconcile_source("alice", "athena", set(), now=T1)
     assert only()["status"] == "confirmed"
     # a source that now says the corrected text lands on the same belief
     ei.submit("alice", [ev("notes", "n2", "Kath lives in Porto.")], now=T1)
@@ -341,11 +341,11 @@ def test_owner_actions_are_per_owner(data):
 
 # ------------------------------------------------------------- reconcile and decay
 def test_reconcile_source_stales_beliefs_without_live_evidence(data):
-    ei.submit("alice", [ev("odysseus-sound", "1", "Likes jazz", source_confirmed=True),
-                        ev("odysseus-sound", "2", "Hates queues", source_confirmed=True)],
+    ei.submit("alice", [ev("athena", "1", "Likes jazz", source_confirmed=True),
+                        ev("athena", "2", "Hates queues", source_confirmed=True)],
               now=T0)
     assert len(mirrored(data)) == 2
-    result = ei.reconcile_source("alice", "odysseus-sound", {"2"}, now=T1)
+    result = ei.reconcile_source("alice", "athena", {"2"}, now=T1)
     assert result == {"gone": 1, "stale": 1, "unconfirmed": 0}
     jazz = only(status="stale")
     assert jazz["text"] == "Likes jazz" and jazz["evidence"][0]["gone"] is True
@@ -354,10 +354,10 @@ def test_reconcile_source_stales_beliefs_without_live_evidence(data):
         ["stale", "retired_upstream"]
     assert set(mirrored(data)) == {only(status="confirmed")["id"]}
     # running it again changes nothing
-    assert ei.reconcile_source("alice", "odysseus-sound", {"2"}, now=T1) == \
+    assert ei.reconcile_source("alice", "athena", {"2"}, now=T1) == \
         {"gone": 0, "stale": 0, "unconfirmed": 0}
     # the source reports it again: back, confirmed and in memory
-    counts = ei.submit("alice", [ev("odysseus-sound", "1", "Likes jazz", source_confirmed=True)],
+    counts = ei.submit("alice", [ev("athena", "1", "Likes jazz", source_confirmed=True)],
                        now=T1)
     assert (counts["evidence_updated"], counts["confirmed"]) == (1, 1)
     assert ei.get_belief("alice", jazz["id"])["status"] == "confirmed"
@@ -365,7 +365,7 @@ def test_reconcile_source_stales_beliefs_without_live_evidence(data):
 
 
 def test_reconcile_one_source_gone_drops_a_rule_confirmation(data):
-    ei.submit("alice", [ev("odysseus-sound", "1"), ev("notes", "n1")], now=T0)
+    ei.submit("alice", [ev("athena", "1"), ev("notes", "n1")], now=T0)
     assert only()["confirmed_by"] == "rule"
     result = ei.reconcile_source("alice", "notes", set(), now=T1)
     assert result == {"gone": 1, "stale": 0, "unconfirmed": 1}
@@ -423,11 +423,11 @@ def test_reconcile_only_touches_that_source_and_owner(data):
 
 def test_apply_decay(data, monkeypatch):
     ei.submit("alice", [
-        ev("odysseus-sound", "1", "Likes jazz", source_confirmed=True,
+        ev("athena", "1", "Likes jazz", source_confirmed=True,
            seen_first="2026-01-01", seen_last="2026-03-01"),
-        ev("odysseus-sound", "2", "Hates queues", source_confirmed=True,
+        ev("athena", "2", "Hates queues", source_confirmed=True,
            seen_first="2026-10-01", seen_last="2026-10-20"),
-        ev("odysseus-sound", "3", "Plays chess", source_confirmed=True,
+        ev("athena", "3", "Plays chess", source_confirmed=True,
            seen_first="2026-01-01", seen_last="2026-03-01"),
         ev("notes", "n1", "Reads poetry", seen_first="2026-01-01", seen_last="2026-01-01"),
         ev("notes", "n2", "Trip to Oslo booked", about="other", source_confirmed=True,
@@ -448,11 +448,11 @@ def test_apply_decay(data, monkeypatch):
     assert {m["text"].split(" (")[0] for m in mirrored(data).values()} == \
         {"Hates queues", "Plays chess"}
     # the same unchanged evidence next hour doesn't revive it
-    ei.submit("alice", [ev("odysseus-sound", "1", "Likes jazz", source_confirmed=True,
+    ei.submit("alice", [ev("athena", "1", "Likes jazz", source_confirmed=True,
                            seen_first="2026-01-01", seen_last="2026-03-01")], now=T1)
     assert status_of("Likes jazz") == "stale"
     # newly seen: back
-    ei.submit("alice", [ev("odysseus-sound", "1", "Likes jazz", source_confirmed=True,
+    ei.submit("alice", [ev("athena", "1", "Likes jazz", source_confirmed=True,
                            seen_first="2026-01-01", seen_last="2026-10-21")], now=T1)
     assert status_of("Likes jazz") == "confirmed"
     # the threshold is a setting
@@ -469,12 +469,12 @@ def status_of(text, owner="alice"):
 
 # ------------------------------------------------------------------------ memory
 def test_memory_mirroring_is_idempotent(data):
-    ei.submit("alice", [ev("odysseus-sound", "1", source_confirmed=True),
+    ei.submit("alice", [ev("athena", "1", source_confirmed=True),
                         ev("notes", "n2", "Hates queues", source_confirmed=True)], now=T0)
     before = (data / "memory.json").read_text()
     assert ei.sync_memory("alice", now=T1) == {"kept": 2, "added": 0, "updated": 0,
                                                 "removed": 0}
-    ei.submit("alice", [ev("odysseus-sound", "1", source_confirmed=True)], now=T1)
+    ei.submit("alice", [ev("athena", "1", source_confirmed=True)], now=T1)
     assert (data / "memory.json").read_text() == before
 
 
@@ -572,13 +572,13 @@ def test_normalize_owner_mentions():
 def test_owner_fact_from_a_note_and_a_conversation_is_one_belief(data):
     ei.submit("alice", [ev("notes", "n-1:0", "The owner is allergic to peanuts.",
                            subject="Owner")], now=T0)
-    counts = ei.submit("alice", [ev("odysseus-sound", "9", "Me is allergic to peanuts.",
+    counts = ei.submit("alice", [ev("athena", "9", "Me is allergic to peanuts.",
                                     subject="Me")], now=T1)
     assert (counts["beliefs_added"], counts["confirmed"]) == (0, 1)
     ei.submit("alice", [ev("chat", "c-3", "I am allergic to peanuts", subject="Me")], now=T1)
     belief = only()
     assert (belief["status"], belief["confirmed_by"]) == ("confirmed", "rule")
-    assert {e["source"] for e in belief["evidence"]} == {"notes", "odysseus-sound", "chat"}
+    assert {e["source"] for e in belief["evidence"]} == {"notes", "athena", "chat"}
     # a person's fact with the same words is a different belief
     ei.submit("alice", [ev("notes", "n-2:0", "I am allergic to peanuts", about="person",
                            subject="Kath")], now=T1)
@@ -592,7 +592,7 @@ def test_owner_correction_is_normalized_with_the_beliefs_about(data):
     ei.correct("alice", belief["id"], "I am vegan", now=T1)
     with sqlite3.connect(data / "beliefs.db") as db:
         assert db.execute("SELECT owner_norm FROM beliefs").fetchone()[0] == "owner is vegan"
-    ei.submit("alice", [ev("odysseus-sound", "4", "Me is vegan.", subject="Me")], now=T1)
+    ei.submit("alice", [ev("athena", "4", "Me is vegan.", subject="Me")], now=T1)
     belief = only()
     assert len(belief["evidence"]) == 2 and belief["shown_text"] == "I am vegan"
 
@@ -604,7 +604,7 @@ def test_existing_ledger_owner_keys_are_migrated_once(data):
     with sqlite3.connect(data / "beliefs.db") as db:  # as an older ledger stored them
         db.execute("UPDATE beliefs SET norm = lower(rtrim(text, '.'))")
         db.execute("PRAGMA user_version = 0")
-    counts = ei.submit("alice", [ev("odysseus-sound", "9", "The owner is allergic to peanuts.",
+    counts = ei.submit("alice", [ev("athena", "9", "The owner is allergic to peanuts.",
                                     subject="Owner")], now=T1)
     assert counts["beliefs_added"] == 0
     with sqlite3.connect(data / "beliefs.db") as db:

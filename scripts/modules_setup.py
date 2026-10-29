@@ -41,6 +41,11 @@ script creates or updates those skills through the skills API (source
 ``/athena`` replaced ``/sound``: when this script manages ``/athena`` it deletes the
 old ``/sound`` skill it made before (a ``/sound`` someone else made is left alone).
 
+Athena's server has an old name, ``convo``, and a new one, ``athena``
+(``scripts/athena_names_migrate.py`` renames it): a ``--module``, ``--module-skill`` or
+``--trusted`` name of either finds the server under the name it is registered with, and
+the skills require that name (``fork/common/athena_names.py``).
+
 Trusting a module's read-only tools is not done here; that is the
 ``ODYSSEUS_TRUSTED_READONLY_MCP`` environment variable (see src/mcp_trust.py).
 
@@ -65,6 +70,12 @@ import sys
 from pathlib import Path
 
 import httpx
+
+REPO = Path(__file__).resolve().parents[1]
+if str(REPO) not in sys.path:
+    sys.path.insert(0, str(REPO))
+
+from fork.common.athena_names import server_aliases
 
 # Built-ins kept by --trim. Everything else is turned off; add more with --keep.
 # - manage_tasks / manage_calendar / manage_notes: off until module action items
@@ -177,11 +188,25 @@ def procedure_steps(text: str) -> list[str]:
     return steps
 
 
-def skill_specs(c: httpx.Client, args: argparse.Namespace) -> list[dict]:
+def registered_name(servers: list[dict], name: str) -> str:
+    """The name the server ``name`` is registered under: ``name`` itself, else Athena's
+    other name (``convo`` / ``athena``) when only that one is registered, else ``name``."""
+    by_name = {str(s.get("name", "")).strip().casefold(): str(s.get("name", "")).strip()
+               for s in servers if isinstance(s, dict)}
+    for alias in server_aliases(name):
+        if alias in by_name:
+            return name if alias == name.strip().casefold() else by_name[alias]
+    return name
+
+
+def skill_specs(c: httpx.Client, args: argparse.Namespace,
+                servers: list[dict] | None = None) -> list[dict]:
     """The skills to create or update, as skills-API bodies."""
     specs = []
     preset_text = None
+    servers = servers or []
     for name, server in args.module_skill:
+        server = registered_name(servers, server)
         if name in args.skill_text:
             text = Path(args.skill_text[name]).expanduser().read_text()
         else:
@@ -204,12 +229,13 @@ def skill_specs(c: httpx.Client, args: argparse.Namespace) -> list[dict]:
             "procedure": steps,
         })
     if args.context_skill and args.trusted:
+        trusted = [registered_name(servers, s) for s in args.trusted]
         specs.append({
             "name": args.context_skill,
             "description": "Search every connected module for this message: "
-                           + ", ".join(args.trusted),
+                           + ", ".join(trusted),
             "category": "modules",
-            "requires_toolsets": [f"mcp:{s.casefold()}" for s in args.trusted],
+            "requires_toolsets": [f"mcp:{s.casefold()}" for s in trusted],
             "procedure": list(CONTEXT_PROCEDURE),
         })
     return specs
@@ -261,8 +287,9 @@ def trimmed_tools(c: httpx.Client, keep: set[str]) -> tuple[list[str], list[str]
     return tools, disabled
 
 
-def report_modules(c: httpx.Client, modules: list[str]) -> list[str]:
-    """Print every MCP server's status; return warnings for missing modules."""
+def report_modules(c: httpx.Client, modules: list[str]) -> tuple[list[str], list[dict]]:
+    """Print every MCP server's status; return warnings for missing modules, and the
+    servers."""
     servers = c.get("/api/mcp/servers").json()
     for s in servers:
         state = s.get("status", "?") if s.get("is_enabled", True) else "disabled"
@@ -272,13 +299,13 @@ def report_modules(c: httpx.Client, modules: list[str]) -> list[str]:
     warnings = []
     by_name = {str(s.get("name", "")).casefold(): s for s in servers}
     for name in modules:
-        s = by_name.get(name.casefold())
+        s = next((by_name[a] for a in server_aliases(name) if a in by_name), None)
         if s is None:
             warnings.append(f"module MCP server {name!r} is not registered "
                             f"(Settings > MCP; see docs/fork/modules.md)")
         elif s.get("status") != "connected" or not s.get("is_enabled", True):
             warnings.append(f"module MCP server {name!r} is not connected")
-    return warnings
+    return warnings, servers
 
 
 def enable_action_items(c: httpx.Client, dry_run: bool) -> list[str]:
@@ -338,12 +365,12 @@ def run(c: httpx.Client, args: argparse.Namespace) -> int:
         else:
             print("no default chat model; skipping tool mode", file=sys.stderr)
 
-    warnings = report_modules(c, args.module)
+    warnings, servers = report_modules(c, args.module)
     if not args.no_action_items:
         plan["action_items_task"] = "active"
         warnings += enable_action_items(c, args.dry_run)
     if not args.no_skills:
-        specs = skill_specs(c, args)
+        specs = skill_specs(c, args, servers)
         plan["skills"] = [{"name": s["name"], "requires_toolsets": s["requires_toolsets"]}
                           for s in specs]
         warnings += apply_skills(c, specs, args.dry_run)

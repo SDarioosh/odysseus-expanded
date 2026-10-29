@@ -12,7 +12,14 @@ from datetime import datetime
 from typing import Any
 
 from fork.beliefs.ledger_db import _WRITE, _connect
-from fork.beliefs.ledger_model import MODULE_SOURCE, OPTIONAL_FIELDS, _int, _now, _stamp
+from fork.beliefs.ledger_model import (
+    MODULE_SOURCES,
+    OPTIONAL_FIELDS,
+    _int,
+    _now,
+    _stamp,
+    is_module_source,
+)
 from fork.beliefs.ledger_rows import (
     _BELIEF_SELECT,
     _belief_dict,
@@ -46,7 +53,7 @@ def memory_fields(belief: dict) -> dict[str, Any]:
     }
     if belief.get("contact_id"):
         fields["contact_id"] = belief["contact_id"]
-    module = primary_evidence([e for e in evidence if e["source"] == MODULE_SOURCE])
+    module = primary_evidence([e for e in evidence if is_module_source(e["source"])])
     if module is not None:  # the Phase 0 copy's fields, kept for older readers
         fields.update(module_fact_id=_int(module["source_id"]), times_said=module["times"],
                       days=module["days"], first_said=module["seen_first"] or "",
@@ -62,7 +69,8 @@ def sync_memory(owner: str | None, *, now: datetime | None = None,
     beliefs are looked at and changed (added, updated or removed); every other entry is
     left exactly as it is. Without it (the jobs), the whole store is reconciled.
 
-    A mirrored entry carries ``belief_id``; a Phase 0 copy (``source: odysseus-sound``,
+    A mirrored entry carries ``belief_id``; a Phase 0 copy (``source: odysseus-sound``
+    or ``athena``,
     ``module_fact_id``, no ``belief_id``) is adopted by the belief that has that fact id
     as evidence. Entries are updated in place (memory id and ``uses`` kept), copies of
     beliefs that are no longer confirmed are deleted, and nothing is written when
@@ -86,8 +94,8 @@ def sync_memory(owner: str | None, *, now: datetime | None = None,
                 rows = db.execute(f"{_BELIEF_SELECT} WHERE b.owner = ? AND "
                                   "b.status = 'confirmed' ORDER BY b.id", (owner,)).fetchall()
                 fact_rows = db.execute("SELECT source_id, belief_id FROM evidence "
-                                       "WHERE owner = ? AND source = ?",
-                                       (owner, MODULE_SOURCE)).fetchall()
+                                       "WHERE owner = ? AND source IN (?, ?)",
+                                       (owner, *MODULE_SOURCES)).fetchall()
                 link_rows = db.execute("SELECT id, memory_id FROM beliefs WHERE owner = ? "
                                        "AND memory_id IS NOT NULL", (owner,)).fetchall()
             else:
@@ -96,8 +104,8 @@ def sync_memory(owner: str | None, *, now: datetime | None = None,
                                   "b.status = 'confirmed' AND b.id IN ({marks}) ORDER BY b.id",
                                   (owner,), ids)
                 fact_rows = _in_chunks(db, "SELECT source_id, belief_id FROM evidence WHERE "
-                                       "owner = ? AND source = ? AND belief_id IN ({marks})",
-                                       (owner, MODULE_SOURCE), ids)
+                                       "owner = ? AND source IN (?, ?) AND belief_id IN ({marks})",
+                                       (owner, *MODULE_SOURCES), ids)
                 link_rows = _in_chunks(db, "SELECT id, memory_id FROM beliefs WHERE owner = ? "
                                        "AND memory_id IS NOT NULL AND id IN ({marks})",
                                        (owner,), ids)
@@ -117,7 +125,7 @@ def sync_memory(owner: str | None, *, now: datetime | None = None,
                 continue
             belief_id = entry.get("belief_id")
             if belief_id is None:
-                if entry.get("source") != MODULE_SOURCE or "module_fact_id" not in entry:
+                if not is_module_source(entry.get("source")) or "module_fact_id" not in entry:
                     out.append(entry)  # the owner's own memory
                     continue
                 belief_id = by_fact.get(str(_int(entry.get("module_fact_id"))))

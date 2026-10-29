@@ -39,8 +39,13 @@ const CONFIRMED_BY = {
   rule: 'Confirmed by the rule',
 };
 
-const SOURCE_NAMES = { 'odysseus-sound': 'Conversations', notes: 'Notes', routines: 'Calendar' };
-const MODULE_SOURCE = 'odysseus-sound';
+// Athena's source: 'athena', or 'odysseus-sound' in a ledger from before the rename
+// (fork/common/athena_names.py).
+const SOURCE_NAMES = {
+  athena: 'Conversations', 'odysseus-sound': 'Conversations', notes: 'Notes', routines: 'Calendar',
+};
+const MODULE_SOURCES = ['athena', 'odysseus-sound'];
+const isModuleSource = (source) => MODULE_SOURCES.includes(source);
 
 // Athena's fact kinds (src/module_facts.py FACT_KINDS); "other" shows the category.
 const FACT_KINDS = {
@@ -432,7 +437,7 @@ async function movePanel(b, card) {
     ...others.map((o) => el('option', { value: String(o.id) }, o.display)));
   const input = el('input', { type: 'text', className: 'bs-filter', placeholder: 'or a new name',
                               'aria-label': 'New person', maxlength: '120' });
-  const fromSound = (b.evidence || []).some((e) => e.source === 'odysseus-sound' && e.link);
+  const fromSound = (b.evidence || []).some((e) => isModuleSource(e.source) && e.link);
   const fix = el('input', { type: 'checkbox', checked: true, id: `fix-${b.id}` });
   const go = () => {
     const name = input.value.trim();
@@ -598,7 +603,7 @@ function renderBeliefs() {
 // The Athena conversation a belief was heard in (live evidence), or null.
 function conversationOf(b) {
   const evidence = Array.isArray(b.evidence) ? b.evidence : [];
-  const e = evidence.find((x) => x.source === MODULE_SOURCE && !x.gone &&
+  const e = evidence.find((x) => isModuleSource(x.source) && !x.gone &&
                                  (x.payload || {}).conversation_id);
   return e ? e.payload.conversation_id : null;
 }

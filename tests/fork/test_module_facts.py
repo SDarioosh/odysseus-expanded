@@ -120,7 +120,7 @@ async def test_first_run_adds_one_memory_per_confirmed_fact(data):
     one = got[1]
     assert one["text"] == ("Prefers oat milk in coffee "
                            "(source: http://h:8000/view/c1?sig=abc#t=10)")
-    assert one["source"] == "odysseus-sound" and one["owner"] == "alice"
+    assert one["source"] == "athena" and one["owner"] == "alice"
     assert one["link"] == "http://h:8000/view/c1?sig=abc#t=10"
     assert (one["subject"], one["about"], one["times_said"], one["days"]) == ("Me", "owner", 2, 2)
     assert (one["first_said"], one["last_said"]) == ("2026-10-01", "2026-10-15")
@@ -357,7 +357,7 @@ def test_evidence_from_a_row():
     row = {**fact(4, "Hates queues", times_said=0), "confirmed": "false"}
     ev = mf.evidence(row, confirmed_ids={4})
     assert (ev.source, ev.source_id, ev.text, ev.times, ev.days) == \
-        ("odysseus-sound", "4", "Hates queues", 1, 2)
+        ("athena", "4", "Hates queues", 1, 2)
     assert ev.source_confirmed is False  # the row's own flag wins over the fallback set
     del row["confirmed"]
     assert mf.evidence(row, confirmed_ids={4}).source_confirmed is True

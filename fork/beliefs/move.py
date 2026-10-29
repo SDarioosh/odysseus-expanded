@@ -43,7 +43,7 @@ def source_lines(evidence: Iterable[dict]) -> list[tuple[str, int]]:
     transcript link; erased evidence has no link and is left out."""
     out: list[tuple[str, int]] = []
     for e in evidence:
-        if e.get("source") != mf.SOURCE:
+        if not mf.is_source(e.get("source")):
             continue
         m = _LINK.search(str(e.get("link") or ""))
         if m and (m[1], int(m[2])) not in out:
@@ -63,7 +63,7 @@ def names_of(subject: dict | None) -> set[str]:
 def module_name(subject: dict) -> str:
     """The name Athena knows this subject by, else its display name."""
     for s in subject.get("sources") or []:
-        if s.get("source") == mf.SOURCE and str(s.get("name") or "").strip():
+        if mf.is_source(s.get("source")) and str(s.get("name") or "").strip():
             return str(s["name"]).strip()
     return subject["display"]
 

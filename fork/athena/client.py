@@ -20,7 +20,9 @@ Which setting names the server stays per caller, as it always was (fork/common/s
 ``AthenaClient()`` reads :func:`settings.athena_server` (to-dos, facts, today insight,
 beliefs), ``AthenaClient(recorder=True)`` reads :func:`settings.athena_recorder_server`
 (uploads, the Athena page, meeting bot, settings cards, voice enrollment, relay, record
-share, handwritten notes). Both default to ``convo``.
+share, handwritten notes). Both default to ``convo``. Athena's server under its old name
+``convo`` and its new name ``athena`` is the same server: a setting naming either finds it
+under either (exact name first; ``fork/common/athena_names.py``).
 
 Each caller keeps its own words for errors: it catches :class:`AthenaError` (``status``,
 ``message``, ``kind``) and answers as before. ``call_recorder.RecorderError`` is this
@@ -37,7 +39,7 @@ from urllib.parse import parse_qs, urlsplit, urlunsplit
 
 import httpx
 
-from fork.common import settings
+from fork.common import athena_names, settings
 
 logger = logging.getLogger(__name__)
 
@@ -67,16 +69,19 @@ class AthenaError(RuntimeError):
 
 # ------------------------------------------------------------------- MCP: which server
 def server_id(manager: Any, key: str) -> str | None:
-    """Id of the connected MCP server whose id or name is ``key`` (case-insensitive)."""
-    key = key.casefold()
+    """Id of the connected MCP server whose id or name is ``key`` (case-insensitive);
+    for Athena's ``athena`` / ``convo``, the other name when none has the one given."""
     from fork.upstream import mcp_connections
 
-    for sid, conn in mcp_connections(manager).items():
-        conn = conn or {}
-        if conn.get("status") != "connected":
-            continue
-        if str(sid).casefold() == key or str(conn.get("name") or "").strip().casefold() == key:
-            return sid
+    connections = mcp_connections(manager)
+    for want in athena_names.server_aliases(key):
+        for sid, conn in connections.items():
+            conn = conn or {}
+            if conn.get("status") != "connected":
+                continue
+            if (str(sid).casefold() == want
+                    or str(conn.get("name") or "").strip().casefold() == want):
+                return sid
     return None
 
 
@@ -208,14 +213,17 @@ class AthenaClient:
         """The module's HTTP link from the MCP server row named by the setting (enabled
         rows first). Raises a 503 :class:`AthenaError` that says what to fix."""
         key = self.server_key()
-        want = key.casefold()
-        rows = [r for r in _server_rows()
-                if str(r[0]).casefold() == want or r[1].strip().casefold() == want]
+        wants = athena_names.server_aliases(key)
+        rank = {want: n for n, want in enumerate(wants)}
+        rows = [(r, min(rank.get(str(r[0]).casefold(), 99),
+                        rank.get(r[1].strip().casefold(), 99))) for r in _server_rows()]
+        rows = [r for r in rows if r[1] < 99]
         if not rows:
             raise AthenaError(503, f"No MCP server named {key!r}: add Athena's MCP "
                                    "server in Settings → MCP (docs/fork/modules/odysseus-sound.md).",
                               "setup")
-        rows.sort(key=lambda r: not r[3])  # enabled first
+        rows.sort(key=lambda r: (not r[0][3], r[1]))  # enabled first, then the name given
+        rows = [r for r, _ in rows]
         if not rows[0][3]:
             raise AthenaError(503, f"The MCP server {key!r} is turned off in Settings → MCP.",
                               "setup")

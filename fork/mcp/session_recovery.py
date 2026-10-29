@@ -33,6 +33,8 @@ import logging
 import time
 from typing import Any
 
+from fork.common import athena_names
+
 logger = logging.getLogger(__name__)
 
 RETRY_SECONDS = 30.0
@@ -75,11 +77,11 @@ class CallTimeout(Exception):
 def _is_module_server(manager: Any, server_id: str) -> bool:
     from fork.mcp.trust import trusted_readonly_server_keys
 
-    keys = set(trusted_readonly_server_keys())
+    keys = set(athena_names.with_server_aliases(trusted_readonly_server_keys()))
     try:
         from fork.athena.action_items import server_key
 
-        keys.add(server_key())
+        keys.update(athena_names.server_aliases(server_key()))
     except Exception:  # noqa: BLE001
         pass
     from fork.upstream import mcp_connections

@@ -11,7 +11,13 @@ import json
 import re
 from typing import Any
 
-from fork.athena.action_items_state import LABEL, VOICE_LIST, _when_label, item_title
+from fork.athena.action_items_state import (
+    LABEL,
+    VOICE_LIST,
+    _when_label,
+    is_label,
+    item_title,
+)
 
 # ------------------------------------------------------------------------ notes
 _NOTES_WORDS = re.compile(r"^(?:my|the|our)\s+|\s+notes?$", re.IGNORECASE)
@@ -163,7 +169,7 @@ def todo_lists(owner: str) -> list[str]:
         # a filed dated to-do's title is the short title, its line the full text
         single = len(items) <= 1 and (
             all(_norm_line(i.get("text")) == _norm_line(n.title) for i in items)
-            or (n.label == LABEL and len(items) == 1 and (
+            or (is_label(n.label) and len(items) == 1 and (
                 bool(n.due_date)
                 or _norm_line(n.title) == _norm_line(item_title(items[0])))))
         if key and key not in seen and not single:

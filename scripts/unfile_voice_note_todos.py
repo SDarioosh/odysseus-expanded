@@ -4,9 +4,9 @@
 Before ``MODULE_FILE_ITEMS=explicit`` and the "Voice notes" list, the Module Action Items
 task filed every voice-note item as a to-do of its own, titled with the whole sentence,
 also items that were no task ("Stop prioritizing side projects ..."). This lists those
-to-dos: label ``odysseus-sound``, one checklist line, no due date and no reminder, filed
-from a voice note whose item isn't explicit now, and still in Odysseus, each with why it
-qualifies. To-dos filed in ``explicit`` mode or from the page are left out unless
+to-dos: label ``athena`` (``odysseus-sound`` before the rename), one checklist line, no
+due date and no reminder, filed from a voice note whose item isn't explicit now, and
+still in Odysseus, each with why it qualifies. To-dos filed in ``explicit`` mode or from the page are left out unless
 ``--all``; dated to-dos and reminders never qualify. With ``--apply`` it deletes them
 and dismisses their items in Athena (``update_action_item``; items already done
 stay done). They are never filed again.

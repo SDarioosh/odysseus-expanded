@@ -405,7 +405,29 @@ def hub(data_dir, monkeypatch):
     engine.dispose()
 
 
-def test_the_action_items_job_behaves_as_recorded(hub, monkeypatch, caplog):
+def renamed(value, old: str = "odysseus-sound", new: str = "athena"):
+    """``value`` with the old label replaced by the new one in every string."""
+    if isinstance(value, str):
+        return value.replace(old, new)
+    if isinstance(value, dict):
+        return {renamed(k): renamed(v) for k, v in value.items()}
+    if isinstance(value, list):
+        return [renamed(v) for v in value]
+    return value
+
+
+# The fixture was recorded when filed notes were labelled "odysseus-sound". "old": the
+# job as a hub before the rename ran it (the old label written); it must match the fixture
+# exactly. "new": labels written as "athena" (fork/common/athena_names.py): the same,
+# with the label changed. In both, a server named "Athena" now gives the uids of
+# "convo" (recorded: its own), so no filed event is filed again after the rename.
+@pytest.mark.parametrize("names", ["old", "new"])
+def test_the_action_items_job_behaves_as_recorded(hub, monkeypatch, caplog, names):
+    from fork.athena import action_items_filing, action_items_lists, action_items_state
+
+    if names == "old":
+        for module in (mai, action_items_state, action_items_filing, action_items_lists):
+            monkeypatch.setattr(module, "LABEL", "odysseus-sound")
     factory, pushed = hub
     ids = Ids()
     caplog.set_level(logging.DEBUG, logger="fork")
@@ -417,10 +439,13 @@ def test_the_action_items_job_behaves_as_recorded(hub, monkeypatch, caplog):
                       if r.name.startswith("fork.athena.action_items")]
     seen = ids(json.loads(json.dumps(seen, default=repr)))
     seen["surface"] = SURFACE
-    if os.environ.get("UPDATE_CHARACTERIZATION"):
+    if os.environ.get("UPDATE_CHARACTERIZATION") and names == "old":
         FIXTURE.write_text(json.dumps(seen, indent=1, sort_keys=True, ensure_ascii=False)
                            + "\n", encoding="utf-8")
     expected = json.loads(FIXTURE.read_text(encoding="utf-8"))
+    expected["uids"]["Athena"] = expected["uids"]["convo"]  # frozen since the rename
+    if names == "new":
+        expected = {k: v if k == "surface" else renamed(v) for k, v in expected.items()}
     # every name the module offered stays importable from it (more may be added)
     assert set(expected.pop("surface")) <= set(seen.pop("surface"))
     for key in expected:

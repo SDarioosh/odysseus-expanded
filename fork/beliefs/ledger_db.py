@@ -3,7 +3,8 @@
 ``<DATA_DIR>/beliefs.db`` (stdlib sqlite3, WAL): :data:`SCHEMA`, the process-wide write
 lock, :func:`_connect` (one transaction; it brings an older file up to date first) and
 the one-time migrations, in the order ``_connect`` runs them. ``PRAGMA user_version``
-records how far a file has been migrated.
+records how far a file has been migrated. :func:`stored_module_source` is the name an
+owner's Athena evidence is written under.
 """
 
 from __future__ import annotations
@@ -14,6 +15,7 @@ from collections.abc import Iterator
 from contextlib import contextmanager
 from pathlib import Path
 
+from fork.beliefs import ledger_model
 from fork.beliefs.ledger_model import EVENT_KINDS, _now, _stamp, normalize
 
 DB_NAME = "beliefs.db"
@@ -157,6 +159,22 @@ def _connect(write: bool = False, *, optimize: bool = False) -> Iterator[sqlite3
             db.execute("PRAGMA optimize")
     finally:
         db.close()
+
+
+def stored_module_source(db: sqlite3.Connection, owner: str, source: str) -> str:
+    """The name Athena's evidence of ``owner`` is written under: ``source`` unless it is
+    one of Athena's names; then the old one while this owner's ledger still holds it (a
+    ledger ``scripts/athena_names_migrate.py`` hasn't renamed), else the new one. So one
+    ledger never holds both names, and one Athena fact can't count as two sources."""
+    if not ledger_model.is_module_source(source):
+        return source
+    old = ledger_model.MODULE_SOURCE_OLD
+    if (db.execute("SELECT 1 FROM evidence WHERE owner = ? AND source = ? LIMIT 1",
+                   (owner, old)).fetchone()
+            or db.execute("SELECT 1 FROM subject_sources WHERE source = ? AND owner = ? "
+                          "LIMIT 1", (old, owner)).fetchone()):
+        return old
+    return ledger_model.MODULE_SOURCE
 
 
 def _migrate_norms(db: sqlite3.Connection) -> None:

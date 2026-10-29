@@ -50,7 +50,7 @@ _SOURCE_SUFFIX = re.compile(r"\s*\(source: [^)]*\)\s*$")
 
 
 def _fact_ids(evidence: Iterable[dict]) -> list[int]:
-    ids = {mf._int(e.get("source_id")) for e in evidence if e.get("source") == mf.SOURCE}
+    ids = {mf._int(e.get("source_id")) for e in evidence if mf.is_source(e.get("source"))}
     return sorted(i for i in ids if i > 0)
 
 

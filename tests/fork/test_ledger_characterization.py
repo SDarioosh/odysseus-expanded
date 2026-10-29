@@ -368,13 +368,38 @@ def ledger_dir(data_dir, monkeypatch):
     return data_dir
 
 
-def test_the_ledger_behaves_as_recorded(ledger_dir):
+def renamed(value, old: str = "odysseus-sound", new: str = "athena"):
+    """``value`` with Athena's old source name replaced by the new one in every string."""
+    if isinstance(value, str):
+        return value.replace(old, new)
+    if isinstance(value, dict):
+        return {renamed(k): renamed(v) for k, v in value.items()}
+    if isinstance(value, list):
+        return [renamed(v) for v in value]
+    return value
+
+
+# The fixture was recorded when Athena's source was "odysseus-sound". "old": the ledger a
+# hub wrote before the rename (fork/common/athena_names.py): the old name is written, as
+# the ledger keeps doing for an owner whose ledger holds it; it must match the fixture
+# exactly. "new": a fresh (or migrated) ledger, written as "athena": the same, with the
+# name changed (the old ledger file migrated in step 2 holds what an old hub wrote).
+@pytest.mark.parametrize("names", ["old", "new"])
+def test_the_ledger_behaves_as_recorded(ledger_dir, monkeypatch, names):
+    from fork.beliefs import ledger_model
+
+    if names == "old":
+        monkeypatch.setattr(ledger_model, "MODULE_SOURCE", "odysseus-sound")
+        monkeypatch.setattr(ledger, "MODULE_SOURCE", "odysseus-sound")
     seen = json.loads(json.dumps(observe(ledger_dir), default=repr))
     seen["surface"] = SURFACE
-    if os.environ.get("UPDATE_CHARACTERIZATION"):
+    if os.environ.get("UPDATE_CHARACTERIZATION") and names == "old":
         FIXTURE.write_text(json.dumps(seen, indent=1, sort_keys=True, ensure_ascii=False)
                            + "\n", encoding="utf-8")
     expected = json.loads(FIXTURE.read_text(encoding="utf-8"))
+    if names == "new":
+        expected = {k: v if k in ("fresh_schema", "migrated_schema", "migrated_rows",
+                                  "surface") else renamed(v) for k, v in expected.items()}
     # every name the module offered stays importable from it (more may be added)
     assert set(expected.pop("surface")) <= set(seen.pop("surface"))
     for key in expected:

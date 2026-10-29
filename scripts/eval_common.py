@@ -25,9 +25,16 @@ from dataclasses import dataclass
 from pathlib import Path
 from typing import Any, TextIO
 
-# The belief sources the evals seed: Athena's facts (the stored source name, kept on
-# purpose) and the hub's notes.
-MODULE, NOTES = "odysseus-sound", "notes"
+# The belief sources the evals seed: Athena's facts and the hub's notes. A ledger from
+# before the rename stores Athena's under its old name (fork/common/athena_names.py), and
+# the ledger keeps writing that one there: compare stored sources with source_name().
+MODULE, NOTES = "athena", "notes"
+MODULE_SOURCES = (MODULE, "odysseus-sound")
+
+
+def source_name(source: str) -> str:
+    """A stored evidence source as the evals name it (Athena's old name -> MODULE)."""
+    return MODULE if source in MODULE_SOURCES else source
 # A fictional Athena: its transcript links (``/view/c<id>?sig=...#t=<seconds>``).
 MODULE_VIEW = "http://127.0.0.1:8090"
 # The ledger settings the belief evals unset, so a run is on the defaults.

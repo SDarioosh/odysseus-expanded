@@ -355,8 +355,14 @@ def today(data_dir, monkeypatch):
     return data_dir, state, pushed
 
 
-def test_the_today_insight_behaves_as_recorded(today, monkeypatch, caplog):
+# Athena's memory source: the old name in data from before the rename, the new one after
+# scripts/athena_names_migrate.py; the insight reads both the same. The fixture was
+# recorded with the old one and the constant's old value; only MEMORY_SOURCE's value
+# is "athena" now (fork/common/athena_names.py).
+@pytest.mark.parametrize("memory_source", ["odysseus-sound", "athena"])
+def test_the_today_insight_behaves_as_recorded(today, monkeypatch, caplog, memory_source):
     data_dir, state, pushed = today
+    monkeypatch.setitem(MEMORY[1], "source", memory_source)
     caplog.set_level(logging.DEBUG, logger="fork")
     seen = {"pure": pure(), "scenario": asyncio.run(scenario(monkeypatch, state)),
             "pushes": pushed}
@@ -369,6 +375,7 @@ def test_the_today_insight_behaves_as_recorded(today, monkeypatch, caplog):
         FIXTURE.write_text(json.dumps(seen, indent=1, sort_keys=True, ensure_ascii=False)
                            + "\n", encoding="utf-8")
     expected = json.loads(FIXTURE.read_text(encoding="utf-8"))
+    expected["pure"]["names"]["MEMORY_SOURCE"] = "athena"  # recorded: "odysseus-sound"
     # every name the module offered stays importable from it (more may be added)
     assert set(expected.pop("surface")) <= set(seen.pop("surface"))
     for key in expected:

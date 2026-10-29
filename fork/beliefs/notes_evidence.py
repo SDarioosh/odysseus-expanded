@@ -7,8 +7,8 @@ evidence from source ``notes``, source id ``<note id>:<index>``, link
 ``/#open=notes&note=<note id>`` (opened on load by ``static/js/forkEntityHash.js``).
 
 * Read: notes of type ``note`` (not checklist, todo or goal), not archived, of this owner.
-  Left out: notes labelled ``odysseus-sound`` (filed from voice notes; their facts come
-  through the module already), calendar reminders, and notes whose title and text are
+  Left out: notes labelled ``athena`` or ``odysseus-sound`` (filed from voice notes; their
+  facts come through the module already), calendar reminders, and notes whose title and text are
   shorter than ``MIN_CHARS`` (40) characters.
 * A note is sent to the model only when its hash (title, text and the prompt version)
   differs from the one recorded on its last extraction, so an unchanged note costs
@@ -43,6 +43,7 @@ from typing import Any, Awaitable, Callable, Iterable
 
 from fork.beliefs import consolidation
 from fork.beliefs import evidence_intake as ledger
+from fork.common import athena_names
 
 logger = logging.getLogger(__name__)
 
@@ -58,7 +59,8 @@ INFO = ("Read the owner's plain notes and submit the durable facts they state to
         "local model reads only notes that changed.")
 
 NOTE_TYPE = "note"
-MODULE_LABEL = "odysseus-sound"
+MODULE_LABEL = athena_names.SOURCE  # filed from Athena; older notes: the old label
+MODULE_LABELS = athena_names.SOURCES
 MIN_CHARS = 40
 MAX_NOTE_CHARS = 6000
 MAX_FACTS = 8
@@ -159,7 +161,7 @@ def note_hash(note: Any) -> str:
 
 def skip_reason(note: Any) -> str | None:
     """Why a plain, unarchived note is left out, or None when it is read."""
-    if str(getattr(note, "label", None) or "").strip().lower() == MODULE_LABEL:
+    if str(getattr(note, "label", None) or "").strip().lower() in MODULE_LABELS:
         return "module"
     if str(getattr(note, "label", None) or "").strip().lower() == "handwritten":
         return "handwritten"  # its text goes to Athena (src/ink_notes.py), not here

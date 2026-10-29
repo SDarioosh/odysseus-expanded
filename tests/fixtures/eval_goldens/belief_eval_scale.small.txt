@@ -1,4 +1,4 @@
-belief eval at scale: size small, seed 7, corpus f3491ecbc85f7a1a
+belief eval at scale: size small, seed 7, corpus c27a677aa1103dba
 
 ledger
   subjects / aliases                     31 / 5
@@ -27,7 +27,7 @@ timings
   owner action (correct/reject/confirm)  <t> ms mean, p95 <t> ms (27 calls)
 
 memory
-  memory.json                            128 KB, 179 mirrored beliefs
+  memory.json                            126 KB, 179 mirrored beliefs
 
 structure (fake model)
   structured / candidates                179 / 179 (10 other, 179 as planned)

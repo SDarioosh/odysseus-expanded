@@ -3,7 +3,9 @@
 The ledger's constants, errors and settings, the :class:`Evidence` a source submits, the
 matching key (:func:`normalize`), the memory category (:func:`category_for`), the stored
 shape of one evidence item (``_clean``) and the subject-name helpers. No database here.
-The source value of Athena's evidence, ``MODULE_SOURCE``, is defined here only.
+The source value of Athena's evidence, ``MODULE_SOURCE`` (``athena``; a ledger written
+before the rename holds ``MODULE_SOURCE_OLD``, ``odysseus-sound``), is defined here only:
+``MODULE_SOURCES`` and :func:`is_module_source` take either (``fork/common/athena_names.py``).
 """
 
 from __future__ import annotations
@@ -14,7 +16,18 @@ from dataclasses import dataclass
 from datetime import date, datetime, timezone
 from typing import Any
 
-MODULE_SOURCE = "odysseus-sound"
+from fork.common import athena_names
+
+MODULE_SOURCE = athena_names.SOURCE
+MODULE_SOURCE_OLD = athena_names.OLD_SOURCE
+MODULE_SOURCES = (MODULE_SOURCE, MODULE_SOURCE_OLD)
+
+
+def is_module_source(source: Any) -> bool:
+    """Whether evidence of this source is Athena's (under the new or the old name)."""
+    return isinstance(source, str) and source in MODULE_SOURCES
+
+
 ABOUT = ("owner", "person", "other")
 CATEGORIES = ("fact", "preference", "contact")
 STATUSES = ("tentative", "confirmed", "stale", "rejected")

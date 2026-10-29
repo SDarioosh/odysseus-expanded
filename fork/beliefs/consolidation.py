@@ -73,7 +73,7 @@ def is_sourced(entry: Mapping) -> bool:
         return False
     if entry.get("belief_id") is not None:
         return True
-    return entry.get("source") == ledger.MODULE_SOURCE and "module_fact_id" in entry
+    return ledger.is_module_source(entry.get("source")) and "module_fact_id" in entry
 
 
 def without_sourced(entries: Iterable[Mapping]) -> list:
@@ -184,7 +184,8 @@ def _candidates(db, owner: str, source: str) -> tuple[list, dict[int, int]]:
             "SELECT belief_id, COUNT(*) AS n, COUNT(DISTINCT source) AS sources, "
             "MIN(source) AS source FROM evidence WHERE owner = ? GROUP BY belief_id",
             (owner,)):
-        if row["sources"] == 1 and row["source"] == source:
+        if row["sources"] == 1 and (row["source"] == source or (
+                ledger.is_module_source(row["source"]) and ledger.is_module_source(source))):
             counts[row["belief_id"]] = row["n"]
     rows = [r for r in db.execute(
         "SELECT * FROM beliefs WHERE owner = ? AND status IN ('tentative', 'confirmed') "

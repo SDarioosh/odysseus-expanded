@@ -58,7 +58,7 @@ if str(REPO) not in sys.path:
     sys.path.insert(0, str(REPO))
 
 from scripts import eval_common
-from scripts.eval_common import MODULE, NOTES, Check
+from scripts.eval_common import MODULE, NOTES, Check, source_name
 
 OWNER = "scale-owner"
 OWNER_NAME = "Robin Vale"
@@ -726,7 +726,7 @@ def seed_and_measure(corpus: Corpus, owner: str, checks: list[Check]) -> dict:
         first_sync = ledger.sync_memory(owner, now=NOW)
 
     # item -> belief id, through the evidence the item submitted first
-    by_source = {(e["source"], e["source_id"]): b["id"]
+    by_source = {(source_name(e["source"]), e["source_id"]): b["id"]
                  for b in ledger.list_beliefs(owner, limit=10**7) for e in b["evidence"]}
     ids = {i.idx: by_source.get((i.evidence[0]["source"], i.evidence[0]["id"]))
            for i in corpus.items}

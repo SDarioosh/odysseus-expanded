@@ -77,6 +77,7 @@ from fork.beliefs.ledger_db import (  # noqa: F401 -- re-exported
     _migrate_norms,
     _migrate_subjects,
     db_path,
+    stored_module_source,
 )
 from fork.beliefs.ledger_memory import (  # noqa: F401 -- re-exported
     memory_fields,
@@ -101,6 +102,8 @@ from fork.beliefs.ledger_model import (  # noqa: F401 -- re-exported
     MAX_VALUE_CHARS,
     MODULE_FIELDS,
     MODULE_SOURCE,
+    MODULE_SOURCE_OLD,
+    MODULE_SOURCES,
     OPTIONAL_FIELDS,
     OWNER_DISPLAY,
     PREFERENCE_WORDS,
@@ -125,6 +128,7 @@ from fork.beliefs.ledger_model import (  # noqa: F401 -- re-exported
     _read_settings,
     _stamp,
     category_for,
+    is_module_source,
     normalize,
     settings,
     subject_key,
@@ -227,7 +231,7 @@ def _erased_evidence(ev: dict, state: str) -> dict:
     """What evidence filed under an erased belief keeps: no words, a link only for a
     source that still holds them (not Athena, which erases them itself)."""
     out = dict(ev, subject="", text="", payload=json.dumps({"erase": state}))
-    if ev["source"] == MODULE_SOURCE:
+    if is_module_source(ev["source"]):
         out["link"] = ""
     return out
 
@@ -293,7 +297,7 @@ def _attach(db: sqlite3.Connection, owner: str, ev: dict, stamp: str, cache: _Su
             if _erased(db, belief_id):
                 # said again after an erase: filed without its words; module evidence is
                 # erased there by the next pass (``belief_forget.retry_pending``)
-                ev = _erased_evidence(ev, "pending" if ev["source"] == MODULE_SOURCE
+                ev = _erased_evidence(ev, "pending" if is_module_source(ev["source"])
                                       else "source")
             else:
                 _note_person(cache, belief_id, ev, stamp)
@@ -409,11 +413,15 @@ def submit(owner: str | None, evidence: list[Evidence], *, now: datetime | None 
             seen: set[int] = set()
             fresh: set[int] = set()
             cache = _Subjects(db, owner)
+            module = None  # the name this owner's Athena evidence is stored under
             for item in evidence:
                 ev = _clean(item, today.isoformat())
                 if ev is None:
                     counts["skipped"] += 1
                     continue
+                if is_module_source(ev["source"]):
+                    module = module or stored_module_source(db, owner, ev["source"])
+                    ev["source"] = module
                 key, touched, added, changed = _attach(db, owner, ev, stamp, cache)
                 counts[key] += 1
                 counts["beliefs_added"] += added
@@ -446,6 +454,7 @@ def reconcile_source(owner: str | None, source: str, present_ids: set[str], *,
     with _WRITE:
         with _connect(write=True, optimize=True) as db:
             touched: set[int] = set()
+            source = stored_module_source(db, owner, source)
             for row in db.execute("SELECT * FROM evidence WHERE owner = ? AND source = ?",
                                   (owner, source)).fetchall():
                 payload = _payload(row["payload"])
@@ -580,7 +589,7 @@ def erase(owner: str | None, belief_id: int, outcomes: Mapping[str, str] | None 
             remaining, pending = [], 0
             for e in evidence:
                 old = _payload(e["payload"]).get("erase")
-                if e["source"] == MODULE_SOURCE:
+                if is_module_source(e["source"]):
                     did = outcomes.get(str(e["source_id"]))
                     state = ("done" if did == "erased" or old == "done" else
                              "retired" if did == "retired" else "pending")
@@ -589,7 +598,7 @@ def erase(owner: str | None, belief_id: int, outcomes: Mapping[str, str] | None 
                     state = "source"
                     if e["link"]:
                         remaining.append({"source": e["source"], "link": e["link"]})
-                link = "" if e["source"] == MODULE_SOURCE else e["link"]
+                link = "" if is_module_source(e["source"]) else e["link"]
                 db.execute("UPDATE evidence SET subject = '', text = '', link = ?, payload = ?, "
                            "updated_at = ? WHERE id = ?",
                            (link, json.dumps({"erase": state}), stamp, e["id"]))
@@ -628,8 +637,8 @@ def erase_pending(owner: str | None) -> list[dict]:
     with _connect() as db:
         for r in db.execute("SELECT e.belief_id, e.source_id, e.payload FROM evidence e "
                             "JOIN beliefs b ON b.id = e.belief_id WHERE b.owner = ? AND "
-                            "b.erased_at IS NOT NULL AND e.source = ?",
-                            (owner or "", MODULE_SOURCE)):
+                            "b.erased_at IS NOT NULL AND e.source IN (?, ?)",
+                            (owner or "", *MODULE_SOURCES)):
             if _payload(r["payload"]).get("erase") != "done" and _int(r["source_id"]) > 0:
                 out.setdefault(r["belief_id"], []).append(_int(r["source_id"]))
     return [{"belief_id": b, "fact_ids": sorted(ids)} for b, ids in sorted(out.items())]

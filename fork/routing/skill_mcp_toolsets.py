@@ -7,6 +7,9 @@ named directly (``manage_notes``). This module adds two forms for MCP tools:
   ``<server>`` is the server's name or id (case-insensitive);
 * ``mcp__<server_id>__<tool>``: one qualified MCP tool.
 
+Athena's server answers to ``mcp:convo`` and ``mcp:athena`` alike (its old and new
+name, ``fork/common/athena_names.py``), unless another server has the exact name.
+
 Both expand only to tools of *connected* servers that are not disabled
 (Settings > MCP per-tool toggles). Expansion never grants anything: the
 expanded names still go through tool policy, the turn contract and request
@@ -25,6 +28,7 @@ from __future__ import annotations
 import logging
 from collections.abc import Iterable
 
+from fork.common import athena_names
 from fork.upstream import mcp_connections, mcp_tools
 
 logger = logging.getLogger(__name__)
@@ -86,6 +90,9 @@ def _server_keys(manager, server_ids: Iterable[str]) -> dict[str, set[str]]:
         for key in {str(server_id), name}:
             if key:
                 keys.setdefault(key.casefold(), set()).add(server_id)
+    for key, ids in list(keys.items()):  # Athena's other name, when no server has it
+        for alias in athena_names.server_aliases(key)[1:]:
+            keys.setdefault(alias, set(ids))
     return keys
 
 
@@ -161,4 +168,6 @@ def with_mcp_toolsets(available: Iterable[str], manager=None) -> set[str]:
             if key:
                 out.add(MCP_TOOLSET_PREFIX + key)
                 out.add(MCP_TOOLSET_PREFIX + key.casefold())
+                out.update(MCP_TOOLSET_PREFIX + alias
+                           for alias in athena_names.server_aliases(key)[1:])
     return out

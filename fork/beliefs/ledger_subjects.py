@@ -15,7 +15,7 @@ from collections.abc import Iterable, Mapping
 from datetime import datetime
 from typing import Any
 
-from fork.beliefs.ledger_db import _WRITE, _connect
+from fork.beliefs.ledger_db import _WRITE, _connect, stored_module_source
 from fork.beliefs.ledger_memory import sync_memory
 from fork.beliefs.ledger_model import (
     GENERIC_SUBJECT,
@@ -392,6 +392,7 @@ def sync_people(owner: str | None, source: str, people: Iterable[Mapping], *,
     counts = dict.fromkeys(("people", "subjects_added", "mapped", "aliases_added"), 0)
     with _WRITE:
         with _connect(write=True) as db:
+            source = stored_module_source(db, owner, source)
             cache = _Subjects(db, owner)
             people = [p for p in people if isinstance(p, Mapping)]
             owner_reported = any(_truthy(p.get("is_owner")) for p in people)
