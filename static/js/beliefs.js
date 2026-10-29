@@ -14,6 +14,8 @@
 // their conversation in the evidence payload (src/module_facts.py): a card shows the kind
 // and the line, and the Tentative tab groups beliefs by conversation, each group with
 // "Dismiss all".
+// The page (static/beliefs.html, served at /beliefs) and the app's Wisdom window both call
+// mountBeliefs() below.
 
 import { el, $, api } from './forkDom.js';
 
@@ -911,7 +913,7 @@ function openSubject(id) {
   state.detail = null;
   try { sessionStorage.setItem(VIEW_KEY, 'subject'); } catch (e) {}
   load();
-  // In the Beliefs window (static/js/forkBeliefsWindow.js) the window body scrolls.
+  // In the Wisdom window (static/js/forkModuleWindows.js) the window body scrolls.
   const scroller = $('#bl-main').closest('.fm-modal-body');
   if (scroller) scroller.scrollTo(0, 0);
   else window.scrollTo(0, 0);
@@ -1097,42 +1099,103 @@ async function sync() {
   }
 }
 
-$('#bl-attribute').replaceChildren(el('option', { value: '' }, 'All attributes'),
-  ...ATTRIBUTES.map(([key, label]) => el('option', { value: key }, label)));
-$('#bl-kind').replaceChildren(...KIND_FILTERS.map(([key, label]) => el('option', { value: key }, label)));
+// ------------------------------------------------------------------ mount
+// The view's markup, the same on the page (static/beliefs.html) and in the window.
+const MARKUP = `
+  <div class="bs-wrap">
+    <div class="bs-top">
+      <a href="/" title="Back to Odysseus">
+        <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"
+          stroke-linecap="round" stroke-linejoin="round"><polyline points="15 18 9 12 15 6"/></svg>
+      </a>
+      <h1>What I know about you</h1>
+      <a class="bs-btn" id="bl-export" href="/api/beliefs/export" download
+        title="Download everything here and your memories as one JSON file">Download</a>
+      <button type="button" class="bs-btn" id="bl-sync" title="Read the module's facts now">Sync now</button>
+    </div>
+    <p class="bs-sub" id="bl-counts"></p>
+    <div class="bs-search">
+      <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"
+        stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><circle cx="11" cy="11" r="8"/>
+        <line x1="21" y1="21" x2="16.65" y2="16.65"/></svg>
+      <input type="search" class="bs-filter" id="bl-search" placeholder="Search what I know"
+        aria-label="Search what I know" autocomplete="off">
+    </div>
+    <div class="bs-views" role="group" aria-label="View" id="bl-views">
+      <button type="button" class="bs-btn bs-view" data-view="status" aria-pressed="true">By status</button>
+      <button type="button" class="bs-btn bs-view" data-view="subject" aria-pressed="false">By subject</button>
+    </div>
+    <div class="bs-tabs" role="tablist" id="bl-tabs"></div>
+    <div class="bs-controls">
+      <input type="search" class="bs-filter" id="bl-filter" placeholder="Filter by subject"
+        aria-label="Filter by subject" autocomplete="off">
+      <select class="bs-select" id="bl-attribute" aria-label="Filter by attribute"></select>
+      <select class="bs-select" id="bl-kind" aria-label="Filter by kind" hidden></select>
+    </div>
+    <div id="bl-main"><div class="bs-status">Loading…</div></div>
+  </div>
+  <div class="bs-toast" id="bl-toast" role="status" aria-live="polite" hidden></div>
+`;
 
-let filterTimer = null;
-$('#bl-filter').addEventListener('input', (ev) => {
-  clearTimeout(filterTimer);
-  filterTimer = setTimeout(() => {
-    state.filter = ev.target.value || '';
-    render();
-  }, 150);
-});
-let searchTimer = null;
-$('#bl-search').addEventListener('input', (ev) => {
-  clearTimeout(searchTimer);
-  searchTimer = setTimeout(() => {
-    const q = (ev.target.value || '').trim();
-    if (q === state.query.trim()) return;
-    state.query = q;
+let mounted = false;
+
+/**
+ * Builds the view into `root` (the page's body, or the window body in the app) and loads it.
+ * - inApp: true in the app's Wisdom window (static/js/forkModuleWindows.js), which has its
+ *   own title bar: the view then keeps only the Download and Sync buttons of its top row.
+ * The view's look is in static/css/fork-modules.css, under the root's class `fm-beliefs`.
+ * Returns { refresh }.
+ */
+export function mountBeliefs(root, { inApp = false } = {}) {
+  if (mounted) throw new Error('the Wisdom view is already mounted');
+  mounted = true;
+  const template = document.createElement('template');
+  template.innerHTML = MARKUP; // our own static markup
+  if (inApp) {
+    const top = template.content.querySelector('.bs-top');
+    top.querySelector('a[href="/"]').remove();
+    top.querySelector('h1').replaceChildren();
+  }
+  root.classList.add('fm-beliefs');
+  root.prepend(...template.content.childNodes); // before the page's own script, if any
+  $('#bl-attribute').replaceChildren(el('option', { value: '' }, 'All attributes'),
+    ...ATTRIBUTES.map(([key, label]) => el('option', { value: key }, label)));
+  $('#bl-kind').replaceChildren(...KIND_FILTERS.map(([key, label]) => el('option', { value: key }, label)));
+
+  let filterTimer = null;
+  $('#bl-filter').addEventListener('input', (ev) => {
+    clearTimeout(filterTimer);
+    filterTimer = setTimeout(() => {
+      state.filter = ev.target.value || '';
+      render();
+    }, 150);
+  });
+  let searchTimer = null;
+  $('#bl-search').addEventListener('input', (ev) => {
+    clearTimeout(searchTimer);
+    searchTimer = setTimeout(() => {
+      const q = (ev.target.value || '').trim();
+      if (q === state.query.trim()) return;
+      state.query = q;
+      load();
+    }, 350);
+  });
+  $('#bl-search').addEventListener('keydown', (ev) => {
+    if (ev.key === 'Escape' && state.query) clearSearch();
+  });
+  $('#bl-attribute').addEventListener('change', (ev) => {
+    state.attribute = ev.target.value || '';
     load();
-  }, 350);
-});
-$('#bl-search').addEventListener('keydown', (ev) => {
-  if (ev.key === 'Escape' && state.query) clearSearch();
-});
-$('#bl-attribute').addEventListener('change', (ev) => {
-  state.attribute = ev.target.value || '';
+  });
+  $('#bl-kind').addEventListener('change', (ev) => {
+    state.kind = ev.target.value || '';
+    load();
+  });
+  for (const b of document.querySelectorAll('.bs-view')) {
+    b.addEventListener('click', () => selectView(b.dataset.view));
+  }
+  $('#bl-sync').addEventListener('click', sync);
+  renderControls();
   load();
-});
-$('#bl-kind').addEventListener('change', (ev) => {
-  state.kind = ev.target.value || '';
-  load();
-});
-for (const b of document.querySelectorAll('.bs-view')) {
-  b.addEventListener('click', () => selectView(b.dataset.view));
+  return { refresh() {} }; // "Sync now" in the view reloads it
 }
-$('#bl-sync').addEventListener('click', sync);
-renderControls();
-load();

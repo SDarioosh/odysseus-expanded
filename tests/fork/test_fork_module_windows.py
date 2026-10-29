@@ -128,22 +128,24 @@ def test_standalone_pages_mount_the_shared_views():
         assert 'nonce="{{CSP_NONCE}}"' in html  # inline module script needs the CSP nonce
 
 
-def test_meetings_window_reads_the_meetings_page():
-    # The Meetings window shows the cards of the standalone page; the scripts find their
-    # elements by id there, so every id they look up must be on the page.
+def test_meetings_page_and_window_mount_one_view():
+    # forkMeetings.js holds the Meetings cards and mounts them on the page (after its top
+    # row) and in the window; the scripts find their elements by id there, so every id
+    # they look up must be in its markup.
     page = (_REPO / "static" / "call-recorder.html").read_text()
     assert "<h1>Meetings</h1>" in page and '<div class="bs-wrap">' in page
-    assert 'href="/modules/sound" data-conversations' in page
-    assert "data-in-app hidden" in page
+    assert "mountMeetings(document.querySelector('.bs-wrap'));" in page
     meetings = (_JS / "forkMeetings.js").read_text()
-    assert "const PAGE = '/modules/sound/record';" in meetings
-    assert "scripts: ['./callRecorder.js', './meetingBot.js']," in meetings
+    assert "const SCRIPTS = ['./callRecorder.js', './meetingBot.js'];" in meetings
+    assert 'href="/modules/sound" data-conversations' in meetings
+    assert "data-in-app hidden" in meetings
     for script in ("callRecorder.js", "meetingBot.js"):
         src = (_JS / script).read_text()
         for el_id in re.findall(r"\$\('#([a-z0-9-]+)'\)", src):
-            assert f'id="{el_id}"' in page, (script, el_id)
+            assert f'id="{el_id}"' in meetings, (script, el_id)
     windows = (_JS / "forkModuleWindows.js").read_text()
     assert "href: '/modules/sound/record'" in windows
+    assert "mountMeetings(body, { inApp: true, openConversations: () => open(WINDOWS.sound) });" in windows
     assert "addSidebarEntry(WINDOWS.meetings, WINDOWS.sound.sidebarBtn);" in windows
     # Recording moved out of the Conversations window's toolbar.
     sound = (_JS / "soundModule.js").read_text()
@@ -194,42 +196,48 @@ def test_the_sidebar_entries_come_from_the_windows_script():
     assert "Fork: Athena conversations page" not in index
 
 
-def test_beliefs_window_reads_the_beliefs_page():
+def test_beliefs_page_and_window_mount_one_view():
     page = (_REPO / "static" / "beliefs.html").read_text()
-    assert '<div class="bs-wrap">' in page and '<div class="bs-top">' in page
-    assert '<a href="/" title="Back to Odysseus">' in page  # dropped in the window
-    win = (_JS / "forkBeliefsWindow.js").read_text()
-    assert "const PAGE = '/beliefs';" in win
-    assert "scopeStyles: true," in win and "scripts: ['./beliefs.js']," in win
+    assert "mountBeliefs(document.body);" in page
     src = (_JS / "beliefs.js").read_text()
+    assert "export function mountBeliefs(root, { inApp = false } = {})" in src
+    markup = src[src.index("const MARKUP = `"):]
+    assert '<div class="bs-wrap">' in markup and '<div class="bs-top">' in markup
+    assert '<a href="/" title="Back to Odysseus">' in markup  # dropped in the window
     for el_id in set(re.findall(r"\$\('#([a-z0-9-]+)'\)", src)):
-        assert f'id="{el_id}"' in page, el_id
+        assert f'id="{el_id}"' in markup, el_id
     windows = (_JS / "forkModuleWindows.js").read_text()
     assert "id: 'fork-beliefs-modal'" in windows and "sidebarBtn: 'tool-beliefs-btn'" in windows
+    assert "const { mountBeliefs } = await import('./beliefs.js');" in windows
+    assert "return mountBeliefs(body, { inApp: true });" in windows
 
 
-@pytest.mark.skipif(not _HAS_NODE, reason="node binary not on PATH")
-def test_page_styles_are_scoped_to_the_window():
-    # forkPageView.js puts a page's inline styles under the window's class and drops its
-    # html/body rules, so they can't restyle the app.
-    got = _node(f"""
-    class FakeSheet {{
-      replaceSync(text) {{ this.text = text; }}
-      get cssRules() {{
-        return [
-          {{ selectorText: 'html, body', style: {{ cssText: 'overflow: visible;' }} }},
-          {{ selectorText: '.bs-btn, .bs-tab[aria-selected="true"]', style: {{ cssText: 'color: red;' }} }},
-          {{ media: {{ mediaText: '(max-width: 640px)' }},
-             cssRules: [{{ selectorText: 'body .x, .bs-row', style: {{ cssText: 'gap: 0px;' }} }}] }},
-        ];
-      }}
-    }}
-    globalThis.CSSStyleSheet = FakeSheet;
-    const {{ scopedPageStyles }} = await import('{(_JS / "forkPageView.js").as_posix()}');
-    const doc = {{ querySelectorAll: () => [{{ textContent: 'x' }}] }};
-    console.log(JSON.stringify(scopedPageStyles(doc, '.fm-beliefs')));
-    """)
-    assert got.splitlines() == [
-        '.fm-beliefs .bs-btn, .fm-beliefs .bs-tab[aria-selected="true"] { color: red; }',
-        "@media (max-width: 640px) { .fm-beliefs .bs-row { gap: 0px; } }",
-    ]
+_PAGES = ("beliefs.html", "call-recorder.html", "phone-pairing.html", "sound-module.html", "today.html")
+
+
+def test_standalone_pages_are_thin_shells():
+    # One theme snippet for every page, its look from fork-modules.css: no inline styles,
+    # and no script but the snippet and the one that mounts the view.
+    snippet = (_JS / "forkPageTheme.js").read_text()
+    assert "localStorage.getItem('odysseus-theme')" in snippet
+    for name in _PAGES:
+        html = (_REPO / "static" / name).read_text()
+        assert '<html lang="en" class="fm-page">' in html, name
+        assert '<script src="/static/js/forkPageTheme.js"></script>' in html, name
+        assert html.index("forkPageTheme.js") < html.index("00-tokens.css") < html.index("fork-modules.css")
+        assert html.index('name="theme-color"') < html.index("forkPageTheme.js"), name
+        assert "<style" not in html and "odysseus-theme" not in html, name
+        assert html.count("<script") == 2, name
+
+
+def test_fork_styles_stay_under_fork_classes():
+    # fork-modules.css is loaded into the app: every rule must start at a fork class or id
+    # (or the fork pages' html.fm-page), so it can't restyle upstream's views.
+    css = (_REPO / "static" / "css" / "fork-modules.css").read_text()
+    css = re.sub(r"/\*.*?\*/", "", css, flags=re.S)
+    css = re.sub(r"@media[^{]*\{", "", css)
+    selectors = [sel.strip() for block in re.findall(r"([^{}]+)\{[^{}]*\}", css)
+                 for sel in block.split(",") if sel.strip()]
+    assert len(selectors) > 200
+    fork = re.compile(r"^(html\.fm-page\b|\.fm-[\w-]+|#fork-[\w-]+|\.fork-athena-[\w-]+)")
+    assert [s for s in selectors if not fork.match(s)] == []

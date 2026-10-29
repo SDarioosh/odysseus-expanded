@@ -1,118 +1,20 @@
 <!DOCTYPE html>
-<html lang="en">
+<html lang="en" class="fm-page">
 <head>
   <meta charset="utf-8">
   <meta name="viewport" content="width=device-width, initial-scale=1">
   <title>Meetings — Odysseus</title>
   <meta name="theme-color" content="#282c34">
   <link rel="icon" href="/static/icon.ico">
-  <script nonce="{{CSP_NONCE}}">
-  // Fork: apply the theme the owner picked in Odysseus (saved in localStorage
-  // as 'odysseus-theme'), like the early script in index.html and login.html.
-  // theme.js isn't imported: it boots the whole settings UI.
-  (function () {
-    try {
-      var t = JSON.parse(localStorage.getItem('odysseus-theme'));
-      var s = document.documentElement.style;
-      if (t && t.colors) {
-        var c = t.colors;
-        s.setProperty('--bg', c.bg);
-        s.setProperty('--fg', c.fg);
-        s.setProperty('--panel', c.panel);
-        s.setProperty('--border', c.border);
-        if (c.red) s.setProperty('--red', c.red);
-        var a = c.advanced || {};
-        if (a.inputBg) s.setProperty('--input-bg', a.inputBg);
-        if (a.inputBorder) s.setProperty('--input-border', a.inputBorder);
-        var m = document.querySelector('meta[name="theme-color"]');
-        if (m && c.bg) m.setAttribute('content', c.bg);
-      }
-      // Same names as FONT_MAP in static/js/theme.js; unknown fonts keep the default.
-      var fonts = {
-        mono: "'Fira Code', monospace",
-        sans: "system-ui, -apple-system, 'Segoe UI', sans-serif",
-        serif: "Georgia, 'Times New Roman', serif",
-        opendyslexic: "'OpenDyslexic', sans-serif"
-      };
-      if (t && t.font && fonts[t.font]) s.setProperty('--font-family', fonts[t.font]);
-      if (t && t.density && t.density !== 'comfortable') {
-        document.documentElement.classList.add('density-' + t.density);
-      }
-    } catch (e) { /* no saved theme: keep the defaults */ }
-  })();
-  </script>
+  <!-- Fork: the theme the owner picked in Odysseus (static/js/forkPageTheme.js) -->
+  <script src="/static/js/forkPageTheme.js"></script>
   <link rel="stylesheet" href="/static/css/00-tokens.css?v=20260929csssplit">
-  <style>
-    /* Fork: Meetings page (src/call_recorder.py, src/meeting_bot.py). Its cards are also
-       shown in the Meetings window of the main app (static/js/forkMeetings.js), styled
-       there by static/css/fork-modules.css. Colors, font and spacing come from
-       the Odysseus tokens in 00-tokens.css plus the saved theme applied above, with the
-       same classes as the Athena page; nothing here introduces new color values. */
-    html, body { height: auto; overflow: visible; overscroll-behavior: auto; }
-    body { background: var(--bg); color: var(--fg); margin: 0; display: block;
-           min-height: 100vh;
-           font-family: var(--font-family, 'Fira Code', monospace); }
-    .bs-wrap { max-width: 860px; margin: 0 auto; padding: 16px; }
-    .bs-top { display: flex; align-items: center; gap: 10px; margin-bottom: 14px; }
-    .bs-top h1 { font-size: 1.1rem; font-weight: 600; margin: 0; flex: 1; }
-    .bs-top a { color: var(--fg); opacity: 0.7; text-decoration: none; }
-    .bs-top a:hover { opacity: 1; }
-    .bs-card { background: var(--panel); border: 1px solid var(--border); border-radius: 8px;
-               padding: 12px 14px; margin-bottom: 10px; }
-    .bs-card h2 { font-size: 0.95rem; margin: 0 0 4px; font-weight: 600; }
-    .bs-meta { font-size: 0.8rem; opacity: 0.65; }
-    .bs-text { font-size: 0.88rem; line-height: 1.45; margin: 6px 0 0; }
-    .bs-text.rc-first { margin-top: 0; }
-    .bs-list { margin: 6px 0 0; padding-left: 20px; font-size: 0.88rem; line-height: 1.45; }
-    .bs-list li { margin: 3px 0; }
-    .bs-row { display: flex; flex-wrap: wrap; gap: 8px; align-items: center; margin-top: 10px; }
-    .bs-btn { background: transparent; color: var(--fg); border: 1px solid var(--border);
-              border-radius: 6px; padding: 6px 10px; font: inherit; font-size: 0.85rem;
-              cursor: pointer; min-height: 36px; box-sizing: border-box; }
-    .bs-btn:hover { border-color: var(--fg); }
-    .bs-btn.primary { border-color: var(--red); color: var(--red); }
-    .bs-btn:disabled { opacity: 0.4; cursor: default; }
-    a.bs-btn { display: inline-flex; align-items: center; text-decoration: none; }
-    .bs-check { display: inline-flex; gap: 8px; align-items: center; font-size: 0.88rem;
-                min-height: 36px; cursor: pointer; }
-    .bs-notice { background: var(--panel); border: 1px solid var(--border); border-left: 3px solid var(--red);
-                 border-radius: 6px; padding: 8px 10px; margin: 8px 0; font-size: 0.86rem; }
-    .bs-notice:empty { display: none; }
-    .rc-grid { display: grid; grid-template-columns: 9em 1fr; gap: 8px 12px; align-items: center;
-               font-size: 0.88rem; margin-top: 10px; }
-    .rc-meter { height: 8px; border: 1px solid var(--border); border-radius: 999px; overflow: hidden; }
-    .rc-meter > div { height: 100%; width: 0; background: var(--red); transition: width 80ms linear; }
-    .rc-meter.off { opacity: 0.4; }
-    .rc-time { font-variant-numeric: tabular-nums; font-size: 1.2rem; font-weight: 600; }
-    .rc-dot { display: inline-block; width: 10px; height: 10px; border-radius: 50%;
-              border: 1px solid var(--border); margin-right: 8px; vertical-align: middle; }
-    .rc-dot.on { background: var(--red); border-color: var(--red); }
-    /* "Send Athena to a meeting" (src/meeting_bot.py, static/js/meetingBot.js) */
-    .bs-input { background: var(--input-bg, var(--bg)); color: var(--fg);
-                border: 1px solid var(--input-border, var(--border)); border-radius: 6px;
-                padding: 6px 8px; font: inherit; font-size: 0.85rem; min-width: 0;
-                box-sizing: border-box; }
-    .bs-input:focus { outline: none; border-color: var(--red); }
-    .mb-form { display: grid; grid-template-columns: 1fr 12em; gap: 8px; margin-top: 10px; }
-    .mb-form textarea { resize: vertical; min-height: 36px; height: 36px; line-height: 1.4; }
-    .mb-hint { margin-top: 6px; }
-    .mb-state { font-size: 0.88rem; margin-top: 10px; }
-    .mb-state:empty { display: none; }
-    .mb-signin { font-size: 0.88rem; margin-top: 10px; }
-    .mb-signin-line { display: flex; flex-wrap: wrap; gap: 8px; align-items: center; }
-    .mb-signin-line span:empty { display: none; }
-    .mb-signin a { color: var(--fg); }
-    .mb-paste { display: grid; grid-template-columns: 1fr auto; gap: 8px; margin-top: 8px; }
-    #mb-signin-msg:empty { display: none; }
-    [hidden] { display: none !important; }
-    @media (max-width: 640px) {
-      .mb-form, .mb-paste { grid-template-columns: 1fr; }
-      .rc-grid { grid-template-columns: 1fr; }
-      .bs-row .bs-btn { flex: 1 1 calc(50% - 8px); }
-    }
-  </style>
+  <!-- Fork: Meetings page (fork/athena/call_recorder.py, fork/athena/meeting_bot.py); the
+       cards are static/js/forkMeetings.js, also shown in the Meetings window of the main
+       app; the page's look is in fork-modules.css under .fm-card-page and .fm-meetings-page -->
+  <link rel="stylesheet" href="/static/css/fork-modules.css">
 </head>
-<body>
+<body class="fm-card-page fm-meetings-page">
   <div class="bs-wrap">
     <div class="bs-top">
       <a href="/modules/sound" title="Back to Records">
@@ -121,87 +23,10 @@
       </a>
       <h1>Meetings</h1>
     </div>
-
-    <div class="bs-card" id="mb-card">
-      <h2>Send Athena to a meeting</h2>
-      <p class="bs-text">Paste a Zoom link, or the whole invite. Athena joins on the server as a
-        guest called “Athena”, records each person under their Zoom name and leaves when the
-        meeting ends. Nothing on this computer records, and you can close this page.</p>
-      <div class="mb-form">
-        <textarea class="bs-input" id="mb-link" rows="1" spellcheck="false" autocomplete="off"
-          aria-label="Zoom link, invite or meeting ID"
-          placeholder="https://zoom.us/j/… or meeting ID"></textarea>
-        <input class="bs-input" id="mb-pass" type="text" spellcheck="false" autocomplete="off"
-          aria-label="Passcode" placeholder="Passcode (with an ID)">
-      </div>
-      <div class="bs-meta mb-hint">Join the meeting yourself too — Athena records while you're in it.</div>
-      <div class="mb-signin" id="mb-signin" hidden>
-        <div class="mb-signin-line">
-          <span id="mb-signin-text"></span>
-          <button type="button" class="bs-btn" id="mb-signin-btn" hidden>Sign in to Zoom</button>
-        </div>
-        <div id="mb-signin-paste" hidden>
-          <p class="bs-text">In the new tab, sign in to Zoom and click Allow. Zoom then opens a
-            page that can't load — that's expected. Copy that page's address from the address
-            bar and paste it here.</p>
-          <div class="bs-meta mb-hint" id="mb-signin-open" hidden>No tab opened?
-            <a id="mb-signin-link" href="#" target="_blank" rel="noopener noreferrer">Open Zoom's sign-in page</a>.</div>
-          <div class="mb-paste">
-            <input class="bs-input" id="mb-signin-input" type="text" spellcheck="false"
-              autocomplete="off" aria-label="Address of the page Zoom opened"
-              placeholder="Paste the address here">
-            <button type="button" class="bs-btn primary" id="mb-signin-finish">Finish</button>
-          </div>
-        </div>
-        <div class="bs-meta mb-hint" id="mb-signin-msg" role="status" aria-live="polite"></div>
-      </div>
-      <div class="bs-row">
-        <button type="button" class="bs-btn primary" id="mb-join" disabled>Join</button>
-        <button type="button" class="bs-btn" id="mb-leave" hidden>Leave</button>
-      </div>
-      <div class="mb-state" id="mb-state" role="status" aria-live="polite"></div>
-    </div>
-
-    <div class="bs-card">
-      <h2>Or record it on this computer</h2>
-      <p class="bs-text">Records a meeting's audio on this computer and sends it to
-        Athena, which transcribes and summarizes it like any other conversation.
-        Keep Odysseus open while you record.</p>
-      <p class="bs-text" data-in-app hidden>You can close this window and keep using the
-        chat: the recording goes on until you press Stop.</p>
-      <ul class="bs-list">
-        <li><b>Meeting in a browser tab</b> (Zoom web, Google Meet, Teams web): choose that tab and turn on
-          <i>Also share tab audio</i>.</li>
-        <li><b>Zoom or another app</b>: choose its window or the entire screen and turn on
-          <i>Also share system audio</i> (Windows; macOS 14.2 or newer with Chrome 141 or newer;
-          Linux depends on the desktop, try it once).</li>
-        <li>The video is not recorded or sent, only the sound.</li>
-      </ul>
-    </div>
-
-    <div id="rc-notice" class="bs-notice" role="alert"></div>
-
-    <div class="bs-card">
-      <label class="bs-check"><input type="checkbox" id="rc-mic" checked> Include my microphone</label>
-      <div class="bs-meta">Use headphones, or the microphone also picks up the other people.</div>
-      <div class="bs-row">
-        <button type="button" class="bs-btn primary" id="rc-start" disabled>Start recording</button>
-        <button type="button" class="bs-btn" id="rc-stop" disabled>Stop</button>
-        <a class="bs-btn" href="/modules/sound" data-conversations>Records</a>
-      </div>
-      <div class="rc-grid">
-        <div><span class="rc-dot" id="rc-dot"></span><span class="rc-time" id="rc-time">0:00:00</span></div>
-        <div class="bs-meta" id="rc-state">Not recording.</div>
-        <div>Call audio</div>
-        <div class="rc-meter off" id="rc-meter-call"><div></div></div>
-        <div>Microphone</div>
-        <div class="rc-meter off" id="rc-meter-mic"><div></div></div>
-        <div>Sent</div>
-        <div class="bs-meta" id="rc-sent">0 pieces</div>
-      </div>
-    </div>
   </div>
-  <script type="module" src="/static/js/callRecorder.js"></script>
-  <script type="module" src="/static/js/meetingBot.js"></script>
+  <script type="module" nonce="{{CSP_NONCE}}">
+    import { mountMeetings } from '/static/js/forkMeetings.js';
+    mountMeetings(document.querySelector('.bs-wrap'));
+  </script>
 </body>
 </html>

@@ -18,6 +18,14 @@ from routes.sound_module_routes import setup_sound_module_routes
 from src import call_recorder as rec
 from src import meeting_bot as mb
 
+_STATIC_JS = Path(__file__).resolve().parents[2] / "static" / "js"
+
+
+def _meetings_view() -> str:
+    """The Meetings cards: static/js/forkMeetings.js, mounted by the page."""
+    return (_STATIC_JS / "forkMeetings.js").read_text()
+
+
 TOKEN = "t" * 32
 LINK = rec.Link(base="http://module:8001", token=TOKEN)
 ROWS = [("srv1", "convo", f"http://module:8001/mcp?access_token={TOKEN}", True)]
@@ -647,8 +655,10 @@ def test_route_not_configured(client, monkeypatch):
 
 def test_page_has_the_meeting_box(client):
     r = client.get("/modules/sound/record")
-    assert r.status_code == 200
-    assert "Send Athena to a meeting" in r.text and "meetingBot.js" in r.text
+    assert r.status_code == 200 and "forkMeetings.js" in r.text
+    # the page mounts its cards from static/js/forkMeetings.js
+    view = _meetings_view()
+    assert "Send Athena to a meeting" in view and "'./meetingBot.js'" in view
 
 
 def test_routes_are_admin_only(monkeypatch):
@@ -726,8 +736,7 @@ def test_route_zoom_signin_logs_no_paste(client, caplog):
 
 
 def test_page_has_the_zoom_signin_line(client):
-    r = client.get("/modules/sound/record")
-    text = " ".join(r.text.split())
+    text = " ".join(_meetings_view().split())
     assert "Sign in to Zoom" in text and 'id="mb-signin-finish"' in text
     assert ("In the new tab, sign in to Zoom and click Allow. Zoom then opens a page that "
             "can't load — that's expected. Copy that page's address from the address bar "
@@ -748,8 +757,7 @@ def test_route_signin_needed(client):
 
 
 def test_page_has_the_join_yourself_hint(client):
-    r = client.get("/modules/sound/record")
-    assert "Join the meeting yourself too — Athena records while you're in it." in r.text
+    assert "Join the meeting yourself too — Athena records while you're in it." in _meetings_view()
 
 
 def test_waiting_permission_is_active():

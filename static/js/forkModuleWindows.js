@@ -13,7 +13,7 @@
 // Meetings (static/js/forkMeetings.js: record a call, send Athena to a meeting) comes after
 // Records.
 //
-// Beliefs ("What I know about you", static/js/forkBeliefsWindow.js), the Wisdom entry, opens
+// Beliefs ("What I know about you", static/js/beliefs.js), the Wisdom entry, opens
 // as a window too. All of these sit in the sidebar's collapsible "Athena" group above Tools
 // (static/js/forkAthenaMenu.js).
 //
@@ -66,7 +66,7 @@ const WINDOWS = {
     icon: FORK_SHORTCUT_ICONS.open_meetings,
     async mount(body) {
       const { mountMeetings } = await import('./forkMeetings.js');
-      return mountMeetings(body, { openConversations: () => open(WINDOWS.sound) });
+      return mountMeetings(body, { inApp: true, openConversations: () => open(WINDOWS.sound) });
     },
   },
   today: {
@@ -89,8 +89,8 @@ const WINDOWS = {
     href: '/beliefs',
     icon: FORK_SHORTCUT_ICONS.open_beliefs,
     async mount(body) {
-      const { mountBeliefs } = await import('./forkBeliefsWindow.js');
-      return mountBeliefs(body);
+      const { mountBeliefs } = await import('./beliefs.js');
+      return mountBeliefs(body, { inApp: true });
     },
   },
   ink: {

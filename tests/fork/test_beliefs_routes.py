@@ -4,6 +4,7 @@ Fictional data only.
 """
 import datetime
 import json
+from pathlib import Path
 
 import pytest
 from fastapi import FastAPI
@@ -13,6 +14,8 @@ import routes.beliefs_routes as br
 from core.middleware import require_admin
 from src import evidence_intake as ledger
 from src import module_facts as mf
+
+_STATIC_JS = Path(__file__).resolve().parents[2] / "static" / "js"
 
 T0 = datetime.datetime(2026, 10, 21, 9, 0, tzinfo=datetime.timezone.utc)
 
@@ -584,4 +587,6 @@ def test_routes_refuse_api_tokens(data):
 def test_page_is_served(client):
     r = client.get("/beliefs")
     assert r.status_code == 200
-    assert "What I know about you" in r.text and "/static/js/beliefs.js" in r.text
+    assert "<title>Wisdom — Odysseus</title>" in r.text and "/static/js/beliefs.js" in r.text
+    # the view's markup is in the script the page mounts (static/js/beliefs.js)
+    assert "What I know about you" in (_STATIC_JS / "beliefs.js").read_text()
