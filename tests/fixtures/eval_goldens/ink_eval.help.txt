@@ -1,0 +1,27 @@
+usage: ink_eval.py [-h] [--data-dir DATA_DIR] [--owner OWNER] [--limit LIMIT]
+                   [--stored] [--model MODEL] [--base-url BASE_URL]
+                   [--include-photos] [--fixtures] [--json] [--out OUT]
+                   [--per-page] [--show-diffs]
+
+CER and WER of the handwriting recognizer on the owner's reviewed pages
+(numbers and ids only).
+
+options:
+  -h, --help           show this help message and exit
+  --data-dir DATA_DIR  the hub's DATA_DIR (default: ODYSSEUS_DATA_DIR /
+                       src/constants.py)
+  --owner OWNER        owner to read (repeatable; default: every ink folder)
+  --limit LIMIT        at most this many pairs
+  --stored             score the stored model text (transcript.machine)
+                       instead of reading pages again; no model calls
+  --model MODEL        read with this model instead of the vision_model
+                       setting
+  --base-url BASE_URL  endpoint for --model (local endpoints only)
+  --include-photos     also score photo pages
+  --fixtures           fictional pages in a temp DATA_DIR and a fake reader
+                       (sandbox)
+  --json               print the report as JSON
+  --out OUT            also write the JSON report to this file
+  --per-page           a row per page (ids, numbers)
+  --show-diffs         print per-page line diffs: this prints page text, keep
+                       it local

@@ -1,0 +1,15 @@
+usage: insight_eval.py [-h] [--fixture FIXTURE] [--t5-fixture T5_FIXTURE]
+                       [--data-dir DATA_DIR] [--keep] [--json]
+
+Fork: the Today insight eval: rule order, learned weights and the T5 fallback
+order.
+
+options:
+  -h, --help            show this help message and exit
+  --fixture FIXTURE     the day fixture (JSON)
+  --t5-fixture T5_FIXTURE
+                        the T5 host test's day (JSON, a copy of the module's
+                        fixture)
+  --data-dir DATA_DIR   where to write the files (default: a temp dir)
+  --keep                keep the temp dir
+  --json                print the checks and score as JSON
