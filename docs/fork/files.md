@@ -72,6 +72,7 @@ is an old path of a module that moved into `fork/`; it only aliases the new modu
 - `fork/athena/relay_routes.py`
 - `fork/athena/routes.py`
 - `fork/athena/summary_model_routes.py`
+- `fork/athena/urls.py`
 - `fork/athena/view.py`
 - `fork/athena/voice_enroll_routes.py`
 - `fork/athena/whisper_vocabulary_routes.py`
