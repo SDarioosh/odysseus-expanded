@@ -828,8 +828,13 @@ is not logged in Activity.
 
 | Source | `source` | Task | Setting | Default |
 |---|---|---|---|---|
-| Athena facts | `odysseus-sound` | Module Facts (hourly) | `MODULE_FACTS_SYNC` | on |
+| Athena facts | `athena` (`odysseus-sound` before the migration) | Module Facts (hourly) | `MODULE_FACTS_SYNC` | on |
 | The owner's notes | `notes` | Notes Evidence (daily, 03:00) | `EVIDENCE_NOTES` | off |
+
+Athena's source was `odysseus-sound` until 2026-10-29 (the examples on this page still say
+so). The ledger reads both names as one source, and keeps writing the name an owner's
+ledger already holds, so a ledger never holds both; `scripts/athena_names_migrate.py`
+renames the stored one ([stored names](modules/athena.md#stored-names)).
 
 ### Notes (1.2)
 
