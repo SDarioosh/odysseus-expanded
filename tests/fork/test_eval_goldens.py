@@ -108,7 +108,7 @@ def test_insight_eval_json():
 def test_ink_eval_fixtures():
     check("ink_eval.fixtures.txt", _TIME.sub("<t>", re.sub(
         r"^seconds per page: .*$", "seconds per page: <t>", run("scripts/ink_eval.py",
-                                                                "--fixtures"), flags=re.M)))
+                                                                "--fixtures"), flags=re.MULTILINE)))
 
 
 def test_ink_eval_fixtures_json(tmp_path):
