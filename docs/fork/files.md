@@ -329,6 +329,7 @@ is an old path of a module that moved into `fork/`; it only aliases the new modu
 - `tests/fork/test_module_action_items.py`
 - `tests/fork/test_module_fact_kinds.py`
 - `tests/fork/test_module_facts.py`
+- `tests/fork/test_module_slash_eval.py`
 - `tests/fork/test_module_turn_scope.py`
 - `tests/fork/test_modules_setup.py`
 - `tests/fork/test_notes_evidence.py`
