@@ -27,7 +27,7 @@ from src import sound_module_view as view
 from src.memory import MemoryManager
 
 FIXTURES = Path(__file__).resolve().parent / "fixtures" / "athena_contract"
-NOW = datetime.datetime(2025, 10, 13, 9, 0, tzinfo=datetime.timezone.utc)
+NOW = datetime.datetime(2025, 10, 13, 9, 0, tzinfo=datetime.UTC)
 
 
 def _text(name: str) -> str:
