@@ -24,7 +24,7 @@ Upstreamable: no
 
 ## Athena group in the sidebar
 
-**Athena group in the sidebar.** Conversations, Meetings, Today, Write and Beliefs move out of Tools into a collapsible **Athena** group just above it, with a header like the Tools header (waveform icon, chevron). Click or Enter/Space on the header opens or closes it; the choice is kept per browser (`localStorage` `fork-athena-collapsed`, open by default). The entries keep their ids and handlers, so windows, rail buttons, shortcuts and `/open` work while it is closed. It is not a `.section`, so upstream's section toggle and drag reorder leave it alone.
+**Athena group in the sidebar.** Conversations, Meetings, Today, Write and Beliefs move out of Tools into a collapsible **Athena** group just above it, with a header like the Tools header (waveform icon, chevron). Click or Enter/Space on the header opens or closes it; the choice is kept per browser (`localStorage` `fork-athena-collapsed`, open by default). The entries keep their ids and handlers, so windows, rail buttons, shortcuts and `/open` work while it is closed. It is not a `.section`, so upstream's section toggle and drag reorder leave it alone. All five entries are added by `static/js/forkModuleWindows.js` after upstream's Notes entry, then moved into the group; `static/index.html` only loads the script.
 
 Files: `static/js/forkAthenaMenu.js` (new); fork files `static/js/forkModuleWindows.js` (one call), `static/css/fork-modules.css`; test in `tests/fork/test_fork_module_windows.py`. No new upstream hook.
 

@@ -7,12 +7,13 @@
 // sent; the module ends a session after long silence or its maximum length, and the page
 // then continues in a new session.
 
+import { $ } from './forkDom.js';
+
 const PIECE_MS = 30000;
 const BITRATE = 32000; // Opus voice; ~120 KB per 30 s piece
 const RETRY_MAX_MS = 60000;
 const MIC_PREF = 'odysseus-call-recorder-mic';
 
-const $ = (sel) => document.querySelector(sel);
 const ui = {
   notice: $('#rc-notice'), start: $('#rc-start'), stop: $('#rc-stop'), mic: $('#rc-mic'),
   dot: $('#rc-dot'), time: $('#rc-time'), state: $('#rc-state'), sent: $('#rc-sent'),
