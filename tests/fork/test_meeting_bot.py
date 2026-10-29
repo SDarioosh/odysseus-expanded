@@ -569,7 +569,7 @@ class Router:
 @pytest.fixture
 def client(monkeypatch):
     monkeypatch.delenv(rec.SERVER_ENV, raising=False)
-    monkeypatch.setattr(rec, "_server_rows", lambda: ROWS)
+    monkeypatch.setattr("fork.athena.client._server_rows", lambda: ROWS)
     module = Router()
     real = httpx.AsyncClient
 
@@ -647,7 +647,7 @@ def test_route_unknown_id_is_404_without_a_call(client):
 
 
 def test_route_not_configured(client, monkeypatch):
-    monkeypatch.setattr(rec, "_server_rows", list)
+    monkeypatch.setattr("fork.athena.client._server_rows", list)
     r = client.get("/api/modules/sound/meetings/current")
     assert r.status_code == 503 and "Settings → MCP" in r.json()["detail"]
     assert r.json()["code"] == "setup"

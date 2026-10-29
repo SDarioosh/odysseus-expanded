@@ -79,7 +79,7 @@ def _allow(request: Request, scopes: set[str]) -> str:
 
 async def _module(method: str, path: str, **kwargs: Any) -> JSONResponse:
     try:
-        status, body = await rec.forward(rec.resolve(), method, path, **kwargs)
+        status, body = await rec.module_json(method, path, **kwargs)
     except rec.RecorderError as exc:
         raise HTTPException(exc.status, exc.message) from None
     return JSONResponse(body, status_code=status)

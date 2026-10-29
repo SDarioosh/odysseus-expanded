@@ -77,9 +77,10 @@ from dataclasses import dataclass
 from datetime import date as Date
 from datetime import datetime, timedelta, timezone, tzinfo
 from pathlib import Path
-from typing import Any, Awaitable, Callable
+from typing import Any, Callable
 from zoneinfo import ZoneInfo
 
+from fork.athena import client as athena
 from fork.common import settings
 
 logger = logging.getLogger(__name__)
@@ -183,31 +184,18 @@ def save_state(owner: str, state: dict[str, Any]) -> None:
 
 
 # -------------------------------------------------------------------------- MCP
-CallTool = Callable[[str, dict], Awaitable[str]]
+# Athena's tools through the one client (fork/athena/client.py); a failed tool raises
+# AthenaError, a RuntimeError.
+CallTool = athena.CallTool
 
 
 def module_server_id(manager: Any, key: str | None = None) -> str | None:
     """Id of the connected module MCP server named ``key`` (name or id)."""
-    key = (key or server_key()).casefold()
-    from fork.upstream import mcp_connections
-
-    connections = mcp_connections(manager)
-    for server_id, conn in connections.items():
-        if (conn or {}).get("status") != "connected":
-            continue
-        name = str((conn or {}).get("name") or "").strip().casefold()
-        if str(server_id).casefold() == key or name == key:
-            return server_id
-    return None
+    return athena.server_id(manager, key or server_key())
 
 
 def mcp_caller(manager: Any, server_id: str) -> CallTool:
-    async def call(tool: str, arguments: dict) -> str:
-        res = await manager.call_tool(f"mcp__{server_id}__{tool}", arguments)
-        if res.get("exit_code") or res.get("error"):
-            raise RuntimeError(f"{tool}: {res.get('error') or res.get('stderr') or 'failed'}")
-        return res.get("stdout") or ""
-    return call
+    return athena.bound_caller(manager, server_id)
 
 
 # --------------------------------------------------------------------------- push
@@ -1376,14 +1364,12 @@ async def filed_state(owner: str) -> dict[int, dict]:
 async def action_sync_action_items(owner: str, **kwargs) -> tuple[str, bool]:
     """Built-in task entry point (see ``register_builtin_action``)."""
     from src.builtin_actions import TaskNoop
-    from src.tool_utils import get_mcp_manager
 
-    manager = get_mcp_manager()
-    server_id = module_server_id(manager) if manager is not None else None
-    if server_id is None:
+    call = athena.ATHENA.caller()
+    if call is None:
         raise TaskNoop(f"module MCP server {server_key()!r} is not connected")
     try:
-        stats = await sync(owner, mcp_caller(manager, server_id))
+        stats = await sync(owner, call)
     except RuntimeError as e:
         return f"Action item sync failed: {e}", False
     if not any(stats.values()):

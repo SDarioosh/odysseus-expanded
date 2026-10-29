@@ -271,7 +271,8 @@ moving or deleting a fork file.
 
 The fork's Python code lives in the `fork/` package, apart from upstream's `src/` and
 `routes/`: `fork/mcp/` (MCP client fixes), `fork/routing/` (what a turn is offered and
-granted), `fork/athena/` (the Athena module in the hub, its routes included),
+granted), `fork/athena/` (the Athena module in the hub, its routes included; `fork/athena/client.py`
+is the one way the fork calls Athena, MCP tools and HTTP routes alike),
 `fork/beliefs/`, `fork/insight/`, `fork/ink/`, `fork/hub/` (fixes to upstream's own
 features), `fork/routes/` (the other route files; `fork.routes.mount` includes all the
 fork's routers) and `fork/common/` (shared helpers). `fork/tasks.py` is the table of the

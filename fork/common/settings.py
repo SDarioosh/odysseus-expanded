@@ -98,8 +98,9 @@ ACTION_ITEMS_SERVER = _setting(
     "MODULE_ACTION_ITEMS_SERVER", "convo", "text",
     "The Athena MCP server (name or id) for to-dos, facts, today insight and the "
     "beliefs page; compared case-insensitively.",
-    used_in=("fork/athena/action_items.py", "fork/athena/facts.py", "fork/insight/today.py",
-             "fork/mcp/session_recovery.py", "fork/routes/beliefs_routes.py"),
+    used_in=("fork/athena/action_items.py", "fork/athena/client.py", "fork/athena/facts.py",
+             "fork/insight/today.py", "fork/mcp/session_recovery.py",
+             "fork/routes/beliefs_routes.py"),
     old=("BARVIS_ACTION_ITEMS_SERVER",))
 NOTIFY_CHANNEL = _setting(
     "MODULE_NOTIFY_CHANNEL", "ntfy", "ntfy, browser or off",
@@ -123,7 +124,7 @@ RECORDER_SERVER = _setting(
     "SOUND_MODULE_SERVER", "convo", "text",
     "The Athena MCP server (name or id) for uploads, the Athena page, the meeting bot "
     "and the module's other HTTP routes.",
-    used_in=("fork/athena/call_recorder.py", "fork/athena/routes.py"),
+    used_in=("fork/athena/call_recorder.py", "fork/athena/client.py", "fork/athena/routes.py"),
     old=("BARVIS_SOUND_SERVER",))
 CALL_DEVICE = _setting(
     "SOUND_MODULE_CALL_DEVICE", "computer", "device name",

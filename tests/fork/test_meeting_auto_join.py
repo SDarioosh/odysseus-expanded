@@ -266,7 +266,7 @@ class Module:
 @pytest.fixture
 def module(monkeypatch):
     monkeypatch.delenv(rec.SERVER_ENV, raising=False)
-    monkeypatch.setattr(rec, "_server_rows", lambda: ROWS)
+    monkeypatch.setattr("fork.athena.client._server_rows", lambda: ROWS)
 
     def use(status=202, body=None):
         fake = Module(status, body)
