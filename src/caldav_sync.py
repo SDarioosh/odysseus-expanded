@@ -653,8 +653,8 @@ async def sync_caldav(owner: str) -> dict:
         totals["deleted"] += result.get("deleted", 0)
         for err in result.get("errors", []):
             totals["errors"].append(f"{label}: {err}")
-    # Fork: Send Athena tasks follow moved or deleted Zoom events (src/meeting_auto_join.py)
-    from src.meeting_auto_join import after_calendar_change
+    # Fork: Send Athena tasks follow moved or deleted Zoom events (fork/athena/meeting_auto_join.py)
+    from fork.athena.meeting_auto_join import after_calendar_change
     await after_calendar_change(owner)
     return totals
 

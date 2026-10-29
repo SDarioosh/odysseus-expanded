@@ -339,7 +339,7 @@ async def test_auth_off_owner_none_and_empty_are_the_same(data):
 @pytest.mark.asyncio
 async def test_text_answer_does_nothing_and_logs_once(data, caplog):
     module = FakeModule(text="3 facts. When answering, put the link next to each fact.")
-    with caplog.at_level("INFO", logger="src.module_facts"):
+    with caplog.at_level("INFO", logger="fork.athena.facts"):
         assert await mf.sync("alice", module, now=T0) is None
         assert await mf.sync("alice", module, now=T1) is None
     assert sum("answered list_facts with text" in r.getMessage() for r in caplog.records) == 1
@@ -446,7 +446,7 @@ async def test_forget_tolerates_a_module_without_retire_fact(data, caplog):
     await mf.sync("alice", module, now=T0)
     belief = ledger.get_belief("alice", copies(data)[1]["belief_id"])
     ledger.reject("alice", belief["id"], now=T1)
-    with caplog.at_level("INFO", logger="src.module_facts"):
+    with caplog.at_level("INFO", logger="fork.athena.facts"):
         for _ in range(2):
             assert await mf.propagate_forget("alice", belief, call=module) == \
                 {"retired": 0, "failed": 0, "unsupported": 1}

@@ -615,8 +615,8 @@ async def action_consolidate_memory(owner: str, **kwargs) -> Tuple[str, bool]:
             for mem in all_memories:
                 memory_groups.setdefault(_memory_owner(mem), []).append(mem)
 
-        # Fork: memories with provenance are left to the ledger's pass (src/belief_consolidation.py)
-        from src.belief_consolidation import without_sourced
+        # Fork: memories with provenance are left to the ledger's pass (fork/beliefs/consolidation.py)
+        from fork.beliefs.consolidation import without_sourced
         memory_groups = {o: without_sourced(g) for o, g in memory_groups.items()}
         memory_groups = {group_owner: group for group_owner, group in memory_groups.items() if group}
         if not memory_groups:
@@ -3691,21 +3691,21 @@ BUILTIN_ACTION_INFO = {
     "check_email_urgency": "Scan unread emails hourly, tag urgent/reply-soon/newsletter/marketing/spam, and send a reminder when a new email needs a fast reply.",
 }
 
-# Fork: module action items -> ntfy (src/module_action_items.py)
-from src.module_action_items import register_builtin_action as _fork_register  # noqa: E402
+# Fork: module action items -> ntfy (fork/athena/action_items.py)
+from fork.athena.action_items import register_builtin_action as _fork_register  # noqa: E402
 _fork_register(BUILTIN_ACTIONS, BUILTIN_ACTION_INFO)
-# Fork: Athena facts -> Odysseus memory (src/module_facts.py)
-from src.module_facts import register_builtin_action as _fork_register_facts  # noqa: E402
+# Fork: Athena facts -> Odysseus memory (fork/athena/facts.py)
+from fork.athena.facts import register_builtin_action as _fork_register_facts  # noqa: E402
 _fork_register_facts(BUILTIN_ACTIONS, BUILTIN_ACTION_INFO)
-# Fork: daily Today insight (src/today_insight.py)
-from src.today_insight import register_builtin_action as _fork_today_register  # noqa: E402
+# Fork: daily Today insight (fork/insight/today.py)
+from fork.insight.today import register_builtin_action as _fork_today_register  # noqa: E402
 _fork_today_register(BUILTIN_ACTIONS, BUILTIN_ACTION_INFO)
-# Fork: owner's notes -> belief ledger (src/notes_evidence.py)
-from src.notes_evidence import register_builtin_action as _fork_notes_register  # noqa: E402
+# Fork: owner's notes -> belief ledger (fork/beliefs/notes_evidence.py)
+from fork.beliefs.notes_evidence import register_builtin_action as _fork_notes_register  # noqa: E402
 _fork_notes_register(BUILTIN_ACTIONS, BUILTIN_ACTION_INFO)
-# Fork: structure for confirmed beliefs (src/belief_structure.py)
-from src.belief_structure import register_builtin_action as _fork_structure_register  # noqa: E402
+# Fork: structure for confirmed beliefs (fork/beliefs/structure.py)
+from fork.beliefs.structure import register_builtin_action as _fork_structure_register  # noqa: E402
 _fork_structure_register(BUILTIN_ACTIONS, BUILTIN_ACTION_INFO)
-# Fork: Send Athena to toggled calendar meetings (src/meeting_auto_join.py)
-from src.meeting_auto_join import register_builtin_action as _fork_auto_join_register  # noqa: E402
+# Fork: Send Athena to toggled calendar meetings (fork/athena/meeting_auto_join.py)
+from fork.athena.meeting_auto_join import register_builtin_action as _fork_auto_join_register  # noqa: E402
 _fork_auto_join_register(BUILTIN_ACTIONS, BUILTIN_ACTION_INFO)

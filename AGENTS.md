@@ -61,7 +61,8 @@ Odysseus is large (~478k lines of Python) and fast-moving. Start from these file
 | Tests | `tests/` (see `tests/README.md`, `tests/KNOWN_FAILURES.md`) |
 | Upstream's own rules | `CONTRIBUTING.md`, `SECURITY.md`, `THREAT_MODEL.md` |
 
-Fork code so far: every file the fork adds (code, tests, scripts, docs) is listed in
+Fork code so far: the fork's Python code is in the `fork/` package; every file the fork
+adds (code, tests, scripts, docs) is listed in
 [docs/fork/files.md](docs/fork/files.md), generated and kept complete by
 `tests/test_fork_inventory.py`; the hooks into upstream files and the fork's features are
 listed in [FORK.md](FORK.md).
@@ -71,11 +72,13 @@ listed in [FORK.md](FORK.md).
 Upstream changes every day, so every line we touch in an upstream file is a future
 merge conflict.
 
-- Put fork code in **new files** (`src/<feature>.py`, `scripts/<feature>.py`,
-  `tests/test_<feature>.py`, `docs/fork/`).
+- Put fork code in **new files** (`fork/<area>/<feature>.py`, `scripts/<feature>.py`,
+  `tests/test_<feature>.py`, `docs/fork/`). The areas of the `fork/` package are listed
+  in [FORK.md](FORK.md#fork-files); import it as `fork.<area>.<feature>`. The old
+  `src/`/`routes/` paths of moved fork modules are shims kept for old imports only.
 - Change upstream files only with **small hooks**: a lazy import plus a call into the new
   file, a few lines at most. Put a comment on the hook that names the fork file it
-  calls (for example `# Fork: ... (src/mcp_trust.py)`), so `git grep` finds every hook.
+  calls (for example `# Fork: ... (fork/mcp/trust.py)`), so `git grep` finds every hook.
 - No renames, reformatting, import sorting, or drive-by refactors of upstream code. Don't
   run formatters over upstream files.
 - Branding goes through theme and config, never by renaming identifiers or strings in

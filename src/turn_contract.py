@@ -1570,8 +1570,8 @@ def selected_tools_for_request(message: str) -> frozenset[str] | None:
     ):
         return frozenset({"list_models"})
     model_discovery_clauses = re.split(r"[\n.!?;]+", text)
-    # Fork: comparisons and explicit web lookups are web questions (src/web_turn_scope.py)
-    from src.web_turn_scope import model_lookup_wants_web
+    # Fork: comparisons and explicit web lookups are web questions (fork/routing/web_turn_scope.py)
+    from fork.routing.web_turn_scope import model_lookup_wants_web
     if any(
         not model_lookup_wants_web(clause)
         and re.search(r"\b(?:models?|qwen|llama|gemma|mistral|instruct)\b", clause, re.I)

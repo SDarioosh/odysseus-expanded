@@ -213,10 +213,24 @@ regenerate this list:
 UPDATE_FORK_FILES=1 python -m pytest -q tests/test_fork_inventory.py
 ```
 
-Hooks in upstream files are listed in [FORK.md](../../FORK.md).
+Hooks in upstream files are listed in [FORK.md](../../FORK.md). A file marked "shim"
+is an old path of a module that moved into `fork/`; it only aliases the new module.
 """
 
-_LISTED = re.compile(r"^- `([^`]+)`$")
+_LISTED = re.compile(r"^- `([^`]+)`(?: \(shim for `[^`]+`\))?$")
+_SHIM = re.compile(r"\A# Shim: moved to (fork/[\w/]+\.py);")
+
+
+def _shim_target(path: str) -> str | None:
+    """The new path a shim at an old path names, else None."""
+    if not path.endswith(".py"):
+        return None
+    try:
+        head = (REPO / path).read_text(encoding="utf-8")[:200]
+    except (OSError, UnicodeDecodeError):
+        return None
+    m = _SHIM.match(head)
+    return m[1] if m else None
 
 
 def _fork_files(base: str) -> list[str]:
@@ -234,7 +248,9 @@ def _render(files: list[str]) -> str:
     out = [_HEADER]
     for top in sorted(groups, key=lambda g: (g != "(top level)", g)):
         out.append(f"\n## {top}\n\n")
-        out.extend(f"- `{p}`\n" for p in groups[top])
+        for p in groups[top]:
+            target = _shim_target(p)
+            out.append(f"- `{p}` (shim for `{target}`)\n" if target else f"- `{p}`\n")
     return "".join(out)
 
 
@@ -293,3 +309,11 @@ def test_render_groups_and_parses_back() -> None:
     text = _render(sorted(files))
     assert _listed(text) == ["AGENTS.md", "docs/fork/x.md", "src/a.py", "src/b.py"]
     assert text.index("## (top level)") < text.index("## docs/") < text.index("## src/")
+
+
+def test_shims_name_a_fork_file(upstream_base: str) -> None:
+    files = set(_fork_files(upstream_base))
+    for path in files:
+        target = _shim_target(path)
+        if target:
+            assert target in files, f"{path} is a shim for {target}, which is no fork file"

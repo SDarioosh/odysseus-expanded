@@ -144,7 +144,7 @@ class Run:
     """One seeded history: the simulated module, notes, and the checks."""
 
     def __init__(self, owner: str):
-        from src import evidence_intake as ledger
+        from fork.beliefs import evidence_intake as ledger
 
         self.ledger = ledger
         self.owner = owner
@@ -494,7 +494,7 @@ def run_eval(data_dir: str | Path, owner: str = OWNER) -> list[Check]:
     run (defaults) and restored afterwards. Raises :class:`SetupError` when the dir
     already has this eval's beliefs for ``owner``."""
     from src import constants
-    from src import evidence_intake as ledger
+    from fork.beliefs import evidence_intake as ledger
 
     data_dir = Path(data_dir)
     data_dir.mkdir(parents=True, exist_ok=True)
@@ -533,7 +533,7 @@ def cleanup(data_dir: str | Path, owner: str) -> dict[str, int]:
     copies (``sync_memory``), and the seeded own memory. Nothing else. Raises
     :class:`SetupError` without a manifest."""
     from src import constants
-    from src import evidence_intake as ledger
+    from fork.beliefs import evidence_intake as ledger
     from src.memory import MemoryManager
 
     path = manifest_path(data_dir, owner)

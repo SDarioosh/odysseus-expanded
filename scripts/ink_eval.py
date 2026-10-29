@@ -114,7 +114,7 @@ def _base(text: Any) -> str:
     them), NFC."""
     text = str(text or "").replace("\r\n", "\n").replace("\r", "\n")
     try:
-        from src.ink_transcribe import _UNREADABLE_RE
+        from fork.ink.transcribe import _UNREADABLE_RE
 
         text = _UNREADABLE_RE.sub(UNREADABLE, text)
     except ImportError:  # metrics work without the hub's code
@@ -203,7 +203,7 @@ SKIP_REASONS = ("not_reviewed", "no_ink", "stale", "empty_text", "auto", "photo"
 
 def classify(page: dict[str, Any], *, include_photos: bool = False) -> str | None:
     """Why a page is not a (page, reviewed text) pair, else ``None``."""
-    from src import ink_transcribe as tr
+    from fork.ink import transcribe as tr
 
     t = page.get("transcript") if isinstance(page.get("transcript"), dict) else {}
     if t.get("status") != "reviewed":
@@ -224,7 +224,7 @@ def classify(page: dict[str, Any], *, include_photos: bool = False) -> str | Non
 
 def stored_machine(page: dict[str, Any]) -> tuple[str | None, str | None]:
     """``(text, model)`` the model gave for the page's current strokes before review."""
-    from src import ink_transcribe as tr
+    from fork.ink import transcribe as tr
 
     t = page.get("transcript") if isinstance(page.get("transcript"), dict) else {}
     m = t.get("machine")
@@ -237,7 +237,7 @@ def stored_machine(page: dict[str, Any]) -> tuple[str | None, str | None]:
 def collect_pairs(owners: Sequence[str | None], *, include_photos: bool = False,
                   limit: int | None = None) -> tuple[list[Pair], dict[str, int]]:
     """The pairs of ``owners``' sidecars (note and page order) and skip counts."""
-    from src import ink_notes as ink
+    from fork.ink import notes as ink
 
     pairs: list[Pair] = []
     skipped = {r: 0 for r in SKIP_REASONS}
@@ -272,7 +272,7 @@ def score_page(pair: Pair, hypothesis: str | None, *, model: str | None = None,
         return s
     s.unreadable = _base(hypothesis).count(UNREADABLE)
     try:  # as a run stores it: an empty, cut or [?] answer is never accepted
-        from src import ink_transcribe as tr
+        from fork.ink import transcribe as tr
 
         s.auto_acceptable = tr.auto_acceptable(tr.clean_text(hypothesis))
     except ImportError:  # metrics work without the hub's code
@@ -359,7 +359,7 @@ class NoReader(RuntimeError):
 def hub_reader_for(model: str | None = None, base_url: str | None = None) -> ReaderFor:
     """Readers per owner: the hub's own (``default_reader``), or ``model`` (on
     ``base_url``, or wherever the hub finds it), local endpoints only."""
-    from src import ink_transcribe as tr
+    from fork.ink import transcribe as tr
 
     cache: dict[Any, tuple[str, Reader]] = {}
 
@@ -409,7 +409,7 @@ async def reread(pairs: Sequence[Pair], reader_for: ReaderFor,
                  texts: dict[tuple[str, str], str] | None = None) -> list[PageScore]:
     """Read each page again and score it; a model error marks that page failed. The
     model text goes into ``texts`` (``--show-diffs``) when given."""
-    from src import ink_transcribe as tr
+    from fork.ink import transcribe as tr
 
     scores = []
     for pair in pairs:
@@ -466,8 +466,8 @@ def write_fixtures(owner: str = FIXTURE_OWNER) -> dict[str, Any]:
     """Fictional sidecars in the current DATA_DIR; returns ``{page_id: model answer}``
     for the fake reader. One note per page; a further page whose strokes changed after
     its review (stale)."""
-    from src import ink_notes as ink
-    from src import ink_transcribe as tr
+    from fork.ink import notes as ink
+    from fork.ink import transcribe as tr
 
     answers: dict[str, Any] = {}
     specs = list(FIXTURES) + [("Stale review", "Stale review", {"stale": True}, {})]
@@ -631,7 +631,7 @@ def main(argv: Sequence[str] | None = None) -> int:
 
 
 def _run(args: argparse.Namespace) -> int:
-    from src import ink_notes as ink
+    from fork.ink import notes as ink
 
     answers = write_fixtures() if args.fixtures else None
     # "_single" is the folder of single-user mode (owner None), as owner_folders() says.

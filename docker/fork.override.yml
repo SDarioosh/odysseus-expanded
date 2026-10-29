@@ -10,16 +10,16 @@ services:
     pull_policy: never
     environment:
       # Module MCP servers whose readOnlyHint tools run without approval
-      # (src/mcp_trust.py). Comma separated, e.g. convo,<next module>.
+      # (fork/mcp/trust.py). Comma separated, e.g. convo,<next module>.
       - ODYSSEUS_TRUSTED_READONLY_MCP=convo
-      # Handwritten notes (src/ink_transcribe.py, H6): 1 sends pages the model read
+      # Handwritten notes (fork/ink/transcribe.py, H6): 1 sends pages the model read
       # without [?] to Athena without review. Off unless set in .env; decide it with
       # scripts/ink_eval.py (docs/fork/handwritten-notes.md#built-in-h6).
       - INK_AUTO_SEND=${INK_AUTO_SEND:-}
       # The fork's other settings, read from .env next to docker-compose.yml. Unset in
       # .env means the code's default; an empty value means the same for each of these
       # (tests/test_fork_override_env.py lists every setting the fork's code reads).
-      # Athena: which MCP server (src/module_action_items.py, src/call_recorder.py), its
+      # Athena: which MCP server (fork/athena/action_items.py, fork/athena/call_recorder.py), its
       # to-dos, notes and facts (docs/fork/modules/odysseus-sound.md). BARVIS_* are the
       # former names, still read when the new one is unset.
       - MODULE_ACTION_ITEMS_SERVER=${MODULE_ACTION_ITEMS_SERVER:-}
@@ -35,8 +35,8 @@ services:
       - SOUND_MODULE_SERVER=${SOUND_MODULE_SERVER:-}
       - BARVIS_SOUND_SERVER=${BARVIS_SOUND_SERVER:-}
       - SOUND_MODULE_CALL_DEVICE=${SOUND_MODULE_CALL_DEVICE:-}
-      # Beliefs (docs/fork/beliefs.md): src/evidence_intake.py, src/belief_consolidation.py,
-      # src/belief_structure.py, src/notes_evidence.py.
+      # Beliefs (docs/fork/beliefs.md): fork/beliefs/evidence_intake.py, fork/beliefs/consolidation.py,
+      # fork/beliefs/structure.py, fork/beliefs/notes_evidence.py.
       - BELIEF_CONFIRM_SOURCES=${BELIEF_CONFIRM_SOURCES:-}
       - BELIEF_CONFIRM_TIMES=${BELIEF_CONFIRM_TIMES:-}
       - BELIEF_CONFIRM_DAYS=${BELIEF_CONFIRM_DAYS:-}
@@ -45,18 +45,18 @@ services:
       - BELIEF_STRUCTURE=${BELIEF_STRUCTURE:-}
       - BELIEF_STRUCTURE_BATCH=${BELIEF_STRUCTURE_BATCH:-}
       - EVIDENCE_NOTES=${EVIDENCE_NOTES:-}
-      # Today insight (docs/fork/today-insight.md): src/today_insight.py, src/insight_push.py.
+      # Today insight (docs/fork/today-insight.md): fork/insight/today.py, fork/insight/push.py.
       - TODAY_INSIGHT_ENABLED=${TODAY_INSIGHT_ENABLED:-}
       - TODAY_INSIGHT_PUSH=${TODAY_INSIGHT_PUSH:-}
       # No "=": an empty value means "skip no lists", unlike unset (the default lists),
       # so Compose passes it only when .env sets it.
       - TODAY_INSIGHT_SKIP_LISTS
-      # Agent turns: src/personal_read_grants.py, src/personal_store_escalation.py (on
-      # unless 0/false/no/off), src/checklist_auto_archive.py.
+      # Agent turns: fork/routing/personal_read_grants.py, fork/routing/personal_store_escalation.py (on
+      # unless 0/false/no/off), fork/hub/checklist_auto_archive.py.
       - ODYSSEUS_PERSONAL_READ_GRANTS=${ODYSSEUS_PERSONAL_READ_GRANTS:-}
       - ODYSSEUS_PERSONAL_STORE_ESCALATION=${ODYSSEUS_PERSONAL_STORE_ESCALATION:-}
       - FORK_CHECKLIST_ARCHIVE_MINUTES=${FORK_CHECKLIST_ARCHIVE_MINUTES:-}
-      # Links in handwritten notes sent to Athena (src/ink_athena.py) when Settings has
+      # Links in handwritten notes sent to Athena (fork/ink/athena.py) when Settings has
       # no public URL; upstream's MCP OAuth redirect (src/mcp_oauth.py) reads it too.
       - APP_PUBLIC_URL=${APP_PUBLIC_URL:-}
 

@@ -1470,8 +1470,8 @@ def setup_calendar_routes(upload_handler=None) -> APIRouter:
             db.refresh(ev)
             if is_caldav:
                 await _push_caldav_event_after_commit(owner, base_uid, "update")
-            # Fork: Send Athena tasks follow the event (src/meeting_auto_join.py)
-            from src.meeting_auto_join import after_calendar_change
+            # Fork: Send Athena tasks follow the event (fork/athena/meeting_auto_join.py)
+            from fork.athena.meeting_auto_join import after_calendar_change
             await after_calendar_change(owner)
             return {
                 "ok": True,
@@ -1514,8 +1514,8 @@ def setup_calendar_routes(upload_handler=None) -> APIRouter:
                 db.commit()
                 if is_caldav:
                     await _push_caldav_event_after_commit(owner, base_uid, "update")
-                # Fork: Send Athena tasks follow the event (src/meeting_auto_join.py)
-                from src.meeting_auto_join import after_calendar_change
+                # Fork: Send Athena tasks follow the event (fork/athena/meeting_auto_join.py)
+                from fork.athena.meeting_auto_join import after_calendar_change
                 await after_calendar_change(owner)
                 return {"ok": True, "scope": "occurrence", "exdate": key}
             if is_caldav:
@@ -1525,8 +1525,8 @@ def setup_calendar_routes(upload_handler=None) -> APIRouter:
             db.commit()
             if is_caldav:
                 await _push_caldav_event_after_commit(owner, base_uid, "delete")
-            # Fork: Send Athena tasks follow the event (src/meeting_auto_join.py)
-            from src.meeting_auto_join import after_calendar_change
+            # Fork: Send Athena tasks follow the event (fork/athena/meeting_auto_join.py)
+            from fork.athena.meeting_auto_join import after_calendar_change
             await after_calendar_change(owner)
             return {"ok": True}
         except HTTPException:
