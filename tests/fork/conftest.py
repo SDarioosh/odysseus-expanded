@@ -7,7 +7,7 @@ serve). Fictional data only.
 
 There is deliberately no ``tests/fork/__init__.py``: as a package, ``tests/fork`` could
 be found as a top-level ``fork`` and shadow the fork's code package at the repo root
-(``test_layout.py`` checks that ``import fork`` still gets the real one).
+(``test_fork_tests_layout.py`` checks that ``import fork`` still gets the real one).
 """
 from __future__ import annotations
 
