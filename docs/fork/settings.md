@@ -16,10 +16,10 @@ that are off by default are on for `1`, `true`, `yes` or `on` (any case).
 
 | Variable | Former names | Type | Unset means | Meaning | Used in |
 |---|---|---|---|---|---|
-| `MODULE_ACTION_ITEMS_SERVER` | `BARVIS_ACTION_ITEMS_SERVER` | text | `convo` | The Athena MCP server (name or id) for to-dos, facts, today insight and the beliefs page; compared case-insensitively. | `fork/athena/action_items.py`, `fork/athena/client.py`, `fork/athena/facts.py`, `fork/insight/today.py`, `fork/mcp/session_recovery.py`, `fork/routes/beliefs_routes.py` |
-| `MODULE_NOTIFY_CHANNEL` | `BARVIS_NOTIFY_CHANNEL` | ntfy, browser or off | `ntfy` | Where Athena's to-do pushes go; anything else means ntfy. | `fork/athena/action_items.py` |
-| `MODULE_DIGEST_HOUR` | `BARVIS_DIGEST_HOUR` | hour 0-23 or off | `8` | Local hour after which the daily pushes go out, and the time of to-dos with a date only; off or none: no daily pushes. Out of range is clamped; not a number: 8. | `fork/athena/action_items.py` |
-| `MODULE_FILE_ITEMS` | `BARVIS_FILE_ITEMS` | explicit, auto or off | `explicit` | Which voice-note items are filed as to-dos and events: explicit ones, all (auto or all) or none (off, no, false, 0). | `fork/athena/action_items.py` |
+| `MODULE_ACTION_ITEMS_SERVER` | `BARVIS_ACTION_ITEMS_SERVER` | text | `convo` | The Athena MCP server (name or id) for to-dos, facts, today insight and the beliefs page; compared case-insensitively. | `fork/athena/action_items_state.py`, `fork/athena/client.py`, `fork/athena/facts.py`, `fork/insight/today.py`, `fork/mcp/session_recovery.py`, `fork/routes/beliefs_routes.py` |
+| `MODULE_NOTIFY_CHANNEL` | `BARVIS_NOTIFY_CHANNEL` | ntfy, browser or off | `ntfy` | Where Athena's to-do pushes go; anything else means ntfy. | `fork/athena/action_items_state.py` |
+| `MODULE_DIGEST_HOUR` | `BARVIS_DIGEST_HOUR` | hour 0-23 or off | `8` | Local hour after which the daily pushes go out, and the time of to-dos with a date only; off or none: no daily pushes. Out of range is clamped; not a number: 8. | `fork/athena/action_items_state.py` |
+| `MODULE_FILE_ITEMS` | `BARVIS_FILE_ITEMS` | explicit, auto or off | `explicit` | Which voice-note items are filed as to-dos and events: explicit ones, all (auto or all) or none (off, no, false, 0). | `fork/athena/action_items_state.py` |
 | `MODULE_FACTS_SYNC` | `BARVIS_FACTS_SYNC` | on/off | `on` | Copy Athena's confirmed facts into the belief ledger. | `fork/athena/facts.py` |
 | `SOUND_MODULE_SERVER` | `BARVIS_SOUND_SERVER` | text | `convo` | The Athena MCP server (name or id) for uploads, the Athena page, the meeting bot and the module's other HTTP routes. | `fork/athena/call_recorder.py`, `fork/athena/client.py`, `fork/athena/routes.py` |
 | `SOUND_MODULE_CALL_DEVICE` | - | device name | `computer` | The device name recordings from the hub are uploaded under; an invalid name means computer. | `fork/athena/call_recorder.py` |

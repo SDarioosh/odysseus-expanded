@@ -62,6 +62,10 @@ is an old path of a module that moved into `fork/`; it only aliases the new modu
 - `fork/__init__.py`
 - `fork/athena/__init__.py`
 - `fork/athena/action_items.py`
+- `fork/athena/action_items_filing.py`
+- `fork/athena/action_items_lists.py`
+- `fork/athena/action_items_push.py`
+- `fork/athena/action_items_state.py`
 - `fork/athena/call_recorder.py`
 - `fork/athena/client.py`
 - `fork/athena/facts.py`

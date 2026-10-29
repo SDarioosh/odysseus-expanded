@@ -98,24 +98,24 @@ ACTION_ITEMS_SERVER = _setting(
     "MODULE_ACTION_ITEMS_SERVER", "convo", "text",
     "The Athena MCP server (name or id) for to-dos, facts, today insight and the "
     "beliefs page; compared case-insensitively.",
-    used_in=("fork/athena/action_items.py", "fork/athena/client.py", "fork/athena/facts.py",
+    used_in=("fork/athena/action_items_state.py", "fork/athena/client.py", "fork/athena/facts.py",
              "fork/insight/today.py", "fork/mcp/session_recovery.py",
              "fork/routes/beliefs_routes.py"),
     old=("BARVIS_ACTION_ITEMS_SERVER",))
 NOTIFY_CHANNEL = _setting(
     "MODULE_NOTIFY_CHANNEL", "ntfy", "ntfy, browser or off",
     "Where Athena's to-do pushes go; anything else means ntfy.",
-    used_in=("fork/athena/action_items.py",), old=("BARVIS_NOTIFY_CHANNEL",))
+    used_in=("fork/athena/action_items_state.py",), old=("BARVIS_NOTIFY_CHANNEL",))
 DIGEST_HOUR = _setting(
     "MODULE_DIGEST_HOUR", "8", "hour 0-23 or off",
     "Local hour after which the daily pushes go out, and the time of to-dos with a date "
     "only; off or none: no daily pushes. Out of range is clamped; not a number: 8.",
-    used_in=("fork/athena/action_items.py",), old=("BARVIS_DIGEST_HOUR",))
+    used_in=("fork/athena/action_items_state.py",), old=("BARVIS_DIGEST_HOUR",))
 FILE_ITEMS = _setting(
     "MODULE_FILE_ITEMS", "explicit", "explicit, auto or off",
     "Which voice-note items are filed as to-dos and events: explicit ones, all (auto "
     "or all) or none (off, no, false, 0).",
-    used_in=("fork/athena/action_items.py",), old=("BARVIS_FILE_ITEMS",))
+    used_in=("fork/athena/action_items_state.py",), old=("BARVIS_FILE_ITEMS",))
 FACTS_SYNC = _setting(
     "MODULE_FACTS_SYNC", "on", "on/off",
     "Copy Athena's confirmed facts into the belief ledger.",
