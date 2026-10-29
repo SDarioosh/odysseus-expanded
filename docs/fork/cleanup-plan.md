@@ -14,20 +14,27 @@ the hub lanes and the rules that are specific to this repo.
 |---|---|---|---|
 | 0 | 0C | Inventory tests: every added hunk in an upstream file has a `Fork:` marker; every fork file is in one generated list (`docs/fork/files.md`); Athena contract fixtures parsed by `module_facts`, `module_action_items`, `sound_module_view` | Athena 0A (fixtures) |
 | 0 | 0D | Upstream sync per [upstream-sync.md](upstream-sync.md), `dev` mirror fast-forwarded | — |
-| 1 | 1D | Fork settings reach production (`docker/fork.override.yml`), unique temp names for atomic writes, the three unmarked hooks marked | Gate 0 |
-| 1 | 1F | FORK.md split into a hook index and a feature list; AGENTS.md and FORK.md link the generated file list; roadmap trimmed to status and links | 0C |
-| 2 | 2E | Fork `src/` and `routes/` files move into a `fork/` package; hooks change only their import line | Gate 1, 0D |
+| 1 | 1D | Fork settings reach production (`docker/fork.override.yml`), unique temp names for atomic writes, the three unmarked hooks marked; `fork_deploy.sh` finds the `odysseus-expanded` remote | Gate 0 |
+| 1 | 1F | FORK.md split into a hook index and a feature list; AGENTS.md and FORK.md link the generated file list; roadmap trimmed to status and links; links to `SDarioosh/odysseus-expanded`, module doc `docs/fork/modules/athena.md` (stub at the old path) | 0C |
+| 2 | 2E | Fork `src/` and `routes/` files move into a `fork/` package; hooks change only their import line; `sound_*` files get Athena names (URLs stay until 4D) | Gate 1, 0D |
 | 2 | 2F | Fork tests into `tests/fork/` with shared fakes in `conftest.py`; `pytest tests/fork` in CI | 2E |
 | 3 | 3F | One Athena client (`fork/athena/client.py`) for MCP and HTTP calls, one error type, one server setting | 3G settings |
-| 3 | 3G | `fork/common/`: typed settings table, per-owner state files, local-model JSON calls, one boolean parser | Gate 2 |
+| 3 | 3G | `fork/common/`: typed settings table (`ATHENA_*` names first, old names still read), per-owner state files, local-model JSON calls, one boolean parser | Gate 2 |
 | 3 | 3H | Task table, `fork.routes.mount(app)`, `fork/upstream.py` as the only user of upstream private names | Gate 2 |
 | 3 | 3I | `fork/routing/turn_policy.py`: 8 hunks in `routes/chat_routes.py` become 3 (evals before and after) | 3H |
 | 3 | 3J | `static/js/forkDom.js` (`el`, `$`, `api`), all sidebar entries from `forkModuleWindows.js` | Gate 2 |
 | 3 | 3K | Beliefs and Meetings use the `mountX` pattern; `forkPageView.js` goes | 3J |
 | 3 | 3L | `scripts/eval_common.py` for the four evals | Gate 2 |
+| 4 | 4D | Page `/modules/athena` (old URL redirects), `/api/modules/athena/*`, relay routes `/api/codex/athena/*` and scopes `athena:*` beside the old ones | Gate 3 |
 | 4 | 4C | Split `evidence_intake.py`, `module_action_items.py`, `today_insight.py`; AGENTS.md lists the package; CI reports upstream drift | Gate 3 |
 
 ## Rules specific to the hub
+
+- **Renaming to Athena** runs inside this cleanup (Athena's plan, "Renaming to Athena";
+  steps in Athena's `docs/athena-rename-plan.md`). Old names keep working beside new ones,
+  and the names in that plan's "What stays" table never change: the MCP server name
+  `convo`, the stored `"odysseus-sound"` values, the `barvis` branch, and the
+  `barvis_*` action ids and state files.
 
 - **Fork rules first** ([AGENTS.md](../../AGENTS.md#fork-rules-merge-friendly)): each lane
   adds new files and changes upstream files only with small, marked hooks, recorded in
