@@ -222,7 +222,7 @@ Where a filed item goes:
   goes into the line's text ("Eggs (due Wed 22 Oct)"); lines have no reminder of their
   own. An open line with the same text isn't added twice. The line's status follows
   both ways: ticked ↔ done, line removed → dismissed, list archived → done. Undo and
-  moving take off the line only; the list stays. On `/modules/sound`, **Add to a list**
+  moving take off the line only; the list stays. On `/modules/athena`, **Add to a list**
   / **Change list** picks a list (your existing lists are suggested) or clears it.
   A list whose lines are all ticked is archived 10 minutes later unless it is pinned
   (`src/checklist_auto_archive.py`), so the next "add … to my shopping list" starts a
@@ -251,7 +251,7 @@ Where a filed item goes:
   none, Odysseus creates "Hardware notes". The same line isn't added twice. Once filed
   the module item is marked done (a note is no to-do; the module's text listing, digest
   and HTTP list leave notes out anyway), and status isn't synced after that: edit,
-  archive or delete the note in Odysseus as you like. Undo on `/modules/sound` (shown
+  archive or delete the note in Odysseus as you like. Undo on `/modules/athena` (shown
   while the item is still open) removes the note, or only its line. A note whose
   filing failed waits there with **Add to notes**.
 - **Explicit voice-note items are filed automatically.** One push per pass ("Filed
@@ -259,10 +259,10 @@ Where a filed item goes:
   Filed items get no other "new item" or "due today" push; Odysseus' own event and to-do
   reminders take over.
 - **Everything else suggests.** Conversation items, and voice-note items that aren't
-  explicit, wait on `/modules/sound` with **Add to calendar** / **Add to to-dos** /
+  explicit, wait on `/modules/athena` with **Add to calendar** / **Add to to-dos** /
   **Dismiss**; nothing is filed until tapped. Conversation items are not pushed;
   voice-note suggestions get one "Suggested from your voice note" push per pass.
-- **Fix or undo** on `/modules/sound`: Move to calendar / Move to to-dos, Change time,
+- **Fix or undo** on `/modules/athena`: Move to calendar / Move to to-dos, Change time,
   Undo (removes the Odysseus entry and dismisses the item). An item is filed once: if
   you delete the event or note in Odysseus it is not filed again.
 - **Status both ways**: ticking the to-do (or archiving it) marks the module item done,
@@ -270,7 +270,7 @@ Where a filed item goes:
 - The first run only remembers existing items (no backlog is filed).
 - **Clean-up of the to-dos filed one per item** (before 2026-10-21 every voice-note
   item became a to-do of its own, titled with the whole sentence). Undo on
-  `/modules/sound` removes one. For all of them, run
+  `/modules/athena` removes one. For all of them, run
   `python scripts/unfile_voice_note_todos.py --url <hub> --password-file <admin password file>`:
   it lists the to-dos it would remove, each with why it qualifies: a to-do of its own
   (label `odysseus-sound`, one line, not a list line) of a voice-note item that is not
@@ -280,7 +280,7 @@ Where a filed item goes:
   `explicit` mode or from the page (Add / Move, recorded as `filed_mode`) are left out
   unless `--all`. Add `--apply` to delete them and dismiss their open items (done items
   stay done), or `--apply --only 12,14` for some. It calls the admin route
-  `POST /api/modules/sound/unfile-todos` (`{"apply": false, "ids": [...], "all": false}`),
+  `POST /api/modules/athena/unfile-todos` (`{"apply": false, "ids": [...], "all": false}`),
   which runs in the hub because the hub holds the module's MCP connection. Removed items
   are never filed again.
 
@@ -374,7 +374,7 @@ MCP 0.13.0 each row also has `valid_until` (additive).
 
 **Records** (called Conversations until 2026-10-28; sidebar, icon rail, `/open records` or
 `/open conversations`, an optional shortcut; admin
-only) opens a tool window in the app; `/modules/sound` shows the same view as its own page
+only) opens a tool window in the app; `/modules/athena` shows the same view as its own page
 (`static/js/forkModuleWindows.js`, `static/js/soundModule.js`). It shows open action items live
 (Done / Dismiss call `update_action_item`; Odysseus keeps no copy), the module's
 conversations (filter by words, person, dates and type: all, conversations, voice notes;
@@ -403,7 +403,7 @@ owner ticks Summary, Action items, Transcript (all three by default) and Facts (
 default), picks Text (Markdown) or Web page (HTML), and presses **Share…** (the system
 share sheet, where the browser can share files: Chrome on Android) or **Download**. The
 choice is remembered in the browser. The hub route
-`GET /api/modules/sound/conversations/{id}/export?format=md|html&include=…` (admin only)
+`GET /api/modules/athena/conversations/{id}/export?format=md|html&include=…` (admin only)
 checks both values and gets the file from the module's relay route
 `GET /conversations/{id}/export` (MCP 0.19.0, additive; SDarioosh/Athena), so the module
 makes the file and decides what is in it: no signed links, no link to the hub, no ids;
@@ -414,7 +414,7 @@ older module answers 404: "update Athena" (`src/record_share.py`,
 
 ## Recording calls from the computer
 
-`/modules/sound/record` (**Meetings**: its own sidebar entry, window and rail button, admin
+`/modules/athena/record` (**Meetings**: its own sidebar entry, window and rail button, admin
 only; also `/open meetings` and "Open Meetings" in Settings → Shortcuts) records
 a Zoom, Meet or Teams call on any computer with a Chromium browser (Chrome, Brave, Edge)
 and sends it to the module, which transcribes, diarizes and summarizes it like any other
@@ -428,7 +428,7 @@ conversation (device `computer`, kind `conversation`).
 - **How it sends.** The page mixes call audio and microphone into one track and records a
   self-contained 30 s WebM/Opus file at a time (about 120 KB; the next file starts before
   the previous one closes, so no audio is lost between them). Pieces upload one by one,
-  in order, through `POST /api/modules/sound/record/chunk`; Odysseus checks them and
+  in order, through `POST /api/modules/athena/record/chunk`; Odysseus checks them and
   forwards them to the upload routes of the module's MCP HTTP server
   (`POST /ingest/chunk`, then `POST /sessions/{id}/end` on Stop; see
   [Uploads through the MCP server](#uploads-through-the-mcp-server)). Failed uploads retry
@@ -455,7 +455,7 @@ conversation (device `computer`, kind `conversation`).
 
 ## Sending Athena to a Zoom meeting
 
-The **Meetings** window and page (`/modules/sound/record`, admin only) start with a
+The **Meetings** window and page (`/modules/athena/record`, admin only) start with a
 **Send Athena to a meeting** box. The owner pastes a Zoom link and presses Join; Athena's
 own Zoom bot joins on the module's server as a guest called "Athena", records each
 participant on their own track and leaves when the meeting ends. Nothing records on the
@@ -510,13 +510,13 @@ launcher API is in Athena's
 
   | Route | Does |
   |---|---|
-  | `GET /api/modules/sound/meetings/current` | `{meeting}`: the newest active meeting among the module's last five, or null |
-  | `POST /api/modules/sound/meetings` | JSON `{link, passcode?, title?}` → 202 `{meeting}`; errors `{detail, code, active?}` (`code`: `bad_link`, `busy` with `active`, `off`, `signin`, `zoom`, `update`, `setup`, `token`, `bot`, `unreachable`, `timeout`) |
-  | `GET /api/modules/sound/meetings/{id}` | `{meeting}`: `id, state, reason, active, session_id, meeting_id, title, created_at, started_at, ended_at` and `text` (the state in words) |
-  | `DELETE /api/modules/sound/meetings/{id}` | Leave: answers with the final state once the bot has exited (a few seconds) |
-  | `GET /api/modules/sound/zoom-signin` | `{configured, signed_in, join_token, missing}` ([sign-in](#signing-athena-in-to-zoom)) |
-  | `POST /api/modules/sound/zoom-signin/start` | `{url, expires_in}`: Zoom's authorize page (only an `https://…zoom.us` address is passed on); errors `{detail, code}` (`not_configured`, `zoom`, `update`, …) |
-  | `POST /api/modules/sound/zoom-signin/finish` | JSON `{pasted}` (body ≤ 8 KB, text ≤ 4096 characters) → `{ok, signed_in, join_token, …}`; 400 `bad_paste` with Athena's words, 501 `not_configured`, 502 `zoom`, `update` |
+  | `GET /api/modules/athena/meetings/current` | `{meeting}`: the newest active meeting among the module's last five, or null |
+  | `POST /api/modules/athena/meetings` | JSON `{link, passcode?, title?}` → 202 `{meeting}`; errors `{detail, code, active?}` (`code`: `bad_link`, `busy` with `active`, `off`, `signin`, `zoom`, `update`, `setup`, `token`, `bot`, `unreachable`, `timeout`) |
+  | `GET /api/modules/athena/meetings/{id}` | `{meeting}`: `id, state, reason, active, session_id, meeting_id, title, created_at, started_at, ended_at` and `text` (the state in words) |
+  | `DELETE /api/modules/athena/meetings/{id}` | Leave: answers with the final state once the bot has exited (a few seconds) |
+  | `GET /api/modules/athena/zoom-signin` | `{configured, signed_in, join_token, missing}` ([sign-in](#signing-athena-in-to-zoom)) |
+  | `POST /api/modules/athena/zoom-signin/start` | `{url, expires_in}`: Zoom's authorize page (only an `https://…zoom.us` address is passed on); errors `{detail, code}` (`not_configured`, `zoom`, `update`, …) |
+  | `POST /api/modules/athena/zoom-signin/finish` | JSON `{pasted}` (body ≤ 8 KB, text ≤ 4096 characters) → `{ok, signed_in, join_token, …}`; 400 `bad_paste` with Athena's words, 501 `not_configured`, 502 `zoom`, `update` |
 
 - **Module routes it calls**: the meeting routes of the module's MCP HTTP server
   ([below](#uploads-through-the-mcp-server)), with the `convo` server's URL and
@@ -602,8 +602,8 @@ owner's behalf and waits for them (up to its waiting limit), then gives up.
   the occurrence a busy notice was sent for. Naive-local events are read in the user's
   time zone (`src/user_time.py`; in the background that is the server's zone).
 - **Hub routes** (admin only; the write needs `X-Odysseus-Recorder: 1`):
-  `GET /api/modules/sound/auto-join?uid=<event uid>` → `{uid, eligible, zoom, reason, on,
-  start, due, busy, task_id}`; `PUT /api/modules/sound/auto-join` JSON `{uid, on}` → the
+  `GET /api/modules/athena/auto-join?uid=<event uid>` → `{uid, eligible, zoom, reason, on,
+  start, due, busy, task_id}`; `PUT /api/modules/athena/auto-join` JSON `{uid, on}` → the
   same, 400 for an event without a joinable Zoom link, 404 for an unknown event. An
   occurrence uid (`<series>::<date>`) means its series.
 - Code: `src/meeting_auto_join.py`, `static/js/forkMeetingAutoJoin.js`; hooks in
@@ -678,11 +678,11 @@ module answers 404 and the Text tab says "update Athena".
   which the hourly facts job then retires in the hub.
 - **Reading them back.** In MCP text a written note's title is followed by `(written by
   hand: <hub link>)` instead of `(voice note)`; `src/sound_module_view.py` and the text
-  fallback of `src/module_action_items.py` read both. `/modules/sound` (and its window)
+  fallback of `src/module_action_items.py` read both. `/modules/athena` (and its window)
   lists **Conversations**, **Online meetings**, **Voice notes**, **Written notes** or
   **Everything**, picked in the **Show** dropdown of the Records tab's filter row (one
   search for all of them; they were separate tabs until 2026-10-28).
-  `/api/modules/sound/conversations` takes `kind=voice` or `kind=written` and passes it
+  `/api/modules/athena/conversations` takes `kind=voice` or `kind=written` and passes it
   to `search_conversations` (MCP 0.14.0, additive: SDarioosh/Athena, `kind` `voice` /
   `written` besides `note` and `conversation`). An older module answers "bad kind"; the
   hub then reads `kind="note"` (both sorts, up to 50, the tool's cap) and keeps one sort
@@ -703,7 +703,7 @@ module answers 404 and the Text tab says "update Athena".
 
 ## Pairing a phone
 
-`/modules/sound/pair` (**Pair a phone** in Settings → Integrations, admin only) sets up
+`/modules/athena/pair` (**Pair a phone** in Settings → Integrations, admin only) sets up
 the module's Android relay with one QR code instead of two server URLs, two tokens and a
 calendar id. The relay then uploads the watch's recordings and syncs the T5 through
 Odysseus only.
@@ -719,10 +719,11 @@ Odysseus only.
   gets the same answer). Only then does Odysseus create the phone's API token, named
   "Phone relay <date time>", owned by the admin who made the code, and answers it once
   with the URL and scopes. The page polls and shows "Paired".
-- **Scopes** (only what the relay calls): `sound:ingest` (uploads), `sound:read` (the
-  T5's conversations, transcripts, action items, digest), `sound:write` (the T5 marks
-  action items done, asks for a digest), `calendar:read`, `calendar:write` (the T5 adds
-  and deletes events), `todos:read`, `todos:write` (the T5 ticks checklist items),
+- **Scopes** (only what the relay calls): `athena:ingest` (uploads), `athena:read` (the
+  T5's conversations, transcripts, action items, digest), `athena:write` (the T5 marks
+  action items done, asks for a digest), their old names `sound:ingest`, `sound:read`,
+  `sound:write` (see [Old URLs and scopes](#old-urls-and-scopes)), `calendar:read`,
+  `calendar:write` (the T5 adds and deletes events), `todos:read`, `todos:write` (the T5 ticks checklist items),
   `insight:read` (the Today insight). Each phone's token is in Settings → API tokens;
   revoke it there to unpair the phone.
 - **Token routes for the relay** (`routes/sound_relay_routes.py`; a 401/403 means the
@@ -730,15 +731,32 @@ Odysseus only.
 
 | Route | Scope | Goes to |
 |---|---|---|
-| `POST /api/codex/sound/chunk` | `sound:ingest` | `/ingest/chunk` (checked first: id rule for `session_id` and `device`, `kind` conversation or note, codec `ogg` or `opus`, ≤ 5 MB, timestamp not over a day ahead or 60 days old) |
-| `POST /api/codex/sound/sessions/{id}/end` | `sound:ingest` | `/sessions/{id}/end` |
-| `GET /api/codex/sound/health` | `sound:ingest` or `sound:read` | `/health` (the relay's Test connection) |
-| `GET /api/codex/sound/conversations`, `…/conversations/{id}`, `…/conversations/{id}/transcript`, `…/action-items`, `…/digests/{date}` | `sound:read` | the module routes of the same names |
-| `PATCH /api/codex/sound/action-items/{id}`, `POST /api/codex/sound/digests/{date}` | `sound:write` | the same |
+| `POST /api/codex/athena/chunk` | `athena:ingest` | `/ingest/chunk` (checked first: id rule for `session_id` and `device`, `kind` conversation or note, codec `ogg` or `opus`, ≤ 5 MB, timestamp not over a day ahead or 60 days old) |
+| `POST /api/codex/athena/sessions/{id}/end` | `athena:ingest` | `/sessions/{id}/end` |
+| `GET /api/codex/athena/health` | `athena:ingest` or `athena:read` | `/health` (the relay's Test connection) |
+| `GET /api/codex/athena/conversations`, `…/conversations/{id}`, `…/conversations/{id}/transcript`, `…/action-items`, `…/digests/{date}` | `athena:read` | the module routes of the same names |
+| `PATCH /api/codex/athena/action-items/{id}`, `POST /api/codex/athena/digests/{date}` | `athena:write` | the same |
 | `GET /api/codex/calendars` | `calendar:read` | the token owner's calendars (`name`, `href`, `source`), for the relay's calendar list |
 
 - The direct mode (module URL plus ingest token) stays in the relay as a fallback.
-- Code: `src/phone_pairing.py`, `routes/sound_relay_routes.py`,
+
+### Old URLs and scopes
+
+The Athena names came on 2026-10-29; before, the hub's Athena URLs and scopes said
+`sound`. The old ones keep working for good (installed phone relays, existing API
+tokens, bookmarks and open tabs), from `fork/athena/urls.py`:
+
+| Old | Now | How |
+|---|---|---|
+| `/modules/sound`, `/modules/sound/record`, `/modules/sound/pair` (and the older `/barvis/sound`) | `/modules/athena`, `/modules/athena/record`, `/modules/athena/pair` | `302` redirect to the same page, query string kept; a `#c=<id>` deep link stays in the browser. Not `301`: a browser keeps that, and after a rollback the old address would lead nowhere. |
+| `/api/modules/sound/*` | `/api/modules/athena/*` | the same handler at both paths, same auth and answers; never a redirect |
+| `/api/codex/sound/*` | `/api/codex/athena/*` | the same handler at both paths; installed phone relays call the old ones |
+| scopes `sound:ingest`, `sound:read`, `sound:write` | `athena:ingest`, `athena:read`, `athena:write` | each relay check takes either name, so an old token works on the new routes and a new one on the old. A new pairing gets both sets; existing tokens are never rewritten. Settings → API tokens lists the old ones as "(old name)". |
+
+The hub's own pages call the new paths. Test: `tests/fork/test_athena_urls.py` (every old
+route's handler and answers for an admin, a non-admin and each scope, and the same for the
+new paths and scope names).
+- Code: `src/phone_pairing.py`, `routes/sound_relay_routes.py`, `fork/athena/urls.py`,
   `static/phone-pairing.html`, `static/js/phonePairing.js`; test
   `tests/fork/test_sound_relay.py`. Relay side: Athena's `android-relay` README.
 
@@ -878,7 +896,7 @@ the features and the hooks into upstream files.
 
 ### Voice notes into calendar and to-dos; action items on the phone
 
-**Voice notes into calendar and to-dos; action items on the phone.** A built-in task "Module Action Items" (every 5 min; `modules_setup.py` resumes it) reads Athena's action items live through its MCP tools (`list_action_items` `format=json`). Explicit items from voice notes are filed (`MODULE_FILE_ITEMS=explicit`, the default: the module's `explicit` flag, or a date, time, list, reminder/event/note kind or command word; `auto` files all): events into the default calendar (`do_manage_calendar`, stable uid per item, 30-min reminder, all-day without a time), dated tasks and reminders into to-dos of their own (`do_manage_notes`, label `odysseus-sound`, titled with the module's short `title`, the full text as the line), undated tasks as one line on a single "Voice notes" to-do list, or as one line onto the to-do list the note named (`list_name`, e.g. "add milk to my shopping list"; the list is made if missing, status follows the line). Notes ("create a note …", kind `note`) become Odysseus notes titled with `note_title`, or one `- …` line on the named notes ("add to my hardware notes …" → "Hardware notes", made if missing); a filed note is marked done in the module. One push per pass says what went where; filed items get no other push. Status syncs both ways once per change (to-do ticked/archived ↔ item done, event deleted → dismissed, past event → done). Conversation items and the other voice-note items are only suggestions on `/modules/sound` (one "Suggested from your voice note" push per pass for the voice-note ones). `POST /api/modules/sound/unfile-todos` (admin; `scripts/unfile_voice_note_todos.py`) lists (with why each qualifies), and with `apply` removes, the undated to-dos filed one per voice-note item before explicit filing (never a dated to-do or a reminder, nor an item explicit now; entries filed in `explicit` mode or from the page only with `all`), dismissing their open items. An emptied "Voice notes" list is archived (`is_empty` in `src/checklist_auto_archive.py`). Also pushes items due today (not filed ones) and yesterday's digest via ntfy, verbatim. `MODULE_FILE_ITEMS=off` (or an older text-only module) = pushes only, as before. The module stays the source of truth; state keeps only ids, refs and statuses. Never touches the module's database.
+**Voice notes into calendar and to-dos; action items on the phone.** A built-in task "Module Action Items" (every 5 min; `modules_setup.py` resumes it) reads Athena's action items live through its MCP tools (`list_action_items` `format=json`). Explicit items from voice notes are filed (`MODULE_FILE_ITEMS=explicit`, the default: the module's `explicit` flag, or a date, time, list, reminder/event/note kind or command word; `auto` files all): events into the default calendar (`do_manage_calendar`, stable uid per item, 30-min reminder, all-day without a time), dated tasks and reminders into to-dos of their own (`do_manage_notes`, label `odysseus-sound`, titled with the module's short `title`, the full text as the line), undated tasks as one line on a single "Voice notes" to-do list, or as one line onto the to-do list the note named (`list_name`, e.g. "add milk to my shopping list"; the list is made if missing, status follows the line). Notes ("create a note …", kind `note`) become Odysseus notes titled with `note_title`, or one `- …` line on the named notes ("add to my hardware notes …" → "Hardware notes", made if missing); a filed note is marked done in the module. One push per pass says what went where; filed items get no other push. Status syncs both ways once per change (to-do ticked/archived ↔ item done, event deleted → dismissed, past event → done). Conversation items and the other voice-note items are only suggestions on `/modules/athena` (one "Suggested from your voice note" push per pass for the voice-note ones). `POST /api/modules/athena/unfile-todos` (admin; `scripts/unfile_voice_note_todos.py`) lists (with why each qualifies), and with `apply` removes, the undated to-dos filed one per voice-note item before explicit filing (never a dated to-do or a reminder, nor an item explicit now; entries filed in `explicit` mode or from the page only with `all`), dismissing their open items. An emptied "Voice notes" list is archived (`is_empty` in `src/checklist_auto_archive.py`). Also pushes items due today (not filed ones) and yesterday's digest via ntfy, verbatim. `MODULE_FILE_ITEMS=off` (or an older text-only module) = pushes only, as before. The module stays the source of truth; state keeps only ids, refs and statuses. Never touches the module's database.
 
 Files: `src/module_action_items.py`, `scripts/unfile_voice_note_todos.py` (new), hooks in `src/builtin_actions.py` (action registry) and `src/task_scheduler.py` (housekeeping default, silent action)
 
@@ -886,7 +904,7 @@ Upstreamable: no
 
 ### Athena page: conversations and "who is this?"
 
-**Athena page: conversations and "who is this?".** `/modules/sound` (sidebar: Records, called Conversations until 2026-10-28) has three tabs (Records, Action items, Who is this?; the choice is kept for the browser session). Records has a **Show** dropdown in its filter row (Conversations, Online meetings, Voice notes, Written notes, Everything; until 2026-10-28 these were four tabs of their own). Action items lists open items live with their kind, date and time and where they were filed: voice-note items get Move to calendar / Move to to-dos, Change time, Add to a list / Change list and Undo, conversation suggestions get Add to calendar / Add to to-dos (routes call `src/module_action_items.py`), all get Done / Dismiss (the module's `update_action_item`). Records lists the sort picked in Show (filter by words, person, dates; a note written by hand links back to it in Write) with summaries and a link to each signed transcript, and Who is this? shows a card per unnamed speaker: a few of their lines (each opens the transcript at that moment), the closest known voice ("It's Ben"), or a typed name, which calls the module's `name_speaker`. **Open** shows a conversation in place (summary, key points, action items, facts, and the transcript 200 lines at a time; `#c=<id>` deep links); tapping a line's speaker fixes that line (`reassign_line`), every line of an unnamed `Speaker N` (`name_speaker`), or renames a person in all conversations (`rename_speaker_everywhere`, after a confirm: it merges and can't be undone). **Ask in chat** opens a new chat prefilled with `/athena About the conversation "…" (id …, …): `. Data only through the module's MCP tools (`search_conversations`, `get_conversation`, `get_transcript`, `list_unnamed_speakers`, `name_speaker`, `reassign_line`, `rename_speaker_everywhere`, `list_action_items`, `update_action_item`); admin only. Uses the theme colors picked in Odysseus (same early script as `index.html`) and the look of the built-in windows; opens as a window in the app (see "Conversations and Today as Odysseus windows" below).
+**Athena page: conversations and "who is this?".** `/modules/athena` (sidebar: Records, called Conversations until 2026-10-28) has three tabs (Records, Action items, Who is this?; the choice is kept for the browser session). Records has a **Show** dropdown in its filter row (Conversations, Online meetings, Voice notes, Written notes, Everything; until 2026-10-28 these were four tabs of their own). Action items lists open items live with their kind, date and time and where they were filed: voice-note items get Move to calendar / Move to to-dos, Change time, Add to a list / Change list and Undo, conversation suggestions get Add to calendar / Add to to-dos (routes call `src/module_action_items.py`), all get Done / Dismiss (the module's `update_action_item`). Records lists the sort picked in Show (filter by words, person, dates; a note written by hand links back to it in Write) with summaries and a link to each signed transcript, and Who is this? shows a card per unnamed speaker: a few of their lines (each opens the transcript at that moment), the closest known voice ("It's Ben"), or a typed name, which calls the module's `name_speaker`. **Open** shows a conversation in place (summary, key points, action items, facts, and the transcript 200 lines at a time; `#c=<id>` deep links); tapping a line's speaker fixes that line (`reassign_line`), every line of an unnamed `Speaker N` (`name_speaker`), or renames a person in all conversations (`rename_speaker_everywhere`, after a confirm: it merges and can't be undone). **Ask in chat** opens a new chat prefilled with `/athena About the conversation "…" (id …, …): `. Data only through the module's MCP tools (`search_conversations`, `get_conversation`, `get_transcript`, `list_unnamed_speakers`, `name_speaker`, `reassign_line`, `rename_speaker_everywhere`, `list_action_items`, `update_action_item`); admin only. Uses the theme colors picked in Odysseus (same early script as `index.html`) and the look of the built-in windows; opens as a window in the app (see "Conversations and Today as Odysseus windows" below).
 
 Files: `routes/sound_module_routes.py`, `src/sound_module_view.py`, `static/sound-module.html`, `static/js/soundModule.js` (new); hooks in `app.py` (router) and `static/index.html` (sidebar link)
 
@@ -894,7 +912,7 @@ Upstreamable: no
 
 ### Share a record as a file
 
-**Share a record as a file.** The Records reader has a **Share** button next to Ask in chat: tick Summary, Action items, Transcript (default) and Facts (off by default), pick Text (Markdown) or Web page (HTML), then **Share…** opens the system share sheet where the browser can share files (Chrome on Android) or **Download** saves it; the choice is remembered in the browser. `GET /api/modules/sound/conversations/{id}/export` (admin only) checks the format and parts and gets the file from Athena's relay route `GET /conversations/{id}/export` (MCP 0.19.0) with the `convo` server's URL and token, like the call recorder; Athena makes the file (no signed links, hub links or ids). Answered as a download with `Content-Security-Policy: sandbox`, never shown on the hub's origin. An older Athena gets "update Athena".
+**Share a record as a file.** The Records reader has a **Share** button next to Ask in chat: tick Summary, Action items, Transcript (default) and Facts (off by default), pick Text (Markdown) or Web page (HTML), then **Share…** opens the system share sheet where the browser can share files (Chrome on Android) or **Download** saves it; the choice is remembered in the browser. `GET /api/modules/athena/conversations/{id}/export` (admin only) checks the format and parts and gets the file from Athena's relay route `GET /conversations/{id}/export` (MCP 0.19.0) with the `convo` server's URL and token, like the call recorder; Athena makes the file (no signed links, hub links or ids). Answered as a download with `Content-Security-Policy: sandbox`, never shown on the hub's origin. An older Athena gets "update Athena".
 
 Files: `src/record_share.py`, `static/js/forkShareRecord.js` (new); fork files `routes/sound_module_routes.py` (route), `static/js/soundModule.js` (button), `static/css/fork-modules.css`; test `tests/fork/test_record_share.py` (new). No new upstream hook.
 
@@ -902,7 +920,7 @@ Upstreamable: no
 
 ### Record a call
 
-**Record a call.** `/modules/sound/record` (the **Meetings** window and page, admin only; see "Meetings window" below) records a meeting on any computer with a Chromium browser: the shared tab, window or screen audio (`getDisplayMedia`, video never recorded) plus the microphone, mixed into one track, recorded as self-contained 30 s WebM/Opus pieces that upload in order and retry while the tab is open. `POST /api/modules/sound/record/chunk` checks each piece (id, sequence, codec, size, time) and forwards it to the upload routes of Athena's MCP HTTP server (`/ingest/chunk`, device `computer`; `/sessions/{id}/end` on Stop), with the URL and `access_token` of the connected `convo` MCP server: no settings, and the module's ingest token never leaves the module. When the module ends a session (silence, maximum length) the page continues in a new one; a module older than MCP 0.8.0 gets "update Athena". Uploads need the `X-Odysseus-Recorder: 1` header.
+**Record a call.** `/modules/athena/record` (the **Meetings** window and page, admin only; see "Meetings window" below) records a meeting on any computer with a Chromium browser: the shared tab, window or screen audio (`getDisplayMedia`, video never recorded) plus the microphone, mixed into one track, recorded as self-contained 30 s WebM/Opus pieces that upload in order and retry while the tab is open. `POST /api/modules/athena/record/chunk` checks each piece (id, sequence, codec, size, time) and forwards it to the upload routes of Athena's MCP HTTP server (`/ingest/chunk`, device `computer`; `/sessions/{id}/end` on Stop), with the URL and `access_token` of the connected `convo` MCP server: no settings, and the module's ingest token never leaves the module. When the module ends a session (silence, maximum length) the page continues in a new one; a module older than MCP 0.8.0 gets "update Athena". Uploads need the `X-Odysseus-Recorder: 1` header.
 
 Files: `src/call_recorder.py`, `static/call-recorder.html`, `static/js/callRecorder.js` (new); routes in `routes/sound_module_routes.py` (fork file), link in `static/js/soundModule.js` (the view's toolbar); test `tests/fork/test_call_recorder.py` (new). No new upstream hook.
 
@@ -910,7 +928,7 @@ Upstreamable: no
 
 ### Send Athena to a Zoom meeting
 
-**Send Athena to a Zoom meeting.** The Meetings page starts with a **Send Athena to a meeting** box (admin only): paste a Zoom link, a whole invite, or a meeting ID and passcode, press Join, and Athena's Zoom bot joins on the module's server as "Athena"; Leave makes it exit. The link is checked first with the module's rules (zoom.us and its subdomains, `/j/`, `/wc/…`, `zoommtg://`; personal, webinar, registration, start, zoomgov and other links refused with their own message, without calling the module). The hub routes `GET /api/modules/sound/meetings/current`, `POST /api/modules/sound/meetings`, `GET`/`DELETE /api/modules/sound/meetings/{id}` forward to the meeting routes of Athena's MCP HTTP server (`/meetings…`, SDarioosh/Athena#125) with the `convo` server's URL and token, like the call recorder; the writes need `X-Odysseus-Recorder: 1`. The state shows in plain words (joining, waiting for you, waiting room, waiting for recording permission or declined, recording, no audio, ended or why it failed, busy with a Leave button, meetings off, "update Athena to use meetings" for an older module). The page fetches the state only while it is open and visible and a meeting is on; nothing runs in the hub between meetings. The box also signs Athena in to Zoom with no terminal: a **Sign in to Zoom** button (shown when not signed in, expired, or after a Join answered `signin`) opens Zoom's authorize page in a new tab, and the owner pastes back the address Zoom ends on; `GET /api/modules/sound/zoom-signin`, `POST …/zoom-signin/start` and `…/zoom-signin/finish` forward to Athena's `/zoom/signin…` relay routes, and the pasted code is never stored or logged.
+**Send Athena to a Zoom meeting.** The Meetings page starts with a **Send Athena to a meeting** box (admin only): paste a Zoom link, a whole invite, or a meeting ID and passcode, press Join, and Athena's Zoom bot joins on the module's server as "Athena"; Leave makes it exit. The link is checked first with the module's rules (zoom.us and its subdomains, `/j/`, `/wc/…`, `zoommtg://`; personal, webinar, registration, start, zoomgov and other links refused with their own message, without calling the module). The hub routes `GET /api/modules/athena/meetings/current`, `POST /api/modules/athena/meetings`, `GET`/`DELETE /api/modules/athena/meetings/{id}` forward to the meeting routes of Athena's MCP HTTP server (`/meetings…`, SDarioosh/Athena#125) with the `convo` server's URL and token, like the call recorder; the writes need `X-Odysseus-Recorder: 1`. The state shows in plain words (joining, waiting for you, waiting room, waiting for recording permission or declined, recording, no audio, ended or why it failed, busy with a Leave button, meetings off, "update Athena to use meetings" for an older module). The page fetches the state only while it is open and visible and a meeting is on; nothing runs in the hub between meetings. The box also signs Athena in to Zoom with no terminal: a **Sign in to Zoom** button (shown when not signed in, expired, or after a Join answered `signin`) opens Zoom's authorize page in a new tab, and the owner pastes back the address Zoom ends on; `GET /api/modules/athena/zoom-signin`, `POST …/zoom-signin/start` and `…/zoom-signin/finish` forward to Athena's `/zoom/signin…` relay routes, and the pasted code is never stored or logged.
 
 Files: `src/meeting_bot.py`, `static/js/meetingBot.js` (new); fork files `routes/sound_module_routes.py` (routes), `static/call-recorder.html` (the box and one script tag); test `tests/fork/test_meeting_bot.py` (new). No new upstream hook.
 
@@ -918,7 +936,7 @@ Upstreamable: no
 
 ### Send Athena to calendar meetings
 
-**Send Athena to calendar meetings.** An event with a Zoom link has a **Send Athena** toggle in its event form (admin only, off by default). When on, the hub keeps one one-shot task in the TaskScheduler (action `meeting_auto_join`, "Send Athena: <title>") due one minute before the start, which sends Athena's bot in through `src/meeting_bot.py` (same link rules, join call and error words); the owner joins too. A moved event moves the task (same id), a deleted event, a removed link or the toggle off deletes it, a repeating event gets its next occurrence. Of overlapping toggled meetings the earlier wins; the later gets one "Athena is busy" task notification. The tasks follow the calendar after each CalDAV pull, after an edit or delete in the hub, on a toggle change and when a task runs; no thread, timer or poll is added. A due join is not deferred while the owner uses Odysseus (upstream holds background tasks 15 min) and runs outside the model queue. Toggles live in the hub (`<DATA_DIR>/meeting_auto_join/<owner>.json`), never in Athena. Routes `GET`/`PUT /api/modules/sound/auto-join`.
+**Send Athena to calendar meetings.** An event with a Zoom link has a **Send Athena** toggle in its event form (admin only, off by default). When on, the hub keeps one one-shot task in the TaskScheduler (action `meeting_auto_join`, "Send Athena: <title>") due one minute before the start, which sends Athena's bot in through `src/meeting_bot.py` (same link rules, join call and error words); the owner joins too. A moved event moves the task (same id), a deleted event, a removed link or the toggle off deletes it, a repeating event gets its next occurrence. Of overlapping toggled meetings the earlier wins; the later gets one "Athena is busy" task notification. The tasks follow the calendar after each CalDAV pull, after an edit or delete in the hub, on a toggle change and when a task runs; no thread, timer or poll is added. A due join is not deferred while the owner uses Odysseus (upstream holds background tasks 15 min) and runs outside the model queue. Toggles live in the hub (`<DATA_DIR>/meeting_auto_join/<owner>.json`), never in Athena. Routes `GET`/`PUT /api/modules/athena/auto-join`.
 
 Files: `src/meeting_auto_join.py`, `static/js/forkMeetingAutoJoin.js` (new); routes in `routes/sound_module_routes.py` (fork file); hooks: `sync_caldav` in `src/caldav_sync.py` (3 lines after the pull), `update_event`/`delete_event` in `routes/calendar_routes.py` (3 lines before each success return), `_check_due_tasks` in `src/task_scheduler.py` (an `on_time` set: not deferred, dispatched with `bypass_model_slot`), registration in `src/builtin_actions.py` (3 lines), `_showEventForm` in `static/js/calendar.js` (1 line, lazy import); test `tests/fork/test_meeting_auto_join.py` (new)
 
@@ -926,7 +944,7 @@ Upstreamable: no
 
 ### Phone relay through Odysseus, paired by QR
 
-**Phone relay through Odysseus, paired by QR.** `/modules/sound/pair` (**Pair a phone** in Settings → Integrations, admin only) shows a QR code (made server-side with `qrcode`) holding the Odysseus URL and a single-use pairing code (10 minutes, kept only hashed, in memory). Athena's Android relay redeems it at `POST /api/pair/redeem` (no session, rate limited per address and overall); only then is an API token "Phone relay <date>" created with the relay's scopes (`sound:ingest`, `sound:read`, `sound:write`, `calendar:read`/`write`, `todos:read`/`write`, `insight:read`) and answered once; it shows and is revoked in Settings → Integrations. Token routes `/api/codex/sound/chunk`, `…/sessions/{id}/end`, `…/health` and the T5's module reads and writes (`…/conversations…`, `…/action-items…`, `…/digests/{date}`) forward to the module's MCP HTTP server like the call recorder; `GET /api/codex/calendars` lists the token owner's calendars for the relay. New scopes `sound:ingest`, `sound:read`, `sound:write`.
+**Phone relay through Odysseus, paired by QR.** `/modules/athena/pair` (**Pair a phone** in Settings → Integrations, admin only) shows a QR code (made server-side with `qrcode`) holding the Odysseus URL and a single-use pairing code (10 minutes, kept only hashed, in memory). Athena's Android relay redeems it at `POST /api/pair/redeem` (no session, rate limited per address and overall); only then is an API token "Phone relay <date>" created with the relay's scopes (`athena:ingest`, `athena:read`, `athena:write` and their old names `sound:*`, `calendar:read`/`write`, `todos:read`/`write`, `insight:read`) and answered once; it shows and is revoked in Settings → Integrations. Token routes `/api/codex/athena/chunk`, `…/sessions/{id}/end`, `…/health` and the T5's module reads and writes (`…/conversations…`, `…/action-items…`, `…/digests/{date}`) forward to the module's MCP HTTP server like the call recorder; `GET /api/codex/calendars` lists the token owner's calendars for the relay. New scopes `sound:ingest`, `sound:read`, `sound:write`.
 
 Files: `src/phone_pairing.py`, `routes/sound_relay_routes.py`, `static/phone-pairing.html`, `static/js/phonePairing.js`, `static/js/forkPhonePairing.js` (new); hooks in `app.py` (router; `/api/pair/redeem` in `AUTH_EXEMPT_EXACT`), `routes/api_token_routes.py` (`ALLOWED_SCOPES`), `static/js/admin.js` (token scope list), `static/index.html` (one script tag: `static/js/forkPhonePairing.js`, the Settings → Integrations card with the button); test `tests/fork/test_sound_relay.py` (new)
 

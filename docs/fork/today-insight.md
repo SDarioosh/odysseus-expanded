@@ -109,7 +109,7 @@ it. `votes` are 👍/👎 from the page, kept when the insight is rewritten late
 |---|---|---|
 | `GET /api/codex/insight/today` | API token with scope **`insight:read`** (or a browser session) | today's JSON without `input_hash` and `votes`; 404 `{"error": "no insight yet"}`; 403 without the scope |
 | `GET /api/codex/insight/weights` | API token with scope **`insight:read`** | the T5 weight table (see [Weights](#weights)); 200 with `"weights": {}` when none; 403 without the scope |
-| `GET /api/insight/today` | admin session (as `/modules/sound`) | the same plus `votes`, `refreshing` (a Refresh is running) and `refresh_error` (why the last one wrote nothing); 404 `{"error", "refreshing", "refresh_error"}` when none |
+| `GET /api/insight/today` | admin session (as `/modules/athena`) | the same plus `votes`, `refreshing` (a Refresh is running) and `refresh_error` (why the last one wrote nothing); 404 `{"error", "refreshing", "refresh_error"}` when none |
 | `POST /api/insight/today/vote` | admin session | body `{"vote": "up" \| "down"}`; answers `{"ok": true, "votes": [...]}` |
 | `POST /api/insight/refresh` | admin session | starts writing it now in the background, even when the inputs didn't change, and answers 202 `{"status": "started" \| "running", "generated": <current insight's generated or null>}` at once (a model call outlasts the 45 s request timeout) |
 | `GET /today` | session | the page |
@@ -317,7 +317,7 @@ open their conversation; plans link to `/beliefs`.
 
 Open loops also have **Not a task**, for an action item that was never a to-do (a quick
 errand the summary model picked up, like "I'll move my truck"). The page sets the item to
-`dismissed` in Athena (`POST /api/modules/sound/action-items/{id}`, the module's
+`dismissed` in Athena (`POST /api/modules/athena/action-items/{id}`, the module's
 `update_action_item`), so it isn't an open loop again on later days, then posts
 `dismissed` with `not_task: true` to hide it today. Its row under "Not today" says "Not a
 task"; Undo reopens the module item and clears the mark. The outcome route answers 400 for
