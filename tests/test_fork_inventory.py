@@ -53,26 +53,7 @@ UNMARKED_OK_PREFIXES = ("tests/",)
 # (file, anchor): the anchor is a snippet of the hook's added lines, so the
 # entry survives upstream merges that move line numbers. Mark the hook
 # (``# Fork: ... (fork file)``) and remove its entry here.
-KNOWN_UNMARKED: set[tuple[str, str]] = {
-    # authority.py, create_request_authority: trusted read-only MCP tools
-    # granted on every turn (src/mcp_trust.py).
-    ("src/agent_runtime/authority.py", "tools |= trusted_readonly_mcp_tools()"),
-    # effect_adapters.py, classify: trusted read-only MCP call is an
-    # admitted read (src/mcp_trust.py).
-    ("src/agent_runtime/effect_adapters.py", "is_trusted_readonly_mcp_tool("),
-    # agent_loop.py, the web-intent refusal check: a trusted local knowledge
-    # server may answer "latest"/"recommend" questions (src/mcp_trust.py).
-    ("src/agent_loop.py", "admin-trusted local knowledge server"),
-    # mcp_manager.py, _connect_http: keep tool annotations (general bug fix,
-    # FORK.md "HTTP MCP servers keep tool annotations").
-    ("src/mcp_manager.py", "keep readOnlyHint / destructiveHint"),
-    # calendar_routes.py, quick-parse: thinking off so JSON comes back
-    # (commit "fix(calendar): disable thinking for quick-parse"; not in FORK.md).
-    ("routes/calendar_routes.py", 'thinking_mode="off"'),
-    # 01-agent-chat.css: centered chat title in Nobody mode (FORK.md
-    # "Centered chat title in Nobody mode").
-    ("static/css/01-agent-chat.css", "Reserve the same space on both sides"),
-}
+KNOWN_UNMARKED: set[tuple[str, str]] = set()
 
 # Paths never listed as fork files (local state, environments).
 NOT_FORK_FILES_PREFIXES = ("data/", "venv/", ".venv/", "node_modules/")

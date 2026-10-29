@@ -393,7 +393,7 @@ def create_request_authority(request_text, *, owner=None, session_id=None, works
         tools = {canonical_tool(operation.tool)}
     else:
         operation = None
-    # Admin-trusted read-only MCP tools (src/mcp_trust.py) are granted on every
+    # Fork: admin-trusted read-only MCP tools (src/mcp_trust.py) are granted on every
     # turn; restrict() below still applies policy and per-tool disables.
     from src.mcp_trust import trusted_readonly_mcp_tools
     tools |= trusted_readonly_mcp_tools()

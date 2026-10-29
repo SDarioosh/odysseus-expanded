@@ -242,7 +242,7 @@ def classify(capture: DispatchCapture) -> dict[str, Any] | None:
                                    ToolEffect.READ_PRIVATE, ToolEffect.BROKERED_NETWORK_READ})
                 if capabilities.known and capabilities.effects and capabilities.effects <= reads:
                     return None
-            # An admin-trusted read-only MCP tool (src/mcp_trust.py) is an
+            # Fork: an admin-trusted read-only MCP tool (src/mcp_trust.py) is an
             # admitted read, not an external effect awaiting verification.
             from src.mcp_trust import is_trusted_readonly_mcp_tool
             if (not impact and not dependencies

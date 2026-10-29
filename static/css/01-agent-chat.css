@@ -196,7 +196,7 @@ body.bg-pattern-ascii-fireflies {
       line-height: 1.25;
     }
     .chat-top-bar:has(.incognito-indicator:not([style*="display:none"]):not([style*="display: none"])) .chat-meta-overlay {
-      /* Reserve the same space on both sides so the title stays centered. */
+      /* Fork: reserve the same space on both sides so the title stays centered (FORK.md). */
       left: 54px;
       right: 54px;
       max-width: calc(100% - 108px);
