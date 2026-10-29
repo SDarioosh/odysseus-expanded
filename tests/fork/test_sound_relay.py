@@ -46,11 +46,11 @@ class Module:
 
 def make_app(monkeypatch, module: Module | None = None, admin: bool = True) -> TestClient:
     monkeypatch.delenv(rec.SERVER_ENV, raising=False)
-    monkeypatch.setattr(rec, "_server_rows", lambda: ROWS)
+    monkeypatch.setattr("fork.athena.client._server_rows", lambda: ROWS)
     monkeypatch.setattr(rec, "datetime", _FixedDatetime)
     module = module or Module()
     real_client = rec._client
-    monkeypatch.setattr(rec, "_client", lambda transport: real_client(
+    monkeypatch.setattr("fork.athena.client._client", lambda transport, timeout=None: real_client(
         httpx.MockTransport(module)))
     monkeypatch.setattr("core.middleware.auth_disabled", lambda: False)
     app = FastAPI()
@@ -197,7 +197,7 @@ def test_relay_routes_need_admin_without_a_token(monkeypatch):
 
 def test_relay_without_module_says_so(monkeypatch):
     c = make_app(monkeypatch)
-    monkeypatch.setattr(rec, "_server_rows", lambda: [])
+    monkeypatch.setattr("fork.athena.client._server_rows", lambda: [])
     r = relay_chunk(c)
     assert r.status_code == 503 and "No MCP server" in r.json()["detail"]
 

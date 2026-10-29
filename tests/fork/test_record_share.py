@@ -49,9 +49,9 @@ def make_app(monkeypatch, module: Module, admin: bool = True) -> TestClient:
     from routes.sound_module_routes import require_admin, setup_sound_module_routes
 
     monkeypatch.delenv(rec.SERVER_ENV, raising=False)
-    monkeypatch.setattr(rec, "_server_rows", lambda: ROWS)
+    monkeypatch.setattr("fork.athena.client._server_rows", lambda: ROWS)
     real_client = rec._client
-    monkeypatch.setattr(rec, "_client", lambda transport: real_client(httpx.MockTransport(module)))
+    monkeypatch.setattr("fork.athena.client._client", lambda transport, timeout=None: real_client(httpx.MockTransport(module)))
     monkeypatch.setattr("core.middleware.auth_disabled", lambda: False)
     app = FastAPI()
 

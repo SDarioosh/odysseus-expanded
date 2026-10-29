@@ -19,7 +19,6 @@ from fastapi.testclient import TestClient
 
 import core.database as cdb
 import routes.ink_routes as ir
-from src import call_recorder as rec
 from src import ink_athena as athena
 from src import ink_notes as ink
 from src import ink_transcribe as tr
@@ -101,7 +100,7 @@ def env(data_dir, monkeypatch):
     monkeypatch.setattr(athena, "_SENDING", set())
     fake = FakeAthena()
     monkeypatch.setattr(athena, "TRANSPORT", httpx.MockTransport(fake))
-    monkeypatch.setattr(rec, "_server_rows", lambda: [
+    monkeypatch.setattr("fork.athena.client._server_rows", lambda: [
         ("srv1", "convo", f"http://athena.local:8001/mcp?access_token={TOKEN}", True)])
     monkeypatch.setattr("src.settings.get_setting",
                         lambda key, default=None: HUB if key == "app_public_url" else default)
@@ -392,7 +391,7 @@ def test_athena_not_set_up_or_unreachable(env, monkeypatch):
     with pytest.raises(ink.InkError) as err:
         send(note_id)
     assert err.value.status == 502 and "not reachable" in str(err.value)
-    monkeypatch.setattr(rec, "_server_rows", lambda: [])
+    monkeypatch.setattr("fork.athena.client._server_rows", lambda: [])
     with pytest.raises(ink.InkError) as err:
         send(note_id)
     assert err.value.status == 503 and "No MCP server" in str(err.value)

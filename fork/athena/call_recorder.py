@@ -29,10 +29,18 @@ import re
 from dataclasses import dataclass
 from datetime import UTC, datetime, timedelta
 from typing import Any
-from urllib.parse import parse_qs, quote, urlsplit, urlunsplit
+from urllib.parse import quote
 
 import httpx
 
+from fork.athena import client as athena
+from fork.athena.client import (  # noqa: F401 -- their old home; callers import them here
+    TIMEOUT,
+    Link,
+    _client,
+    auth_headers,
+    link_from_url,
+)
 from fork.common import settings
 
 logger = logging.getLogger(__name__)
@@ -49,7 +57,6 @@ SAFE_ID = re.compile(r"^[A-Za-z0-9._:-]{1,128}$")
 KINDS = {"conversation", "note"}  # Athena's session kinds
 MAX_CHUNK_BYTES = 5 * 1024 * 1024  # 30 s of Opus is ~60-250 KB; leaves room for 60 s at 64 kbit/s
 MAX_SEQUENCE = 100_000  # 4 h sessions (the module's default cap) are 480 pieces
-TIMEOUT = httpx.Timeout(60.0, connect=5.0)  # the module decodes and runs VAD before it answers
 UPDATE_MODULE = ("Athena can't take uploads through its MCP server yet: update "
                  "Athena (scripts/fork_deploy.sh deploy).")
 
@@ -72,79 +79,23 @@ RECORDER = Source(frozenset({"webm", "ogg"}), timedelta(minutes=5), timedelta(da
 RELAY = Source(frozenset({"ogg", "opus"}), timedelta(days=1), timedelta(days=60))
 
 
-class RecorderError(Exception):
-    """A request the caller can be shown: ``status`` is the HTTP status to answer with."""
-
-    def __init__(self, status: int, message: str):
-        super().__init__(message)
-        self.status = status
-        self.message = message
-
-
-@dataclass(frozen=True)
-class Link:
-    """Where the module's upload routes are: the MCP server's URL without ``/mcp``."""
-
-    base: str
-    token: str
-
-    def __repr__(self) -> str:  # never print the token
-        return f"Link(base={self.base!r})"
+# A request the caller can be shown: ``status`` is the HTTP status to answer with. The one
+# Athena error (fork/athena/client.py), under the name its callers know.
+RecorderError = athena.AthenaError
 
 
 def server_key() -> str:
-    return settings.athena_recorder_server()
+    return athena.RECORDER.server_key()
 
 
 def device() -> str:
     return settings.call_device(logger, valid=SAFE_ID.match)
 
 
-def link_from_url(url: str) -> Link | None:
-    """``http://h:8001/mcp?access_token=T`` -> ``Link("http://h:8001", "T")``; None when the
-    URL is not http(s) or carries no ``access_token``."""
-    parts = urlsplit((url or "").strip())
-    if parts.scheme not in ("http", "https") or not parts.netloc:
-        return None
-    token = (parse_qs(parts.query).get("access_token") or [""])[0].strip()
-    if not token:
-        return None
-    path = parts.path.rstrip("/")
-    if path.endswith("/mcp"):
-        path = path[: -len("/mcp")]
-    return Link(base=urlunsplit((parts.scheme, parts.netloc, path, "", "")), token=token)
-
-
-def _server_rows() -> list[tuple[str, str, str | None, bool]]:
-    """(id, name, url, enabled) of Odysseus's configured MCP servers."""
-    from core.database import McpServer, SessionLocal
-
-    db = SessionLocal()
-    try:
-        return [(r.id, r.name or "", r.url, bool(r.is_enabled))
-                for r in db.query(McpServer).all()]
-    finally:
-        db.close()
-
-
 def resolve() -> Link:
     """The module's upload link from the MCP server called ``SOUND_MODULE_SERVER`` (name or
     id, default ``convo``). Raises a 503 :class:`RecorderError` that says what to fix."""
-    key = server_key()
-    want = key.casefold()
-    rows = [r for r in _server_rows()
-            if str(r[0]).casefold() == want or r[1].strip().casefold() == want]
-    if not rows:
-        raise RecorderError(503, f"No MCP server named {key!r}: add Athena's MCP "
-                                 "server in Settings → MCP (docs/fork/modules/odysseus-sound.md).")
-    rows.sort(key=lambda r: not r[3])  # enabled first
-    if not rows[0][3]:
-        raise RecorderError(503, f"The MCP server {key!r} is turned off in Settings → MCP.")
-    found = link_from_url(rows[0][2] or "")
-    if found is None:
-        raise RecorderError(503, f"The MCP server {key!r} needs an http(s) URL with "
-                                 "?access_token=<CONVO_MCP_TOKEN> (Settings → MCP).")
-    return found
+    return athena.RECORDER.link()
 
 
 def status() -> dict[str, Any]:
@@ -212,16 +163,6 @@ def check_kind(kind: str | None) -> str:
     return kind
 
 
-def auth_headers(link: Link) -> dict[str, str]:
-    """The token as ``Authorization: Bearer``, which the module's BearerAuth accepts like
-    ``?access_token=``; httpx logs request URLs at INFO, so the token never goes in one."""
-    return {"Authorization": f"Bearer {link.token}"}
-
-
-def _client(transport: httpx.AsyncBaseTransport | None) -> httpx.AsyncClient:
-    return httpx.AsyncClient(timeout=TIMEOUT, transport=transport, follow_redirects=False)
-
-
 def _detail(res: httpx.Response) -> str:
     try:
         body = res.json()
@@ -234,8 +175,7 @@ def _module_error(res: httpx.Response) -> RecorderError:
     detail = _detail(res)
     if res.status_code in (401, 403):
         # Odysseus's MCP token for the module is wrong: not the caller's fault.
-        return RecorderError(502, f"Athena refused the token of the {server_key()!r} "
-                                  "MCP server (Settings → MCP).")
+        return athena.RECORDER.refused_token()
     if res.status_code in (400, 413, 415, 422):
         return RecorderError(res.status_code, detail or f"Athena HTTP {res.status_code}")
     if res.status_code == 502 and detail:  # the module's ingest API is down
@@ -245,13 +185,7 @@ def _module_error(res: httpx.Response) -> RecorderError:
 
 async def _post(link: Link, path: str, transport: httpx.AsyncBaseTransport | None,
                 **kwargs: Any) -> httpx.Response:
-    try:
-        async with _client(transport) as client:
-            return await client.post(f"{link.base}{path}", headers=auth_headers(link), **kwargs)
-    except httpx.HTTPError as exc:
-        # Log only the base and the error's type (never the request).
-        logger.warning("Athena unreachable at %s: %s", link.base, type(exc).__name__)
-        raise RecorderError(502, "Athena is not reachable") from None
+    return await athena.request(link, "POST", path, transport=transport, **kwargs)
 
 
 async def forward_chunk(link: Link, *, data: bytes, session_id: str, sequence: int,
@@ -307,13 +241,8 @@ async def forward(link: Link, method: str, path: str, *, params: dict[str, Any] 
     update Athena.
     """
     query = {k: v for k, v in (params or {}).items() if v is not None}
-    try:
-        async with _client(transport) as client:
-            res = await client.request(method, f"{link.base}{path}", params=query or None,
-                                       json=json, headers=auth_headers(link))
-    except httpx.HTTPError as exc:
-        logger.warning("Athena unreachable at %s: %s", link.base, type(exc).__name__)
-        raise RecorderError(502, "Athena is not reachable") from None
+    res = await athena.request(link, method, path, params=query, json=json,
+                               transport=transport)
     if res.status_code in (401, 403):
         raise _module_error(res)
     try:
@@ -326,6 +255,20 @@ async def forward(link: Link, method: str, path: str, *, params: dict[str, Any] 
     if body is None:
         raise RecorderError(502, f"Athena HTTP {res.status_code} without JSON")
     return res.status_code, body
+
+
+async def module_json(method: str, path: str, *, params: dict[str, Any] | None = None,
+                      json: Any = None, old_module: str | None = None) -> tuple[int, Any]:
+    """:func:`forward` to the link of the ``SOUND_MODULE_SERVER`` server. With
+    ``old_module``, a module without the route says that instead of :data:`UPDATE_MODULE`
+    (the settings cards' own words)."""
+    try:
+        return await forward(resolve(), method, path, params=params, json=json)
+    except RecorderError as exc:
+        if old_module is None:
+            raise
+        message = old_module if exc.message == UPDATE_MODULE else exc.message
+        raise RecorderError(exc.status, message) from None
 
 
 def path_part(value: str) -> str:

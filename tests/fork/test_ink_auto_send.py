@@ -220,9 +220,7 @@ def test_a_failed_send_is_left_for_the_owner(auto):
 
 
 def test_athena_not_set_up_marks_the_error_and_keeps_the_page(auto, monkeypatch):
-    from src import call_recorder as rec
-
-    monkeypatch.setattr(rec, "_server_rows", lambda: [])
+    monkeypatch.setattr("fork.athena.client._server_rows", lambda: [])
     note_id = new_note()
     out = run(note_id, CLEAN)
     assert out["pages"][0]["status"] == "reviewed"
