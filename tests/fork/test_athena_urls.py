@@ -24,6 +24,9 @@ CALLERS = {
     "write": (None, "sound:write"),
     "other": (None, "todos:read,calendar:read"),
 }
+# The same callers with tokens holding the Athena scope names.
+CALLERS_NEW = {**CALLERS, "ingest": (None, "athena:ingest"), "read": (None, "athena:read"),
+               "write": (None, "athena:write")}
 CHUNK_FORM = {"device": "twatch", "session_id": "w-1", "sequence": "3",
               "timestamp": "2026-10-20T10:00:00Z", "codec": "ogg"}
 
@@ -90,8 +93,8 @@ def concrete(path: str) -> str:
     return re.sub(r"\{[^}]+\}", "1", path)
 
 
-def call(c: TestClient, method: str, path: str, caller: str):
-    user, scopes = CALLERS[caller]
+def call(c: TestClient, method: str, path: str, caller: tuple[str | None, str | None]):
+    user, scopes = caller
     headers = {}
     if user is not None:
         headers["X-Test-User"] = user
@@ -103,11 +106,11 @@ def call(c: TestClient, method: str, path: str, caller: str):
     return c.request(method, concrete(path), headers=headers, follow_redirects=False, **kw)
 
 
-def table(c: TestClient, word: str) -> dict:
+def table(c: TestClient, word: str, callers: dict = CALLERS) -> dict:
     """``"METHOD path"`` -> (handler, statuses in :data:`CALLERS` order, redirect target)."""
     out = {}
     for method, path, handler in routes_under(c.app, word):
-        answers = [call(c, method, path, who) for who in CALLERS]
+        answers = [call(c, method, path, who) for who in callers.values()]
         out[f"{method} {path}"] = (handler, tuple(r.status_code for r in answers),
                                    answers[0].headers.get("location"))
     return out
@@ -166,5 +169,114 @@ def client(monkeypatch):
     return build_app(monkeypatch)
 
 
+# The old page addresses now redirect to the Athena ones (on purpose); every other old
+# route answers exactly as recorded.
+PAGES = {
+    "GET /barvis/sound": ("former_page", "/modules/athena"),
+    "GET /modules/sound": ("old_page", "/modules/athena"),
+    "GET /modules/sound/record": ("old_record_page", "/modules/athena/record"),
+    "GET /modules/sound/pair": ("old_pair_page", "/modules/athena/pair"),
+}
+
+
+def expected_old() -> dict:
+    out = dict(OLD_TABLE)
+    for key, (handler, target) in PAGES.items():
+        out[key] = (handler, (302,) * len(CALLERS), target)
+    return out
+
+
+def expected_new() -> dict:
+    """The Athena paths answer as the old ones did, by the same handlers."""
+    return {key.replace("/sound", "/athena"): answer for key, answer in OLD_TABLE.items()
+            if key != "GET /barvis/sound"}
+
+
 def test_old_routes_answer_as_recorded(client):
-    assert table(client, "sound") == OLD_TABLE
+    assert table(client, "sound") == expected_old()
+
+
+def test_athena_routes_answer_like_the_old_ones(client):
+    assert table(client, "athena") == expected_new()
+
+
+def test_athena_scopes_pass_the_same_checks_on_both_paths(client):
+    """A token with an Athena scope gets what one with the old scope got, on the old
+    paths and the new; a token with neither is refused (the ``other`` column)."""
+    assert table(client, "sound", CALLERS_NEW) == expected_old()
+    assert table(client, "athena", CALLERS_NEW) == expected_new()
+
+
+def test_old_scope_token_on_new_relay_route_and_new_on_old(client):
+    for path, scopes in (("/api/codex/athena/health", "sound:ingest"),
+                         ("/api/codex/sound/health", "athena:read"),
+                         ("/api/codex/athena/action-items", "sound:read"),
+                         ("/api/codex/sound/action-items", "athena:read")):
+        r = client.get(path, headers={"X-Test-Scopes": scopes})
+        assert r.status_code == 503, (path, scopes)  # past the scope check; Athena not set up
+    for path in ("/api/codex/athena/action-items", "/api/codex/sound/action-items"):
+        r = client.get(path, headers={"X-Test-Scopes": "athena:ingest,sound:write,todos:read"})
+        assert r.status_code == 403
+        assert "athena:read" in r.json()["detail"] and "sound:read" in r.json()["detail"]
+
+
+@pytest.mark.parametrize(("old", "new"), [
+    ("/modules/sound", "/modules/athena"),
+    ("/modules/sound?embedded=1&x=a%20b", "/modules/athena?embedded=1&x=a%20b"),
+    ("/modules/sound/record?auto=1", "/modules/athena/record?auto=1"),
+    ("/modules/sound/pair?url=http%3A%2F%2Fhub", "/modules/athena/pair?url=http%3A%2F%2Fhub"),
+    ("/barvis/sound?q=1", "/modules/athena?q=1"),
+])
+def test_page_redirects_keep_the_sub_page_and_query(client, old, new):
+    r = client.get(old, headers={"X-Test-User": "admin"}, follow_redirects=False)
+    assert (r.status_code, r.headers["location"]) == (302, new)
+    page = client.get(old, headers={"X-Test-User": "admin"})  # followed
+    assert page.status_code == 200 and "<html" in page.text.lower()
+
+
+def test_api_posts_are_served_not_redirected(client):
+    """No API route answers with a redirect: a POST body or a phone must never see one."""
+    for key, (_, statuses, location) in {**table(client, "athena"),
+                                         **table(client, "sound")}.items():
+        if "/api/" in key:
+            assert location is None and not any(300 <= s < 400 for s in statuses), key
+
+
+def test_aliases_share_the_endpoint_and_dependencies():
+    from fork import routes
+
+    app = FastAPI()
+    routes.mount(app)
+    by_path = {(m, r.path): r for r in all_routes(app.routes) for m in r.methods}
+    pairs = 0
+    for (method, path), route in by_path.items():
+        for old, new in (("/api/modules/sound", "/api/modules/athena"),
+                         ("/api/codex/sound", "/api/codex/athena")):
+            if path.startswith(old + "/") or path == old:
+                twin = by_path[(method, new + path[len(old):])]
+                assert twin.endpoint is route.endpoint
+                assert [d.dependency for d in twin.dependencies] == \
+                    [d.dependency for d in route.dependencies]
+                assert twin.tags == route.tags and twin.status_code == route.status_code
+                pairs += 1
+    assert pairs == sum(1 for k in OLD_TABLE if "/api/" in k)
+    ids = [r.unique_id for r in all_routes(app.routes)]
+    assert len(ids) == len(set(ids))  # no duplicate OpenAPI operation ids
+
+
+def test_new_pairings_get_both_scope_names_and_tokens_allow_them():
+    from fork.athena import phone_pairing as pp
+    from fork.athena import urls
+    from routes.api_token_routes import ALLOWED_SCOPES
+
+    assert set(urls.SCOPES) | set(urls.OLD_SCOPES) <= set(pp.RELAY_SCOPES) <= ALLOWED_SCOPES
+
+
+def test_admin_lists_the_athena_scopes_and_marks_the_old_names():
+    from pathlib import Path
+
+    admin_js = (Path(__file__).resolve().parents[2] / "static/js/admin.js").read_text()
+    for action in ("ingest", "read", "write"):
+        assert f"key: 'athena:{action}'" in admin_js
+        old = next(line for line in admin_js.splitlines() if f"key: 'sound:{action}'" in line)
+        assert "(old name)" in old and f"athena:{action}" in old

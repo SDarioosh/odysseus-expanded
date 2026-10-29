@@ -30,6 +30,7 @@ ALLOWED_SCOPES = {
 }
 ALLOWED_SCOPES.add("insight:read")  # Fork: Today insight token route (fork/routes/today_insight_routes.py)
 ALLOWED_SCOPES.update({"sound:ingest", "sound:read", "sound:write"})  # Fork: phone relay (fork/athena/relay_routes.py)
+ALLOWED_SCOPES.update({"athena:ingest", "athena:read", "athena:write"})  # Fork: the same, Athena names (fork/athena/urls.py)
 TOKEN_PROFILES = {
     "chat": ["chat"],
     "codex_todos": ["todos:read", "todos:write"],

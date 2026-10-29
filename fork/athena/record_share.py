@@ -1,7 +1,7 @@
 """Fork: share a record (an Athena conversation) as a file.
 
 The Records reader's **Share** button calls
-``GET /api/modules/sound/conversations/{id}/export?format=md|html&include=...``
+``GET /api/modules/athena/conversations/{id}/export?format=md|html&include=...``
 (``routes/sound_module_routes.py``), which gets the file from the module's relay route
 ``GET /conversations/{id}/export`` (Athena MCP 0.19.0) with the ``convo`` MCP server's
 URL and token, like the call recorder (``src/call_recorder.py``). Odysseus never reads the

@@ -12,9 +12,9 @@ and dismisses their items in Athena (``update_action_item``; items already done
 stay done). They are never filed again.
 
 It runs in the hub, which holds the module's MCP connection: the script calls the admin
-route ``POST /api/modules/sound/unfile-todos`` (src/module_action_items.py,
+route ``POST /api/modules/athena/unfile-todos`` (src/module_action_items.py,
 ``unfile_auto_todos``). To remove only some, run it once without ``--apply``, then pass
-their item ids with ``--only``. A single one can also be undone on ``/modules/sound``
+their item ids with ``--only``. A single one can also be undone on ``/modules/athena``
 (Undo on the item).
 
 Usage:
@@ -33,7 +33,7 @@ from pathlib import Path
 
 import httpx
 
-ROUTE = "/api/modules/sound/unfile-todos"
+ROUTE = "/api/modules/athena/unfile-todos"
 
 
 def parse_args(argv: list[str] | None = None) -> argparse.Namespace:

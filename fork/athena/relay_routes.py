@@ -4,24 +4,29 @@ Token routes for the relay (API tokens; an admin session works too, for testing)
 forward to the upload and read routes of the module's MCP HTTP server, with the URL and
 token of the connected ``convo`` MCP server (``src/call_recorder.py``):
 
-* ``POST /api/codex/sound/chunk`` (scope ``sound:ingest``): the module's multipart fields
+* ``POST /api/codex/athena/chunk`` (scope ``athena:ingest``): the module's multipart fields
   (``audio``, ``device``, ``session_id``, ``sequence``, ``timestamp``, ``codec``, ``kind``)
   and its JSON answer. Checked first like the call recorder's pieces.
-* ``POST /api/codex/sound/sessions/{id}/end`` (``sound:ingest``).
-* ``GET  /api/codex/sound/health`` (``sound:ingest`` or ``sound:read``): the module through
+* ``POST /api/codex/athena/sessions/{id}/end`` (``athena:ingest``).
+* ``GET  /api/codex/athena/health`` (``athena:ingest`` or ``athena:read``): the module through
   Odysseus is reachable and the token is good (the relay's "Test connection").
-* The T5 sync's module reads, the module's own paths and JSON (``sound:read``):
-  ``GET /api/codex/sound/conversations``, ``…/conversations/{id}``,
+* The T5 sync's module reads, the module's own paths and JSON (``athena:read``):
+  ``GET /api/codex/athena/conversations``, ``…/conversations/{id}``,
   ``…/conversations/{id}/transcript``, ``…/action-items``, ``…/digests/{date}``; and its
-  writes (``sound:write``): ``PATCH …/action-items/{id}``, ``POST …/digests/{date}``.
+  writes (``athena:write``): ``PATCH …/action-items/{id}``, ``POST …/digests/{date}``.
+* Old names, kept for good (installed phone relays, existing tokens): each
+  ``/api/codex/athena/*`` and ``/api/modules/athena/*`` route is also served at
+  ``/api/codex/sound/*`` and ``/api/modules/sound/*`` by the same handler (declared at the
+  old path below), and each check takes the ``athena:*`` scope or its old name ``sound:*``
+  (``fork/athena/urls.py``).
 * ``GET  /api/codex/calendars`` (``calendar:read``): the token owner's calendars, so the
   relay offers a list instead of a typed calendar id.
 
 Pairing (``src/phone_pairing.py``):
 
-* ``GET  /modules/sound/pair``: ``static/phone-pairing.html`` (Settings → Integrations →
-  Pair a phone); ``POST /api/modules/sound/pair`` {url} (admin) makes a code and its QR;
-  ``GET /api/modules/sound/pair/{id}`` (admin) says whether the phone used it.
+* ``GET  /modules/athena/pair``: ``static/phone-pairing.html`` (Settings → Integrations →
+  Pair a phone; ``/modules/sound/pair`` redirects there); ``POST /api/modules/athena/pair`` {url} (admin) makes a code and its QR;
+  ``GET /api/modules/athena/pair/{id}`` (admin) says whether the phone used it.
 * ``POST /api/pair/redeem`` {code}: no session or token (auth-exempt hook in ``app.py``),
   rate limited; consumes the code and answers the new token once.
 """
@@ -48,13 +53,14 @@ from pydantic import BaseModel, Field
 from core.middleware import require_admin
 from fork.athena import call_recorder as rec
 from fork.athena import phone_pairing as pairing
+from fork.athena import urls
 from src.auth_helpers import effective_user
 
 logger = logging.getLogger(__name__)
 
-INGEST = {"sound:ingest"}
-READ = {"sound:read"}
-WRITE = {"sound:write"}
+INGEST = urls.INGEST  # the Athena scope or the old one
+READ = urls.READ
+WRITE = urls.WRITE
 CALENDAR_READ = {"calendar:read", "calendar:write"}
 REDEEM_PATH = "/api/pair/redeem"
 
@@ -183,7 +189,11 @@ def setup_sound_relay_routes() -> APIRouter:
             db.close()
 
     # ------------------------------------------------------------------ pairing
-    @router.get("/modules/sound/pair")
+    @router.get(urls.OLD_PAGE + "/pair", include_in_schema=False)
+    async def old_pair_page(request: Request):
+        return urls.redirect(request, urls.PAGE + "/pair")
+
+    @router.get(urls.PAGE + "/pair")
     async def pair_page(request: Request):
         from src.app_helpers import serve_html_with_nonce
         from src.constants import BASE_DIR
@@ -226,4 +236,7 @@ def setup_sound_relay_routes() -> APIRouter:
         logger.info("phone pairing: %s paired", out["name"])
         return JSONResponse(out, headers={"Cache-Control": "no-store"})
 
+    # the same routes at the Athena paths
+    urls.add_aliases(router, urls.OLD_RELAY, urls.RELAY)
+    urls.add_aliases(router, urls.OLD_API, urls.API)
     return router

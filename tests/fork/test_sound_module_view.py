@@ -239,7 +239,7 @@ def test_api_is_admin_only(monkeypatch):
 
 def test_former_page_address_redirects(client):
     r = client.get("/barvis/sound", follow_redirects=False)
-    assert r.status_code == 301 and r.headers["location"] == "/modules/sound"
+    assert r.status_code == 302 and r.headers["location"] == "/modules/athena"
 
 
 def test_parse_voice_note_rows():
@@ -619,7 +619,7 @@ def test_unfile_script_reports_through_the_route():
     args = script.parse_args(["--apply", "--only", "12", "--all"])
     with httpx.Client(base_url="http://hub", transport=httpx.MockTransport(handler)) as c:
         assert script.run(c, args) == 0
-    assert seen == [("/api/modules/sound/unfile-todos", b'{"apply":true,"ids":[12],"all":true}')]
+    assert seen == [("/api/modules/athena/unfile-todos", b'{"apply":true,"ids":[12],"all":true}')]
     assert script.report({"apply": False, "todos": [
         {"id": 12, "title": "Call Mom", "status": "open",
          "why": ["filed before explicit filing", "not explicit now"]}]}).splitlines() == [
