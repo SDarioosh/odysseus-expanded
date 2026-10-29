@@ -2649,11 +2649,9 @@ def setup_chat_routes(
         # shell disabled).
         auto_escalated = False
         _tool_intent = _classify_tool_intent(message) if isinstance(message, str) else None
-        # Fork: chat-mode how/why questions are answered, not run (fork/routing/chat_mode_scope.py)
-        from fork.routing.chat_mode_scope import keep_chat_for_question
-        if chat_mode == "chat" and keep_chat_for_question(message, _tool_intent):
-            logger.info("chat stays chat: %s matched a how/why question", _tool_intent.reason)
-            _tool_intent = None
+        # Fork: chat-mode how/why questions are answered, not run (fork/routing/turn_policy.py)
+        from fork.routing.turn_policy import scope_tool_intent
+        _tool_intent = scope_tool_intent(_tool_intent, chat_mode=chat_mode, message=message)
         # The opt-in trained-tools route owns its complete conversation loop.
         # Do not make each follow-up earn Agent mode again through the legacy
         # lexical intent classifier: that recreated the same per-turn RAG gate
@@ -2697,10 +2695,9 @@ def setup_chat_routes(
             chat_mode = "agent"
             auto_escalated = True
             logger.info("chat→agent auto-escalation: explicit private browser workflow")
-        # Fork: a slash-invoked skill that declares tools runs in agent mode (fork/routing/skill_invocation.py)
-        from fork.routing.skill_invocation import invoked_skill_needs_tools
-        if chat_mode == "chat" and invoked_skill_needs_tools(message, effective_user(request)):
-            chat_mode, auto_escalated = "agent", True
+        # Fork: slash skills with tools, module questions, store lookups run in agent mode (fork/routing/turn_policy.py)
+        from fork.routing.turn_policy import escalate_chat_mode
+        chat_mode, auto_escalated = escalate_chat_mode(chat_mode, auto_escalated, message=message, owner=effective_user(request))
         active_doc_id = form_data.get("active_doc_id", "").strip()
         active_doc_state = form_data.get("active_doc_state", "").strip().casefold()
         # Scoped photo_editor agent context: the Quick Edit popup (and any
@@ -3647,26 +3644,15 @@ def setup_chat_routes(
                 _explicit_browser_intent or _external_discovery_intent
             ) else set())),
         )
-        # Fork: web toggle on + no tool named in the words → web_search (fork/routing/web_turn_scope.py)
-        from fork.routing.web_turn_scope import with_unclassified_web_search
-        _request_authority = with_unclassified_web_search(
-            _request_authority, web_search_enabled="web_search" not in disabled_tools,
-            client_runtime_context=client_runtime_context)
-        # Fork: read-only actions of the personal-store tools on every turn (fork/routing/personal_read_grants.py)
-        from fork.routing.personal_read_grants import with_personal_store_reads
-        _request_authority = with_personal_store_reads(_request_authority)
-        # Fork: the calculator on every turn while the chat is in Auto (fork/routing/auto_mode.py)
-        from fork.routing.auto_mode import with_calculator_grant
-        _request_authority = with_calculator_grant(_request_authority, session_id=session)
         if exact_tool_approval is not None:
             from src.agent_runtime.authority import RequestAuthority
             _request_authority = (
                 exact_tool_approval.pending.request_authority
                 or RequestAuthority.empty(owner=_user, session_id=session, workspace=workspace)
             ).restrict(tool_policy)
-            # Fork: an approved trusted-module tool may run again in this resumed task (fork/mcp/trust.py)
-            from fork.mcp.trust import with_approved_tool_grant
-            _request_authority = with_approved_tool_grant(_request_authority, exact_tool_approval)
+        # Fork: web search, personal-store reads, calculator; or the approved module tool (fork/routing/turn_policy.py)
+        from fork.routing.turn_policy import extend_authority
+        _request_authority = extend_authority(_request_authority, exact_approval=exact_tool_approval, session_id=session, web_search_enabled="web_search" not in disabled_tools, client_runtime_context=client_runtime_context)
         _turn_contract = None
         # Image models execute directly, not through the text-agent inventory.
         # Keep the permission policy above, but do not apply routing omissions
@@ -3800,12 +3786,9 @@ def setup_chat_routes(
                 warm_tools=_warm_tools,
                 message=message, history=getattr(sess, "history", []) or [],
             )
-            # Fork: a slash-invoked skill pins its requires_toolsets for this message (fork/routing/skill_invocation.py)
-            from fork.routing.skill_invocation import pin_skill_contract
-            _turn_contract = pin_skill_contract(_turn_contract, message=message, owner=_user, schemas=_contract_schemas, policy=_contract_policy)
-            # Fork: offer the calculator next to the turn's tools in Auto (fork/routing/auto_mode.py)
-            from fork.routing.auto_mode import with_calculator_offer
-            _turn_contract = with_calculator_offer(_turn_contract, owner=_user, session_id=session)
+            # Fork: a slash skill's or module question's tools, the calculator in Auto (fork/routing/turn_policy.py)
+            from fork.routing.turn_policy import extend_contract
+            _turn_contract = extend_contract(_turn_contract, message=message, owner=_user, session_id=session, schemas=_contract_schemas, policy=_contract_policy)
             _request_authority = _request_authority.restrict(_contract_policy)
             # Resolution already applies user, owner, and global policy. An
             # admitted tool must not later be rejected by the stale
@@ -3909,10 +3892,9 @@ def setup_chat_routes(
             tool_policy = build_effective_tool_policy(
                 disabled_tools=disabled_tools, last_user_message=message,
             )
-        # Fork: the model may read every personal store it is offered (fork/routing/offered_reads.py)
-        from fork.routing.offered_reads import with_offered_read_grants
-        if chat_mode == "agent":
-            _request_authority = with_offered_read_grants(_request_authority, _turn_contract, tool_policy, disabled_tools, owner=_user)
+        # Fork: the model may read every personal store it is offered (fork/routing/turn_policy.py)
+        from fork.routing.turn_policy import admit_offered_reads
+        _request_authority = admit_offered_reads(_request_authority, chat_mode=chat_mode, contract=_turn_contract, policy=tool_policy, disabled_tools=disabled_tools, owner=_user)
         research_blocked_by_policy = bool(
             tool_policy.blocks("trigger_research")
             or tool_policy.blocks("manage_research")

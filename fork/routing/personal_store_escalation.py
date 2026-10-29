@@ -27,8 +27,8 @@ the message only, so a bare follow-up ("and his email?") in chat mode is not
 promoted; the escalated turn's pill shows agent mode and the user can switch.
 
 Off with ``ODYSSEUS_PERSONAL_STORE_ESCALATION=0``. **No new hook:** the chat
-route already hands a message without a slash command to
-``invoked_skill_needs_tools`` (``src/skill_invocation.py``), which calls this.
+route's turn policy (``needs_agent_mode`` in ``fork/routing/turn_policy.py``) calls
+this for a message without a slash command that isn't a module question.
 """
 
 from __future__ import annotations

@@ -180,16 +180,12 @@ to be offered) upstream, "with discussion" a change upstream may want in another
 | `routes/calendar_routes.py` | `delete_event`, whole event | `fork/athena/meeting_auto_join.py` | same | no |
 | `routes/calendar_routes.py` | `quick_parse`, the model call | none | `thinking_mode="off"`, 1024 tokens, 30 s, so a thinking model returns JSON | yes |
 | `routes/chat_routes.py` | chat handler, form fields | `fork/routing/auto_mode.py` | remember the chat's Auto/Ask choice | no |
-| `routes/chat_routes.py` | after `_classify_tool_intent` | `fork/routing/chat_mode_scope.py` | how/why questions stay in chat mode | yes |
-| `routes/chat_routes.py` | chat→agent escalation | `fork/routing/skill_invocation.py` (`invoked_skill_needs_tools`; also runs `fork/routing/personal_store_escalation.py`, `fork/routing/module_turn_scope.py`) | slash skills with tools, store lookups and module questions run in agent mode | yes |
-| `routes/chat_routes.py` | after `request_authority_for_http` | `fork/routing/web_turn_scope.py` | `web_search` grant with the web toggle on | yes, with discussion |
-| `routes/chat_routes.py` | after the web-search hook | `fork/routing/personal_read_grants.py` | read actions of the personal-store tools | yes, with discussion |
-| `routes/chat_routes.py` | after the personal-read hook | `fork/routing/auto_mode.py` | calculator grant in Auto | no |
-| `routes/chat_routes.py` | exact-approval authority | `fork/mcp/trust.py` | an approved trusted-module tool may run again | yes, with discussion |
+| `routes/chat_routes.py` | after `_classify_tool_intent` | `fork/routing/turn_policy.py` (`scope_tool_intent`: `fork/routing/chat_mode_scope.py`) | how/why questions stay in chat mode | yes |
+| `routes/chat_routes.py` | after upstream's chat→agent escalation | `fork/routing/turn_policy.py` (`escalate_chat_mode`: a slash skill, `fork/routing/skill_invocation.py`; else a module question, `fork/routing/module_turn_scope.py`; else a store lookup, `fork/routing/personal_store_escalation.py`) | slash skills with tools, module questions and store lookups run in agent mode | yes |
+| `routes/chat_routes.py` | after the request authority and the exact-approval authority | `fork/routing/turn_policy.py` (`extend_authority`: `web_search` with the web toggle on, `fork/routing/web_turn_scope.py`; read actions of the personal stores, `fork/routing/personal_read_grants.py`; calculator in Auto, `fork/routing/auto_mode.py`; on an approval continuation only the approved trusted-module tool, `fork/mcp/trust.py`) | grants that need no exact wording | yes, with discussion (calculator: no) |
 | `routes/chat_routes.py` | after `_successful_session_tool_names` | `fork/mcp/trust.py` | follow-ups keep a used module's tools | yes |
-| `routes/chat_routes.py` | after `resolve_turn_contract` | `fork/routing/skill_invocation.py` (`pin_skill_contract`; also runs `fork/routing/module_turn_scope.py`) | pin a slash skill's tools | yes |
-| `routes/chat_routes.py` | after `resolve_turn_contract` | `fork/routing/auto_mode.py` | offer the calculator in Auto | no |
-| `routes/chat_routes.py` | after the final turn policy | `fork/routing/offered_reads.py` | read grants for every offered personal store | yes, with discussion |
+| `routes/chat_routes.py` | after `resolve_turn_contract` | `fork/routing/turn_policy.py` (`extend_contract`: a slash skill's tools, `fork/routing/skill_invocation.py`, or a module question's, `fork/routing/module_turn_scope.py`; then the calculator in Auto, `fork/routing/auto_mode.py`) | pin a slash skill's tools, offer module tools and the calculator | yes (calculator: no) |
+| `routes/chat_routes.py` | after the final turn policy | `fork/routing/turn_policy.py` (`admit_offered_reads`: `fork/routing/offered_reads.py`) | read grants for every offered personal store | yes, with discussion |
 | `routes/codex_routes.py` | `list_todos` | `fork/hub/codex_todos_json.py` | `format=json` | yes |
 | `scripts/verify_frontend_runtime.py` | folders copied into the isolated runtime | none | copy `fork/` too | no |
 | `scripts/verify_notes_browser_runtime.py` | folders copied into the isolated runtime | none | copy `fork/` too | no |
@@ -271,8 +267,9 @@ moving or deleting a fork file.
 
 The fork's Python code lives in the `fork/` package, apart from upstream's `src/` and
 `routes/`: `fork/mcp/` (MCP client fixes), `fork/routing/` (what a turn is offered and
-granted), `fork/athena/` (the Athena module in the hub, its routes included; `fork/athena/client.py`
-is the one way the fork calls Athena, MCP tools and HTTP routes alike),
+granted; `turn_policy.py` is what the chat route's hooks call), `fork/athena/` (the
+Athena module in the hub, its routes included; `fork/athena/client.py` is the one way the
+fork calls Athena, MCP tools and HTTP routes alike),
 `fork/beliefs/`, `fork/insight/`, `fork/ink/`, `fork/hub/` (fixes to upstream's own
 features), `fork/routes/` (the other route files; `fork.routes.mount` includes all the
 fork's routers) and `fork/common/` (shared helpers). `fork/tasks.py` is the table of the

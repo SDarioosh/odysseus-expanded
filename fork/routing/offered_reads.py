@@ -15,7 +15,8 @@ read-only actions (upstream's ``_PRIVATE_ACTION_READS``: ``list_events``,
 ``list``, ``search``, ``view`` ...). Writes (create, edit, delete, run) still
 need the request words or an approval. ``offered_read_tools`` says what counts
 as offered; user, owner, global, incognito and plan-mode disables still win.
-Hook: ``routes/chat_routes.py``, after the final turn policy.
+Hook: ``routes/chat_routes.py``, after the final turn policy, through
+``admit_offered_reads`` in ``fork/routing/turn_policy.py``.
 """
 
 from __future__ import annotations
@@ -35,10 +36,10 @@ OFFERED_READ_TOOLS = frozenset({
 
 
 def read_actions(tool: str) -> frozenset[str]:
-    from fork.upstream import private_action_reads
+    from fork.routing.personal_read_grants import store_read_actions
     if tool not in OFFERED_READ_TOOLS:
         return frozenset()
-    return frozenset(private_action_reads().get(tool, ()))
+    return store_read_actions(tool)
 
 
 def _merged_grant(grant, reads):

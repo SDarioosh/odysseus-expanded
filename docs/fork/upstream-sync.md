@@ -48,8 +48,11 @@ Merge, don't rebase: `barvis` is shared history.
 - `src/agent_loop.py`: hook in `_web_search_unavailable_for_turn`; four
   `skill_mcp_toolsets` hooks where `requires_toolsets` is used (active skills, the
   skill-aware tool include, the skill index gate, the `manage_skills view` unlock).
-- `routes/chat_routes.py`: `pin_skill_contract` right after `resolve_turn_contract` in
-  `chat_stream`. If upstream moves contract resolution, the hook goes after it.
+- `routes/chat_routes.py`: the turn-policy hooks in `chat_stream`
+  (`fork/routing/turn_policy.py`, listed in FORK.md), each tied to the upstream step it
+  follows: `_classify_tool_intent`, the chat→agent escalation, the request authority,
+  `resolve_turn_contract` and the final turn policy. If upstream moves one of those
+  steps, its hook moves with it.
 - `services/memory/skills.py`: managed-skill check in `index_for`.
 - `routes/skills_routes.py` (no hook): `tests/fork/test_skill_mcp_toolsets.py` fails if the
   invoke message format changes; update `INVOKE_PREFIX` in `src/skill_invocation.py`.

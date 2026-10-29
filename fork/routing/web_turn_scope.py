@@ -18,7 +18,8 @@ Upstream decides which tools a turn may run from the words of the message
    ``web_search`` grant. Only ``web_search``: no fetch or browser, so a search
    result can't steer the model to an arbitrary URL. Toggle off, policy and
    per-tool disables still win.
-   Hook: ``routes/chat_routes.py``, after the request authority is created.
+   Hook: ``routes/chat_routes.py``, after the request authority is created,
+   through ``extend_authority`` in ``fork/routing/turn_policy.py``.
 
 3. ``with_search_hit_fetch``: a turn that may search could not read any page
    the search found. "Compare the fanatik nex e1 pro and e1 max" got
