@@ -1,0 +1,8 @@
+{"people": [
+  {"id": 1, "name": "Sam Example", "aliases": ["Me"], "is_owner": true, "has_voice": true,
+   "conversations": 9, "first_seen": "2025-10-01", "last_seen": "2025-10-12"},
+  {"id": 3, "name": "Alice", "aliases": ["Ally"], "is_owner": false, "has_voice": true,
+   "conversations": 4, "first_seen": "2025-10-09", "last_seen": "2025-10-12"},
+  {"id": 4, "name": "Greta", "aliases": [], "is_owner": false, "has_voice": false,
+   "conversations": 1, "first_seen": "2025-10-09", "last_seen": "2025-10-09"}
+]}

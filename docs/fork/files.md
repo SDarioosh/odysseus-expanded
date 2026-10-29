@@ -161,12 +161,16 @@ Hooks in upstream files are listed in [FORK.md](../../FORK.md).
 
 ## tests/
 
+- `tests/fixtures/athena_contract/list_action_items.json`
+- `tests/fixtures/athena_contract/list_facts.json`
+- `tests/fixtures/athena_contract/list_people.json`
 - `tests/helpers/ink_notebooks_e2e.mjs`
 - `tests/helpers/ink_perf.mjs`
 - `tests/helpers/ink_pointer_e2e.mjs`
 - `tests/helpers/ink_review_e2e.mjs`
 - `tests/helpers/ink_view_harness.mjs`
 - `tests/test_agent_thinking_switch.py`
+- `tests/test_athena_contract_fixtures.py`
 - `tests/test_auto_mode.py`
 - `tests/test_belief_consolidation.py`
 - `tests/test_belief_eval.py`
