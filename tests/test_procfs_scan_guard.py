@@ -22,6 +22,7 @@ APP_TREES = (
     "core",
     "routes",
     "src",
+    "fork",  # Fork: the fork/ package (FORK.md)
     "services",
     "scripts",
     "mcp_servers",

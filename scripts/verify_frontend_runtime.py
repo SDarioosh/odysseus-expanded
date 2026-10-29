@@ -49,7 +49,7 @@ def main() -> int:
         target = Path(directory)
         for name in ("app.py", "HARNESS_VERSION"):
             shutil.copy2(ROOT / name, target / name)
-        for name in ("core", "routes", "src", "services", "resources", "mcp_servers", "companion", "config", "static", "scripts"):
+        for name in ("core", "routes", "src", "fork", "services", "resources", "mcp_servers", "companion", "config", "static", "scripts"):  # Fork: the fork/ package (FORK.md)
             shutil.copytree(ROOT / name, target / name, ignore=shutil.ignore_patterns("__pycache__", "node_modules", ".env", "secrets.env*", "*.db", "*.sqlite*"))
         # Reserve a non-listening port so initialization cannot reach a real store.
         chroma_guard.bind(("127.0.0.1", 0))

@@ -200,9 +200,12 @@ to be offered) upstream, "with discussion" a change upstream may want in another
 | `routes/chat_routes.py` | after `resolve_turn_contract` | `fork/routing/auto_mode.py` | offer the calculator in Auto | no |
 | `routes/chat_routes.py` | after the final turn policy | `fork/routing/offered_reads.py` | read grants for every offered personal store | yes, with discussion |
 | `routes/codex_routes.py` | `list_todos` | `fork/hub/codex_todos_json.py` | `format=json` | yes |
+| `scripts/verify_frontend_runtime.py` | folders copied into the isolated runtime | none | copy `fork/` too | no |
+| `scripts/verify_notes_browser_runtime.py` | folders copied into the isolated runtime | none | copy `fork/` too | no |
 | `scripts/generate_env_reference.py` | `SOURCE_ROOTS` | none | walk `fork/` too, so the fork's settings stay in the reference | no |
 | `scripts/generate_env_reference.py` | `VARIABLE_NOTES` (two places) | none | notes for the fork's `ODYSSEUS_*` variables | with the trusted read-only change |
 | `website/configuration-reference.md` | generated | none | regenerated with those notes | with the trusted read-only change |
+| `tests/test_procfs_scan_guard.py` | `APP_TREES` | none | scan `fork/` too | no |
 | `services/memory/memory_extractor.py` | `audit_memories` (two places) | `fork/beliefs/consolidation.py` | sourced memories skip the audit and are put back unchanged | no |
 | `services/memory/skills.py` | `SkillsManager.index_for` (two places) | `fork/routing/skill_invocation.py` | managed skills skip the audit gates | with discussion |
 | `src/agent_loop.py` | `_web_search_unavailable_for_turn` | `fork/mcp/trust.py` | no "web disabled" reply while trusted MCP tools are on | yes |
