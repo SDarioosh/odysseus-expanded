@@ -125,7 +125,7 @@ curl -s -b $J -X POST $B/api/model-endpoints -F name=sandbox-llama \
 curl -s -b $J -X POST $B/api/mcp/servers -F name=convo -F transport=http \
   -F "url=http://127.0.0.1:8001/mcp?access_token=$CONVO_MCP_TOKEN"
 INSTR=$(cd $SOUND/server && .venv/bin/python -c \
-  "import json; from convo_server.mcp_server import INSTRUCTIONS; print(json.dumps(INSTRUCTIONS))")
+  "import json; from athena.mcp_server import INSTRUCTIONS; print(json.dumps(INSTRUCTIONS))")
 curl -s -b $J -X POST $B/api/presets/custom -H 'content-type: application/json' \
   -d "{\"system_prompt\": $INSTR, \"temperature\": 0.3, \"max_tokens\": 2048}"
 # after the Custom preset: setup copies its text into the /athena skill (an empty

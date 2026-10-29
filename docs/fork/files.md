@@ -22,6 +22,10 @@ is an old path of a module that moved into `fork/`; it only aliases the new modu
 
 - `.agents/rules/antigravity.md`
 
+## .github/
+
+- `.github/workflows/fork-upstream-drift.yml`
+
 ## docker/
 
 - `docker/fork.override.yml`
@@ -62,6 +66,10 @@ is an old path of a module that moved into `fork/`; it only aliases the new modu
 - `fork/__init__.py`
 - `fork/athena/__init__.py`
 - `fork/athena/action_items.py`
+- `fork/athena/action_items_filing.py`
+- `fork/athena/action_items_lists.py`
+- `fork/athena/action_items_push.py`
+- `fork/athena/action_items_state.py`
 - `fork/athena/call_recorder.py`
 - `fork/athena/client.py`
 - `fork/athena/facts.py`
@@ -81,6 +89,13 @@ is an old path of a module that moved into `fork/`; it only aliases the new modu
 - `fork/beliefs/evidence_intake.py`
 - `fork/beliefs/export.py`
 - `fork/beliefs/forget.py`
+- `fork/beliefs/ledger_db.py`
+- `fork/beliefs/ledger_memory.py`
+- `fork/beliefs/ledger_model.py`
+- `fork/beliefs/ledger_reads.py`
+- `fork/beliefs/ledger_rows.py`
+- `fork/beliefs/ledger_structure.py`
+- `fork/beliefs/ledger_subjects.py`
 - `fork/beliefs/move.py`
 - `fork/beliefs/notes_evidence.py`
 - `fork/beliefs/search.py`
@@ -107,6 +122,11 @@ is an old path of a module that moved into `fork/`; it only aliases the new modu
 - `fork/insight/push.py`
 - `fork/insight/routines.py`
 - `fork/insight/today.py`
+- `fork/insight/today_candidates.py`
+- `fork/insight/today_context.py`
+- `fork/insight/today_gather.py`
+- `fork/insight/today_prompt.py`
+- `fork/insight/today_store.py`
 - `fork/insight/trends.py`
 - `fork/insight/weights.py`
 - `fork/mcp/__init__.py`
@@ -166,6 +186,7 @@ is an old path of a module that moved into `fork/`; it only aliases the new modu
 - `scripts/module_slash_eval.py`
 - `scripts/modules_setup.py`
 - `scripts/unfile_voice_note_todos.py`
+- `scripts/upstream_drift.py`
 
 ## src/
 
@@ -276,13 +297,17 @@ is an old path of a module that moved into `fork/`; it only aliases the new modu
 - `tests/fixtures/eval_goldens/module_slash_eval.help.txt`
 - `tests/fork/conftest.py`
 - `tests/fork/fakes.py`
+- `tests/fork/fixtures/action_items_characterization.json`
 - `tests/fork/fixtures/athena_callers.json`
 - `tests/fork/fixtures/background_model_calls.json`
+- `tests/fork/fixtures/ledger_characterization.json`
 - `tests/fork/fixtures/settings_readers.json`
 - `tests/fork/fixtures/state_files.json`
+- `tests/fork/fixtures/today_characterization.json`
 - `tests/fork/fixtures/turn_policy_decisions.json`
 - `tests/fork/fork_dom_golden.json`
 - `tests/fork/fork_views_look_golden.json`
+- `tests/fork/test_action_items_characterization.py`
 - `tests/fork/test_agent_thinking_switch.py`
 - `tests/fork/test_athena_callers.py`
 - `tests/fork/test_athena_client.py`
@@ -344,6 +369,7 @@ is an old path of a module that moved into `fork/`; it only aliases the new modu
 - `tests/fork/test_insight_routines.py`
 - `tests/fork/test_insight_trends.py`
 - `tests/fork/test_insight_weights.py`
+- `tests/fork/test_ledger_characterization.py`
 - `tests/fork/test_ledger_perf.py`
 - `tests/fork/test_log_redact.py`
 - `tests/fork/test_mcp_empty_answer.py`
@@ -374,9 +400,11 @@ is an old path of a module that moved into `fork/`; it only aliases the new modu
 - `tests/fork/test_state_files.py`
 - `tests/fork/test_subjects.py`
 - `tests/fork/test_summary_model_routes.py`
+- `tests/fork/test_today_characterization.py`
 - `tests/fork/test_today_insight.py`
 - `tests/fork/test_turn_policy.py`
 - `tests/fork/test_turn_policy_characterization.py`
+- `tests/fork/test_upstream_drift.py`
 - `tests/fork/test_vision_auto_detect.py`
 - `tests/fork/test_voice_enroll_routes.py`
 - `tests/fork/test_web_read_recovery.py`

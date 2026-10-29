@@ -51,7 +51,7 @@ in the hub. Test data is fictional; real pages are never put in issues, PRs or f
 | Notes as evidence | Daily "Notes Evidence" task reads plain notes' `content` and files facts in the ledger; already skips notes labelled `odysseus-sound` because their facts come from Athena | `src/notes_evidence.py` |
 | Athena facts and to-dos in the hub | Hourly fact sync (retires fact ids Athena no longer returns); action items filed or offered as suggestions | `src/module_facts.py`, `src/module_action_items.py` |
 | Vision model setting | `vision_model` is used for images when the chat model can't read them | `src/settings.py`, `src/chat_handler.py` |
-| Athena input | Audio only (`POST /v1/ingest/chunk`, and `/ingest/chunk` through the MCP HTTP app). A voice note (`kind="note"`) is one conversation of kind `note`, summarized with the note prompts (to-dos, facts, never discarded) | Athena `server/convo_server/api.py`, `pipeline.py` (`_assign_note`), `llm.py`, `ingest_relay.py` |
+| Athena input | Audio only (`POST /v1/ingest/chunk`, and `/ingest/chunk` through the MCP HTTP app). A voice note (`kind="note"`) is one conversation of kind `note`, summarized with the note prompts (to-dos, facts, never discarded) | Athena `server/athena/api.py`, `pipeline.py` (`_assign_note`), `summarize/`, `ingest_relay.py` |
 | PWA | Manifest and service worker (`static/sw.js`) | `static/manifest.json` |
 
 The gap: drawings are pictures. Nothing keeps the strokes, nothing reads the picture, and

@@ -98,24 +98,24 @@ ACTION_ITEMS_SERVER = _setting(
     "MODULE_ACTION_ITEMS_SERVER", "convo", "text",
     "The Athena MCP server (name or id) for to-dos, facts, today insight and the "
     "beliefs page; compared case-insensitively.",
-    used_in=("fork/athena/action_items.py", "fork/athena/client.py", "fork/athena/facts.py",
+    used_in=("fork/athena/action_items_state.py", "fork/athena/client.py", "fork/athena/facts.py",
              "fork/insight/today.py", "fork/mcp/session_recovery.py",
              "fork/routes/beliefs_routes.py"),
     old=("BARVIS_ACTION_ITEMS_SERVER",))
 NOTIFY_CHANNEL = _setting(
     "MODULE_NOTIFY_CHANNEL", "ntfy", "ntfy, browser or off",
     "Where Athena's to-do pushes go; anything else means ntfy.",
-    used_in=("fork/athena/action_items.py",), old=("BARVIS_NOTIFY_CHANNEL",))
+    used_in=("fork/athena/action_items_state.py",), old=("BARVIS_NOTIFY_CHANNEL",))
 DIGEST_HOUR = _setting(
     "MODULE_DIGEST_HOUR", "8", "hour 0-23 or off",
     "Local hour after which the daily pushes go out, and the time of to-dos with a date "
     "only; off or none: no daily pushes. Out of range is clamped; not a number: 8.",
-    used_in=("fork/athena/action_items.py",), old=("BARVIS_DIGEST_HOUR",))
+    used_in=("fork/athena/action_items_state.py",), old=("BARVIS_DIGEST_HOUR",))
 FILE_ITEMS = _setting(
     "MODULE_FILE_ITEMS", "explicit", "explicit, auto or off",
     "Which voice-note items are filed as to-dos and events: explicit ones, all (auto "
     "or all) or none (off, no, false, 0).",
-    used_in=("fork/athena/action_items.py",), old=("BARVIS_FILE_ITEMS",))
+    used_in=("fork/athena/action_items_state.py",), old=("BARVIS_FILE_ITEMS",))
 FACTS_SYNC = _setting(
     "MODULE_FACTS_SYNC", "on", "on/off",
     "Copy Athena's confirmed facts into the belief ledger.",
@@ -134,18 +134,18 @@ CALL_DEVICE = _setting(
 # Beliefs (docs/fork/beliefs.md)
 CONFIRM_SOURCES = _setting(
     "BELIEF_CONFIRM_SOURCES", "2", "integer >= 1",
-    "Distinct sources that confirm a belief.", used_in=("fork/beliefs/evidence_intake.py",))
+    "Distinct sources that confirm a belief.", used_in=("fork/beliefs/ledger_model.py",))
 CONFIRM_TIMES = _setting(
     "BELIEF_CONFIRM_TIMES", "3", "integer >= 1",
     "Sightings that confirm a belief (with BELIEF_CONFIRM_DAYS).",
-    used_in=("fork/beliefs/evidence_intake.py",))
+    used_in=("fork/beliefs/ledger_model.py",))
 CONFIRM_DAYS = _setting(
     "BELIEF_CONFIRM_DAYS", "2", "integer >= 1",
-    "Distinct days those sightings must span.", used_in=("fork/beliefs/evidence_intake.py",))
+    "Distinct days those sightings must span.", used_in=("fork/beliefs/ledger_model.py",))
 STALE_DAYS = _setting(
     "BELIEF_STALE_DAYS", "180", "integer >= 1",
     "Days without a sighting after which a belief goes stale.",
-    used_in=("fork/beliefs/evidence_intake.py",))
+    used_in=("fork/beliefs/ledger_model.py",))
 CONSOLIDATE = _setting(
     "BELIEF_CONSOLIDATE", "on", "on/off",
     "Merge beliefs that say the same thing.", used_in=("fork/beliefs/consolidation.py",))
@@ -168,7 +168,7 @@ TODAY_INSIGHT = _setting(
 SKIP_LISTS = _setting(
     "TODAY_INSIGHT_SKIP_LISTS", "Shopping,Groceries,Grocery", "comma-separated list titles",
     "Lists left out of the insight unless the note has a due date; empty: none.",
-    used_in=("fork/insight/today.py",), empty_is_unset=False, passed=PASS_BARE)
+    used_in=("fork/insight/today_candidates.py",), empty_is_unset=False, passed=PASS_BARE)
 INSIGHT_PUSH = _setting(
     "TODAY_INSIGHT_PUSH", "off", "on/off",
     "Push the daily insight to the phone.", used_in=("fork/insight/push.py",))

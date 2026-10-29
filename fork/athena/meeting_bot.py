@@ -75,7 +75,8 @@ MAX_PASTE_CHARS = 4096  # an address with a code and a state; an invite never go
 JOIN_TOKENS = ("obf", "zak", "none")
 _SETTING = re.compile(r"^[A-Z][A-Z0-9_]{0,63}$")
 
-# The same rules as Athena's launcher (convo_server/meetings.py parse_zoom_link).
+# The same rules as Athena's launcher (server/athena/meetings/bot/launcher.py
+# parse_zoom_link).
 _ZOOM_HOST = re.compile(r"^(?:[a-z0-9](?:[a-z0-9-]{0,61}[a-z0-9])?\.)*zoom\.us$")
 # zoomgov.com too, so a schemeless zoomgov link gets its own refusal below (QA BUG-25).
 _NO_SCHEME = re.compile(r"^([a-z0-9-]+\.)*zoom(?:\.us|gov\.com)/", re.IGNORECASE)

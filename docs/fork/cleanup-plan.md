@@ -101,3 +101,15 @@ the hub lanes and the rules that are specific to this repo.
   windows, the five pages, the app and upstream's Notes pane: identical before and after in
   Chromium (desktop and phone, dark and light); only the pages' html and body classes and
   the stylesheet link differ.
+- **4C done (branch `feature/cleanup-4c`, 2026-10-29):** `fork/beliefs/evidence_intake.py`,
+  `fork/athena/action_items.py` and `fork/insight/today.py` each keep their core (intake
+  and owner actions; the task's passes and page actions; the insight's pass) and re-export
+  every name they had; the rest moved unchanged into `ledger_*`, `action_items_*` and
+  `today_*` modules beside them (FORK.md, "Fork files"). The stored names stay, each in one
+  module: `MODULE_SOURCE` in `ledger_model.py`, the action id, note label, state file and
+  calendar uid input in `action_items_state.py`, `MEMORY_SOURCE` in `today_candidates.py`.
+  `tests/fork/test_{ledger,action_items,today}_characterization.py`, recorded on the old
+  code, pin the ledger schema (fresh and migrated), what each call returns and writes, and
+  the names each module offers. CI reports upstream drift
+  (`.github/workflows/fork-upstream-drift.yml`, `scripts/upstream_drift.py`; report only).
+  The `src/`/`routes/` shims of 2E stay: Phase 4 keeps old import paths working.

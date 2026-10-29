@@ -9,7 +9,7 @@
 
 Odysseus reaches the module only through the MCP server's HTTP routes
 (``/settings/vocabulary``, behind its MCP token; ``src/call_recorder.py``), never its
-storage. Module side: ``server/convo_server/vocabulary.py`` in Athena.
+storage. Module side: ``server/athena/vocabulary.py`` in Athena.
 """
 
 from __future__ import annotations

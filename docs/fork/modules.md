@@ -50,7 +50,7 @@ Registered modules:
   uses the query form: `http://<host>:<port>/mcp?access_token=<token>`.
 - Compare tokens in constant time. Use a token separate from any device/ingest token.
   Reference implementation: `BearerAuth` in Athena's
-  `server/convo_server/mcp_server.py`.
+  `server/athena/mcp_server.py`.
 
 ### Tool naming and descriptions
 
@@ -101,7 +101,7 @@ finds them among Odysseus' ~130 tools. Mechanism: an Odysseus skill whose
 What the module ships:
 
 - **The skill text is the module's MCP `instructions`.** The module owns it, in its
-  own repo (Athena: `INSTRUCTIONS` in `server/convo_server/mcp_server.py`). Write
+  own repo (Athena: `INSTRUCTIONS` in `server/athena/mcp_server.py`). Write
   it so it works as a procedure: which tool for which question, dates as
   `YYYY-MM-DD`, and "put the link next to each fact". Paragraphs or list items become
   the skill's procedure steps.
