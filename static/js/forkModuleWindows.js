@@ -1,23 +1,24 @@
 // Fork: the Athena Records (conversations) and Meetings views and the Today view as Odysseus windows.
-// Loaded by one hook in static/index.html. The sidebar entries stay plain links to the
-// standalone pages (/modules/sound, /today), which still work on their own; here a
-// normal click opens the view in a tool window instead, so the chat and other windows
-// stay put. The windows use upstream's window machinery: dragging, resizing and snapping
+// Loaded by one hook in static/index.html (its script tag). Adds the five sidebar entries
+// (Records, Meetings, Today, Write, Wisdom, in that order after upstream's Notes entry);
+// those with a standalone page (/modules/sound, /modules/sound/record, /today, /beliefs)
+// are plain links to it, which still works on its own; here a normal click opens the view
+// in a tool window instead, so the chat and other windows stay put.
+// The windows use upstream's window machinery: dragging, resizing and snapping
 // (windowDrag.js), minimize to a dock chip and stacking (modalManager.js), Esc and the
 // mobile bottom sheet (the generic .modal rules). Also adds the rail buttons, and
 // opens the Records reader for links to a module transcript moment
 // (<CONVO_PUBLIC_URL>/view/<id>?sig=…#t=<s>) clicked in chat.
 //
-// Meetings (static/js/forkMeetings.js: record a call, send Athena to a meeting) has its
-// sidebar entry added here, after Records; it is a link to its standalone page
-// (/modules/sound/record) like the entries in index.html.
+// Meetings (static/js/forkMeetings.js: record a call, send Athena to a meeting) comes after
+// Records.
 //
-// Beliefs ("What I know about you", static/js/forkBeliefsWindow.js) opens as a window too;
-// its sidebar entry stays the link in index.html. All of these sit in the sidebar's
-// collapsible "Athena" group above Tools (static/js/forkAthenaMenu.js).
+// Beliefs ("What I know about you", static/js/forkBeliefsWindow.js), the Wisdom entry, opens
+// as a window too. All of these sit in the sidebar's collapsible "Athena" group above Tools
+// (static/js/forkAthenaMenu.js).
 //
-// Write (handwritten notes, static/js/forkInk.js) has no standalone page and no entry in
-// index.html: its sidebar entry is added here, after Today. Its code and stylesheet are
+// Write (handwritten notes, static/js/forkInk.js) has no standalone page, so its entry is a
+// button, not a link; it comes after Today. Its code and stylesheet are
 // loaded in idle time after the app starts, so a service worker that controls the app
 // page caches them for an offline start (static/sw.js is left alone; today its scope is
 // /static/, see open question 4 in docs/fork/handwritten-notes.md). Handwritten notes are
@@ -33,6 +34,9 @@ const STYLESHEET = '/static/css/fork-modules.css';
 const INK_SCRIPT = './forkInk.js';
 const INK_STYLESHEET = '/static/css/fork-ink.css';
 
+// Upstream's Notes entry in the sidebar's Tools list: the fork's entries go after it.
+const NOTES_ENTRY = 'tool-notes-btn';
+
 const ICON_16 = (svg) => svg.replace('width="14" height="14"', 'width="16" height="16"');
 
 const WINDOWS = {
@@ -41,6 +45,7 @@ const WINDOWS = {
     title: 'Records',
     sidebarBtn: 'tool-sound-module-btn',
     railBtn: 'rail-sound-module',
+    href: '/modules/sound',
     icon: FORK_SHORTCUT_ICONS.open_conversations,
     async mount(body, win) {
       const { mountSoundModule } = await import('./soundModule.js');
@@ -69,6 +74,7 @@ const WINDOWS = {
     title: 'Today',
     sidebarBtn: 'tool-today-insight-btn',
     railBtn: 'rail-today-insight',
+    href: '/today',
     icon: FORK_SHORTCUT_ICONS.open_today,
     async mount(body) {
       const { mountToday } = await import('./today.js');
@@ -80,6 +86,7 @@ const WINDOWS = {
     title: 'Wisdom',
     sidebarBtn: 'tool-beliefs-btn',
     railBtn: 'rail-beliefs',
+    href: '/beliefs',
     icon: FORK_SHORTCUT_ICONS.open_beliefs,
     async mount(body) {
       const { mountBeliefs } = await import('./forkBeliefsWindow.js');
@@ -262,8 +269,9 @@ function addRailButton(win, after) {
   return btn;
 }
 
-// The Meetings and Write sidebar entries, styled like the entries around them. With an
-// href the entry is a link (a modified click opens the standalone page), else a button.
+// A sidebar entry, styled like upstream's entries around it. With an href the entry is a
+// link (a modified click opens the standalone page), else a button. An entry already on
+// the page (an index.html from before the entries moved here) is kept.
 function addSidebarEntry(win, after) {
   if (document.getElementById(win.sidebarBtn)) return;
   const anchor = document.getElementById(after);
@@ -344,8 +352,11 @@ function wireTranscriptLinks() {
 
 function init() {
   loadStylesheet();
+  addSidebarEntry(WINDOWS.sound, NOTES_ENTRY);
   addSidebarEntry(WINDOWS.meetings, WINDOWS.sound.sidebarBtn);
+  addSidebarEntry(WINDOWS.today, WINDOWS.meetings.sidebarBtn);
   addSidebarEntry(WINDOWS.ink, WINDOWS.today.sidebarBtn);
+  addSidebarEntry(WINDOWS.beliefs, WINDOWS.ink.sidebarBtn);
   buildAthenaMenu([WINDOWS.sound.sidebarBtn, WINDOWS.meetings.sidebarBtn, WINDOWS.today.sidebarBtn,
                    WINDOWS.ink.sidebarBtn, WINDOWS.beliefs.sidebarBtn]);
   for (const win of Object.values(WINDOWS)) wireSidebar(win);

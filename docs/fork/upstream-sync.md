@@ -60,8 +60,8 @@ Merge, don't rebase: `barvis` is shared history.
 - `src/mcp_manager.py`: one line in `_connect_http` that keeps tool `annotations`.
 - `src/task_scheduler.py`: the `register_housekeeping` hooks after `HOUSEKEEPING_DEFAULTS`
   and the built-in task authority hook in `_execute_action`.
-- `static/index.html`: the fork's sidebar links (Conversations, Today, and the other
-  module pages).
+- `static/index.html`: the fork's script tags at the end of the body (the sidebar entries
+  are added by `static/js/forkModuleWindows.js`).
 
 Before merging, list the files both sides changed since the last sync; those are where
 conflicts can happen:
