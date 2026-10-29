@@ -24,7 +24,7 @@ from fastapi.responses import JSONResponse
 from pydantic import BaseModel, Field
 
 from core.middleware import require_admin
-from src import call_recorder as rec
+from fork.athena import call_recorder as rec
 
 PATH = "/settings/llm"
 OLD_MODULE = ("This version of Athena can't change its summary model from here yet: update "

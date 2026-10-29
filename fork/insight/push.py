@@ -44,7 +44,7 @@ def enabled() -> bool:
 
 def is_empty(insight: dict) -> bool:
     """The fixed insight written without the model when nothing is due."""
-    from src.today_insight import EMPTY_HEADLINE, SECTIONS
+    from fork.insight.today import EMPTY_HEADLINE, SECTIONS
 
     return (str(insight.get("headline") or "").strip() == EMPTY_HEADLINE
             and not any(insight.get(s) for s in SECTIONS))
@@ -54,7 +54,7 @@ def message(insight: dict, outcome: dict | None = None) -> tuple[str, str]:
     """(title, body): the headline, then ``First: <title>`` when focus has a row."""
     ordered = insight
     try:
-        from src import insight_outcomes
+        from fork.insight import outcomes as insight_outcomes
 
         ordered = insight_outcomes.apply_owner_order(insight, outcome) or insight
     except Exception as e:  # noqa: BLE001 -- the model's order then
@@ -71,26 +71,26 @@ def message(insight: dict, outcome: dict | None = None) -> tuple[str, str]:
 # ------------------------------------------------------------ pushed / tries state
 # The outcome log keeps the ``pushed`` stamp and ``push_tries`` (src/insight_outcomes.py).
 def _pushed(owner: str | None, day: str) -> Any:
-    from src import insight_outcomes
+    from fork.insight import outcomes as insight_outcomes
 
     return insight_outcomes.pushed(owner, day)
 
 
 def _note_try(owner: str | None, day: str) -> int:
     """Count one try today; returns today's count including this one."""
-    from src import insight_outcomes
+    from fork.insight import outcomes as insight_outcomes
 
     return int(insight_outcomes.note_push_try(owner, day) or 0)
 
 
 def _mark_pushed(owner: str | None, day: str, now: datetime) -> None:
-    from src import insight_outcomes
+    from fork.insight import outcomes as insight_outcomes
 
     insight_outcomes.mark_pushed(owner, day, now=now)
 
 
 def _outcome(owner: str | None, day: str) -> dict | None:
-    from src import insight_outcomes
+    from fork.insight import outcomes as insight_outcomes
 
     try:
         return insight_outcomes.load(owner, day)
@@ -105,8 +105,8 @@ async def maybe_push(owner: str | None, insight: dict, *, now: datetime | None =
     """Push today's insight once a day when the conditions above hold. True when sent."""
     if not enabled() or not isinstance(insight, dict):
         return False
-    from src import module_action_items as mai
-    from src import today_insight
+    from fork.athena import action_items as mai
+    from fork.insight import today as today_insight
 
     if mai.notify_channel() == "off":
         return False
@@ -123,7 +123,7 @@ async def maybe_push(owner: str | None, insight: dict, *, now: datetime | None =
     if _pushed(owner, day):
         return False
     title, body = message(insight, _outcome(owner, day))
-    from src import insight_outcomes
+    from fork.insight import outcomes as insight_outcomes
 
     if not body or insight_outcomes.push_tries(owner, day) >= MAX_TRIES:
         return False

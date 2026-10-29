@@ -67,7 +67,7 @@ import uuid
 import weakref
 from typing import Any, Awaitable, Callable
 
-from src import ink_notes as ink
+from fork.ink import notes as ink
 
 logger = logging.getLogger(__name__)
 
@@ -471,7 +471,7 @@ def resolve_model(owner: str | None) -> list[tuple[str, str, dict]]:
     from src.chat_helpers import model_supports_vision
     from src.endpoint_resolver import resolve_endpoint
 
-    from src.vision_auto_detect import auto_detect_vision_model
+    from fork.hub.vision_auto_detect import auto_detect_vision_model
 
     found = auto_detect_vision_model(owner, local_only=True)
     if found:
@@ -545,7 +545,7 @@ def auto_acceptable(text: str | None) -> bool:
     """Machine text that auto-send may accept without review: words Athena would take
     (not empty, not only control characters), no ``[?]``, and not cut at
     ``MAX_PAGE_TEXT``."""
-    from src.ink_athena import has_words  # imports this module
+    from fork.ink.athena import has_words  # imports this module
 
     return (isinstance(text, str) and UNREADABLE not in text and len(text) < MAX_PAGE_TEXT
             and has_words(text))
@@ -676,7 +676,7 @@ def transcripts(owner: str | None, note_id: str) -> dict[str, Any]:
     with ink._lock(store):
         stored = _load(store, note_id)
     pages = [page_view(p, i) for i, p in enumerate(stored["pages"])]
-    from src import ink_athena  # H4: sent / changed / not sent, pages waiting (imports this)
+    from fork.ink import athena as ink_athena  # H4: sent / changed / not sent, pages waiting (imports this)
 
     return {"note_id": note_id, "pages": pages,
             "running": any(p["status"] == "pending" for p in pages),
@@ -796,7 +796,7 @@ async def _run(store: str | None, note_id: str, job: str,
         if not marked.is_set():  # nothing accepted: never sends
             return
         try:
-            from src import ink_athena  # imports this module
+            from fork.ink import athena as ink_athena  # imports this module
 
             await ink_athena.auto_send(owner, note_id, request_base=request_base)
         except Exception as exc:  # noqa: BLE001 -- the owner can still Send by hand

@@ -65,7 +65,7 @@ def with_unclassified_web_search(authority, *, web_search_enabled: bool,
     if authority is None or not web_search_enabled:
         return authority
     from src.agent_runtime.authority import OperationGrant, canonical_tool
-    from src.mcp_trust import trusted_readonly_mcp_tools
+    from fork.mcp.trust import trusted_readonly_mcp_tools
 
     tool = canonical_tool("web_search")
     granted = _granted_tools(authority)
@@ -91,7 +91,7 @@ def _search_hit(security_context, url: str) -> bool:
     """``url`` is a web_search hit of this run, or a short clean page on a hit's site."""
     from urllib.parse import urlsplit
 
-    from src.auto_mode import (
+    from fork.routing.auto_mode import (
         _MAX_SEARCH_SITE_PATH, _host, _loose, _state, normalize_url, public_host, same_site,
     )
     normalized = normalize_url(url)
@@ -123,7 +123,7 @@ def with_search_hit_fetch(authority, operation, security_context,
             or search in authority.denied
             or search not in _granted_tools(authority)):
         return authority, False
-    from src.auto_mode import fetch_urls
+    from fork.routing.auto_mode import fetch_urls
     urls = fetch_urls(operation.input)
     if not urls or not all(_search_hit(security_context, u) for u in urls):
         return authority, False

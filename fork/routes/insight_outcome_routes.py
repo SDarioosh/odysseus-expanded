@@ -18,7 +18,7 @@ from fastapi import APIRouter, Depends, HTTPException, Request
 from pydantic import BaseModel, Field
 
 from core.middleware import require_admin
-from src import insight_outcomes as io
+from fork.insight import outcomes as io
 from src.auth_helpers import effective_user
 
 

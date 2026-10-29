@@ -21,7 +21,7 @@ from fastapi.responses import JSONResponse
 from pydantic import BaseModel, Field
 
 from core.middleware import require_admin
-from src import call_recorder as rec
+from fork.athena import call_recorder as rec
 
 PATH = "/settings/vocabulary"
 OLD_MODULE = ("This version of Athena can't take a vocabulary from here yet: update "

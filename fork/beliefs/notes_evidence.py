@@ -43,8 +43,8 @@ from datetime import datetime, timezone
 from pathlib import Path
 from typing import Any, Awaitable, Callable, Iterable
 
-from src import belief_consolidation as consolidation
-from src import evidence_intake as ledger
+from fork.beliefs import consolidation
+from fork.beliefs import evidence_intake as ledger
 
 logger = logging.getLogger(__name__)
 

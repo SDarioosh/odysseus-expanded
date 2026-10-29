@@ -46,7 +46,7 @@ def _int(value: Any) -> int:
 
 def _insight_days(owner: str | None, since: Date, until: Date) -> dict[str, dict]:
     """The insight files of the days from ``since`` to ``until``, by day."""
-    from src import today_insight as ti
+    from fork.insight import today as ti
 
     folder = ti.insight_path(owner, "2000-01-01").parent
     try:
@@ -77,7 +77,7 @@ def trends(owner: str | None, today: Date, weeks: int = DEFAULT_WEEKS) -> dict:
     """``{"weeks": [{"week", "start", "insights", "votes_up", "votes_down", "shown",
     "done", "promoted", "dismissed", "moved", "ignored"}]}``, the week of ``today`` first,
     ``weeks`` (1–26) weeks in all."""
-    from src import insight_outcomes
+    from fork.insight import outcomes as insight_outcomes
 
     weeks = max(1, min(MAX_WEEKS, int(weeks)))
     newest = _week_start(today)

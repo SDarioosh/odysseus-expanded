@@ -25,8 +25,8 @@ import re
 from collections.abc import Iterable
 from typing import Any
 
-from src import evidence_intake as ledger
-from src import module_facts as mf
+from fork.beliefs import evidence_intake as ledger
+from fork.athena import facts as mf
 
 logger = logging.getLogger(__name__)
 

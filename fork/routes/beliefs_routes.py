@@ -64,8 +64,8 @@ from fastapi.responses import JSONResponse, Response
 from pydantic import BaseModel
 
 from core.middleware import require_admin
-from src import evidence_intake as ledger
-from src import module_facts as mf
+from fork.beliefs import evidence_intake as ledger
+from fork.athena import facts as mf
 from src.auth_helpers import effective_user
 
 logger = logging.getLogger(__name__)
@@ -159,7 +159,7 @@ def module_caller() -> mf.CallTool | None:
 async def forget(owner: str, belief_id: int, reason: str = "") -> dict[str, Any]:
     """Forget completely (``src/belief_forget.py``): rejected and erased here, the facts
     behind it erased in the module; module problems are counted, never raised."""
-    from src import belief_forget
+    from fork.beliefs import forget as belief_forget
 
     return await _found_async(
         belief_forget.forget(owner, belief_id, reason, call=module_caller(),
@@ -169,7 +169,7 @@ async def forget(owner: str, belief_id: int, reason: str = "") -> dict[str, Any]
 async def dismiss(owner: str, belief_id: int, reason: str = "") -> dict[str, Any]:
     """Dismiss (``src/belief_forget.py``): rejected here, the facts behind it retired in
     the module; nothing erased."""
-    from src import belief_forget
+    from fork.beliefs import forget as belief_forget
 
     return await _found_async(
         belief_forget.dismiss(owner, belief_id, reason, call=module_caller(),
@@ -234,7 +234,7 @@ def setup_beliefs_routes() -> APIRouter:
     # Export (4.2): one JSON download, built per request, never stored or sent elsewhere.
     @router.get("/api/beliefs/export", dependencies=admin)
     async def export(request: Request) -> Response:
-        from src import belief_export
+        from fork.beliefs import export as belief_export
 
         try:
             data = belief_export.build(_owner(request))
@@ -339,7 +339,7 @@ def setup_beliefs_routes() -> APIRouter:
 
     @router.post("/api/beliefs/{belief_id:int}/move", dependencies=admin)
     async def move_one(request: Request, belief_id: int, body: Move) -> dict[str, Any]:
-        from src import belief_move
+        from fork.beliefs import move as belief_move
 
         try:
             return await _found_async(belief_move.move(

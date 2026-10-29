@@ -49,7 +49,7 @@ _FINAL: dict[str, set[str]] = {}
 
 
 def _ti():
-    from src import today_insight
+    from fork.insight import today as today_insight
 
     return today_insight
 

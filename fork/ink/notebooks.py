@@ -29,7 +29,7 @@ from datetime import datetime, timezone
 from pathlib import Path
 from typing import Any, Iterable
 
-from src import ink_notes as ink
+from fork.ink import notes as ink
 
 VERSION = 1
 MAX_NAME = 120

@@ -38,7 +38,7 @@ from datetime import datetime, timedelta, timezone
 from pathlib import Path
 from typing import Any
 
-from src import meeting_bot
+from fork.athena import meeting_bot
 
 logger = logging.getLogger(__name__)
 

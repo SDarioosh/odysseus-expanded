@@ -15,8 +15,8 @@ from __future__ import annotations
 from fastapi import APIRouter, Depends, HTTPException, Request
 
 from core.middleware import require_admin
-from src import belief_search
-from src import evidence_intake as ledger
+from fork.beliefs import search as belief_search
+from fork.beliefs import evidence_intake as ledger
 from src.auth_helpers import effective_user
 
 MAX_K = 50

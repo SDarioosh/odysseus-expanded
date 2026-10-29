@@ -46,8 +46,8 @@ from fastapi.responses import JSONResponse
 from pydantic import BaseModel, Field
 
 from core.middleware import require_admin
-from src import call_recorder as rec
-from src import phone_pairing as pairing
+from fork.athena import call_recorder as rec
+from fork.athena import phone_pairing as pairing
 from src.auth_helpers import effective_user
 
 logger = logging.getLogger(__name__)

@@ -833,7 +833,7 @@ async def _archive_if_empty(owner: str, ref: str) -> None:
     """The "Voice notes" list whose last line was taken off is archived (unless pinned);
     the next undated task starts a new one. Finished lists wait for
     src/checklist_auto_archive.py; an empty one would stay forever."""
-    from src.checklist_auto_archive import is_empty
+    from fork.hub.checklist_auto_archive import is_empty
     from src.tools.notes import do_manage_notes
 
     note = _note(owner, ref)

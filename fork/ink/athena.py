@@ -63,9 +63,9 @@ from urllib.parse import urlsplit, urlunsplit
 
 import httpx
 
-from src import call_recorder as rec
-from src import ink_notes as ink
-from src import ink_transcribe as tr
+from fork.athena import call_recorder as rec
+from fork.ink import notes as ink
+from fork.ink import transcribe as tr
 
 logger = logging.getLogger(__name__)
 

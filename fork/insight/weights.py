@@ -67,7 +67,7 @@ def _clamp(n: int, limit: int) -> int:
 
 def _owner_dir(owner: str | None) -> Path:
     from src import constants
-    from src.today_insight import _slug
+    from fork.insight.today import _slug
 
     return Path(constants.DATA_DIR) / "today_insight" / _slug(owner)
 
@@ -105,7 +105,7 @@ def _utc_iso(now: datetime | None) -> str:
 
 
 def _today(owner: str | None, now: datetime | None) -> Date:
-    from src import today_insight as ti
+    from fork.insight import today as ti
 
     return Date.fromisoformat(ti.today_str(owner, now))
 
@@ -179,7 +179,7 @@ def _finalize_pending(owner: str | None, today: Date, now: datetime | None) -> N
     """Let the outcome log finalize earlier days first (its nightly pass), so the first
     computation of a day already counts yesterday. Optional: missing or failing is fine."""
     try:
-        from src import insight_outcomes
+        from fork.insight import outcomes as insight_outcomes
 
         fn = getattr(insight_outcomes, "finalize_pending", None)
         if fn is not None:
@@ -349,7 +349,7 @@ def t5_table(owner: str | None, today: Date, *, notes: Iterable[Any] | None = No
     weights = current(owner, today, now=now)
     if notes is None:
         try:
-            from src import today_insight as ti
+            from fork.insight import today as ti
 
             notes = ti._load_notes(owner)
         except Exception as e:  # noqa: BLE001 -- serve what can be served

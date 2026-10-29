@@ -32,8 +32,8 @@ from fastapi.responses import JSONResponse
 from pydantic import BaseModel, Field
 
 from core.middleware import require_admin
-from src import insight_outcomes as io
-from src import today_insight as ti
+from fork.insight import outcomes as io
+from fork.insight import today as ti
 from src.auth_helpers import effective_user
 
 logger = logging.getLogger(__name__)
@@ -149,9 +149,9 @@ def setup_today_insight_routes() -> APIRouter:
             "status": status, "generated": (current or {}).get("generated")})
 
     # Phase 3: outcome log, weights and trends (docs/fork/today-insight.md)
-    from routes.insight_outcome_routes import setup_insight_outcome_routes
-    from routes.insight_trends_routes import setup_insight_trends_routes
-    from routes.insight_weights_routes import setup_insight_weights_routes
+    from fork.routes.insight_outcome_routes import setup_insight_outcome_routes
+    from fork.routes.insight_trends_routes import setup_insight_trends_routes
+    from fork.routes.insight_weights_routes import setup_insight_weights_routes
 
     for sub in (setup_insight_outcome_routes(), setup_insight_weights_routes(),
                 setup_insight_trends_routes()):

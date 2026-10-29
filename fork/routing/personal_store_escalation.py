@@ -78,7 +78,7 @@ def personal_store_turn(message: Any, history: Any = ()) -> bool:
         return False
     if _NO_TOOLS.search(message):
         return False
-    from src.skill_invocation import parse_invoke_message
+    from fork.routing.skill_invocation import parse_invoke_message
 
     if parse_invoke_message(message) is not None:
         return False

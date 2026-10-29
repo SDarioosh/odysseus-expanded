@@ -47,7 +47,7 @@ import logging
 import re
 from dataclasses import dataclass
 
-from src.skill_mcp_toolsets import expand_toolsets
+from fork.routing.skill_mcp_toolsets import expand_toolsets
 
 logger = logging.getLogger(__name__)
 
@@ -123,8 +123,8 @@ def invoked_skill_needs_tools(message, owner) -> bool:
     """
     invoked = parse_invoke_message(message)
     if invoked is None:
-        from src.module_turn_scope import module_turn_requested
-        from src.personal_store_escalation import personal_store_turn
+        from fork.routing.module_turn_scope import module_turn_requested
+        from fork.routing.personal_store_escalation import personal_store_turn
         return module_turn_requested(message) or personal_store_turn(message)
     try:
         skill = _invokable_skill(invoked.name, owner)
@@ -146,7 +146,7 @@ def pin_skill_contract(contract, *, message, owner, schemas, policy, manager=Non
     """
     invoked = parse_invoke_message(message)
     if invoked is None:
-        from src.module_turn_scope import with_module_tools
+        from fork.routing.module_turn_scope import with_module_tools
         return with_module_tools(contract, message=message, schemas=schemas, manager=manager)
     try:
         skill = _invokable_skill(invoked.name, owner)

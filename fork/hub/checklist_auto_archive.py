@@ -56,7 +56,7 @@ def archive_minutes() -> Optional[float]:
 
 def is_finished(note: Any) -> bool:
     """True for an unpinned checklist with at least one item, all of them done."""
-    from src.codex_todos_json import CHECKLIST_TYPES, _is_calendar_reminder, _items
+    from fork.hub.codex_todos_json import CHECKLIST_TYPES, _is_calendar_reminder, _items
 
     if getattr(note, "pinned", False) or getattr(note, "archived", False):
         return False
@@ -75,7 +75,7 @@ def is_empty(note: Any) -> bool:
     The sweep leaves empty checklists alone (a new, still empty list is fine); callers
     that just took a list's last line off use this to archive it then
     (src/module_action_items.py, the "Voice notes" list)."""
-    from src.codex_todos_json import CHECKLIST_TYPES, _is_calendar_reminder, _items
+    from fork.hub.codex_todos_json import CHECKLIST_TYPES, _is_calendar_reminder, _items
 
     if getattr(note, "pinned", False) or getattr(note, "archived", False):
         return False
@@ -91,7 +91,7 @@ def is_empty(note: Any) -> bool:
 def sweep(now: Optional[datetime] = None, minutes: Optional[float] = None) -> int:
     """Archive the finished checklists unchanged for ``minutes``. Returns how many."""
     from core.database import Note, SessionLocal, utcnow_naive
-    from src.codex_todos_json import CHECKLIST_TYPES
+    from fork.hub.codex_todos_json import CHECKLIST_TYPES
 
     if minutes is None:
         minutes = archive_minutes()

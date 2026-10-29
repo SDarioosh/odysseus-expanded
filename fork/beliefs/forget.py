@@ -37,8 +37,8 @@ import re
 from collections.abc import Iterable
 from typing import Any
 
-from src import evidence_intake as ledger
-from src import module_facts as mf
+from fork.beliefs import evidence_intake as ledger
+from fork.athena import facts as mf
 
 logger = logging.getLogger(__name__)
 
@@ -122,7 +122,7 @@ def scrub_insights(owner: str | None, belief_id: int, texts: Iterable[str]) -> i
     """Stored Today insights of this owner: drop items that point at the belief
     (``belief:<id>``), and any reason or headline that quotes one of ``texts``. Returns
     how many files changed."""
-    from src import today_insight as ti
+    from fork.insight import today as ti
 
     folder = ti.insight_path(owner, "2000-01-01").parent
     if not folder.is_dir():

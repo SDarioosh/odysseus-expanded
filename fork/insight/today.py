@@ -288,7 +288,7 @@ def order_candidates(todos: list[dict], events: list[dict],
     within a tier higher weight first (``src/insight_weights.py``; never across tiers),
     then date and time, then input order. Each candidate gets its ``weight``. Refs in
     ``dismissed`` (the owner's "not today") are left out."""
-    from src import insight_weights
+    from fork.insight import weights as insight_weights
 
     def tier(c):
         b = c["bucket"]
@@ -373,7 +373,7 @@ def select_memory(entries: Iterable[dict], limit: int = MAX_MEMORY, *,
     if query is None:
         return fallback
     try:
-        from src import belief_search
+        from fork.beliefs import search as belief_search
 
         hits = belief_search.search_beliefs(owner, query, k=limit)
     except Exception as e:  # noqa: BLE001 -- the insight is written without it
@@ -475,7 +475,7 @@ def _action_item_lines(owner: str | None, result: str | list,
                        skip: Iterable[str] = ()) -> list[str]:
     """Prompt lines for the open action items (``result``: the tool's JSON text or its
     rows); ids in ``skip`` (the open loops, which are candidates) are left out."""
-    from src import module_action_items as mai
+    from fork.athena import action_items as mai
 
     rows = result if isinstance(result, list) else (mai.parse_items_json(result) or [])
     skip = {str(i) for i in skip}
@@ -503,7 +503,7 @@ def _action_item_lines(owner: str | None, result: str | list,
 
 def _module_caller() -> CallTool | None:
     try:
-        from src import module_action_items as mai
+        from fork.athena import action_items as mai
         from src.tool_utils import get_mcp_manager
 
         manager = get_mcp_manager()
@@ -530,7 +530,7 @@ async def _module_inputs(owner: str | None, today: Date, call: CallTool | None,
         logger.info("today insight: get_daily_digest failed: %s", e)
     try:
         raw = await call("list_action_items", {"status": "open", "format": "json"})
-        from src import module_action_items as mai
+        from fork.athena import action_items as mai
 
         rows = [r for r in (mai.parse_items_json(raw) or []) if isinstance(r, dict)]
         items = _action_item_lines(owner, raw)
@@ -540,7 +540,7 @@ async def _module_inputs(owner: str | None, today: Date, call: CallTool | None,
     if set(map(str, loops)) - {str(r.get("id")) for r in rows}:
         try:
             raw = await call("list_action_items", {"status": "done", "format": "json"})
-            from src import module_action_items as mai
+            from fork.athena import action_items as mai
 
             done = [r for r in (mai.parse_items_json(raw) or []) if isinstance(r, dict)]
         except Exception as e:  # noqa: BLE001
@@ -606,11 +606,12 @@ def notes_state(notes: Iterable[Any]) -> dict[str, dict]:
 
 
 def _learning(module: str, func: str, default: Any, *args, **kwargs) -> Any:
-    """Call a Phase 3 helper (``src/<module>.py``); its failure never stops the insight."""
+    """Call a Phase 3 helper (``fork/insight/<name>.py``); its failure never stops the insight."""
     try:
         import importlib
 
-        return getattr(importlib.import_module(f"src.{module}"), func)(*args, **kwargs)
+        return getattr(importlib.import_module(f"fork.insight.{module.removeprefix('insight_')}"),
+                       func)(*args, **kwargs)
     except Exception as e:  # noqa: BLE001
         logger.warning("today insight: %s.%s failed: %s", module, func, e)
         return default
@@ -624,7 +625,7 @@ async def _after_run(owner: str | None, inputs: dict | None, insight: dict | Non
         _learning("insight_outcomes", "observe", None, owner, insight, inputs, now=now)
     if insight is not None:
         try:
-            from src import insight_push
+            from fork.insight import push as insight_push
 
             await insight_push.maybe_push(owner, insight, now=now)
         except Exception as e:  # noqa: BLE001
@@ -1002,7 +1003,7 @@ def wants_insight(message: Any) -> bool:
     if not text or text.startswith("/"):
         return False
     try:
-        from src.skill_invocation import INVOKE_PREFIX
+        from fork.routing.skill_invocation import INVOKE_PREFIX
 
         if text.replace("\r\n", "\n").startswith(INVOKE_PREFIX):
             return False
@@ -1025,7 +1026,7 @@ def context_block(owner: str | None, now: datetime | None = None,
         parts.append(_insight_block(owner, now, limit))
     if message is not None:
         try:
-            from src import belief_search
+            from fork.beliefs import search as belief_search
 
             parts.append(belief_search.chat_block(owner, message))
         except Exception as e:  # noqa: BLE001 -- chat must never fail on this

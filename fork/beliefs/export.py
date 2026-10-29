@@ -25,7 +25,7 @@ from __future__ import annotations
 from datetime import datetime, timezone
 from typing import Any
 
-from src import evidence_intake as ledger
+from fork.beliefs import evidence_intake as ledger
 
 FORMAT = "odysseus-memory-export"
 VERSION = 1

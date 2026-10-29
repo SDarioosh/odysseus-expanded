@@ -86,10 +86,10 @@ from typing import Any
 from fastapi import APIRouter, BackgroundTasks, HTTPException, Request
 from fastapi.responses import FileResponse, JSONResponse
 
-from src import ink_athena as athena
-from src import ink_notebooks as nb
-from src import ink_notes as ink
-from src import ink_transcribe as tr
+from fork.ink import athena
+from fork.ink import notebooks as nb
+from fork.ink import notes as ink
+from fork.ink import transcribe as tr
 from src.auth_helpers import require_user
 
 MAX_BODY = 12 * 1024 * 1024

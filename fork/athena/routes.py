@@ -83,10 +83,10 @@ from fastapi.responses import JSONResponse, RedirectResponse, Response
 from pydantic import BaseModel, Field
 
 from core.middleware import require_admin
-from src import call_recorder as recorder
-from src import meeting_bot as meetings
-from src import record_share as share
-from src import sound_module_view as view
+from fork.athena import call_recorder as recorder
+from fork.athena import meeting_bot as meetings
+from fork.athena import record_share as share
+from fork.athena import view
 from src.auth_helpers import effective_user
 
 logger = logging.getLogger(__name__)
@@ -170,7 +170,7 @@ def _owner(request: Request) -> str:
 
 def _filing():
     """src/module_action_items.py's page helpers; 503 when this Odysseus lacks them."""
-    from src import module_action_items as mai
+    from fork.athena import action_items as mai
 
     if not all(hasattr(mai, n) for n in ("file_item", "unfile_item", "move_item", "filed_state")):
         raise HTTPException(503, "Filing action items isn't available in this Odysseus.")
@@ -184,7 +184,7 @@ async def _maybe_await(value: Any) -> Any:
 async def _filed_state(owner: str) -> dict:
     """What went where; empty (nothing shown as filed) if the helper is missing or fails."""
     try:
-        from src import module_action_items as mai
+        from fork.athena import action_items as mai
 
         fn = getattr(mai, "filed_state", None)
         if fn is None:
@@ -389,7 +389,7 @@ def setup_sound_module_routes() -> APIRouter:
     @router.post("/api/modules/sound/unfile-todos", dependencies=[Depends(require_admin)])
     async def unfile_todos(body: UnfileTodos, request: Request) -> dict[str, Any]:
         """List (dry run) or remove the single to-dos filed from voice notes."""
-        from src import module_action_items as mai
+        from fork.athena import action_items as mai
 
         fn = getattr(mai, "unfile_auto_todos", None)
         if fn is None:
@@ -536,7 +536,7 @@ def setup_sound_module_routes() -> APIRouter:
     # ------------------------------ Send Athena on calendar events (src/meeting_auto_join.py)
     @router.get("/api/modules/sound/auto-join", dependencies=[Depends(require_admin)])
     async def auto_join_state(request: Request, uid: str = Query(min_length=1, max_length=1000)):
-        from src import meeting_auto_join as auto
+        from fork.athena import meeting_auto_join as auto
 
         try:
             return await asyncio.to_thread(auto.describe, _owner(request), uid)
@@ -546,7 +546,7 @@ def setup_sound_module_routes() -> APIRouter:
     @router.put("/api/modules/sound/auto-join", dependencies=[Depends(require_admin)])
     async def auto_join_set(body: AutoJoin, request: Request,
                             x_odysseus_recorder: Annotated[str | None, Header()] = None):
-        from src import meeting_auto_join as auto
+        from fork.athena import meeting_auto_join as auto
 
         _recorder_header(x_odysseus_recorder)
         try:

@@ -22,7 +22,7 @@ from urllib.parse import quote, unquote
 
 import httpx
 
-from src import call_recorder as rec
+from fork.athena import call_recorder as rec
 
 logger = logging.getLogger(__name__)
 

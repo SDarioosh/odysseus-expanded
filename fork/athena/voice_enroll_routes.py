@@ -26,7 +26,7 @@ from fastapi import APIRouter, Depends, HTTPException
 from pydantic import BaseModel, Field
 
 from core.middleware import require_admin
-from src import call_recorder as rec
+from fork.athena import call_recorder as rec
 
 PATH = "/speakers/enroll/next"
 OLD_MODULE = ("This version of Athena can't enroll a voice from here yet: update Athena "

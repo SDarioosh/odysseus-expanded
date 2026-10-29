@@ -476,10 +476,10 @@ def save(owner: str | None, note_id: str, body: Any, *, title: str | None = None
             update_note(owner, note_id, title=title)
         if current is not None and _page_ids(current) != _page_ids(stored):
             # Pages removed or moved: the note's reviewed text follows them.
-            from src import ink_transcribe  # imports this module
+            from fork.ink import transcribe as ink_transcribe  # imports this module
 
             update_note(owner, note_id, content=ink_transcribe.note_content(stored))
-        from src import ink_notebooks  # imports this module
+        from fork.ink import notebooks as ink_notebooks  # imports this module
 
         if created and isinstance(body, dict) and body.get("notebook"):
             # A page made in a notebook (maybe offline): its first save files it there.
@@ -594,7 +594,7 @@ def load(owner: str | None, note_id: str) -> dict[str, Any] | None:
         stored = load_sidecar(store, note_id)
     if stored is None:
         return None
-    from src import ink_notebooks  # imports this module
+    from fork.ink import notebooks as ink_notebooks  # imports this module
 
     out = public(stored, note_title(owner, note_id))
     out["notebook"] = ink_notebooks.notebook_of(owner, note_id)
@@ -658,7 +658,7 @@ def delete(owner: str | None, note_id: str) -> bool:
             return False
         _drop_sidecar(store, note_id, stored)
         _add_tombstones(store, [note_id])
-    from src import ink_notebooks  # imports this module
+    from fork.ink import notebooks as ink_notebooks  # imports this module
 
     ink_notebooks.forget(owner, note_id)
     return True
@@ -871,7 +871,7 @@ def _sweep_photos(owner: str | None, sidecars: set[str]) -> None:
 def list_notes(owner: str | None) -> list[dict[str, Any]]:
     """The owner's handwritten notes, newest first, after a sweep. ``notebook`` is the
     id of the notebook a note is a page of (``src/ink_notebooks.py``), or ``None``."""
-    from src import ink_notebooks  # imports this module
+    from fork.ink import notebooks as ink_notebooks  # imports this module
 
     sweep(owner)
     in_book = ink_notebooks.page_map(owner)
@@ -892,13 +892,13 @@ def list_notes(owner: str | None) -> list[dict[str, Any]]:
 
 
 def _athena_state(stored: dict[str, Any] | None) -> str:
-    from src import ink_athena  # imports this module
+    from fork.ink import athena as ink_athena  # imports this module
 
     return ink_athena.state(stored) if stored else "not_sent"
 
 
 def _transcript_summary(stored: dict[str, Any] | None) -> dict[str, Any]:
-    from src import ink_transcribe  # imports this module
+    from fork.ink import transcribe as ink_transcribe  # imports this module
 
     if not stored:
         return {"review": [], "failed": [], "pending": 0}

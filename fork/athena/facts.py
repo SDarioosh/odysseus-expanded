@@ -67,9 +67,9 @@ from datetime import datetime, timezone
 from pathlib import Path
 from typing import Any
 
-from src import belief_consolidation as consolidation
-from src import evidence_intake as ledger
-from src.module_action_items import (
+from fork.beliefs import consolidation
+from fork.beliefs import evidence_intake as ledger
+from fork.athena.action_items import (
     CallTool,
     _env,
     mcp_caller,
@@ -314,7 +314,7 @@ async def sync(owner: str | None, call: CallTool, *, now: datetime | None = None
         state.update(stats, last_run=now.isoformat(timespec="seconds"))
         save_state(owner, state)
     # erased beliefs whose facts the module hasn't erased yet (it was down or older)
-    from src import belief_forget
+    from fork.beliefs import forget as belief_forget
 
     try:
         stats["erased"] = await belief_forget.retry_pending(owner, call)
@@ -371,7 +371,7 @@ async def sweep_handwritten() -> dict[str, int] | None:
     """Handwritten notes deleted in the hub leave Athena first (``src/ink_athena.py``),
     so the facts Athena drops with them are gone from this same pass. Never fails the
     sync: what Athena didn't confirm is asked again next hour."""
-    from src import ink_athena
+    from fork.ink import athena as ink_athena
 
     try:
         stats = await ink_athena.sweep_all()

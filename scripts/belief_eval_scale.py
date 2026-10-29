@@ -703,7 +703,7 @@ def seed_and_measure(corpus: Corpus, owner: str, checks: list[Check]) -> dict:
     results dict (``ledger``, ``timings``, ``memory``) and the item -> belief id map
     under ``_ids``."""
     from src import constants
-    from src import evidence_intake as ledger
+    from fork.beliefs import evidence_intake as ledger
 
     if ledger.stats(owner)["total"]:
         raise SetupError(f"{constants.DATA_DIR} already has beliefs for owner {owner!r}; use "
@@ -831,8 +831,8 @@ def seed_and_measure(corpus: Corpus, owner: str, checks: list[Check]) -> dict:
 def measure_structure(corpus: Corpus, owner: str, ids: dict[int, int | None],
                       checks: list[Check]) -> dict:
     """The Belief Structure task over every confirmed belief, with the fake model."""
-    from src import belief_structure
-    from src import evidence_intake as ledger
+    from fork.beliefs import structure as belief_structure
+    from fork.beliefs import evidence_intake as ledger
 
     todo = len(ledger.structure_candidates(owner, limit=10**7))
     calls = 0
@@ -873,13 +873,13 @@ EMBEDDING_HOOKS = ("embedder", "_embedder", "get_embedder", "_get_embedder", "em
 
 
 def load_search():
-    """``src.belief_search`` or the reason it can't be imported."""
+    """``fork.beliefs.search`` or the reason it can't be imported."""
     try:
-        from src import belief_search
+        from fork.beliefs import search as belief_search
     except Exception as e:  # noqa: BLE001  (ImportError, or a broken module)
         return None, f"{type(e).__name__}: {e}"
     if not callable(getattr(belief_search, "search_beliefs", None)):
-        return None, "src.belief_search has no search_beliefs"
+        return None, "fork.beliefs.search has no search_beliefs"
     return belief_search, ""
 
 
@@ -964,12 +964,12 @@ def run_queries(search, owner: str, corpus: Corpus, ids: dict[int, int | None],
 
 def measure_retrieval(corpus: Corpus, owner: str, ids: dict[int, int | None],
                       min_top5: float, checks: list[Check]) -> dict:
-    from src import evidence_intake as ledger
+    from fork.beliefs import evidence_intake as ledger
 
     module, why = load_search()
     if module is None:
         return {"status": "skipped",
-                "reason": f"src/belief_search.py is not importable yet ({why}); the "
+                "reason": f"fork/beliefs/search.py is not importable yet ({why}); the "
                           "retrieval cases run once stage 2.3 is merged"}
     confirmed = {b["id"] for b in ledger.list_beliefs(owner, status="confirmed", limit=10**7)}
     lanes = {"default": run_queries(module.search_beliefs, owner, corpus, ids, confirmed)}

@@ -995,7 +995,7 @@ def _note_person(cache: _Subjects, belief_id: int, ev: dict, stamp: str) -> None
 
 def _reworded(row: Mapping, ev: dict) -> bool:
     """The source says the same thing about the same subject in other glue words."""
-    from src.belief_consolidation import same_rewording
+    from fork.beliefs.consolidation import same_rewording
 
     return ((row["subject"], row["about"]) == (ev["subject"], ev["about"])
             and same_rewording(normalize(row["text"], row["subject"], row["about"]),

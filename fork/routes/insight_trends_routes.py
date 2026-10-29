@@ -15,8 +15,8 @@ from typing import Any
 from fastapi import APIRouter, Depends, Query, Request
 
 from core.middleware import require_admin
-from src import insight_trends
-from src import today_insight as ti
+from fork.insight import trends as insight_trends
+from fork.insight import today as ti
 from src.auth_helpers import effective_user
 
 

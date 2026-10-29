@@ -16,7 +16,7 @@ from fastapi import APIRouter, Depends
 from pydantic import BaseModel
 
 from core.middleware import require_admin
-from src import auto_mode
+from fork.routing import auto_mode
 
 
 class AutoModePut(BaseModel):

@@ -114,7 +114,7 @@ def with_trusted_server_tools(names: Iterable[str], manager=None,
     if manager is None:
         return names
     if enabled is None:
-        from src.skill_mcp_toolsets import enabled_mcp_tools
+        from fork.routing.skill_mcp_toolsets import enabled_mcp_tools
         enabled = enabled_mcp_tools(manager)
     out = set(names)
     for server_id in _trusted_server_ids(manager, keys):

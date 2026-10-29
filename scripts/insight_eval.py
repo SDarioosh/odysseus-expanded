@@ -109,7 +109,7 @@ class Day:
     """Today's inputs built from the fixture, fresh for every ordering."""
 
     def __init__(self, fx: dict):
-        from src import today_insight as ti
+        from fork.insight import today as ti
 
         self.ti = ti
         self.tz = ZoneInfo(fx.get("timezone") or "UTC")
@@ -144,8 +144,8 @@ def write_history(fx: dict, owner: str, overrides: dict[str, int] | None = None)
     """Write the fixture's outcome history through the outcome log, day by day: the
     morning pass shows every entry, the owner dismisses, the evening pass sees the ticks;
     the next day's pass finalizes the day before (``ignored`` = still open)."""
-    from src import insight_outcomes as io
-    from src import today_insight as ti
+    from fork.insight import outcomes as io
+    from fork.insight import today as ti
 
     hist = fx["history"]
     first = Date.fromisoformat(hist["first_day"])
@@ -207,7 +207,7 @@ class T5Day:
     with ``todos``, ``calendar``, ``weights`` and the T5's expected plan) as hub inputs."""
 
     def __init__(self, feed: dict):
-        from src import today_insight as ti
+        from fork.insight import today as ti
 
         self.ti = ti
         self.feed = feed
@@ -236,7 +236,7 @@ class T5Day:
 
     def weights(self) -> dict:
         """A hub weights dict whose ``candidate_weight`` is the table's number per note."""
-        from src import insight_weights as iw
+        from fork.insight import weights as iw
 
         keys: dict[str, dict] = {}
         big = {v for k, v in self.table.items() if abs(v) > iw.KEY_LIMIT}
@@ -275,7 +275,7 @@ def t5_rules(feed: dict, table: dict[str, int] | None) -> dict[str, list[str]]:
     published rules (Athena docs/t5-pda-plan.md §5): DO FIRST by (-w, due date,
     feed order), COMING UP by (-w, date), ALSO pinned by (-w, feed order) then undated by
     (-w, feed order); undated shopping lists left out; at most 5 per section. Titles."""
-    from src import today_insight as ti
+    from fork.insight import today as ti
 
     today = datetime.fromisoformat(feed["generated"].replace("Z", "+00:00")).astimezone(
         ZoneInfo(feed["tz"])).date()
@@ -304,14 +304,14 @@ def t5_rules(feed: dict, table: dict[str, int] | None) -> dict[str, list[str]]:
 
 # --------------------------------------------------------------------------- run
 def _key_view(row: dict) -> dict:
-    from src import insight_weights as iw
+    from fork.insight import weights as iw
 
     return {k: row.get(k) for k in ("weight", *iw.COUNTS)}
 
 
 def _cases(fx: dict, checks: list[Check]) -> None:
-    from src import insight_outcomes as io
-    from src import insight_weights as iw
+    from fork.insight import outcomes as io
+    from fork.insight import weights as iw
 
     exp = fx["expected"]
     day = Day(fx)
@@ -446,7 +446,7 @@ def _t5_day(feed: dict, checks: list[Check]) -> None:
     T5 table still carries its weight), the hub's 30-candidate cap vs the T5's 5 per
     section, and where an event stands among the to-dos of its section (the T5 places
     events by its own sort key)."""
-    from src import insight_weights as iw
+    from fork.insight import weights as iw
 
     day = T5Day(feed)
 
@@ -483,8 +483,8 @@ def run_eval(data_dir: Path, fixture: Path = FIXTURE,
     """Run every case in ``data_dir`` (must not hold an earlier run). DATA_DIR and the
     owner time zone are set for the run and restored after."""
     from src import constants
-    from src import insight_outcomes as io
-    from src import today_insight as ti
+    from fork.insight import outcomes as io
+    from fork.insight import today as ti
 
     fx = load_fixture(fixture)
     data_dir = Path(data_dir)

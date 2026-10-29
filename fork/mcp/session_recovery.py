@@ -73,11 +73,11 @@ class CallTimeout(Exception):
 
 
 def _is_module_server(manager: Any, server_id: str) -> bool:
-    from src.mcp_trust import trusted_readonly_server_keys
+    from fork.mcp.trust import trusted_readonly_server_keys
 
     keys = set(trusted_readonly_server_keys())
     try:
-        from src.module_action_items import server_key
+        from fork.athena.action_items import server_key
 
         keys.add(server_key())
     except Exception:  # noqa: BLE001

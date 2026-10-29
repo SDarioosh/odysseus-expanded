@@ -23,8 +23,8 @@ from fastapi.responses import JSONResponse
 from pydantic import BaseModel
 
 from core.middleware import require_admin
-from src import insight_weights as iw
-from src import today_insight as ti
+from fork.insight import weights as iw
+from fork.insight import today as ti
 from src.auth_helpers import effective_user
 
 logger = logging.getLogger(__name__)
@@ -186,7 +186,7 @@ def _shown_order(insight: dict, outcome: dict) -> dict:
     if not outcome:
         return insight
     try:
-        from src import insight_outcomes
+        from fork.insight import outcomes as insight_outcomes
 
         return insight_outcomes.apply_owner_order(insight, outcome)
     except Exception as e:  # noqa: BLE001

@@ -57,7 +57,7 @@ from datetime import date, datetime, timedelta, timezone
 from pathlib import Path
 from typing import Any
 
-from src import evidence_intake as ledger
+from fork.beliefs import evidence_intake as ledger
 
 logger = logging.getLogger(__name__)
 

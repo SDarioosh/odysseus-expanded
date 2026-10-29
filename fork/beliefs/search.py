@@ -39,7 +39,7 @@ from datetime import datetime, timezone
 from typing import Any, Protocol
 from urllib.parse import urlparse
 
-from src import evidence_intake as ledger
+from fork.beliefs import evidence_intake as ledger
 
 logger = logging.getLogger(__name__)
 
@@ -138,7 +138,7 @@ def _local_lane(lane: Any) -> bool:
     if getattr(lane, "name", "") == LANE_FASTEMBED or url.startswith("local://"):
         return True
     try:
-        from src.private_endpoint_thinking import is_private_host
+        from fork.hub.private_endpoint_thinking import is_private_host
 
         if is_private_host(url):
             return True
@@ -596,7 +596,7 @@ def _is_slash(text: str) -> bool:
     if text.startswith("/"):
         return True
     try:
-        from src.skill_invocation import INVOKE_PREFIX
+        from fork.routing.skill_invocation import INVOKE_PREFIX
 
         return text.replace("\r\n", "\n").startswith(INVOKE_PREFIX)
     except Exception:  # noqa: BLE001

@@ -163,7 +163,7 @@ def load_events(owner: str | None, today: Date, tz: tzinfo) -> list[dict]:
 
 # ---------------------------------------------------------------------------- cache
 def cache_path(owner: str | None) -> Path:
-    from src.today_insight import insight_path
+    from fork.insight.today import insight_path
 
     return insight_path(owner, "2000-01-01").parent / "routines.json"
 
@@ -197,7 +197,7 @@ def evidence_text(r: dict) -> str:
 def submit_new(owner: str | None, routines: list[dict], submitted: set[str], *,
                now: datetime | None = None) -> set[str]:
     """Submit routines not submitted before, once each; returns the ids submitted now."""
-    from src import evidence_intake as ledger
+    from fork.beliefs import evidence_intake as ledger
 
     new = [r for r in routines if r["id"] not in submitted]
     if not new:
@@ -219,7 +219,7 @@ def routines(owner: str | None, today: Date, *, now: datetime | None = None,
     if cache.get("version") == CACHE_VERSION and cache.get("date") == today.isoformat():
         return [r for r in cache.get("routines") or [] if isinstance(r, dict)]
     if tz is None:
-        from src.today_insight import owner_timezone
+        from fork.insight.today import owner_timezone
 
         tz = owner_timezone(owner)
     found = detect(load_events(owner, today, tz) if events is None else events, tz, today)

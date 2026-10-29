@@ -43,7 +43,7 @@ from urllib.parse import parse_qs, urlsplit
 
 import httpx
 
-from src import call_recorder as recorder
+from fork.athena import call_recorder as recorder
 
 logger = logging.getLogger(__name__)
 

@@ -52,7 +52,7 @@ PLAN_WORDS = re.compile(
 
 # ---------------------------------------------------------------------------- loops
 def _is_owner_word(name: Any) -> bool:
-    from src import evidence_intake as ledger
+    from fork.beliefs import evidence_intake as ledger
 
     return ledger._is_owner_name(name)
 
@@ -112,7 +112,7 @@ def named_person(row: dict) -> str | None:
 
 
 def _filed(owner: str | None) -> set[str]:
-    from src import module_action_items as mai
+    from fork.athena import action_items as mai
 
     try:
         return {str(k) for k in (mai.load_state(owner or "").get("filed") or {})}
@@ -134,7 +134,7 @@ def _title(row: dict) -> str:
 
 def loop_candidates(owner: str | None, today: Date, rows: Iterable[dict], *,
                     filed: set[str] | None = None, limit: int = MAX_LOOPS) -> list[dict]:
-    from src.today_insight import bucket_for, local_date
+    from fork.insight.today import bucket_for, local_date
 
     filed = _filed(owner) if filed is None else filed
     loops = [r for r in rows or [] if is_loop(r, filed)]
@@ -180,7 +180,7 @@ def plan_title(text: str, value: Any = None) -> str:
 def plan_candidates(owner: str | None, today: Date, *, beliefs: list[dict] | None = None,
                     limit: int = MAX_PLANS) -> list[dict]:
     if beliefs is None:
-        from src import evidence_intake as ledger
+        from fork.beliefs import evidence_intake as ledger
 
         beliefs = [b for a in PLAN_ATTRIBUTES
                    for b in ledger.list_beliefs(owner, status=PLAN_STATUSES, attribute=a)]

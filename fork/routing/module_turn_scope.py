@@ -106,13 +106,13 @@ def parse_people(text: str) -> frozenset[str]:
 
 
 def _manager():
-    from src.mcp_trust import _manager as manager
+    from fork.mcp.trust import _manager as manager
 
     return manager()
 
 
 def _people_tools(manager) -> list[str]:
-    from src.mcp_trust import trusted_readonly_mcp_tools
+    from fork.mcp.trust import trusted_readonly_mcp_tools
 
     return sorted(n for n in trusted_readonly_mcp_tools(manager) if n.endswith("__list_people"))
 
@@ -169,7 +169,7 @@ def recorded_conversation(message: Any) -> bool:
 
 
 def _is_slash(message: Any) -> bool:
-    from src.skill_invocation import parse_invoke_message
+    from fork.routing.skill_invocation import parse_invoke_message
 
     return parse_invoke_message(message) is not None
 
@@ -209,7 +209,7 @@ def _start_refresh(loop, manager) -> None:
 
 def module_turn_requested(message: Any, manager=None) -> bool:
     """A plain (non-slash) message with a module cue while a trusted module is connected."""
-    from src.mcp_trust import trusted_readonly_mcp_tools
+    from fork.mcp.trust import trusted_readonly_mcp_tools
 
     if not isinstance(message, str) or _is_slash(message):
         return False
@@ -221,7 +221,7 @@ def module_turn_requested(message: Any, manager=None) -> bool:
 
 def with_module_tools(contract, *, message: Any, schemas, manager=None):
     """``contract`` with the trusted modules' read-only tools added, or unchanged."""
-    from src.mcp_trust import trusted_readonly_mcp_tools
+    from fork.mcp.trust import trusted_readonly_mcp_tools
 
     if contract is None or not isinstance(message, str) or _is_slash(message):
         return contract
