@@ -312,6 +312,7 @@ is an old path of a module that moved into `fork/`; it only aliases the new modu
 - `tests/fork/test_athena_callers.py`
 - `tests/fork/test_athena_client.py`
 - `tests/fork/test_athena_contract_fixtures.py`
+- `tests/fork/test_athena_event_uids.py`
 - `tests/fork/test_athena_urls.py`
 - `tests/fork/test_auto_mode.py`
 - `tests/fork/test_background_model_calls.py`
