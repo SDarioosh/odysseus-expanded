@@ -52,6 +52,7 @@ is an old path of a module that moved into `fork/`; it only aliases the new modu
 - `docs/fork/qc-ink-h2-2026-10-26.md`
 - `docs/fork/roadmap.md`
 - `docs/fork/sandbox.md`
+- `docs/fork/settings.md`
 - `docs/fork/status-history.md`
 - `docs/fork/today-insight.md`
 - `docs/fork/upstream-sync.md`
@@ -83,6 +84,7 @@ is an old path of a module that moved into `fork/`; it only aliases the new modu
 - `fork/beliefs/search.py`
 - `fork/beliefs/structure.py`
 - `fork/common/__init__.py`
+- `fork/common/settings.py`
 - `fork/hub/__init__.py`
 - `fork/hub/builtin_task_authority.py`
 - `fork/hub/checklist_auto_archive.py`
@@ -279,6 +281,7 @@ is an old path of a module that moved into `fork/`; it only aliases the new modu
 - `tests/fork/test_fork_override_env.py`
 - `tests/fork/test_fork_package_shims.py`
 - `tests/fork/test_fork_resume_fallback.py`
+- `tests/fork/test_fork_settings.py`
 - `tests/fork/test_fork_tests_layout.py`
 - `tests/fork/test_ink_athena.py`
 - `tests/fork/test_ink_auto_send.py`

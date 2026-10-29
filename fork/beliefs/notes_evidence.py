@@ -98,8 +98,9 @@ RETRY_MESSAGE = ('That was not valid JSON in the required shape. Reply with the 
 # ----------------------------------------------------------------------- settings
 def enabled() -> bool:
     """``EVIDENCE_NOTES``: off (default) or on."""
-    value = (os.environ.get("EVIDENCE_NOTES") or "off").strip().lower()
-    return value in {"on", "yes", "true", "1"}
+    from fork.common import settings
+
+    return settings.evidence_notes()
 
 
 # -------------------------------------------------------------------------- state

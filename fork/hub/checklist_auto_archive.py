@@ -26,14 +26,15 @@ from __future__ import annotations
 
 import asyncio
 import logging
-import os
 from datetime import datetime, timedelta
 from typing import Any, Optional
 
+from fork.common import settings
+
 logger = logging.getLogger(__name__)
 
-ENV = "FORK_CHECKLIST_ARCHIVE_MINUTES"
-DEFAULT_MINUTES = 10.0
+ENV = settings.CHECKLIST_ARCHIVE_MINUTES.name  # FORK_CHECKLIST_ARCHIVE_MINUTES
+DEFAULT_MINUTES = settings.CHECKLIST_ARCHIVE_DEFAULT
 POLL_SECONDS = 60
 
 _task: Optional[asyncio.Task] = None
@@ -41,17 +42,7 @@ _task: Optional[asyncio.Task] = None
 
 def archive_minutes() -> Optional[float]:
     """Minutes a finished checklist waits, or ``None`` when turned off."""
-    raw = os.environ.get(ENV, "").strip().lower()
-    if not raw:
-        return DEFAULT_MINUTES
-    if raw in {"off", "no", "false", "none"}:
-        return None
-    try:
-        minutes = float(raw)
-    except ValueError:
-        logger.warning("%s=%r is not a number; using %s", ENV, raw, DEFAULT_MINUTES)
-        return DEFAULT_MINUTES
-    return minutes if minutes > 0 else None
+    return settings.checklist_archive_minutes(logger)
 
 
 def is_finished(note: Any) -> bool:

@@ -82,6 +82,8 @@ from pathlib import Path
 from typing import Any, Awaitable, Callable
 from zoneinfo import ZoneInfo
 
+from fork.common import settings
+
 logger = logging.getLogger(__name__)
 
 # The action id is stored in each user's scheduled task, so it keeps the fork's former name.
@@ -148,29 +150,17 @@ def parse_action_items(result: str) -> list[ActionItem]:
 
 
 # ----------------------------------------------------------------------- settings
-def _env(name: str, default: str) -> str:
-    """``MODULE_<name>``, else the former ``BARVIS_<name>``, else ``default``."""
-    return (os.environ.get(f"MODULE_{name}") or os.environ.get(f"BARVIS_{name}")
-            or default).strip()
-
-
+# Read from the one settings table (``MODULE_<name>``, else the former ``BARVIS_<name>``).
 def server_key() -> str:
-    return _env("ACTION_ITEMS_SERVER", "convo").casefold()
+    return settings.athena_server()
 
 
 def notify_channel() -> str:
-    value = _env("NOTIFY_CHANNEL", "ntfy").lower()
-    return value if value in {"ntfy", "browser", "off"} else "ntfy"
+    return settings.notify_channel()
 
 
 def digest_hour() -> int | None:
-    value = _env("DIGEST_HOUR", "8").lower()
-    if value in {"off", "none", ""}:
-        return None
-    try:
-        return max(0, min(23, int(value)))
-    except ValueError:
-        return 8
+    return settings.digest_hour()
 
 
 # -------------------------------------------------------------------------- state
@@ -327,10 +317,7 @@ _COMMAND = re.compile(
 
 def file_mode() -> str:
     """``MODULE_FILE_ITEMS``: ``explicit`` (default), ``auto`` (``all``) or ``off``."""
-    value = _env("FILE_ITEMS", "explicit").lower()
-    if value in {"off", "no", "false", "0"}:
-        return "off"
-    return "auto" if value in {"auto", "all"} else "explicit"
+    return settings.file_items()
 
 
 def is_explicit(item: dict) -> bool:

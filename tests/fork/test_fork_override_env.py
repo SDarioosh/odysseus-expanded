@@ -6,6 +6,11 @@ container only when a compose file lists it under ``environment``. This test fin
 environment variables the fork's Python files read and checks that the override lists
 each one, so a new setting can't silently stay host-only.
 
+The fork's code reads its settings through the table in ``fork/common/settings.py``; the
+override must pass exactly the table's variables (current and former names), each the
+way its row says. Fork files other than the table may not read the environment
+themselves; the host-side scripts may (their names are found by scanning).
+
 Found reads: ``os.environ.get(X)``, ``os.getenv(X)`` and ``os.environ[X]``, where X is a
 string, a module-level string constant, or a parameter of a small helper such as
 ``_env(name)`` (``MODULE_<name>`` / ``BARVIS_<name>``) whose callers pass the name.
@@ -25,6 +30,7 @@ import yaml
 REPO = Path(__file__).resolve().parents[2]
 OVERRIDE = REPO / "docker" / "fork.override.yml"
 FILES_DOC = REPO / "docs" / "fork" / "files.md"
+SETTINGS_FILE = "fork/common/settings.py"  # reads the names of its table, not scanned
 
 # Read in fork code but deliberately not passed by the override.
 NOT_PASSED = {
@@ -32,14 +38,18 @@ NOT_PASSED = {
     "ODYSSEUS_USER",
 }
 
-# The override's values for these are fixed, not ${NAME:-} from .env.
-FIXED = {"ODYSSEUS_TRUSTED_READONLY_MCP": "convo"}
+
+def _table():
+    from fork.common import settings
+
+    return settings.SETTINGS
 
 
 def _fork_python_files() -> list[Path]:
     listed = re.findall(r"^- `([^`]+)`$", FILES_DOC.read_text(encoding="utf-8"), re.MULTILINE)
     return [REPO / p for p in listed
-            if p.endswith(".py") and not p.startswith("tests/") and (REPO / p).exists()]
+            if p.endswith(".py") and not p.startswith("tests/") and p != SETTINGS_FILE
+            and (REPO / p).exists()]
 
 
 def _is_environ(node: ast.AST) -> bool:
@@ -137,8 +147,13 @@ def test_every_setting_the_fork_reads_is_passed_to_the_container():
     assert not unresolved, (
         "environment reads this test can't resolve to a name; use a string or a "
         f"module constant: {unresolved}")
-    assert {"INK_AUTO_SEND", "MODULE_FILE_ITEMS", "BARVIS_FILE_ITEMS",
-            "BELIEF_CONFIRM_SOURCES"} <= names  # the scan itself works
+    assert {"ODYSSEUS_TRUSTED_READONLY_MCP", "ODYSSEUS_USER"} <= names  # the scan works
+    in_fork = sorted(str(p.relative_to(REPO)) for p in _fork_python_files()
+                     if str(p.relative_to(REPO)).startswith("fork/")
+                     and any(fork_env_reads([p])))
+    assert not in_fork, (
+        f"read settings through {SETTINGS_FILE} (add a row there), not os.environ: {in_fork}")
+    names |= {n for row in _table().values() for n in row.names}
     passed = set(_override_env())
     missing = sorted(names - passed - NOT_PASSED)
     assert not missing, (
@@ -150,11 +165,30 @@ def test_every_setting_the_fork_reads_is_passed_to_the_container():
 
 
 def test_override_passes_settings_unchanged_from_dot_env():
+    from fork.common import settings
+
     env = _override_env()
-    assert env.pop("ODYSSEUS_TRUSTED_READONLY_MCP") == FIXED["ODYSSEUS_TRUSTED_READONLY_MCP"]
-    for name, value in env.items():
-        # "${NAME:-}": empty when unset; a bare name: absent when unset.
-        assert value is None or value == f"${{{name}:-}}", (name, value)
+    expected = {}
+    for row in _table().values():
+        for name in row.names:
+            # "${NAME:-}": empty when unset; a bare name: absent when unset; else fixed.
+            expected[name] = {settings.PASS_EMPTY: f"${{{name}:-}}",
+                              settings.PASS_BARE: None}.get(row.passed, row.passed)
+    assert env == expected
+
+
+def test_empty_means_unset_exactly_where_the_override_passes_empty(monkeypatch):
+    """A row passed as ${NAME:-} must read "" as unset; the bare one must not."""
+    from fork.common import settings
+
+    for row in _table().values():
+        assert row.empty_is_unset == (row.passed != settings.PASS_BARE), row.name
+        for name in row.names:
+            for other in row.names:
+                monkeypatch.delenv(other, raising=False)
+            unset = row.value()
+            monkeypatch.setenv(name, "")
+            assert (row.value() == unset) == row.empty_is_unset, name
 
 
 def test_empty_value_means_unset_for_every_dollar_default_setting(monkeypatch):
@@ -203,12 +237,14 @@ def test_empty_value_means_unset_for_every_dollar_default_setting(monkeypatch):
     # Former names: read only when the new name is unset or empty.
     legacy = {f"BARVIS_{n.removeprefix('MODULE_')}": n for n in readers if n.startswith("MODULE_")}
     legacy["BARVIS_SOUND_SERVER"] = "SOUND_MODULE_SERVER"
-    # Read with `os.environ.get(...) or ...` in src/ink_athena.py and upstream's
-    # src/mcp_oauth.py; checked by reading the code.
+    # Read by settings.app_public_url() (fork/common/settings.py) and upstream's
+    # src/mcp_oauth.py; an empty value there means unset too.
     by_reading = {"APP_PUBLIC_URL"}
 
     dollar = {n for n, v in _override_env().items() if v and v.startswith("${")}
     assert dollar == set(readers) | set(legacy) | by_reading
+    assert by_reading | set(readers) == {
+        r.name for r in _table().values() if r.passed == "empty"}
     for name in sorted(set(readers) | set(legacy)):
         read = readers[legacy.get(name, name)]
         for other in (name, legacy.get(name, name), *legacy):

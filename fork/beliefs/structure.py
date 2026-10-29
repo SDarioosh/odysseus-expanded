@@ -130,17 +130,16 @@ _MONTH_OR_DAY = re.compile(
 # ----------------------------------------------------------------------- settings
 def enabled() -> bool:
     """``BELIEF_STRUCTURE``: on (default) or off."""
-    value = (os.environ.get("BELIEF_STRUCTURE") or "on").strip().lower()
-    return value not in {"off", "no", "false", "0"}
+    from fork.common import settings
+
+    return settings.belief_structure()
 
 
 def batch_size() -> int:
     """``BELIEF_STRUCTURE_BATCH``: beliefs per model call (default 5, 1 to 10)."""
-    try:
-        value = int((os.environ.get("BELIEF_STRUCTURE_BATCH") or "").strip() or BATCH)
-    except ValueError:
-        value = BATCH
-    return min(MAX_BATCH, max(1, value))
+    from fork.common import settings
+
+    return settings.belief_structure_batch()
 
 
 def max_tokens(size: int) -> int:

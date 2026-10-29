@@ -54,7 +54,6 @@ from __future__ import annotations
 import asyncio
 import hashlib
 import logging
-import os
 import re
 import time
 from datetime import datetime, timezone
@@ -269,7 +268,9 @@ def hub_base(request_base: str | None = None) -> str:
         configured = (get_setting("app_public_url", "") or "").strip()
     except Exception:  # noqa: BLE001 -- settings unreadable: fall through
         configured = ""
-    candidates = [_base(c) for c in (configured, os.environ.get("APP_PUBLIC_URL") or "",
+    from fork.common import settings
+
+    candidates = [_base(c) for c in (configured, settings.app_public_url(),
                                      request_base or "") if c and c.strip()]
     for base in candidates:
         if check_link(note_url(base, "00000000")) is None:

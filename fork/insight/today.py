@@ -43,6 +43,8 @@ from datetime import datetime, time, timedelta, timezone, tzinfo
 from pathlib import Path
 from typing import Any, Awaitable, Callable, Iterable
 
+from fork.common import settings
+
 logger = logging.getLogger(__name__)
 
 ACTION = "today_insight"
@@ -67,7 +69,7 @@ MAX_ACTION_ITEMS = 10
 CONTEXT_LIMIT = 800
 MEMORY_CATEGORIES = frozenset({"preference", "contact", "fact"})
 MEMORY_SOURCE = "odysseus-sound"
-DEFAULT_SKIP_LISTS = "Shopping,Groceries,Grocery"
+DEFAULT_SKIP_LISTS = settings.SKIP_LISTS.default  # "Shopping,Groceries,Grocery"
 VOTES = ("up", "down")
 
 Llm = Callable[[list[dict]], Awaitable[str]]
@@ -76,13 +78,11 @@ CallTool = Callable[[str, dict], Awaitable[str]]
 
 # ----------------------------------------------------------------------- settings
 def enabled() -> bool:
-    value = (os.environ.get("TODAY_INSIGHT_ENABLED") or "on").strip().lower()
-    return value not in {"off", "no", "false", "0"}
+    return settings.today_insight()
 
 
 def skip_lists() -> set[str]:
-    raw = os.environ.get("TODAY_INSIGHT_SKIP_LISTS")
-    raw = DEFAULT_SKIP_LISTS if raw is None else raw
+    raw = settings.today_insight_skip_lists()
     return {k for k in (_list_key(p) for p in raw.split(",")) if k}
 
 

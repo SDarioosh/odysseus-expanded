@@ -71,7 +71,6 @@ from fork.beliefs import consolidation
 from fork.beliefs import evidence_intake as ledger
 from fork.athena.action_items import (
     CallTool,
-    _env,
     mcp_caller,
     module_server_id,
     server_key,
@@ -103,7 +102,9 @@ _LOCKS: dict[str, asyncio.Lock] = {}
 # ----------------------------------------------------------------------- settings
 def enabled() -> bool:
     """``MODULE_FACTS_SYNC``: on (default) or off."""
-    return _env("FACTS_SYNC", "on").lower() not in {"off", "no", "false", "0"}
+    from fork.common import settings
+
+    return settings.facts_sync()
 
 
 # -------------------------------------------------------------------------- state
