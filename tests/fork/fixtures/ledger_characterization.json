@@ -1,0 +1,4230 @@
+{
+ "calls": [
+  [
+   "submit 1",
+   {
+    "beliefs_added": 8,
+    "confirmed": 3,
+    "evidence_added": 9,
+    "evidence_updated": 0,
+    "skipped": 1,
+    "unchanged": 0,
+    "unconfirmed": 0
+   }
+  ],
+  [
+   "submit 2",
+   {
+    "beliefs_added": 2,
+    "confirmed": 1,
+    "evidence_added": 3,
+    "evidence_updated": 2,
+    "skipped": 0,
+    "unchanged": 0,
+    "unconfirmed": 0
+   }
+  ],
+  [
+   "submit bob",
+   {
+    "beliefs_added": 1,
+    "confirmed": 1,
+    "evidence_added": 1,
+    "evidence_updated": 0,
+    "skipped": 0,
+    "unchanged": 0,
+    "unconfirmed": 0
+   }
+  ],
+  [
+   "sync_people",
+   {
+    "aliases_added": 1,
+    "mapped": 3,
+    "people": 4,
+    "subjects_added": 2
+   }
+  ],
+  [
+   "reconcile",
+   {
+    "gone": 2,
+    "stale": 2,
+    "unconfirmed": 0
+   }
+  ],
+  [
+   "decay",
+   {
+    "stale": 0
+   }
+  ],
+  [
+   "decay stale_days",
+   {
+    "stale": 5
+   }
+  ],
+  [
+   "beliefs by text",
+   {
+    "Dentist on Friday": 6,
+    "I am vegetarian": 3,
+    "I love jazz": 4,
+    "Lena collects vintage maps": 9,
+    "Me prefers tea": 8,
+    "Priya Nair is allergic to peanuts": 1,
+    "Priya lives in Lisbon": 2,
+    "Project Atlas deadline is in March": 10,
+    "The launch plan ships in May": 5,
+    "Tom plays the cello": 7
+   }
+  ],
+  [
+   "confirm",
+   {
+    "about": "person",
+    "attribute": null,
+    "category": "contact",
+    "confirmed_by": "owner",
+    "contact_id": null,
+    "created_at": "2026-10-21T09:00:00+00:00",
+    "erased_at": null,
+    "events": [
+     {
+      "at": "2026-10-27T09:00:00+00:00",
+      "detail": "by owner",
+      "kind": "confirmed"
+     },
+     {
+      "at": "2027-05-09T09:00:00+00:00",
+      "detail": "not seen since 2026-10-01",
+      "kind": "stale"
+     },
+     {
+      "at": "2026-10-21T09:00:00+00:00",
+      "detail": "by rule",
+      "kind": "confirmed"
+     },
+     {
+      "at": "2026-10-21T09:00:00+00:00",
+      "detail": "from chat",
+      "kind": "evidence"
+     },
+     {
+      "at": "2026-10-21T09:00:00+00:00",
+      "detail": "from notes",
+      "kind": "added"
+     }
+    ],
+    "evidence": [
+     {
+      "about": "person",
+      "belief_id": 7,
+      "category": "contact",
+      "days": 1,
+      "gone": false,
+      "id": 7,
+      "link": "http://h/notes/n1",
+      "payload": {},
+      "seen_first": "2026-10-01",
+      "seen_last": "2026-10-01",
+      "source": "notes",
+      "source_confirmed": false,
+      "source_id": "n1",
+      "subject": "Tom",
+      "text": "Tom plays the cello",
+      "times": 1,
+      "updated_at": "2026-10-21T09:00:00+00:00"
+     },
+     {
+      "about": "person",
+      "belief_id": 7,
+      "category": "contact",
+      "days": 1,
+      "gone": false,
+      "id": 8,
+      "link": "http://h/chat/c1",
+      "payload": {},
+      "seen_first": "2026-10-01",
+      "seen_last": "2026-10-01",
+      "source": "chat",
+      "source_confirmed": false,
+      "source_id": "c1",
+      "subject": "Tom",
+      "text": "Tom plays the cello",
+      "times": 1,
+      "updated_at": "2026-10-21T09:00:00+00:00"
+     }
+    ],
+    "first_seen": "2026-10-01",
+    "id": 7,
+    "last_seen": "2026-10-01",
+    "link": "http://h/chat/c1",
+    "memory_id": "m1",
+    "note": null,
+    "owner": "alice",
+    "owner_text": null,
+    "shown_text": "Tom plays the cello",
+    "source": "chat",
+    "status": "confirmed",
+    "structured_at": null,
+    "subject": "Tom",
+    "subject_display": "Tom",
+    "subject_id": 4,
+    "subject_kind": "person",
+    "text": "Tom plays the cello",
+    "updated_at": "2026-10-27T09:00:00+00:00",
+    "valid_from": null,
+    "valid_until": null,
+    "value": null
+   }
+  ],
+  [
+   "confirm missing",
+   {
+    "message": "belief 9999 not found",
+    "raised": "BeliefNotFound"
+   }
+  ],
+  [
+   "correct",
+   {
+    "about": "owner",
+    "attribute": null,
+    "category": "fact",
+    "confirmed_by": "owner",
+    "contact_id": null,
+    "created_at": "2026-10-21T09:00:00+00:00",
+    "erased_at": null,
+    "events": [
+     {
+      "at": "2026-10-27T10:00:00+00:00",
+      "detail": "by owner",
+      "kind": "corrected"
+     },
+     {
+      "at": "2027-05-09T09:00:00+00:00",
+      "detail": "not seen since 2026-10-03",
+      "kind": "stale"
+     },
+     {
+      "at": "2026-10-22T09:00:00+00:00",
+      "detail": "from odysseus-sound",
+      "kind": "evidence"
+     },
+     {
+      "at": "2026-10-21T09:00:00+00:00",
+      "detail": "by rule",
+      "kind": "confirmed"
+     },
+     {
+      "at": "2026-10-21T09:00:00+00:00",
+      "detail": "from odysseus-sound",
+      "kind": "added"
+     }
+    ],
+    "evidence": [
+     {
+      "about": "owner",
+      "belief_id": 3,
+      "category": "fact",
+      "days": 2,
+      "gone": false,
+      "id": 3,
+      "link": "http://h/odysseus-sound/3",
+      "payload": {},
+      "seen_first": "2026-10-01",
+      "seen_last": "2026-10-03",
+      "source": "odysseus-sound",
+      "source_confirmed": false,
+      "source_id": "3",
+      "subject": "Sam",
+      "text": "I am vegetarian",
+      "times": 3,
+      "updated_at": "2026-10-21T09:00:00+00:00"
+     },
+     {
+      "about": "owner",
+      "belief_id": 3,
+      "category": "fact",
+      "days": 1,
+      "gone": false,
+      "id": 10,
+      "link": "http://h/odysseus-sound/8",
+      "payload": {},
+      "seen_first": "2026-10-01",
+      "seen_last": "2026-10-01",
+      "source": "odysseus-sound",
+      "source_confirmed": false,
+      "source_id": "8",
+      "subject": "Me",
+      "text": "Owner is vegetarian.",
+      "times": 1,
+      "updated_at": "2026-10-22T09:00:00+00:00"
+     }
+    ],
+    "first_seen": "2026-10-01",
+    "id": 3,
+    "last_seen": "2026-10-03",
+    "link": "http://h/odysseus-sound/3",
+    "memory_id": "m2",
+    "note": null,
+    "owner": "alice",
+    "owner_text": "I eat no meat or fish",
+    "shown_text": "I eat no meat or fish",
+    "source": "odysseus-sound",
+    "status": "confirmed",
+    "structured_at": null,
+    "subject": "Sam",
+    "subject_display": "Sam",
+    "subject_id": 2,
+    "subject_kind": "owner",
+    "text": "I am vegetarian",
+    "updated_at": "2026-10-27T10:00:00+00:00",
+    "valid_from": null,
+    "valid_until": null,
+    "value": null
+   }
+  ],
+  [
+   "correct empty",
+   {
+    "message": "a correction needs text",
+    "raised": "ValueError"
+   }
+  ],
+  [
+   "move to name",
+   {
+    "about": "person",
+    "attribute": null,
+    "category": "contact",
+    "confirmed_by": "owner",
+    "contact_id": null,
+    "created_at": "2026-10-22T09:00:00+00:00",
+    "erased_at": null,
+    "events": [
+     {
+      "at": "2026-10-27T11:00:00+00:00",
+      "detail": "to Lena Fischer by owner",
+      "kind": "moved"
+     },
+     {
+      "at": "2026-10-22T09:00:00+00:00",
+      "detail": "from odysseus-sound",
+      "kind": "added"
+     }
+    ],
+    "evidence": [
+     {
+      "about": "person",
+      "belief_id": 9,
+      "category": "contact",
+      "days": 1,
+      "gone": false,
+      "id": 11,
+      "link": "http://h/odysseus-sound/9",
+      "payload": {},
+      "seen_first": "2026-10-01",
+      "seen_last": "2026-10-01",
+      "source": "odysseus-sound",
+      "source_confirmed": false,
+      "source_id": "9",
+      "subject": "Lena",
+      "text": "Lena collects vintage maps",
+      "times": 1,
+      "updated_at": "2026-10-22T09:00:00+00:00"
+     }
+    ],
+    "first_seen": "2026-10-01",
+    "id": 9,
+    "last_seen": "2026-10-01",
+    "link": "http://h/odysseus-sound/9",
+    "memory_id": "m3",
+    "note": null,
+    "owner": "alice",
+    "owner_text": null,
+    "shown_text": "Lena collects vintage maps",
+    "source": "odysseus-sound",
+    "status": "confirmed",
+    "structured_at": null,
+    "subject": "Lena Fischer",
+    "subject_display": "Lena Fischer",
+    "subject_id": 10,
+    "subject_kind": "person",
+    "text": "Lena collects vintage maps",
+    "updated_at": "2026-10-27T11:00:00+00:00",
+    "valid_from": null,
+    "valid_until": null,
+    "value": null
+   }
+  ],
+  [
+   "move to owner",
+   {
+    "about": "owner",
+    "attribute": null,
+    "category": "preference",
+    "confirmed_by": null,
+    "contact_id": null,
+    "created_at": "2026-10-21T09:00:00+00:00",
+    "erased_at": null,
+    "events": [
+     {
+      "at": "2027-05-09T09:00:00+00:00",
+      "detail": "not seen since 2026-10-01",
+      "kind": "stale"
+     },
+     {
+      "at": "2026-10-21T09:00:00+00:00",
+      "detail": "by source",
+      "kind": "confirmed"
+     },
+     {
+      "at": "2026-10-21T09:00:00+00:00",
+      "detail": "from odysseus-sound",
+      "kind": "added"
+     }
+    ],
+    "evidence": [
+     {
+      "about": "owner",
+      "belief_id": 4,
+      "category": "preference",
+      "days": 1,
+      "gone": false,
+      "id": 4,
+      "link": "http://h/odysseus-sound/4",
+      "payload": {},
+      "seen_first": "2026-10-01",
+      "seen_last": "2026-10-01",
+      "source": "odysseus-sound",
+      "source_confirmed": true,
+      "source_id": "4",
+      "subject": "Me",
+      "text": "I love jazz",
+      "times": 1,
+      "updated_at": "2026-10-21T09:00:00+00:00"
+     }
+    ],
+    "first_seen": "2026-10-01",
+    "id": 4,
+    "last_seen": "2026-10-01",
+    "link": "http://h/odysseus-sound/4",
+    "memory_id": null,
+    "note": null,
+    "owner": "alice",
+    "owner_text": null,
+    "shown_text": "I love jazz",
+    "source": "odysseus-sound",
+    "status": "stale",
+    "structured_at": null,
+    "subject": "Me",
+    "subject_display": "Sam",
+    "subject_id": 2,
+    "subject_kind": "owner",
+    "text": "I love jazz",
+    "updated_at": "2027-05-09T09:00:00+00:00",
+    "valid_from": null,
+    "valid_until": null,
+    "value": null
+   }
+  ],
+  [
+   "move nowhere",
+   {
+    "message": "pick a subject or give a name",
+    "raised": "ValueError"
+   }
+  ],
+  [
+   "reject",
+   [
+    {
+     "about": "person",
+     "belief_id": 1,
+     "category": "contact",
+     "days": 3,
+     "gone": false,
+     "id": 1,
+     "link": "http://h/odysseus-sound/1",
+     "payload": {
+      "kind": "personal"
+     },
+     "seen_first": "2026-10-01",
+     "seen_last": "2026-10-05",
+     "source": "odysseus-sound",
+     "source_confirmed": false,
+     "source_id": "1",
+     "subject": "Priya Nair",
+     "text": "Priya Nair is allergic to peanuts",
+     "times": 4,
+     "updated_at": "2026-10-22T09:00:00+00:00"
+    }
+   ]
+  ],
+  [
+   "restore",
+   {
+    "about": "person",
+    "attribute": null,
+    "category": "contact",
+    "confirmed_by": "rule",
+    "contact_id": null,
+    "created_at": "2026-10-21T09:00:00+00:00",
+    "erased_at": null,
+    "events": [
+     {
+      "at": "2026-10-28T10:00:00+00:00",
+      "detail": "by rule",
+      "kind": "confirmed"
+     },
+     {
+      "at": "2026-10-28T10:00:00+00:00",
+      "detail": "by owner",
+      "kind": "restored"
+     },
+     {
+      "at": "2026-10-28T09:00:00+00:00",
+      "detail": "wrong person",
+      "kind": "rejected"
+     },
+     {
+      "at": "2027-05-09T09:00:00+00:00",
+      "detail": "not seen since 2026-10-05",
+      "kind": "stale"
+     },
+     {
+      "at": "2026-10-22T09:00:00+00:00",
+      "detail": "by rule",
+      "kind": "confirmed"
+     },
+     {
+      "at": "2026-10-21T09:00:00+00:00",
+      "detail": "from odysseus-sound",
+      "kind": "added"
+     }
+    ],
+    "evidence": [
+     {
+      "about": "person",
+      "belief_id": 1,
+      "category": "contact",
+      "days": 3,
+      "gone": false,
+      "id": 1,
+      "link": "http://h/odysseus-sound/1",
+      "payload": {
+       "kind": "personal"
+      },
+      "seen_first": "2026-10-01",
+      "seen_last": "2026-10-05",
+      "source": "odysseus-sound",
+      "source_confirmed": false,
+      "source_id": "1",
+      "subject": "Priya Nair",
+      "text": "Priya Nair is allergic to peanuts",
+      "times": 4,
+      "updated_at": "2026-10-22T09:00:00+00:00"
+     }
+    ],
+    "first_seen": "2026-10-01",
+    "id": 1,
+    "last_seen": "2026-10-05",
+    "link": "http://h/odysseus-sound/1",
+    "memory_id": "m4",
+    "note": "wrong person",
+    "owner": "alice",
+    "owner_text": null,
+    "shown_text": "Priya Nair is allergic to peanuts",
+    "source": "odysseus-sound",
+    "status": "confirmed",
+    "structured_at": null,
+    "subject": "Priya Nair",
+    "subject_display": "Priya Nair",
+    "subject_id": 1,
+    "subject_kind": "person",
+    "text": "Priya Nair is allergic to peanuts",
+    "updated_at": "2026-10-28T10:00:00+00:00",
+    "valid_from": null,
+    "valid_until": null,
+    "value": null
+   }
+  ],
+  [
+   "reject again",
+   [
+    {
+     "about": "person",
+     "belief_id": 1,
+     "category": "contact",
+     "days": 3,
+     "gone": false,
+     "id": 1,
+     "link": "http://h/odysseus-sound/1",
+     "payload": {
+      "kind": "personal"
+     },
+     "seen_first": "2026-10-01",
+     "seen_last": "2026-10-05",
+     "source": "odysseus-sound",
+     "source_confirmed": false,
+     "source_id": "1",
+     "subject": "Priya Nair",
+     "text": "Priya Nair is allergic to peanuts",
+     "times": 4,
+     "updated_at": "2026-10-22T09:00:00+00:00"
+    }
+   ]
+  ],
+  [
+   "erase not rejected",
+   {
+    "message": "forget the belief before erasing it",
+    "raised": "ValueError"
+   }
+  ],
+  [
+   "erase",
+   {
+    "belief": {
+     "about": "person",
+     "attribute": null,
+     "category": "contact",
+     "confirmed_by": null,
+     "contact_id": null,
+     "created_at": "2026-10-21T09:00:00+00:00",
+     "erased_at": "2026-10-29T09:00:00+00:00",
+     "events": [
+      {
+       "at": "2026-10-29T09:00:00+00:00",
+       "detail": "",
+       "kind": "erased"
+      },
+      {
+       "at": "2026-10-28T11:00:00+00:00",
+       "detail": "",
+       "kind": "rejected"
+      },
+      {
+       "at": "2026-10-28T10:00:00+00:00",
+       "detail": "",
+       "kind": "confirmed"
+      },
+      {
+       "at": "2026-10-28T10:00:00+00:00",
+       "detail": "",
+       "kind": "restored"
+      },
+      {
+       "at": "2026-10-28T09:00:00+00:00",
+       "detail": "",
+       "kind": "rejected"
+      },
+      {
+       "at": "2027-05-09T09:00:00+00:00",
+       "detail": "",
+       "kind": "stale"
+      },
+      {
+       "at": "2026-10-22T09:00:00+00:00",
+       "detail": "",
+       "kind": "confirmed"
+      },
+      {
+       "at": "2026-10-21T09:00:00+00:00",
+       "detail": "",
+       "kind": "added"
+      }
+     ],
+     "evidence": [
+      {
+       "about": "person",
+       "belief_id": 1,
+       "category": "contact",
+       "days": 3,
+       "gone": false,
+       "id": 1,
+       "link": "",
+       "payload": {
+        "erase": "retired"
+       },
+       "seen_first": "2026-10-01",
+       "seen_last": "2026-10-05",
+       "source": "odysseus-sound",
+       "source_confirmed": false,
+       "source_id": "1",
+       "subject": "",
+       "text": "",
+       "times": 4,
+       "updated_at": "2026-10-29T09:00:00+00:00"
+      }
+     ],
+     "first_seen": "2026-10-01",
+     "id": 1,
+     "last_seen": "2026-10-05",
+     "link": "",
+     "memory_id": null,
+     "note": null,
+     "owner": "alice",
+     "owner_text": null,
+     "shown_text": "",
+     "source": "odysseus-sound",
+     "status": "rejected",
+     "structured_at": "2026-10-29T09:00:00+00:00",
+     "subject": "",
+     "subject_display": null,
+     "subject_id": null,
+     "subject_kind": null,
+     "text": "",
+     "updated_at": "2026-10-29T09:00:00+00:00",
+     "valid_from": null,
+     "valid_until": null,
+     "value": null
+    },
+    "pending": 1,
+    "remaining": [],
+    "texts": [
+     "Priya Nair is allergic to peanuts",
+     "Priya Nair is allergic to peanuts"
+    ]
+   }
+  ],
+  [
+   "erase pending",
+   [
+    {
+     "belief_id": 1,
+     "fact_ids": [
+      1
+     ]
+    }
+   ]
+  ],
+  [
+   "erase again",
+   {
+    "belief": {
+     "about": "person",
+     "attribute": null,
+     "category": "contact",
+     "confirmed_by": null,
+     "contact_id": null,
+     "created_at": "2026-10-21T09:00:00+00:00",
+     "erased_at": "2026-10-29T09:00:00+00:00",
+     "events": [
+      {
+       "at": "2026-10-29T09:00:00+00:00",
+       "detail": "",
+       "kind": "erased"
+      },
+      {
+       "at": "2026-10-28T11:00:00+00:00",
+       "detail": "",
+       "kind": "rejected"
+      },
+      {
+       "at": "2026-10-28T10:00:00+00:00",
+       "detail": "",
+       "kind": "confirmed"
+      },
+      {
+       "at": "2026-10-28T10:00:00+00:00",
+       "detail": "",
+       "kind": "restored"
+      },
+      {
+       "at": "2026-10-28T09:00:00+00:00",
+       "detail": "",
+       "kind": "rejected"
+      },
+      {
+       "at": "2027-05-09T09:00:00+00:00",
+       "detail": "",
+       "kind": "stale"
+      },
+      {
+       "at": "2026-10-22T09:00:00+00:00",
+       "detail": "",
+       "kind": "confirmed"
+      },
+      {
+       "at": "2026-10-21T09:00:00+00:00",
+       "detail": "",
+       "kind": "added"
+      }
+     ],
+     "evidence": [
+      {
+       "about": "person",
+       "belief_id": 1,
+       "category": "contact",
+       "days": 3,
+       "gone": false,
+       "id": 1,
+       "link": "",
+       "payload": {
+        "erase": "done"
+       },
+       "seen_first": "2026-10-01",
+       "seen_last": "2026-10-05",
+       "source": "odysseus-sound",
+       "source_confirmed": false,
+       "source_id": "1",
+       "subject": "",
+       "text": "",
+       "times": 4,
+       "updated_at": "2026-10-29T10:00:00+00:00"
+      }
+     ],
+     "first_seen": "2026-10-01",
+     "id": 1,
+     "last_seen": "2026-10-05",
+     "link": "",
+     "memory_id": null,
+     "note": null,
+     "owner": "alice",
+     "owner_text": null,
+     "shown_text": "",
+     "source": "odysseus-sound",
+     "status": "rejected",
+     "structured_at": "2026-10-29T09:00:00+00:00",
+     "subject": "",
+     "subject_display": null,
+     "subject_id": null,
+     "subject_kind": null,
+     "text": "",
+     "updated_at": "2026-10-29T09:00:00+00:00",
+     "valid_from": null,
+     "valid_until": null,
+     "value": null
+    },
+    "pending": 0,
+    "remaining": [],
+    "texts": []
+   }
+  ],
+  [
+   "confirm erased",
+   {
+    "message": "this belief was erased; it can't be brought back",
+    "raised": "BeliefErased"
+   }
+  ],
+  [
+   "said again after erase",
+   {
+    "beliefs_added": 0,
+    "confirmed": 0,
+    "evidence_added": 1,
+    "evidence_updated": 0,
+    "skipped": 0,
+    "unchanged": 0,
+    "unconfirmed": 0
+   }
+  ],
+  [
+   "scrub quotes",
+   0
+  ],
+  [
+   "subjects by name",
+   {
+    "Jonas": 8,
+    "Launch plan": 3,
+    "Lena": 5,
+    "Lena Fischer": 10,
+    "Me": 9,
+    "Priya Nair": 1,
+    "Project Atlas": 6,
+    "Sam": 2,
+    "Tom": 4
+   }
+  ],
+  [
+   "set kind",
+   {
+    "aliases": [],
+    "contact_id": null,
+    "counts": {
+     "confirmed": 1,
+     "rejected": 0,
+     "stale": 0,
+     "tentative": 0,
+     "total": 1
+    },
+    "created_at": "2026-10-21T09:00:00+00:00",
+    "display": "Tom",
+    "id": 4,
+    "key": "tom",
+    "kind": "project",
+    "kind_by": "owner",
+    "note": null,
+    "owner": "alice",
+    "sources": [],
+    "updated_at": "2026-10-31T09:00:00+00:00"
+   }
+  ],
+  [
+   "set kind owner",
+   {
+    "message": "the owner subject keeps its kind",
+    "raised": "ValueError"
+   }
+  ],
+  [
+   "set kind bad",
+   {
+    "message": "kind must be person, project or thing, not 'owner'",
+    "raised": "ValueError"
+   }
+  ],
+  [
+   "link contact",
+   {
+    "aliases": [],
+    "contact_id": "uid-tom",
+    "counts": {
+     "confirmed": 1,
+     "rejected": 0,
+     "stale": 0,
+     "tentative": 0,
+     "total": 1
+    },
+    "created_at": "2026-10-21T09:00:00+00:00",
+    "display": "Tom",
+    "id": 4,
+    "key": "tom",
+    "kind": "project",
+    "kind_by": "owner",
+    "note": null,
+    "owner": "alice",
+    "sources": [],
+    "updated_at": "2026-10-31T09:00:00+00:00"
+   }
+  ],
+  [
+   "link contact twice",
+   {
+    "message": "contact uid-tom is linked to subject 4",
+    "raised": "ValueError"
+   }
+  ],
+  [
+   "for contact",
+   [
+    {
+     "about": "person",
+     "attribute": null,
+     "category": "contact",
+     "confirmed_by": "owner",
+     "contact_id": "uid-tom",
+     "created_at": "2026-10-21T09:00:00+00:00",
+     "erased_at": null,
+     "evidence": [
+      {
+       "about": "person",
+       "belief_id": 7,
+       "category": "contact",
+       "days": 1,
+       "gone": false,
+       "id": 7,
+       "link": "http://h/notes/n1",
+       "payload": {},
+       "seen_first": "2026-10-01",
+       "seen_last": "2026-10-01",
+       "source": "notes",
+       "source_confirmed": false,
+       "source_id": "n1",
+       "subject": "Tom",
+       "text": "Tom plays the cello",
+       "times": 1,
+       "updated_at": "2026-10-21T09:00:00+00:00"
+      },
+      {
+       "about": "person",
+       "belief_id": 7,
+       "category": "contact",
+       "days": 1,
+       "gone": false,
+       "id": 8,
+       "link": "http://h/chat/c1",
+       "payload": {},
+       "seen_first": "2026-10-01",
+       "seen_last": "2026-10-01",
+       "source": "chat",
+       "source_confirmed": false,
+       "source_id": "c1",
+       "subject": "Tom",
+       "text": "Tom plays the cello",
+       "times": 1,
+       "updated_at": "2026-10-21T09:00:00+00:00"
+      }
+     ],
+     "first_seen": "2026-10-01",
+     "id": 7,
+     "last_seen": "2026-10-01",
+     "link": "http://h/chat/c1",
+     "memory_id": "m1",
+     "note": null,
+     "owner": "alice",
+     "owner_text": null,
+     "shown_text": "Tom plays the cello",
+     "source": "chat",
+     "status": "confirmed",
+     "structured_at": null,
+     "subject": "Tom",
+     "subject_display": "Tom",
+     "subject_id": 4,
+     "subject_kind": "project",
+     "text": "Tom plays the cello",
+     "updated_at": "2026-10-27T09:00:00+00:00",
+     "valid_from": null,
+     "valid_until": null,
+     "value": null
+    }
+   ]
+  ],
+  [
+   "unlink",
+   {
+    "aliases": [],
+    "contact_id": null,
+    "counts": {
+     "confirmed": 1,
+     "rejected": 0,
+     "stale": 0,
+     "tentative": 0,
+     "total": 1
+    },
+    "created_at": "2026-10-21T09:00:00+00:00",
+    "display": "Tom",
+    "id": 4,
+    "key": "tom",
+    "kind": "project",
+    "kind_by": "owner",
+    "note": null,
+    "owner": "alice",
+    "sources": [],
+    "updated_at": "2026-10-31T10:00:00+00:00"
+   }
+  ],
+  [
+   "rename",
+   {
+    "aliases": [
+     "Jonas"
+    ],
+    "contact_id": null,
+    "counts": {
+     "confirmed": 0,
+     "rejected": 0,
+     "stale": 0,
+     "tentative": 0,
+     "total": 0
+    },
+    "created_at": "2026-10-22T10:00:00+00:00",
+    "display": "Jonas Berg",
+    "id": 8,
+    "key": "jonas berg",
+    "kind": "person",
+    "kind_by": "auto",
+    "note": null,
+    "owner": "alice",
+    "sources": [
+     {
+      "name": "Jonas",
+      "person_id": "p2",
+      "source": "odysseus-sound"
+     }
+    ],
+    "updated_at": "2026-10-31T11:00:00+00:00"
+   }
+  ],
+  [
+   "rename clash",
+   {
+    "message": "subject 4 is already called 'Tom'",
+    "raised": "ValueError"
+   }
+  ],
+  [
+   "merge",
+   {
+    "aliases": [
+     "Jonas Berg",
+     "Jonas"
+    ],
+    "contact_id": null,
+    "counts": {
+     "confirmed": 1,
+     "rejected": 0,
+     "stale": 0,
+     "tentative": 0,
+     "total": 1
+    },
+    "created_at": "2026-10-21T09:00:00+00:00",
+    "display": "Tom",
+    "id": 4,
+    "key": "tom",
+    "kind": "project",
+    "kind_by": "owner",
+    "note": null,
+    "owner": "alice",
+    "sources": [
+     {
+      "name": "Jonas",
+      "person_id": "p2",
+      "source": "odysseus-sound"
+     }
+    ],
+    "updated_at": "2026-10-31T12:00:00+00:00"
+   }
+  ],
+  [
+   "merge self",
+   {
+    "message": "a subject can't be merged into itself",
+    "raised": "ValueError"
+   }
+  ],
+  [
+   "find subject",
+   null
+  ],
+  [
+   "find none",
+   null
+  ],
+  [
+   "get subject missing",
+   {
+    "message": "subject 9999 not found",
+    "raised": "SubjectNotFound"
+   }
+  ],
+  [
+   "list subjects bad",
+   {
+    "message": "unknown kind: pet",
+    "raised": "ValueError"
+   }
+  ],
+  [
+   "structure candidates",
+   [
+    {
+     "first_seen": "2026-10-01",
+     "id": 3,
+     "kind": "owner",
+     "last_seen": "2026-10-03",
+     "subject": "Sam",
+     "text": "I eat no meat or fish"
+    },
+    {
+     "first_seen": "2026-10-01",
+     "id": 7,
+     "kind": "project",
+     "last_seen": "2026-10-01",
+     "subject": "Tom",
+     "text": "Tom plays the cello"
+    },
+    {
+     "first_seen": "2026-10-01",
+     "id": 9,
+     "kind": "person",
+     "last_seen": "2026-10-01",
+     "subject": "Lena Fischer",
+     "text": "Lena collects vintage maps"
+    }
+   ]
+  ],
+  [
+   "structure 3",
+   true
+  ],
+  [
+   "structure 7",
+   true
+  ],
+  [
+   "structure 9",
+   true
+  ],
+  [
+   "structure stale text",
+   false
+  ],
+  [
+   "clean attribute",
+   [
+    "lives_in",
+    "works_at",
+    "other",
+    "other"
+   ]
+  ],
+  [
+   "found Sam",
+   true
+  ],
+  [
+   "summary Sam",
+   "Sam (owner). diet: value of I eat no meat or fishvalue of I eat no meat or fishvalue of I eat no meat or fishvalue of I eat no meat or fish (since 2026-10-01)."
+  ],
+  [
+   "found Tom",
+   true
+  ],
+  [
+   "summary Tom",
+   "Tom (project). likes: value of Tom plays the cellovalue of Tom plays the cellovalue of Tom plays the cellovalue of Tom plays the cello (since 2026-10-01)."
+  ],
+  [
+   "found Launch plan",
+   true
+  ],
+  [
+   "summary Launch plan",
+   ""
+  ],
+  [
+   "found Priya Nair",
+   true
+  ],
+  [
+   "summary Priya Nair",
+   ""
+  ],
+  [
+   "by attribute",
+   [
+    {
+     "about": "person",
+     "attribute": "likes",
+     "category": "contact",
+     "confirmed_by": "owner",
+     "contact_id": null,
+     "created_at": "2026-10-21T09:00:00+00:00",
+     "erased_at": null,
+     "evidence": [
+      {
+       "about": "person",
+       "belief_id": 7,
+       "category": "contact",
+       "days": 1,
+       "gone": false,
+       "id": 7,
+       "link": "http://h/notes/n1",
+       "payload": {},
+       "seen_first": "2026-10-01",
+       "seen_last": "2026-10-01",
+       "source": "notes",
+       "source_confirmed": false,
+       "source_id": "n1",
+       "subject": "Tom",
+       "text": "Tom plays the cello",
+       "times": 1,
+       "updated_at": "2026-10-21T09:00:00+00:00"
+      },
+      {
+       "about": "person",
+       "belief_id": 7,
+       "category": "contact",
+       "days": 1,
+       "gone": false,
+       "id": 8,
+       "link": "http://h/chat/c1",
+       "payload": {},
+       "seen_first": "2026-10-01",
+       "seen_last": "2026-10-01",
+       "source": "chat",
+       "source_confirmed": false,
+       "source_id": "c1",
+       "subject": "Tom",
+       "text": "Tom plays the cello",
+       "times": 1,
+       "updated_at": "2026-10-21T09:00:00+00:00"
+      }
+     ],
+     "first_seen": "2026-10-01",
+     "id": 7,
+     "last_seen": "2026-10-01",
+     "link": "http://h/chat/c1",
+     "memory_id": "m1",
+     "note": null,
+     "owner": "alice",
+     "owner_text": null,
+     "shown_text": "Tom plays the cello",
+     "source": "chat",
+     "status": "confirmed",
+     "structured_at": "2026-11-01T09:00:00+00:00",
+     "subject": "Tom",
+     "subject_display": "Tom",
+     "subject_id": 4,
+     "subject_kind": "project",
+     "text": "Tom plays the cello",
+     "updated_at": "2026-11-01T09:00:00+00:00",
+     "valid_from": "2026-10-01",
+     "valid_until": "2026-12-31",
+     "value": "value of Tom plays the cellovalue of Tom plays the cellovalue of Tom plays the cellovalue of Tom plays the cello"
+    }
+   ]
+  ],
+  [
+   "by attribute bad",
+   {
+    "message": "unknown attribute: colour",
+    "raised": "ValueError"
+   }
+  ],
+  [
+   "list bad status",
+   {
+    "message": "unknown status: maybe",
+    "raised": "ValueError"
+   }
+  ],
+  [
+   "list confirmed",
+   [
+    {
+     "about": "other",
+     "attribute": null,
+     "category": "fact",
+     "confirmed_by": null,
+     "contact_id": null,
+     "created_at": "2026-10-21T09:00:00+00:00",
+     "erased_at": null,
+     "evidence": [
+      {
+       "about": "other",
+       "belief_id": 5,
+       "category": "fact",
+       "days": 1,
+       "gone": false,
+       "id": 5,
+       "link": "http://h/odysseus-sound/5",
+       "payload": {
+        "kind": "plan",
+        "valid_until": "2026-11-30"
+       },
+       "seen_first": "2026-10-01",
+       "seen_last": "2026-10-01",
+       "source": "odysseus-sound",
+       "source_confirmed": false,
+       "source_id": "5",
+       "subject": "Launch plan",
+       "text": "The launch plan ships in May",
+       "times": 1,
+       "updated_at": "2026-10-21T09:00:00+00:00"
+      }
+     ],
+     "first_seen": "2026-10-01",
+     "id": 5,
+     "last_seen": "2026-10-01",
+     "link": "http://h/odysseus-sound/5",
+     "memory_id": null,
+     "note": null,
+     "owner": "alice",
+     "owner_text": null,
+     "shown_text": "The launch plan ships in May",
+     "source": "odysseus-sound",
+     "status": "stale",
+     "structured_at": null,
+     "subject": "Launch plan",
+     "subject_display": "Launch plan",
+     "subject_id": 3,
+     "subject_kind": "project",
+     "text": "The launch plan ships in May",
+     "updated_at": "2027-05-09T09:00:00+00:00",
+     "valid_from": null,
+     "valid_until": "2026-11-30",
+     "value": null
+    },
+    {
+     "about": "person",
+     "attribute": "diet",
+     "category": "contact",
+     "confirmed_by": "owner",
+     "contact_id": null,
+     "created_at": "2026-10-22T09:00:00+00:00",
+     "erased_at": null,
+     "evidence": [
+      {
+       "about": "person",
+       "belief_id": 9,
+       "category": "contact",
+       "days": 1,
+       "gone": false,
+       "id": 11,
+       "link": "http://h/odysseus-sound/9",
+       "payload": {},
+       "seen_first": "2026-10-01",
+       "seen_last": "2026-10-01",
+       "source": "odysseus-sound",
+       "source_confirmed": false,
+       "source_id": "9",
+       "subject": "Lena",
+       "text": "Lena collects vintage maps",
+       "times": 1,
+       "updated_at": "2026-10-22T09:00:00+00:00"
+      }
+     ],
+     "first_seen": "2026-10-01",
+     "id": 9,
+     "last_seen": "2026-10-01",
+     "link": "http://h/odysseus-sound/9",
+     "memory_id": "m3",
+     "note": null,
+     "owner": "alice",
+     "owner_text": null,
+     "shown_text": "Lena collects vintage maps",
+     "source": "odysseus-sound",
+     "status": "confirmed",
+     "structured_at": "2026-11-01T09:00:00+00:00",
+     "subject": "Lena Fischer",
+     "subject_display": "Lena Fischer",
+     "subject_id": 10,
+     "subject_kind": "person",
+     "text": "Lena collects vintage maps",
+     "updated_at": "2026-11-01T09:00:00+00:00",
+     "valid_from": "2026-10-01",
+     "valid_until": "2026-12-31",
+     "value": "value of Lena collects vintage mapsvalue of Lena collects vintage mapsvalue of Lena collects vintage mapsvalue of Lena…"
+    },
+    {
+     "about": "owner",
+     "attribute": null,
+     "category": "preference",
+     "confirmed_by": null,
+     "contact_id": null,
+     "created_at": "2026-10-21T09:00:00+00:00",
+     "erased_at": null,
+     "evidence": [
+      {
+       "about": "owner",
+       "belief_id": 4,
+       "category": "preference",
+       "days": 1,
+       "gone": false,
+       "id": 4,
+       "link": "http://h/odysseus-sound/4",
+       "payload": {},
+       "seen_first": "2026-10-01",
+       "seen_last": "2026-10-01",
+       "source": "odysseus-sound",
+       "source_confirmed": true,
+       "source_id": "4",
+       "subject": "Me",
+       "text": "I love jazz",
+       "times": 1,
+       "updated_at": "2026-10-21T09:00:00+00:00"
+      }
+     ],
+     "first_seen": "2026-10-01",
+     "id": 4,
+     "last_seen": "2026-10-01",
+     "link": "http://h/odysseus-sound/4",
+     "memory_id": null,
+     "note": null,
+     "owner": "alice",
+     "owner_text": null,
+     "shown_text": "I love jazz",
+     "source": "odysseus-sound",
+     "status": "stale",
+     "structured_at": null,
+     "subject": "Me",
+     "subject_display": "Sam",
+     "subject_id": 2,
+     "subject_kind": "owner",
+     "text": "I love jazz",
+     "updated_at": "2027-05-09T09:00:00+00:00",
+     "valid_from": null,
+     "valid_until": null,
+     "value": null
+    }
+   ]
+  ],
+  [
+   "list subject",
+   [
+    {
+     "about": "person",
+     "attribute": null,
+     "category": "contact",
+     "confirmed_by": null,
+     "contact_id": null,
+     "created_at": "2026-10-21T09:00:00+00:00",
+     "erased_at": null,
+     "evidence": [
+      {
+       "about": "person",
+       "belief_id": 2,
+       "category": "contact",
+       "days": 1,
+       "gone": false,
+       "id": 2,
+       "link": "http://h/odysseus-sound/2",
+       "payload": {
+        "kind": "personal"
+       },
+       "seen_first": "2026-10-01",
+       "seen_last": "2026-10-01",
+       "source": "odysseus-sound",
+       "source_confirmed": false,
+       "source_id": "2",
+       "subject": "Priya",
+       "text": "Priya lives in Lisbon",
+       "times": 1,
+       "updated_at": "2026-10-22T09:00:00+00:00"
+      }
+     ],
+     "first_seen": "2026-10-01",
+     "id": 2,
+     "last_seen": "2026-10-01",
+     "link": "http://h/odysseus-sound/2",
+     "memory_id": null,
+     "note": null,
+     "owner": "alice",
+     "owner_text": null,
+     "shown_text": "Priya lives in Lisbon",
+     "source": "odysseus-sound",
+     "status": "tentative",
+     "structured_at": null,
+     "subject": "Priya",
+     "subject_display": "Priya Nair",
+     "subject_id": 1,
+     "subject_kind": "person",
+     "text": "Priya lives in Lisbon",
+     "updated_at": "2026-10-22T09:00:00+00:00",
+     "valid_from": null,
+     "valid_until": null,
+     "value": null
+    }
+   ]
+  ],
+  [
+   "get belief",
+   {
+    "about": "person",
+    "attribute": "likes",
+    "category": "contact",
+    "confirmed_by": "owner",
+    "contact_id": null,
+    "created_at": "2026-10-21T09:00:00+00:00",
+    "erased_at": null,
+    "events": [
+     {
+      "at": "2026-10-27T09:00:00+00:00",
+      "detail": "by owner",
+      "kind": "confirmed"
+     },
+     {
+      "at": "2027-05-09T09:00:00+00:00",
+      "detail": "not seen since 2026-10-01",
+      "kind": "stale"
+     },
+     {
+      "at": "2026-10-21T09:00:00+00:00",
+      "detail": "by rule",
+      "kind": "confirmed"
+     },
+     {
+      "at": "2026-10-21T09:00:00+00:00",
+      "detail": "from chat",
+      "kind": "evidence"
+     },
+     {
+      "at": "2026-10-21T09:00:00+00:00",
+      "detail": "from notes",
+      "kind": "added"
+     }
+    ],
+    "evidence": [
+     {
+      "about": "person",
+      "belief_id": 7,
+      "category": "contact",
+      "days": 1,
+      "gone": false,
+      "id": 7,
+      "link": "http://h/notes/n1",
+      "payload": {},
+      "seen_first": "2026-10-01",
+      "seen_last": "2026-10-01",
+      "source": "notes",
+      "source_confirmed": false,
+      "source_id": "n1",
+      "subject": "Tom",
+      "text": "Tom plays the cello",
+      "times": 1,
+      "updated_at": "2026-10-21T09:00:00+00:00"
+     },
+     {
+      "about": "person",
+      "belief_id": 7,
+      "category": "contact",
+      "days": 1,
+      "gone": false,
+      "id": 8,
+      "link": "http://h/chat/c1",
+      "payload": {},
+      "seen_first": "2026-10-01",
+      "seen_last": "2026-10-01",
+      "source": "chat",
+      "source_confirmed": false,
+      "source_id": "c1",
+      "subject": "Tom",
+      "text": "Tom plays the cello",
+      "times": 1,
+      "updated_at": "2026-10-21T09:00:00+00:00"
+     }
+    ],
+    "first_seen": "2026-10-01",
+    "id": 7,
+    "last_seen": "2026-10-01",
+    "link": "http://h/chat/c1",
+    "memory_id": "m1",
+    "note": null,
+    "owner": "alice",
+    "owner_text": null,
+    "shown_text": "Tom plays the cello",
+    "source": "chat",
+    "status": "confirmed",
+    "structured_at": "2026-11-01T09:00:00+00:00",
+    "subject": "Tom",
+    "subject_display": "Tom",
+    "subject_id": 4,
+    "subject_kind": "project",
+    "text": "Tom plays the cello",
+    "updated_at": "2026-11-01T09:00:00+00:00",
+    "valid_from": "2026-10-01",
+    "valid_until": "2026-12-31",
+    "value": "value of Tom plays the cellovalue of Tom plays the cellovalue of Tom plays the cellovalue of Tom plays the cello"
+   }
+  ],
+  [
+   "stats",
+   {
+    "confirmed": 3,
+    "rejected": 1,
+    "stale": 4,
+    "structured": 4,
+    "tentative": 2,
+    "total": 10
+   }
+  ],
+  [
+   "stats bob",
+   {
+    "confirmed": 1,
+    "rejected": 0,
+    "stale": 0,
+    "structured": 0,
+    "tentative": 0,
+    "total": 1
+   }
+  ],
+  [
+   "export",
+   {
+    "beliefs": [
+     {
+      "about": "person",
+      "attribute": null,
+      "category": "contact",
+      "confirmed_by": null,
+      "contact_id": null,
+      "created_at": "2026-10-21T09:00:00+00:00",
+      "erased_at": "2026-10-29T09:00:00+00:00",
+      "events": [
+       {
+        "at": "2026-10-21T09:00:00+00:00",
+        "detail": "",
+        "kind": "added"
+       },
+       {
+        "at": "2026-10-22T09:00:00+00:00",
+        "detail": "",
+        "kind": "confirmed"
+       },
+       {
+        "at": "2027-05-09T09:00:00+00:00",
+        "detail": "",
+        "kind": "stale"
+       },
+       {
+        "at": "2026-10-28T09:00:00+00:00",
+        "detail": "",
+        "kind": "rejected"
+       },
+       {
+        "at": "2026-10-28T10:00:00+00:00",
+        "detail": "",
+        "kind": "restored"
+       },
+       {
+        "at": "2026-10-28T10:00:00+00:00",
+        "detail": "",
+        "kind": "confirmed"
+       },
+       {
+        "at": "2026-10-28T11:00:00+00:00",
+        "detail": "",
+        "kind": "rejected"
+       },
+       {
+        "at": "2026-10-29T09:00:00+00:00",
+        "detail": "",
+        "kind": "erased"
+       },
+       {
+        "at": "2026-10-30T09:00:00+00:00",
+        "detail": "from notes",
+        "kind": "evidence"
+       }
+      ],
+      "evidence": [
+       {
+        "about": "person",
+        "belief_id": 1,
+        "category": "contact",
+        "days": 3,
+        "gone": false,
+        "id": 1,
+        "link": "",
+        "payload": {
+         "erase": "done"
+        },
+        "seen_first": "2026-10-01",
+        "seen_last": "2026-10-05",
+        "source": "odysseus-sound",
+        "source_confirmed": false,
+        "source_id": "1",
+        "subject": "",
+        "text": "",
+        "times": 4,
+        "updated_at": "2026-10-29T10:00:00+00:00"
+       },
+       {
+        "about": "person",
+        "belief_id": 1,
+        "category": "contact",
+        "days": 1,
+        "gone": false,
+        "id": 14,
+        "link": "http://h/notes/n9",
+        "payload": {
+         "erase": "source"
+        },
+        "seen_first": "2026-10-01",
+        "seen_last": "2026-10-01",
+        "source": "notes",
+        "source_confirmed": false,
+        "source_id": "n9",
+        "subject": "",
+        "text": "",
+        "times": 1,
+        "updated_at": "2026-10-30T09:00:00+00:00"
+       }
+      ],
+      "first_seen": "2026-10-01",
+      "id": 1,
+      "last_seen": "2026-10-05",
+      "link": "http://h/notes/n9",
+      "memory_id": null,
+      "note": null,
+      "owner": "alice",
+      "owner_text": null,
+      "shown_text": "",
+      "source": "notes",
+      "status": "rejected",
+      "structured_at": "2026-10-29T09:00:00+00:00",
+      "subject": "",
+      "subject_display": null,
+      "subject_id": null,
+      "subject_kind": null,
+      "text": "",
+      "updated_at": "2026-10-29T09:00:00+00:00",
+      "valid_from": null,
+      "valid_until": null,
+      "value": null
+     },
+     {
+      "about": "person",
+      "attribute": null,
+      "category": "contact",
+      "confirmed_by": null,
+      "contact_id": null,
+      "created_at": "2026-10-21T09:00:00+00:00",
+      "erased_at": null,
+      "events": [
+       {
+        "at": "2026-10-21T09:00:00+00:00",
+        "detail": "from odysseus-sound",
+        "kind": "added"
+       }
+      ],
+      "evidence": [
+       {
+        "about": "person",
+        "belief_id": 2,
+        "category": "contact",
+        "days": 1,
+        "gone": false,
+        "id": 2,
+        "link": "http://h/odysseus-sound/2",
+        "payload": {
+         "kind": "personal"
+        },
+        "seen_first": "2026-10-01",
+        "seen_last": "2026-10-01",
+        "source": "odysseus-sound",
+        "source_confirmed": false,
+        "source_id": "2",
+        "subject": "Priya",
+        "text": "Priya lives in Lisbon",
+        "times": 1,
+        "updated_at": "2026-10-22T09:00:00+00:00"
+       }
+      ],
+      "first_seen": "2026-10-01",
+      "id": 2,
+      "last_seen": "2026-10-01",
+      "link": "http://h/odysseus-sound/2",
+      "memory_id": null,
+      "note": null,
+      "owner": "alice",
+      "owner_text": null,
+      "shown_text": "Priya lives in Lisbon",
+      "source": "odysseus-sound",
+      "status": "tentative",
+      "structured_at": null,
+      "subject": "Priya",
+      "subject_display": "Priya Nair",
+      "subject_id": 1,
+      "subject_kind": "person",
+      "text": "Priya lives in Lisbon",
+      "updated_at": "2026-10-22T09:00:00+00:00",
+      "valid_from": null,
+      "valid_until": null,
+      "value": null
+     },
+     {
+      "about": "owner",
+      "attribute": "diet",
+      "category": "fact",
+      "confirmed_by": "owner",
+      "contact_id": null,
+      "created_at": "2026-10-21T09:00:00+00:00",
+      "erased_at": null,
+      "events": [
+       {
+        "at": "2026-10-21T09:00:00+00:00",
+        "detail": "from odysseus-sound",
+        "kind": "added"
+       },
+       {
+        "at": "2026-10-21T09:00:00+00:00",
+        "detail": "by rule",
+        "kind": "confirmed"
+       },
+       {
+        "at": "2026-10-22T09:00:00+00:00",
+        "detail": "from odysseus-sound",
+        "kind": "evidence"
+       },
+       {
+        "at": "2027-05-09T09:00:00+00:00",
+        "detail": "not seen since 2026-10-03",
+        "kind": "stale"
+       },
+       {
+        "at": "2026-10-27T10:00:00+00:00",
+        "detail": "by owner",
+        "kind": "corrected"
+       }
+      ],
+      "evidence": [
+       {
+        "about": "owner",
+        "belief_id": 3,
+        "category": "fact",
+        "days": 2,
+        "gone": false,
+        "id": 3,
+        "link": "http://h/odysseus-sound/3",
+        "payload": {},
+        "seen_first": "2026-10-01",
+        "seen_last": "2026-10-03",
+        "source": "odysseus-sound",
+        "source_confirmed": false,
+        "source_id": "3",
+        "subject": "Sam",
+        "text": "I am vegetarian",
+        "times": 3,
+        "updated_at": "2026-10-21T09:00:00+00:00"
+       },
+       {
+        "about": "owner",
+        "belief_id": 3,
+        "category": "fact",
+        "days": 1,
+        "gone": false,
+        "id": 10,
+        "link": "http://h/odysseus-sound/8",
+        "payload": {},
+        "seen_first": "2026-10-01",
+        "seen_last": "2026-10-01",
+        "source": "odysseus-sound",
+        "source_confirmed": false,
+        "source_id": "8",
+        "subject": "Me",
+        "text": "Owner is vegetarian.",
+        "times": 1,
+        "updated_at": "2026-10-22T09:00:00+00:00"
+       }
+      ],
+      "first_seen": "2026-10-01",
+      "id": 3,
+      "last_seen": "2026-10-03",
+      "link": "http://h/odysseus-sound/3",
+      "memory_id": "m2",
+      "note": null,
+      "owner": "alice",
+      "owner_text": "I eat no meat or fish",
+      "shown_text": "I eat no meat or fish",
+      "source": "odysseus-sound",
+      "status": "confirmed",
+      "structured_at": "2026-11-01T09:00:00+00:00",
+      "subject": "Sam",
+      "subject_display": "Sam",
+      "subject_id": 2,
+      "subject_kind": "owner",
+      "text": "I am vegetarian",
+      "updated_at": "2026-11-01T09:00:00+00:00",
+      "valid_from": "2026-10-01",
+      "valid_until": "2026-12-31",
+      "value": "value of I eat no meat or fishvalue of I eat no meat or fishvalue of I eat no meat or fishvalue of I eat no meat or fish"
+     },
+     {
+      "about": "owner",
+      "attribute": null,
+      "category": "preference",
+      "confirmed_by": null,
+      "contact_id": null,
+      "created_at": "2026-10-21T09:00:00+00:00",
+      "erased_at": null,
+      "events": [
+       {
+        "at": "2026-10-21T09:00:00+00:00",
+        "detail": "from odysseus-sound",
+        "kind": "added"
+       },
+       {
+        "at": "2026-10-21T09:00:00+00:00",
+        "detail": "by source",
+        "kind": "confirmed"
+       },
+       {
+        "at": "2027-05-09T09:00:00+00:00",
+        "detail": "not seen since 2026-10-01",
+        "kind": "stale"
+       }
+      ],
+      "evidence": [
+       {
+        "about": "owner",
+        "belief_id": 4,
+        "category": "preference",
+        "days": 1,
+        "gone": false,
+        "id": 4,
+        "link": "http://h/odysseus-sound/4",
+        "payload": {},
+        "seen_first": "2026-10-01",
+        "seen_last": "2026-10-01",
+        "source": "odysseus-sound",
+        "source_confirmed": true,
+        "source_id": "4",
+        "subject": "Me",
+        "text": "I love jazz",
+        "times": 1,
+        "updated_at": "2026-10-21T09:00:00+00:00"
+       }
+      ],
+      "first_seen": "2026-10-01",
+      "id": 4,
+      "last_seen": "2026-10-01",
+      "link": "http://h/odysseus-sound/4",
+      "memory_id": null,
+      "note": null,
+      "owner": "alice",
+      "owner_text": null,
+      "shown_text": "I love jazz",
+      "source": "odysseus-sound",
+      "status": "stale",
+      "structured_at": null,
+      "subject": "Me",
+      "subject_display": "Sam",
+      "subject_id": 2,
+      "subject_kind": "owner",
+      "text": "I love jazz",
+      "updated_at": "2027-05-09T09:00:00+00:00",
+      "valid_from": null,
+      "valid_until": null,
+      "value": null
+     },
+     {
+      "about": "other",
+      "attribute": null,
+      "category": "fact",
+      "confirmed_by": null,
+      "contact_id": null,
+      "created_at": "2026-10-21T09:00:00+00:00",
+      "erased_at": null,
+      "events": [
+       {
+        "at": "2026-10-21T09:00:00+00:00",
+        "detail": "from odysseus-sound",
+        "kind": "added"
+       },
+       {
+        "at": "2027-05-09T09:00:00+00:00",
+        "detail": "valid until 2026-11-30",
+        "kind": "stale"
+       }
+      ],
+      "evidence": [
+       {
+        "about": "other",
+        "belief_id": 5,
+        "category": "fact",
+        "days": 1,
+        "gone": false,
+        "id": 5,
+        "link": "http://h/odysseus-sound/5",
+        "payload": {
+         "kind": "plan",
+         "valid_until": "2026-11-30"
+        },
+        "seen_first": "2026-10-01",
+        "seen_last": "2026-10-01",
+        "source": "odysseus-sound",
+        "source_confirmed": false,
+        "source_id": "5",
+        "subject": "Launch plan",
+        "text": "The launch plan ships in May",
+        "times": 1,
+        "updated_at": "2026-10-21T09:00:00+00:00"
+       }
+      ],
+      "first_seen": "2026-10-01",
+      "id": 5,
+      "last_seen": "2026-10-01",
+      "link": "http://h/odysseus-sound/5",
+      "memory_id": null,
+      "note": null,
+      "owner": "alice",
+      "owner_text": null,
+      "shown_text": "The launch plan ships in May",
+      "source": "odysseus-sound",
+      "status": "stale",
+      "structured_at": null,
+      "subject": "Launch plan",
+      "subject_display": "Launch plan",
+      "subject_id": 3,
+      "subject_kind": "project",
+      "text": "The launch plan ships in May",
+      "updated_at": "2027-05-09T09:00:00+00:00",
+      "valid_from": null,
+      "valid_until": "2026-11-30",
+      "value": null
+     },
+     {
+      "about": "owner",
+      "attribute": null,
+      "category": "fact",
+      "confirmed_by": null,
+      "contact_id": null,
+      "created_at": "2026-10-21T09:00:00+00:00",
+      "erased_at": null,
+      "events": [
+       {
+        "at": "2026-10-21T09:00:00+00:00",
+        "detail": "from odysseus-sound",
+        "kind": "added"
+       },
+       {
+        "at": "2026-10-23T09:00:00+00:00",
+        "detail": "odysseus-sound 6",
+        "kind": "retired_upstream"
+       },
+       {
+        "at": "2026-10-23T09:00:00+00:00",
+        "detail": "no source reports it any more",
+        "kind": "stale"
+       }
+      ],
+      "evidence": [
+       {
+        "about": "owner",
+        "belief_id": 6,
+        "category": "fact",
+        "days": 1,
+        "gone": true,
+        "id": 6,
+        "link": "http://h/odysseus-sound/6",
+        "payload": {
+         "gone": true,
+         "gone_at": "2026-10-23T09:00:00+00:00",
+         "kind": "plan",
+         "valid_until": "2026-10-24"
+        },
+        "seen_first": "2026-10-01",
+        "seen_last": "2026-10-01",
+        "source": "odysseus-sound",
+        "source_confirmed": false,
+        "source_id": "6",
+        "subject": "Sam",
+        "text": "Dentist on Friday",
+        "times": 1,
+        "updated_at": "2026-10-23T09:00:00+00:00"
+       }
+      ],
+      "first_seen": "2026-10-01",
+      "id": 6,
+      "last_seen": "2026-10-01",
+      "link": "http://h/odysseus-sound/6",
+      "memory_id": null,
+      "note": null,
+      "owner": "alice",
+      "owner_text": null,
+      "shown_text": "Dentist on Friday",
+      "source": "odysseus-sound",
+      "status": "stale",
+      "structured_at": null,
+      "subject": "Sam",
+      "subject_display": "Sam",
+      "subject_id": 2,
+      "subject_kind": "owner",
+      "text": "Dentist on Friday",
+      "updated_at": "2026-10-23T09:00:00+00:00",
+      "valid_from": null,
+      "valid_until": "2026-10-24",
+      "value": null
+     },
+     {
+      "about": "person",
+      "attribute": "likes",
+      "category": "contact",
+      "confirmed_by": "owner",
+      "contact_id": null,
+      "created_at": "2026-10-21T09:00:00+00:00",
+      "erased_at": null,
+      "events": [
+       {
+        "at": "2026-10-21T09:00:00+00:00",
+        "detail": "from notes",
+        "kind": "added"
+       },
+       {
+        "at": "2026-10-21T09:00:00+00:00",
+        "detail": "from chat",
+        "kind": "evidence"
+       },
+       {
+        "at": "2026-10-21T09:00:00+00:00",
+        "detail": "by rule",
+        "kind": "confirmed"
+       },
+       {
+        "at": "2027-05-09T09:00:00+00:00",
+        "detail": "not seen since 2026-10-01",
+        "kind": "stale"
+       },
+       {
+        "at": "2026-10-27T09:00:00+00:00",
+        "detail": "by owner",
+        "kind": "confirmed"
+       }
+      ],
+      "evidence": [
+       {
+        "about": "person",
+        "belief_id": 7,
+        "category": "contact",
+        "days": 1,
+        "gone": false,
+        "id": 7,
+        "link": "http://h/notes/n1",
+        "payload": {},
+        "seen_first": "2026-10-01",
+        "seen_last": "2026-10-01",
+        "source": "notes",
+        "source_confirmed": false,
+        "source_id": "n1",
+        "subject": "Tom",
+        "text": "Tom plays the cello",
+        "times": 1,
+        "updated_at": "2026-10-21T09:00:00+00:00"
+       },
+       {
+        "about": "person",
+        "belief_id": 7,
+        "category": "contact",
+        "days": 1,
+        "gone": false,
+        "id": 8,
+        "link": "http://h/chat/c1",
+        "payload": {},
+        "seen_first": "2026-10-01",
+        "seen_last": "2026-10-01",
+        "source": "chat",
+        "source_confirmed": false,
+        "source_id": "c1",
+        "subject": "Tom",
+        "text": "Tom plays the cello",
+        "times": 1,
+        "updated_at": "2026-10-21T09:00:00+00:00"
+       }
+      ],
+      "first_seen": "2026-10-01",
+      "id": 7,
+      "last_seen": "2026-10-01",
+      "link": "http://h/chat/c1",
+      "memory_id": "m1",
+      "note": null,
+      "owner": "alice",
+      "owner_text": null,
+      "shown_text": "Tom plays the cello",
+      "source": "chat",
+      "status": "confirmed",
+      "structured_at": "2026-11-01T09:00:00+00:00",
+      "subject": "Tom",
+      "subject_display": "Tom",
+      "subject_id": 4,
+      "subject_kind": "project",
+      "text": "Tom plays the cello",
+      "updated_at": "2026-11-01T09:00:00+00:00",
+      "valid_from": "2026-10-01",
+      "valid_until": "2026-12-31",
+      "value": "value of Tom plays the cellovalue of Tom plays the cellovalue of Tom plays the cellovalue of Tom plays the cello"
+     },
+     {
+      "about": "owner",
+      "attribute": null,
+      "category": "preference",
+      "confirmed_by": null,
+      "contact_id": null,
+      "created_at": "2026-10-21T09:00:00+00:00",
+      "erased_at": null,
+      "events": [
+       {
+        "at": "2026-10-21T09:00:00+00:00",
+        "detail": "from odysseus-sound",
+        "kind": "added"
+       },
+       {
+        "at": "2026-10-23T09:00:00+00:00",
+        "detail": "odysseus-sound 7",
+        "kind": "retired_upstream"
+       },
+       {
+        "at": "2026-10-23T09:00:00+00:00",
+        "detail": "no source reports it any more",
+        "kind": "stale"
+       }
+      ],
+      "evidence": [
+       {
+        "about": "owner",
+        "belief_id": 8,
+        "category": "preference",
+        "days": 1,
+        "gone": true,
+        "id": 9,
+        "link": "http://h/odysseus-sound/7",
+        "payload": {
+         "gone": true,
+         "gone_at": "2026-10-23T09:00:00+00:00"
+        },
+        "seen_first": "2026-10-01",
+        "seen_last": "2026-10-01",
+        "source": "odysseus-sound",
+        "source_confirmed": false,
+        "source_id": "7",
+        "subject": "Me",
+        "text": "Me prefers tea",
+        "times": 1,
+        "updated_at": "2026-10-23T09:00:00+00:00"
+       }
+      ],
+      "first_seen": "2026-10-01",
+      "id": 8,
+      "last_seen": "2026-10-01",
+      "link": "http://h/odysseus-sound/7",
+      "memory_id": null,
+      "note": null,
+      "owner": "alice",
+      "owner_text": null,
+      "shown_text": "Me prefers tea",
+      "source": "odysseus-sound",
+      "status": "stale",
+      "structured_at": null,
+      "subject": "Me",
+      "subject_display": "Sam",
+      "subject_id": 2,
+      "subject_kind": "owner",
+      "text": "Me prefers tea",
+      "updated_at": "2026-10-23T09:00:00+00:00",
+      "valid_from": null,
+      "valid_until": null,
+      "value": null
+     },
+     {
+      "about": "person",
+      "attribute": "diet",
+      "category": "contact",
+      "confirmed_by": "owner",
+      "contact_id": null,
+      "created_at": "2026-10-22T09:00:00+00:00",
+      "erased_at": null,
+      "events": [
+       {
+        "at": "2026-10-22T09:00:00+00:00",
+        "detail": "from odysseus-sound",
+        "kind": "added"
+       },
+       {
+        "at": "2026-10-27T11:00:00+00:00",
+        "detail": "to Lena Fischer by owner",
+        "kind": "moved"
+       }
+      ],
+      "evidence": [
+       {
+        "about": "person",
+        "belief_id": 9,
+        "category": "contact",
+        "days": 1,
+        "gone": false,
+        "id": 11,
+        "link": "http://h/odysseus-sound/9",
+        "payload": {},
+        "seen_first": "2026-10-01",
+        "seen_last": "2026-10-01",
+        "source": "odysseus-sound",
+        "source_confirmed": false,
+        "source_id": "9",
+        "subject": "Lena",
+        "text": "Lena collects vintage maps",
+        "times": 1,
+        "updated_at": "2026-10-22T09:00:00+00:00"
+       }
+      ],
+      "first_seen": "2026-10-01",
+      "id": 9,
+      "last_seen": "2026-10-01",
+      "link": "http://h/odysseus-sound/9",
+      "memory_id": "m3",
+      "note": null,
+      "owner": "alice",
+      "owner_text": null,
+      "shown_text": "Lena collects vintage maps",
+      "source": "odysseus-sound",
+      "status": "confirmed",
+      "structured_at": "2026-11-01T09:00:00+00:00",
+      "subject": "Lena Fischer",
+      "subject_display": "Lena Fischer",
+      "subject_id": 10,
+      "subject_kind": "person",
+      "text": "Lena collects vintage maps",
+      "updated_at": "2026-11-01T09:00:00+00:00",
+      "valid_from": "2026-10-01",
+      "valid_until": "2026-12-31",
+      "value": "value of Lena collects vintage mapsvalue of Lena collects vintage mapsvalue of Lena collects vintage mapsvalue of Lena…"
+     },
+     {
+      "about": "other",
+      "attribute": null,
+      "category": "fact",
+      "confirmed_by": null,
+      "contact_id": null,
+      "created_at": "2026-10-22T09:00:00+00:00",
+      "erased_at": null,
+      "events": [
+       {
+        "at": "2026-10-22T09:00:00+00:00",
+        "detail": "from notes",
+        "kind": "added"
+       }
+      ],
+      "evidence": [
+       {
+        "about": "other",
+        "belief_id": 10,
+        "category": "fact",
+        "days": 1,
+        "gone": false,
+        "id": 12,
+        "link": "http://h/notes/n3",
+        "payload": {},
+        "seen_first": "2026-10-01",
+        "seen_last": "2026-10-01",
+        "source": "notes",
+        "source_confirmed": false,
+        "source_id": "n3",
+        "subject": "Project Atlas",
+        "text": "Project Atlas deadline is in March",
+        "times": 1,
+        "updated_at": "2026-10-22T09:00:00+00:00"
+       }
+      ],
+      "first_seen": "2026-10-01",
+      "id": 10,
+      "last_seen": "2026-10-01",
+      "link": "http://h/notes/n3",
+      "memory_id": null,
+      "note": null,
+      "owner": "alice",
+      "owner_text": null,
+      "shown_text": "Project Atlas deadline is in March",
+      "source": "notes",
+      "status": "tentative",
+      "structured_at": null,
+      "subject": "Project Atlas",
+      "subject_display": "Project Atlas",
+      "subject_id": 6,
+      "subject_kind": "project",
+      "text": "Project Atlas deadline is in March",
+      "updated_at": "2026-10-22T09:00:00+00:00",
+      "valid_from": null,
+      "valid_until": null,
+      "value": null
+     }
+    ],
+    "subject_sources": [
+     {
+      "name": "Priya Nair",
+      "owner": "alice",
+      "source": "odysseus-sound",
+      "source_person_id": "p1",
+      "subject_id": 1,
+      "updated_at": "2026-10-21T09:00:00+00:00"
+     },
+     {
+      "name": "Sam",
+      "owner": "alice",
+      "source": "odysseus-sound",
+      "source_person_id": "p0",
+      "subject_id": 2,
+      "updated_at": "2026-10-22T10:00:00+00:00"
+     },
+     {
+      "name": "Jonas",
+      "owner": "alice",
+      "source": "odysseus-sound",
+      "source_person_id": "p2",
+      "subject_id": 4,
+      "updated_at": "2026-10-22T10:00:00+00:00"
+     },
+     {
+      "name": "Lena",
+      "owner": "alice",
+      "source": "odysseus-sound",
+      "source_person_id": "p3",
+      "subject_id": 5,
+      "updated_at": "2026-10-22T09:00:00+00:00"
+     },
+     {
+      "name": "Me",
+      "owner": "alice",
+      "source": "odysseus-sound",
+      "source_person_id": "p4",
+      "subject_id": 9,
+      "updated_at": "2026-10-22T10:00:00+00:00"
+     }
+    ],
+    "subjects": [
+     {
+      "aliases": [
+       "Priya",
+       "P. Nair"
+      ],
+      "contact_id": null,
+      "created_at": "2026-10-21T09:00:00+00:00",
+      "display": "Priya Nair",
+      "id": 1,
+      "key": "priya nair",
+      "kind": "person",
+      "kind_by": "auto",
+      "note": null,
+      "owner": "alice",
+      "updated_at": "2026-10-22T10:00:00+00:00"
+     },
+     {
+      "aliases": [],
+      "contact_id": null,
+      "created_at": "2026-10-21T09:00:00+00:00",
+      "display": "Sam",
+      "id": 2,
+      "key": "sam",
+      "kind": "owner",
+      "kind_by": "auto",
+      "note": null,
+      "owner": "alice",
+      "updated_at": "2026-10-21T09:00:00+00:00"
+     },
+     {
+      "aliases": [],
+      "contact_id": null,
+      "created_at": "2026-10-21T09:00:00+00:00",
+      "display": "Launch plan",
+      "id": 3,
+      "key": "launch plan",
+      "kind": "project",
+      "kind_by": "auto",
+      "note": null,
+      "owner": "alice",
+      "updated_at": "2026-10-21T09:00:00+00:00"
+     },
+     {
+      "aliases": [
+       "Jonas Berg",
+       "Jonas"
+      ],
+      "contact_id": null,
+      "created_at": "2026-10-21T09:00:00+00:00",
+      "display": "Tom",
+      "id": 4,
+      "key": "tom",
+      "kind": "project",
+      "kind_by": "owner",
+      "note": null,
+      "owner": "alice",
+      "updated_at": "2026-10-31T12:00:00+00:00"
+     },
+     {
+      "aliases": [],
+      "contact_id": null,
+      "created_at": "2026-10-22T09:00:00+00:00",
+      "display": "Lena",
+      "id": 5,
+      "key": "lena",
+      "kind": "person",
+      "kind_by": "auto",
+      "note": null,
+      "owner": "alice",
+      "updated_at": "2026-10-22T09:00:00+00:00"
+     },
+     {
+      "aliases": [],
+      "contact_id": null,
+      "created_at": "2026-10-22T09:00:00+00:00",
+      "display": "Project Atlas",
+      "id": 6,
+      "key": "project atlas",
+      "kind": "project",
+      "kind_by": "auto",
+      "note": null,
+      "owner": "alice",
+      "updated_at": "2026-10-22T09:00:00+00:00"
+     },
+     {
+      "aliases": [],
+      "contact_id": null,
+      "created_at": "2026-10-22T10:00:00+00:00",
+      "display": "Me",
+      "id": 9,
+      "key": "me",
+      "kind": "person",
+      "kind_by": "auto",
+      "note": null,
+      "owner": "alice",
+      "updated_at": "2026-10-22T10:00:00+00:00"
+     },
+     {
+      "aliases": [],
+      "contact_id": null,
+      "created_at": "2026-10-27T11:00:00+00:00",
+      "display": "Lena Fischer",
+      "id": 10,
+      "key": "lena fischer",
+      "kind": "person",
+      "kind_by": "auto",
+      "note": null,
+      "owner": "alice",
+      "updated_at": "2026-10-27T11:00:00+00:00"
+     }
+    ]
+   }
+  ],
+  [
+   "memory sync partial",
+   {
+    "added": 0,
+    "kept": 1,
+    "removed": 0,
+    "updated": 0
+   }
+  ],
+  [
+   "memory sync none",
+   {
+    "added": 0,
+    "kept": 0,
+    "removed": 0,
+    "updated": 0
+   }
+  ],
+  [
+   "memory sync",
+   {
+    "added": 0,
+    "kept": 3,
+    "removed": 0,
+    "updated": 0
+   }
+  ],
+  [
+   "confirmation_for",
+   [
+    null,
+    "owner",
+    null,
+    null
+   ]
+  ],
+  [
+   "normalize",
+   [
+    "owner is vegetarian",
+    "owner's sister lives in porto",
+    "owner's dog is rex",
+    "meals are fine",
+    "tom plays cello"
+   ]
+  ],
+  [
+   "category_for",
+   [
+    "preference",
+    "fact",
+    "contact",
+    "fact",
+    "preference"
+   ]
+  ]
+ ],
+ "fresh_schema": {
+  "objects": [
+   [
+    "index",
+    "beliefs_owner_attribute",
+    "beliefs",
+    "CREATE INDEX beliefs_owner_attribute ON beliefs (owner, attribute)"
+   ],
+   [
+    "index",
+    "beliefs_owner_corrected",
+    "beliefs",
+    "CREATE INDEX beliefs_owner_corrected ON beliefs (owner, owner_norm)\n    WHERE owner_norm IS NOT NULL"
+   ],
+   [
+    "index",
+    "beliefs_owner_norm",
+    "beliefs",
+    "CREATE INDEX beliefs_owner_norm ON beliefs (owner, norm)"
+   ],
+   [
+    "index",
+    "beliefs_owner_status",
+    "beliefs",
+    "CREATE INDEX beliefs_owner_status ON beliefs (owner, status)"
+   ],
+   [
+    "index",
+    "beliefs_owner_subject",
+    "beliefs",
+    "CREATE INDEX beliefs_owner_subject ON beliefs (owner, subject_id)"
+   ],
+   [
+    "index",
+    "events_belief",
+    "events",
+    "CREATE INDEX events_belief ON events (belief_id)"
+   ],
+   [
+    "index",
+    "evidence_belief",
+    "evidence",
+    "CREATE INDEX evidence_belief ON evidence (belief_id)"
+   ],
+   [
+    "index",
+    "sqlite_autoindex_evidence_1",
+    "evidence",
+    null
+   ],
+   [
+    "index",
+    "sqlite_autoindex_evidence_2",
+    "evidence",
+    null
+   ],
+   [
+    "index",
+    "sqlite_autoindex_subject_sources_1",
+    "subject_sources",
+    null
+   ],
+   [
+    "index",
+    "sqlite_autoindex_subjects_1",
+    "subjects",
+    null
+   ],
+   [
+    "index",
+    "subject_sources_subject",
+    "subject_sources",
+    "CREATE INDEX subject_sources_subject ON subject_sources (subject_id)"
+   ],
+   [
+    "table",
+    "beliefs",
+    "beliefs",
+    "CREATE TABLE beliefs (\n    id INTEGER PRIMARY KEY AUTOINCREMENT,\n    owner TEXT NOT NULL DEFAULT '',\n    subject TEXT NOT NULL DEFAULT '',\n    about TEXT NOT NULL DEFAULT 'other' CHECK (about IN ('owner', 'person', 'other')),\n    text TEXT NOT NULL,\n    norm TEXT NOT NULL,\n    category TEXT NOT NULL DEFAULT 'fact'\n        CHECK (category IN ('fact', 'preference', 'contact')),\n    status TEXT NOT NULL DEFAULT 'tentative'\n        CHECK (status IN ('tentative', 'confirmed', 'stale', 'rejected')),\n    confirmed_by TEXT CHECK (confirmed_by IN ('source', 'owner', 'rule')),\n    first_seen TEXT,\n    last_seen TEXT,\n    valid_until TEXT,\n    memory_id TEXT,\n    created_at TEXT NOT NULL,\n    updated_at TEXT NOT NULL,\n    owner_text TEXT,\n    owner_norm TEXT,\n    note TEXT,\n    subject_id INTEGER,\n    attribute TEXT,\n    value TEXT,\n    valid_from TEXT,\n    structured_at TEXT\n, erased_at TEXT)"
+   ],
+   [
+    "table",
+    "events",
+    "events",
+    "CREATE TABLE \"events\" (id INTEGER PRIMARY KEY AUTOINCREMENT, belief_id INTEGER NOT NULL REFERENCES beliefs (id) ON DELETE CASCADE, at TEXT NOT NULL, kind TEXT NOT NULL CHECK (kind IN ('added', 'evidence', 'confirmed', 'stale', 'rejected', 'corrected', 'restored', 'retired_upstream', 'unconfirmed', 'merged', 'erased', 'moved')), detail TEXT NOT NULL DEFAULT '')"
+   ],
+   [
+    "table",
+    "evidence",
+    "evidence",
+    "CREATE TABLE evidence (\n    id INTEGER PRIMARY KEY AUTOINCREMENT,\n    belief_id INTEGER NOT NULL REFERENCES beliefs (id) ON DELETE CASCADE,\n    owner TEXT NOT NULL DEFAULT '',\n    source TEXT NOT NULL,\n    source_id TEXT NOT NULL,\n    subject TEXT NOT NULL DEFAULT '',\n    about TEXT NOT NULL DEFAULT 'other',\n    category TEXT NOT NULL DEFAULT 'fact',\n    text TEXT NOT NULL DEFAULT '',\n    link TEXT NOT NULL DEFAULT '',\n    seen_first TEXT,\n    seen_last TEXT,\n    times INTEGER NOT NULL DEFAULT 1,\n    days INTEGER NOT NULL DEFAULT 1,\n    source_confirmed INTEGER NOT NULL DEFAULT 0,\n    payload TEXT NOT NULL DEFAULT '{}',\n    updated_at TEXT NOT NULL,\n    UNIQUE (belief_id, source, source_id),\n    UNIQUE (owner, source, source_id)\n)"
+   ],
+   [
+    "table",
+    "sqlite_sequence",
+    "sqlite_sequence",
+    "CREATE TABLE sqlite_sequence(name,seq)"
+   ],
+   [
+    "table",
+    "subject_sources",
+    "subject_sources",
+    "CREATE TABLE subject_sources (\n    subject_id INTEGER NOT NULL REFERENCES subjects (id) ON DELETE CASCADE,\n    owner TEXT NOT NULL DEFAULT '',\n    source TEXT NOT NULL,\n    source_person_id TEXT NOT NULL,\n    name TEXT NOT NULL DEFAULT '',\n    updated_at TEXT NOT NULL,\n    UNIQUE (source, source_person_id, owner)\n)"
+   ],
+   [
+    "table",
+    "subjects",
+    "subjects",
+    "CREATE TABLE subjects (\n    id INTEGER PRIMARY KEY AUTOINCREMENT,\n    owner TEXT NOT NULL DEFAULT '',\n    key TEXT NOT NULL,\n    display TEXT NOT NULL,\n    kind TEXT NOT NULL DEFAULT 'thing'\n        CHECK (kind IN ('person', 'project', 'thing', 'owner')),\n    kind_by TEXT NOT NULL DEFAULT 'auto' CHECK (kind_by IN ('auto', 'owner')),\n    contact_id TEXT,\n    aliases TEXT NOT NULL DEFAULT '[]',\n    note TEXT,\n    created_at TEXT NOT NULL,\n    updated_at TEXT NOT NULL,\n    UNIQUE (owner, key)\n)"
+   ]
+  ],
+  "user_version": 3
+ },
+ "memory": [
+  {
+   "about": "owner",
+   "belief_id": 3,
+   "category": "fact",
+   "days": 2,
+   "first_said": "2026-10-01",
+   "first_seen": "2026-10-01",
+   "id": "m2",
+   "last_said": "2026-10-03",
+   "last_seen": "2026-10-03",
+   "link": "http://h/odysseus-sound/3",
+   "module_fact_id": 3,
+   "owner": "alice",
+   "source": "odysseus-sound",
+   "subject": "Sam",
+   "subject_id": 2,
+   "subject_kind": "owner",
+   "synced_at": "2026-10-27T10:00:00+00:00",
+   "text": "I eat no meat or fish (source: http://h/odysseus-sound/3)",
+   "times_said": 3,
+   "timestamp": 1793095200,
+   "uses": 0
+  },
+  {
+   "about": "person",
+   "belief_id": 7,
+   "category": "contact",
+   "first_seen": "2026-10-01",
+   "id": "m1",
+   "last_seen": "2026-10-01",
+   "link": "http://h/chat/c1",
+   "owner": "alice",
+   "source": "chat",
+   "subject": "Tom",
+   "subject_id": 4,
+   "subject_kind": "project",
+   "synced_at": "2026-10-31T10:00:00+00:00",
+   "text": "Tom plays the cello (source: http://h/chat/c1)",
+   "timestamp": 1793440800,
+   "uses": 0
+  },
+  {
+   "about": "person",
+   "belief_id": 11,
+   "category": "contact",
+   "days": 1,
+   "first_said": "2026-10-01",
+   "first_seen": "2026-10-01",
+   "id": "m5",
+   "last_said": "2026-10-01",
+   "last_seen": "2026-10-01",
+   "link": "http://h/odysseus-sound/1",
+   "module_fact_id": 1,
+   "owner": "bob",
+   "source": "odysseus-sound",
+   "subject": "Tom",
+   "subject_id": 7,
+   "subject_kind": "person",
+   "synced_at": "2026-10-22T09:00:00+00:00",
+   "text": "Tom plays the viola (source: http://h/odysseus-sound/1)",
+   "times_said": 1,
+   "timestamp": 1792659600,
+   "uses": 0
+  },
+  {
+   "about": "person",
+   "belief_id": 9,
+   "category": "contact",
+   "days": 1,
+   "first_said": "2026-10-01",
+   "first_seen": "2026-10-01",
+   "id": "m3",
+   "last_said": "2026-10-01",
+   "last_seen": "2026-10-01",
+   "link": "http://h/odysseus-sound/9",
+   "module_fact_id": 9,
+   "owner": "alice",
+   "source": "odysseus-sound",
+   "subject": "Lena Fischer",
+   "subject_id": 10,
+   "subject_kind": "person",
+   "synced_at": "2026-10-27T11:00:00+00:00",
+   "text": "Lena collects vintage maps (source: http://h/odysseus-sound/9)",
+   "times_said": 1,
+   "timestamp": 1793098800,
+   "uses": 0
+  }
+ ],
+ "migrated_rows": {
+  "beliefs": [
+   {
+    "about": "owner",
+    "attribute": null,
+    "category": "fact",
+    "confirmed_by": "rule",
+    "created_at": "2026-09-03T00:00:00+00:00",
+    "erased_at": null,
+    "first_seen": "2026-09-01",
+    "id": 1,
+    "last_seen": "2026-09-03",
+    "memory_id": null,
+    "norm": "owner is vegetarian",
+    "note": null,
+    "owner": "alice",
+    "owner_norm": "owner's diet is vegetarian",
+    "owner_text": "My diet is vegetarian",
+    "status": "confirmed",
+    "structured_at": null,
+    "subject": "Sam",
+    "subject_id": 1,
+    "text": "I am vegetarian",
+    "updated_at": "2026-09-03T00:00:00+00:00",
+    "valid_from": null,
+    "valid_until": null,
+    "value": null
+   },
+   {
+    "about": "other",
+    "attribute": null,
+    "category": "fact",
+    "confirmed_by": null,
+    "created_at": "2026-09-02T00:00:00+00:00",
+    "erased_at": null,
+    "first_seen": "2026-09-02",
+    "id": 2,
+    "last_seen": "2026-09-02",
+    "memory_id": null,
+    "norm": "the launch plan ships in may",
+    "note": null,
+    "owner": "alice",
+    "owner_norm": null,
+    "owner_text": null,
+    "status": "tentative",
+    "structured_at": null,
+    "subject": "Launch plan",
+    "subject_id": 2,
+    "text": "The launch plan ships in May",
+    "updated_at": "2026-09-02T00:00:00+00:00",
+    "valid_from": null,
+    "valid_until": null,
+    "value": null
+   },
+   {
+    "about": "person",
+    "attribute": null,
+    "category": "contact",
+    "confirmed_by": "source",
+    "created_at": "2026-09-04T00:00:00+00:00",
+    "erased_at": null,
+    "first_seen": "2026-09-04",
+    "id": 3,
+    "last_seen": "2026-09-04",
+    "memory_id": null,
+    "norm": "tom plays the cello",
+    "note": null,
+    "owner": "bob",
+    "owner_norm": null,
+    "owner_text": null,
+    "status": "confirmed",
+    "structured_at": null,
+    "subject": "Tom",
+    "subject_id": 3,
+    "text": "Tom plays the cello",
+    "updated_at": "2026-09-04T00:00:00+00:00",
+    "valid_from": null,
+    "valid_until": null,
+    "value": null
+   }
+  ],
+  "events": [
+   {
+    "at": "2026-09-03T00:00:00+00:00",
+    "belief_id": 1,
+    "detail": "by rule",
+    "id": 1,
+    "kind": "confirmed"
+   }
+  ],
+  "evidence": [
+   {
+    "about": "owner",
+    "belief_id": 1,
+    "category": "fact",
+    "days": 2,
+    "id": 1,
+    "link": "http://h/view/a",
+    "owner": "alice",
+    "payload": "{}",
+    "seen_first": "2026-09-01",
+    "seen_last": "2026-09-03",
+    "source": "odysseus-sound",
+    "source_confirmed": 0,
+    "source_id": "11",
+    "subject": "Sam",
+    "text": "I am vegetarian",
+    "times": 3,
+    "updated_at": "2026-09-03T00:00:00+00:00"
+   },
+   {
+    "about": "person",
+    "belief_id": 3,
+    "category": "contact",
+    "days": 1,
+    "id": 2,
+    "link": "http://h/view/b",
+    "owner": "bob",
+    "payload": "{}",
+    "seen_first": "2026-09-04",
+    "seen_last": "2026-09-04",
+    "source": "odysseus-sound",
+    "source_confirmed": 1,
+    "source_id": "12",
+    "subject": "Tom",
+    "text": "Tom plays the cello",
+    "times": 1,
+    "updated_at": "2026-09-04T00:00:00+00:00"
+   }
+  ],
+  "subject_sources": [],
+  "subjects": [
+   {
+    "aliases": "[]",
+    "contact_id": null,
+    "created_at": "<now>",
+    "display": "Sam",
+    "id": 1,
+    "key": "sam",
+    "kind": "owner",
+    "kind_by": "auto",
+    "note": null,
+    "owner": "alice",
+    "updated_at": "<now>"
+   },
+   {
+    "aliases": "[]",
+    "contact_id": null,
+    "created_at": "<now>",
+    "display": "Launch plan",
+    "id": 2,
+    "key": "launch plan",
+    "kind": "project",
+    "kind_by": "auto",
+    "note": null,
+    "owner": "alice",
+    "updated_at": "<now>"
+   },
+   {
+    "aliases": "[]",
+    "contact_id": null,
+    "created_at": "<now>",
+    "display": "Tom",
+    "id": 3,
+    "key": "tom",
+    "kind": "person",
+    "kind_by": "auto",
+    "note": null,
+    "owner": "bob",
+    "updated_at": "<now>"
+   }
+  ]
+ },
+ "migrated_schema": {
+  "objects": [
+   [
+    "index",
+    "beliefs_owner_attribute",
+    "beliefs",
+    "CREATE INDEX beliefs_owner_attribute ON beliefs (owner, attribute)"
+   ],
+   [
+    "index",
+    "beliefs_owner_corrected",
+    "beliefs",
+    "CREATE INDEX beliefs_owner_corrected ON beliefs (owner, owner_norm)\n    WHERE owner_norm IS NOT NULL"
+   ],
+   [
+    "index",
+    "beliefs_owner_norm",
+    "beliefs",
+    "CREATE INDEX beliefs_owner_norm ON beliefs (owner, norm)"
+   ],
+   [
+    "index",
+    "beliefs_owner_status",
+    "beliefs",
+    "CREATE INDEX beliefs_owner_status ON beliefs (owner, status)"
+   ],
+   [
+    "index",
+    "beliefs_owner_subject",
+    "beliefs",
+    "CREATE INDEX beliefs_owner_subject ON beliefs (owner, subject_id)"
+   ],
+   [
+    "index",
+    "events_belief",
+    "events",
+    "CREATE INDEX events_belief ON events (belief_id)"
+   ],
+   [
+    "index",
+    "evidence_belief",
+    "evidence",
+    "CREATE INDEX evidence_belief ON evidence (belief_id)"
+   ],
+   [
+    "index",
+    "sqlite_autoindex_evidence_1",
+    "evidence",
+    null
+   ],
+   [
+    "index",
+    "sqlite_autoindex_evidence_2",
+    "evidence",
+    null
+   ],
+   [
+    "index",
+    "sqlite_autoindex_subject_sources_1",
+    "subject_sources",
+    null
+   ],
+   [
+    "index",
+    "sqlite_autoindex_subjects_1",
+    "subjects",
+    null
+   ],
+   [
+    "index",
+    "subject_sources_subject",
+    "subject_sources",
+    "CREATE INDEX subject_sources_subject ON subject_sources (subject_id)"
+   ],
+   [
+    "table",
+    "beliefs",
+    "beliefs",
+    "CREATE TABLE beliefs (\n    id INTEGER PRIMARY KEY AUTOINCREMENT, owner TEXT NOT NULL DEFAULT '',\n    subject TEXT NOT NULL DEFAULT '', about TEXT NOT NULL DEFAULT 'other'\n    CHECK (about IN ('owner', 'person', 'other')), text TEXT NOT NULL, norm TEXT NOT NULL,\n    category TEXT NOT NULL DEFAULT 'fact' CHECK (category IN ('fact', 'preference', 'contact')),\n    status TEXT NOT NULL DEFAULT 'tentative'\n    CHECK (status IN ('tentative', 'confirmed', 'stale', 'rejected')),\n    confirmed_by TEXT CHECK (confirmed_by IN ('source', 'owner', 'rule')), first_seen TEXT,\n    last_seen TEXT, valid_until TEXT, memory_id TEXT, created_at TEXT NOT NULL,\n    updated_at TEXT NOT NULL, owner_text TEXT, owner_norm TEXT, note TEXT, subject_id INTEGER, attribute TEXT, value TEXT, valid_from TEXT, structured_at TEXT, erased_at TEXT)"
+   ],
+   [
+    "table",
+    "events",
+    "events",
+    "CREATE TABLE \"events\" (id INTEGER PRIMARY KEY AUTOINCREMENT, belief_id INTEGER NOT NULL REFERENCES beliefs (id) ON DELETE CASCADE, at TEXT NOT NULL, kind TEXT NOT NULL CHECK (kind IN ('added', 'evidence', 'confirmed', 'stale', 'rejected', 'corrected', 'restored', 'retired_upstream', 'unconfirmed', 'merged', 'erased', 'moved')), detail TEXT NOT NULL DEFAULT '')"
+   ],
+   [
+    "table",
+    "evidence",
+    "evidence",
+    "CREATE TABLE evidence (\n    id INTEGER PRIMARY KEY AUTOINCREMENT,\n    belief_id INTEGER NOT NULL REFERENCES beliefs (id) ON DELETE CASCADE,\n    owner TEXT NOT NULL DEFAULT '', source TEXT NOT NULL, source_id TEXT NOT NULL,\n    subject TEXT NOT NULL DEFAULT '', about TEXT NOT NULL DEFAULT 'other',\n    category TEXT NOT NULL DEFAULT 'fact', text TEXT NOT NULL DEFAULT '',\n    link TEXT NOT NULL DEFAULT '', seen_first TEXT, seen_last TEXT,\n    times INTEGER NOT NULL DEFAULT 1, days INTEGER NOT NULL DEFAULT 1,\n    source_confirmed INTEGER NOT NULL DEFAULT 0, payload TEXT NOT NULL DEFAULT '{}',\n    updated_at TEXT NOT NULL, UNIQUE (belief_id, source, source_id),\n    UNIQUE (owner, source, source_id))"
+   ],
+   [
+    "table",
+    "sqlite_sequence",
+    "sqlite_sequence",
+    "CREATE TABLE sqlite_sequence(name,seq)"
+   ],
+   [
+    "table",
+    "subject_sources",
+    "subject_sources",
+    "CREATE TABLE subject_sources (\n    subject_id INTEGER NOT NULL REFERENCES subjects (id) ON DELETE CASCADE,\n    owner TEXT NOT NULL DEFAULT '',\n    source TEXT NOT NULL,\n    source_person_id TEXT NOT NULL,\n    name TEXT NOT NULL DEFAULT '',\n    updated_at TEXT NOT NULL,\n    UNIQUE (source, source_person_id, owner)\n)"
+   ],
+   [
+    "table",
+    "subjects",
+    "subjects",
+    "CREATE TABLE subjects (\n    id INTEGER PRIMARY KEY AUTOINCREMENT,\n    owner TEXT NOT NULL DEFAULT '',\n    key TEXT NOT NULL,\n    display TEXT NOT NULL,\n    kind TEXT NOT NULL DEFAULT 'thing'\n        CHECK (kind IN ('person', 'project', 'thing', 'owner')),\n    kind_by TEXT NOT NULL DEFAULT 'auto' CHECK (kind_by IN ('auto', 'owner')),\n    contact_id TEXT,\n    aliases TEXT NOT NULL DEFAULT '[]',\n    note TEXT,\n    created_at TEXT NOT NULL,\n    updated_at TEXT NOT NULL,\n    UNIQUE (owner, key)\n)"
+   ]
+  ],
+  "user_version": 3
+ },
+ "surface": [
+  "ABOUT",
+  "ATTRIBUTES",
+  "BeliefErased",
+  "BeliefNotFound",
+  "CATEGORIES",
+  "CONFIRMED_BY",
+  "DB_NAME",
+  "ERASED_PREFIX",
+  "ERASE_STATES",
+  "ERASE_VERSION",
+  "EVENTS_KEPT",
+  "EVENT_KINDS",
+  "Evidence",
+  "FACT_KINDS",
+  "GENERIC_SUBJECT",
+  "MATCH_SQL",
+  "MAX_VALUE_CHARS",
+  "MODULE_FIELDS",
+  "MODULE_SOURCE",
+  "NORM_VERSION",
+  "OPTIONAL_FIELDS",
+  "OWNER_DISPLAY",
+  "PREFERENCE_WORDS",
+  "PROJECT_ATTRIBUTES",
+  "PROJECT_WORDS",
+  "SCHEMA",
+  "SCHEMA_VERSION",
+  "STATUSES",
+  "SUBJECT_COUNTS_SQL",
+  "SUBJECT_KINDS",
+  "SUBJECT_SOURCES_SQL",
+  "Settings",
+  "SubjectNotFound",
+  "_BELIEF_SELECT",
+  "_EV_COLS",
+  "_NEW_BELIEF_COLUMNS",
+  "_OWNER_LEADS",
+  "_OWNER_NAMES",
+  "_OWNER_VERBS",
+  "_RESERVED_PAYLOAD",
+  "_Subjects",
+  "_WRITE",
+  "_aliases",
+  "_attach",
+  "_belief",
+  "_belief_dict",
+  "_belief_kind",
+  "_checkpoint",
+  "_clean",
+  "_clean_name",
+  "_connect",
+  "_day",
+  "_drop_empty_owner_word",
+  "_erased",
+  "_erased_evidence",
+  "_event",
+  "_evidence_dict",
+  "_evidence_rows",
+  "_expired",
+  "_follow_category",
+  "_in_chunks",
+  "_infer_project",
+  "_inferred_kind",
+  "_int",
+  "_is_gone",
+  "_is_owner_name",
+  "_match",
+  "_migrate_erase",
+  "_migrate_event_kinds",
+  "_migrate_norms",
+  "_migrate_subjects",
+  "_name_owner",
+  "_new_belief",
+  "_not_erased",
+  "_note_person",
+  "_now",
+  "_owner_action",
+  "_owner_key",
+  "_payload",
+  "_person_kind",
+  "_read_settings",
+  "_refresh",
+  "_resolve_subject",
+  "_reworded",
+  "_set",
+  "_stamp",
+  "_subject",
+  "_subject_action",
+  "_subject_dict",
+  "_subject_extras",
+  "_subject_for",
+  "_truthy",
+  "annotations",
+  "apply_decay",
+  "apply_structure",
+  "beliefs_by_attribute",
+  "beliefs_for_contact",
+  "category_for",
+  "clean_attribute",
+  "clean_value",
+  "confirm",
+  "confirmation_for",
+  "correct",
+  "db_path",
+  "erase",
+  "erase_pending",
+  "erased_key",
+  "export_rows",
+  "find_subject",
+  "get_belief",
+  "get_subject",
+  "link_contact",
+  "link_rank",
+  "list_beliefs",
+  "list_subjects",
+  "logger",
+  "memory_fields",
+  "merge_subjects",
+  "move",
+  "normalize",
+  "primary_evidence",
+  "reconcile_source",
+  "reject",
+  "rename_subject",
+  "restore",
+  "scrub_quotes",
+  "set_subject_kind",
+  "settings",
+  "stats",
+  "structure_candidates",
+  "subject_key",
+  "subject_summary",
+  "submit",
+  "sync_memory",
+  "sync_people",
+  "unlink_contact",
+  "update_vector_index"
+ ],
+ "tables": {
+  "beliefs": [
+   {
+    "about": "person",
+    "attribute": null,
+    "category": "contact",
+    "confirmed_by": null,
+    "created_at": "2026-10-21T09:00:00+00:00",
+    "erased_at": "2026-10-29T09:00:00+00:00",
+    "first_seen": "2026-10-01",
+    "id": 1,
+    "last_seen": "2026-10-05",
+    "memory_id": null,
+    "norm": "erased:1e74c74cadfc18d3265e37a7448b574d68bab7dcc8937963bb62a97e9973ef33",
+    "note": null,
+    "owner": "alice",
+    "owner_norm": null,
+    "owner_text": null,
+    "status": "rejected",
+    "structured_at": "2026-10-29T09:00:00+00:00",
+    "subject": "",
+    "subject_id": null,
+    "text": "",
+    "updated_at": "2026-10-29T09:00:00+00:00",
+    "valid_from": null,
+    "valid_until": null,
+    "value": null
+   },
+   {
+    "about": "person",
+    "attribute": null,
+    "category": "contact",
+    "confirmed_by": null,
+    "created_at": "2026-10-21T09:00:00+00:00",
+    "erased_at": null,
+    "first_seen": "2026-10-01",
+    "id": 2,
+    "last_seen": "2026-10-01",
+    "memory_id": null,
+    "norm": "priya lives in lisbon",
+    "note": null,
+    "owner": "alice",
+    "owner_norm": null,
+    "owner_text": null,
+    "status": "tentative",
+    "structured_at": null,
+    "subject": "Priya",
+    "subject_id": 1,
+    "text": "Priya lives in Lisbon",
+    "updated_at": "2026-10-22T09:00:00+00:00",
+    "valid_from": null,
+    "valid_until": null,
+    "value": null
+   },
+   {
+    "about": "owner",
+    "attribute": "diet",
+    "category": "fact",
+    "confirmed_by": "owner",
+    "created_at": "2026-10-21T09:00:00+00:00",
+    "erased_at": null,
+    "first_seen": "2026-10-01",
+    "id": 3,
+    "last_seen": "2026-10-03",
+    "memory_id": "m2",
+    "norm": "owner is vegetarian",
+    "note": null,
+    "owner": "alice",
+    "owner_norm": "owner eat no meat or fish",
+    "owner_text": "I eat no meat or fish",
+    "status": "confirmed",
+    "structured_at": "2026-11-01T09:00:00+00:00",
+    "subject": "Sam",
+    "subject_id": 2,
+    "text": "I am vegetarian",
+    "updated_at": "2026-11-01T09:00:00+00:00",
+    "valid_from": "2026-10-01",
+    "valid_until": "2026-12-31",
+    "value": "value of I eat no meat or fishvalue of I eat no meat or fishvalue of I eat no meat or fishvalue of I eat no meat or fish"
+   },
+   {
+    "about": "owner",
+    "attribute": null,
+    "category": "preference",
+    "confirmed_by": null,
+    "created_at": "2026-10-21T09:00:00+00:00",
+    "erased_at": null,
+    "first_seen": "2026-10-01",
+    "id": 4,
+    "last_seen": "2026-10-01",
+    "memory_id": null,
+    "norm": "owner love jazz",
+    "note": null,
+    "owner": "alice",
+    "owner_norm": null,
+    "owner_text": null,
+    "status": "stale",
+    "structured_at": null,
+    "subject": "Me",
+    "subject_id": 2,
+    "text": "I love jazz",
+    "updated_at": "2027-05-09T09:00:00+00:00",
+    "valid_from": null,
+    "valid_until": null,
+    "value": null
+   },
+   {
+    "about": "other",
+    "attribute": null,
+    "category": "fact",
+    "confirmed_by": null,
+    "created_at": "2026-10-21T09:00:00+00:00",
+    "erased_at": null,
+    "first_seen": "2026-10-01",
+    "id": 5,
+    "last_seen": "2026-10-01",
+    "memory_id": null,
+    "norm": "the launch plan ships in may",
+    "note": null,
+    "owner": "alice",
+    "owner_norm": null,
+    "owner_text": null,
+    "status": "stale",
+    "structured_at": null,
+    "subject": "Launch plan",
+    "subject_id": 3,
+    "text": "The launch plan ships in May",
+    "updated_at": "2027-05-09T09:00:00+00:00",
+    "valid_from": null,
+    "valid_until": "2026-11-30",
+    "value": null
+   },
+   {
+    "about": "owner",
+    "attribute": null,
+    "category": "fact",
+    "confirmed_by": null,
+    "created_at": "2026-10-21T09:00:00+00:00",
+    "erased_at": null,
+    "first_seen": "2026-10-01",
+    "id": 6,
+    "last_seen": "2026-10-01",
+    "memory_id": null,
+    "norm": "dentist on friday",
+    "note": null,
+    "owner": "alice",
+    "owner_norm": null,
+    "owner_text": null,
+    "status": "stale",
+    "structured_at": null,
+    "subject": "Sam",
+    "subject_id": 2,
+    "text": "Dentist on Friday",
+    "updated_at": "2026-10-23T09:00:00+00:00",
+    "valid_from": null,
+    "valid_until": "2026-10-24",
+    "value": null
+   },
+   {
+    "about": "person",
+    "attribute": "likes",
+    "category": "contact",
+    "confirmed_by": "owner",
+    "created_at": "2026-10-21T09:00:00+00:00",
+    "erased_at": null,
+    "first_seen": "2026-10-01",
+    "id": 7,
+    "last_seen": "2026-10-01",
+    "memory_id": "m1",
+    "norm": "tom plays the cello",
+    "note": null,
+    "owner": "alice",
+    "owner_norm": null,
+    "owner_text": null,
+    "status": "confirmed",
+    "structured_at": "2026-11-01T09:00:00+00:00",
+    "subject": "Tom",
+    "subject_id": 4,
+    "text": "Tom plays the cello",
+    "updated_at": "2026-11-01T09:00:00+00:00",
+    "valid_from": "2026-10-01",
+    "valid_until": "2026-12-31",
+    "value": "value of Tom plays the cellovalue of Tom plays the cellovalue of Tom plays the cellovalue of Tom plays the cello"
+   },
+   {
+    "about": "owner",
+    "attribute": null,
+    "category": "preference",
+    "confirmed_by": null,
+    "created_at": "2026-10-21T09:00:00+00:00",
+    "erased_at": null,
+    "first_seen": "2026-10-01",
+    "id": 8,
+    "last_seen": "2026-10-01",
+    "memory_id": null,
+    "norm": "owner prefers tea",
+    "note": null,
+    "owner": "alice",
+    "owner_norm": null,
+    "owner_text": null,
+    "status": "stale",
+    "structured_at": null,
+    "subject": "Me",
+    "subject_id": 2,
+    "text": "Me prefers tea",
+    "updated_at": "2026-10-23T09:00:00+00:00",
+    "valid_from": null,
+    "valid_until": null,
+    "value": null
+   },
+   {
+    "about": "person",
+    "attribute": "diet",
+    "category": "contact",
+    "confirmed_by": "owner",
+    "created_at": "2026-10-22T09:00:00+00:00",
+    "erased_at": null,
+    "first_seen": "2026-10-01",
+    "id": 9,
+    "last_seen": "2026-10-01",
+    "memory_id": "m3",
+    "norm": "lena collects vintage maps",
+    "note": null,
+    "owner": "alice",
+    "owner_norm": null,
+    "owner_text": null,
+    "status": "confirmed",
+    "structured_at": "2026-11-01T09:00:00+00:00",
+    "subject": "Lena Fischer",
+    "subject_id": 10,
+    "text": "Lena collects vintage maps",
+    "updated_at": "2026-11-01T09:00:00+00:00",
+    "valid_from": "2026-10-01",
+    "valid_until": "2026-12-31",
+    "value": "value of Lena collects vintage mapsvalue of Lena collects vintage mapsvalue of Lena collects vintage mapsvalue of Lena…"
+   },
+   {
+    "about": "other",
+    "attribute": null,
+    "category": "fact",
+    "confirmed_by": null,
+    "created_at": "2026-10-22T09:00:00+00:00",
+    "erased_at": null,
+    "first_seen": "2026-10-01",
+    "id": 10,
+    "last_seen": "2026-10-01",
+    "memory_id": null,
+    "norm": "project atlas deadline is in march",
+    "note": null,
+    "owner": "alice",
+    "owner_norm": null,
+    "owner_text": null,
+    "status": "tentative",
+    "structured_at": null,
+    "subject": "Project Atlas",
+    "subject_id": 6,
+    "text": "Project Atlas deadline is in March",
+    "updated_at": "2026-10-22T09:00:00+00:00",
+    "valid_from": null,
+    "valid_until": null,
+    "value": null
+   },
+   {
+    "about": "person",
+    "attribute": null,
+    "category": "contact",
+    "confirmed_by": "source",
+    "created_at": "2026-10-22T09:00:00+00:00",
+    "erased_at": null,
+    "first_seen": "2026-10-01",
+    "id": 11,
+    "last_seen": "2026-10-01",
+    "memory_id": "m5",
+    "norm": "tom plays the viola",
+    "note": null,
+    "owner": "bob",
+    "owner_norm": null,
+    "owner_text": null,
+    "status": "confirmed",
+    "structured_at": null,
+    "subject": "Tom",
+    "subject_id": 7,
+    "text": "Tom plays the viola",
+    "updated_at": "2026-10-22T09:00:00+00:00",
+    "valid_from": null,
+    "valid_until": null,
+    "value": null
+   }
+  ],
+  "events": [
+   {
+    "at": "2026-10-21T09:00:00+00:00",
+    "belief_id": 1,
+    "detail": "",
+    "id": 1,
+    "kind": "added"
+   },
+   {
+    "at": "2026-10-21T09:00:00+00:00",
+    "belief_id": 2,
+    "detail": "from odysseus-sound",
+    "id": 2,
+    "kind": "added"
+   },
+   {
+    "at": "2026-10-21T09:00:00+00:00",
+    "belief_id": 3,
+    "detail": "from odysseus-sound",
+    "id": 3,
+    "kind": "added"
+   },
+   {
+    "at": "2026-10-21T09:00:00+00:00",
+    "belief_id": 4,
+    "detail": "from odysseus-sound",
+    "id": 4,
+    "kind": "added"
+   },
+   {
+    "at": "2026-10-21T09:00:00+00:00",
+    "belief_id": 5,
+    "detail": "from odysseus-sound",
+    "id": 5,
+    "kind": "added"
+   },
+   {
+    "at": "2026-10-21T09:00:00+00:00",
+    "belief_id": 6,
+    "detail": "from odysseus-sound",
+    "id": 6,
+    "kind": "added"
+   },
+   {
+    "at": "2026-10-21T09:00:00+00:00",
+    "belief_id": 7,
+    "detail": "from notes",
+    "id": 7,
+    "kind": "added"
+   },
+   {
+    "at": "2026-10-21T09:00:00+00:00",
+    "belief_id": 7,
+    "detail": "from chat",
+    "id": 8,
+    "kind": "evidence"
+   },
+   {
+    "at": "2026-10-21T09:00:00+00:00",
+    "belief_id": 8,
+    "detail": "from odysseus-sound",
+    "id": 9,
+    "kind": "added"
+   },
+   {
+    "at": "2026-10-21T09:00:00+00:00",
+    "belief_id": 3,
+    "detail": "by rule",
+    "id": 10,
+    "kind": "confirmed"
+   },
+   {
+    "at": "2026-10-21T09:00:00+00:00",
+    "belief_id": 4,
+    "detail": "by source",
+    "id": 11,
+    "kind": "confirmed"
+   },
+   {
+    "at": "2026-10-21T09:00:00+00:00",
+    "belief_id": 7,
+    "detail": "by rule",
+    "id": 12,
+    "kind": "confirmed"
+   },
+   {
+    "at": "2026-10-22T09:00:00+00:00",
+    "belief_id": 3,
+    "detail": "from odysseus-sound",
+    "id": 13,
+    "kind": "evidence"
+   },
+   {
+    "at": "2026-10-22T09:00:00+00:00",
+    "belief_id": 9,
+    "detail": "from odysseus-sound",
+    "id": 14,
+    "kind": "added"
+   },
+   {
+    "at": "2026-10-22T09:00:00+00:00",
+    "belief_id": 10,
+    "detail": "from notes",
+    "id": 15,
+    "kind": "added"
+   },
+   {
+    "at": "2026-10-22T09:00:00+00:00",
+    "belief_id": 1,
+    "detail": "",
+    "id": 16,
+    "kind": "confirmed"
+   },
+   {
+    "at": "2026-10-22T09:00:00+00:00",
+    "belief_id": 11,
+    "detail": "from odysseus-sound",
+    "id": 17,
+    "kind": "added"
+   },
+   {
+    "at": "2026-10-22T09:00:00+00:00",
+    "belief_id": 11,
+    "detail": "by source",
+    "id": 18,
+    "kind": "confirmed"
+   },
+   {
+    "at": "2026-10-23T09:00:00+00:00",
+    "belief_id": 6,
+    "detail": "odysseus-sound 6",
+    "id": 19,
+    "kind": "retired_upstream"
+   },
+   {
+    "at": "2026-10-23T09:00:00+00:00",
+    "belief_id": 8,
+    "detail": "odysseus-sound 7",
+    "id": 20,
+    "kind": "retired_upstream"
+   },
+   {
+    "at": "2026-10-23T09:00:00+00:00",
+    "belief_id": 6,
+    "detail": "no source reports it any more",
+    "id": 21,
+    "kind": "stale"
+   },
+   {
+    "at": "2026-10-23T09:00:00+00:00",
+    "belief_id": 8,
+    "detail": "no source reports it any more",
+    "id": 22,
+    "kind": "stale"
+   },
+   {
+    "at": "2027-05-09T09:00:00+00:00",
+    "belief_id": 1,
+    "detail": "",
+    "id": 23,
+    "kind": "stale"
+   },
+   {
+    "at": "2027-05-09T09:00:00+00:00",
+    "belief_id": 3,
+    "detail": "not seen since 2026-10-03",
+    "id": 24,
+    "kind": "stale"
+   },
+   {
+    "at": "2027-05-09T09:00:00+00:00",
+    "belief_id": 4,
+    "detail": "not seen since 2026-10-01",
+    "id": 25,
+    "kind": "stale"
+   },
+   {
+    "at": "2027-05-09T09:00:00+00:00",
+    "belief_id": 7,
+    "detail": "not seen since 2026-10-01",
+    "id": 26,
+    "kind": "stale"
+   },
+   {
+    "at": "2027-05-09T09:00:00+00:00",
+    "belief_id": 5,
+    "detail": "valid until 2026-11-30",
+    "id": 27,
+    "kind": "stale"
+   },
+   {
+    "at": "2026-10-27T09:00:00+00:00",
+    "belief_id": 7,
+    "detail": "by owner",
+    "id": 28,
+    "kind": "confirmed"
+   },
+   {
+    "at": "2026-10-27T10:00:00+00:00",
+    "belief_id": 3,
+    "detail": "by owner",
+    "id": 29,
+    "kind": "corrected"
+   },
+   {
+    "at": "2026-10-27T11:00:00+00:00",
+    "belief_id": 9,
+    "detail": "to Lena Fischer by owner",
+    "id": 30,
+    "kind": "moved"
+   },
+   {
+    "at": "2026-10-28T09:00:00+00:00",
+    "belief_id": 1,
+    "detail": "",
+    "id": 31,
+    "kind": "rejected"
+   },
+   {
+    "at": "2026-10-28T10:00:00+00:00",
+    "belief_id": 1,
+    "detail": "",
+    "id": 32,
+    "kind": "restored"
+   },
+   {
+    "at": "2026-10-28T10:00:00+00:00",
+    "belief_id": 1,
+    "detail": "",
+    "id": 33,
+    "kind": "confirmed"
+   },
+   {
+    "at": "2026-10-28T11:00:00+00:00",
+    "belief_id": 1,
+    "detail": "",
+    "id": 34,
+    "kind": "rejected"
+   },
+   {
+    "at": "2026-10-29T09:00:00+00:00",
+    "belief_id": 1,
+    "detail": "",
+    "id": 35,
+    "kind": "erased"
+   },
+   {
+    "at": "2026-10-30T09:00:00+00:00",
+    "belief_id": 1,
+    "detail": "from notes",
+    "id": 36,
+    "kind": "evidence"
+   }
+  ],
+  "evidence": [
+   {
+    "about": "person",
+    "belief_id": 1,
+    "category": "contact",
+    "days": 3,
+    "id": 1,
+    "link": "",
+    "owner": "alice",
+    "payload": "{\"erase\": \"done\"}",
+    "seen_first": "2026-10-01",
+    "seen_last": "2026-10-05",
+    "source": "odysseus-sound",
+    "source_confirmed": 0,
+    "source_id": "1",
+    "subject": "",
+    "text": "",
+    "times": 4,
+    "updated_at": "2026-10-29T10:00:00+00:00"
+   },
+   {
+    "about": "person",
+    "belief_id": 2,
+    "category": "contact",
+    "days": 1,
+    "id": 2,
+    "link": "http://h/odysseus-sound/2",
+    "owner": "alice",
+    "payload": "{\"kind\": \"personal\"}",
+    "seen_first": "2026-10-01",
+    "seen_last": "2026-10-01",
+    "source": "odysseus-sound",
+    "source_confirmed": 0,
+    "source_id": "2",
+    "subject": "Priya",
+    "text": "Priya lives in Lisbon",
+    "times": 1,
+    "updated_at": "2026-10-22T09:00:00+00:00"
+   },
+   {
+    "about": "owner",
+    "belief_id": 3,
+    "category": "fact",
+    "days": 2,
+    "id": 3,
+    "link": "http://h/odysseus-sound/3",
+    "owner": "alice",
+    "payload": "{}",
+    "seen_first": "2026-10-01",
+    "seen_last": "2026-10-03",
+    "source": "odysseus-sound",
+    "source_confirmed": 0,
+    "source_id": "3",
+    "subject": "Sam",
+    "text": "I am vegetarian",
+    "times": 3,
+    "updated_at": "2026-10-21T09:00:00+00:00"
+   },
+   {
+    "about": "owner",
+    "belief_id": 4,
+    "category": "preference",
+    "days": 1,
+    "id": 4,
+    "link": "http://h/odysseus-sound/4",
+    "owner": "alice",
+    "payload": "{}",
+    "seen_first": "2026-10-01",
+    "seen_last": "2026-10-01",
+    "source": "odysseus-sound",
+    "source_confirmed": 1,
+    "source_id": "4",
+    "subject": "Me",
+    "text": "I love jazz",
+    "times": 1,
+    "updated_at": "2026-10-21T09:00:00+00:00"
+   },
+   {
+    "about": "other",
+    "belief_id": 5,
+    "category": "fact",
+    "days": 1,
+    "id": 5,
+    "link": "http://h/odysseus-sound/5",
+    "owner": "alice",
+    "payload": "{\"kind\": \"plan\", \"valid_until\": \"2026-11-30\"}",
+    "seen_first": "2026-10-01",
+    "seen_last": "2026-10-01",
+    "source": "odysseus-sound",
+    "source_confirmed": 0,
+    "source_id": "5",
+    "subject": "Launch plan",
+    "text": "The launch plan ships in May",
+    "times": 1,
+    "updated_at": "2026-10-21T09:00:00+00:00"
+   },
+   {
+    "about": "owner",
+    "belief_id": 6,
+    "category": "fact",
+    "days": 1,
+    "id": 6,
+    "link": "http://h/odysseus-sound/6",
+    "owner": "alice",
+    "payload": "{\"gone\": true, \"gone_at\": \"2026-10-23T09:00:00+00:00\", \"kind\": \"plan\", \"valid_until\": \"2026-10-24\"}",
+    "seen_first": "2026-10-01",
+    "seen_last": "2026-10-01",
+    "source": "odysseus-sound",
+    "source_confirmed": 0,
+    "source_id": "6",
+    "subject": "Sam",
+    "text": "Dentist on Friday",
+    "times": 1,
+    "updated_at": "2026-10-23T09:00:00+00:00"
+   },
+   {
+    "about": "person",
+    "belief_id": 7,
+    "category": "contact",
+    "days": 1,
+    "id": 7,
+    "link": "http://h/notes/n1",
+    "owner": "alice",
+    "payload": "{}",
+    "seen_first": "2026-10-01",
+    "seen_last": "2026-10-01",
+    "source": "notes",
+    "source_confirmed": 0,
+    "source_id": "n1",
+    "subject": "Tom",
+    "text": "Tom plays the cello",
+    "times": 1,
+    "updated_at": "2026-10-21T09:00:00+00:00"
+   },
+   {
+    "about": "person",
+    "belief_id": 7,
+    "category": "contact",
+    "days": 1,
+    "id": 8,
+    "link": "http://h/chat/c1",
+    "owner": "alice",
+    "payload": "{}",
+    "seen_first": "2026-10-01",
+    "seen_last": "2026-10-01",
+    "source": "chat",
+    "source_confirmed": 0,
+    "source_id": "c1",
+    "subject": "Tom",
+    "text": "Tom plays the cello",
+    "times": 1,
+    "updated_at": "2026-10-21T09:00:00+00:00"
+   },
+   {
+    "about": "owner",
+    "belief_id": 8,
+    "category": "preference",
+    "days": 1,
+    "id": 9,
+    "link": "http://h/odysseus-sound/7",
+    "owner": "alice",
+    "payload": "{\"gone\": true, \"gone_at\": \"2026-10-23T09:00:00+00:00\"}",
+    "seen_first": "2026-10-01",
+    "seen_last": "2026-10-01",
+    "source": "odysseus-sound",
+    "source_confirmed": 0,
+    "source_id": "7",
+    "subject": "Me",
+    "text": "Me prefers tea",
+    "times": 1,
+    "updated_at": "2026-10-23T09:00:00+00:00"
+   },
+   {
+    "about": "owner",
+    "belief_id": 3,
+    "category": "fact",
+    "days": 1,
+    "id": 10,
+    "link": "http://h/odysseus-sound/8",
+    "owner": "alice",
+    "payload": "{}",
+    "seen_first": "2026-10-01",
+    "seen_last": "2026-10-01",
+    "source": "odysseus-sound",
+    "source_confirmed": 0,
+    "source_id": "8",
+    "subject": "Me",
+    "text": "Owner is vegetarian.",
+    "times": 1,
+    "updated_at": "2026-10-22T09:00:00+00:00"
+   },
+   {
+    "about": "person",
+    "belief_id": 9,
+    "category": "contact",
+    "days": 1,
+    "id": 11,
+    "link": "http://h/odysseus-sound/9",
+    "owner": "alice",
+    "payload": "{}",
+    "seen_first": "2026-10-01",
+    "seen_last": "2026-10-01",
+    "source": "odysseus-sound",
+    "source_confirmed": 0,
+    "source_id": "9",
+    "subject": "Lena",
+    "text": "Lena collects vintage maps",
+    "times": 1,
+    "updated_at": "2026-10-22T09:00:00+00:00"
+   },
+   {
+    "about": "other",
+    "belief_id": 10,
+    "category": "fact",
+    "days": 1,
+    "id": 12,
+    "link": "http://h/notes/n3",
+    "owner": "alice",
+    "payload": "{}",
+    "seen_first": "2026-10-01",
+    "seen_last": "2026-10-01",
+    "source": "notes",
+    "source_confirmed": 0,
+    "source_id": "n3",
+    "subject": "Project Atlas",
+    "text": "Project Atlas deadline is in March",
+    "times": 1,
+    "updated_at": "2026-10-22T09:00:00+00:00"
+   },
+   {
+    "about": "person",
+    "belief_id": 11,
+    "category": "contact",
+    "days": 1,
+    "id": 13,
+    "link": "http://h/odysseus-sound/1",
+    "owner": "bob",
+    "payload": "{}",
+    "seen_first": "2026-10-01",
+    "seen_last": "2026-10-01",
+    "source": "odysseus-sound",
+    "source_confirmed": 1,
+    "source_id": "1",
+    "subject": "Tom",
+    "text": "Tom plays the viola",
+    "times": 1,
+    "updated_at": "2026-10-22T09:00:00+00:00"
+   },
+   {
+    "about": "person",
+    "belief_id": 1,
+    "category": "contact",
+    "days": 1,
+    "id": 14,
+    "link": "http://h/notes/n9",
+    "owner": "alice",
+    "payload": "{\"erase\": \"source\"}",
+    "seen_first": "2026-10-01",
+    "seen_last": "2026-10-01",
+    "source": "notes",
+    "source_confirmed": 0,
+    "source_id": "n9",
+    "subject": "",
+    "text": "",
+    "times": 1,
+    "updated_at": "2026-10-30T09:00:00+00:00"
+   }
+  ],
+  "subject_sources": [
+   {
+    "name": "Priya Nair",
+    "owner": "alice",
+    "source": "odysseus-sound",
+    "source_person_id": "p1",
+    "subject_id": 1,
+    "updated_at": "2026-10-21T09:00:00+00:00"
+   },
+   {
+    "name": "Lena",
+    "owner": "alice",
+    "source": "odysseus-sound",
+    "source_person_id": "p3",
+    "subject_id": 5,
+    "updated_at": "2026-10-22T09:00:00+00:00"
+   },
+   {
+    "name": "Tom",
+    "owner": "bob",
+    "source": "odysseus-sound",
+    "source_person_id": "t1",
+    "subject_id": 7,
+    "updated_at": "2026-10-22T09:00:00+00:00"
+   },
+   {
+    "name": "Sam",
+    "owner": "alice",
+    "source": "odysseus-sound",
+    "source_person_id": "p0",
+    "subject_id": 2,
+    "updated_at": "2026-10-22T10:00:00+00:00"
+   },
+   {
+    "name": "Jonas",
+    "owner": "alice",
+    "source": "odysseus-sound",
+    "source_person_id": "p2",
+    "subject_id": 4,
+    "updated_at": "2026-10-22T10:00:00+00:00"
+   },
+   {
+    "name": "Me",
+    "owner": "alice",
+    "source": "odysseus-sound",
+    "source_person_id": "p4",
+    "subject_id": 9,
+    "updated_at": "2026-10-22T10:00:00+00:00"
+   }
+  ],
+  "subjects": [
+   {
+    "aliases": "[\"Priya\", \"P. Nair\"]",
+    "contact_id": null,
+    "created_at": "2026-10-21T09:00:00+00:00",
+    "display": "Priya Nair",
+    "id": 1,
+    "key": "priya nair",
+    "kind": "person",
+    "kind_by": "auto",
+    "note": null,
+    "owner": "alice",
+    "updated_at": "2026-10-22T10:00:00+00:00"
+   },
+   {
+    "aliases": "[]",
+    "contact_id": null,
+    "created_at": "2026-10-21T09:00:00+00:00",
+    "display": "Sam",
+    "id": 2,
+    "key": "sam",
+    "kind": "owner",
+    "kind_by": "auto",
+    "note": null,
+    "owner": "alice",
+    "updated_at": "2026-10-21T09:00:00+00:00"
+   },
+   {
+    "aliases": "[]",
+    "contact_id": null,
+    "created_at": "2026-10-21T09:00:00+00:00",
+    "display": "Launch plan",
+    "id": 3,
+    "key": "launch plan",
+    "kind": "project",
+    "kind_by": "auto",
+    "note": null,
+    "owner": "alice",
+    "updated_at": "2026-10-21T09:00:00+00:00"
+   },
+   {
+    "aliases": "[\"Jonas Berg\", \"Jonas\"]",
+    "contact_id": null,
+    "created_at": "2026-10-21T09:00:00+00:00",
+    "display": "Tom",
+    "id": 4,
+    "key": "tom",
+    "kind": "project",
+    "kind_by": "owner",
+    "note": null,
+    "owner": "alice",
+    "updated_at": "2026-10-31T12:00:00+00:00"
+   },
+   {
+    "aliases": "[]",
+    "contact_id": null,
+    "created_at": "2026-10-22T09:00:00+00:00",
+    "display": "Lena",
+    "id": 5,
+    "key": "lena",
+    "kind": "person",
+    "kind_by": "auto",
+    "note": null,
+    "owner": "alice",
+    "updated_at": "2026-10-22T09:00:00+00:00"
+   },
+   {
+    "aliases": "[]",
+    "contact_id": null,
+    "created_at": "2026-10-22T09:00:00+00:00",
+    "display": "Project Atlas",
+    "id": 6,
+    "key": "project atlas",
+    "kind": "project",
+    "kind_by": "auto",
+    "note": null,
+    "owner": "alice",
+    "updated_at": "2026-10-22T09:00:00+00:00"
+   },
+   {
+    "aliases": "[]",
+    "contact_id": null,
+    "created_at": "2026-10-22T09:00:00+00:00",
+    "display": "Tom",
+    "id": 7,
+    "key": "tom",
+    "kind": "person",
+    "kind_by": "auto",
+    "note": null,
+    "owner": "bob",
+    "updated_at": "2026-10-22T09:00:00+00:00"
+   },
+   {
+    "aliases": "[]",
+    "contact_id": null,
+    "created_at": "2026-10-22T10:00:00+00:00",
+    "display": "Me",
+    "id": 9,
+    "key": "me",
+    "kind": "person",
+    "kind_by": "auto",
+    "note": null,
+    "owner": "alice",
+    "updated_at": "2026-10-22T10:00:00+00:00"
+   },
+   {
+    "aliases": "[]",
+    "contact_id": null,
+    "created_at": "2026-10-27T11:00:00+00:00",
+    "display": "Lena Fischer",
+    "id": 10,
+    "key": "lena fischer",
+    "kind": "person",
+    "kind_by": "auto",
+    "note": null,
+    "owner": "alice",
+    "updated_at": "2026-10-27T11:00:00+00:00"
+   }
+  ]
+ }
+}

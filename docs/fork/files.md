@@ -275,13 +275,17 @@ is an old path of a module that moved into `fork/`; it only aliases the new modu
 - `tests/fixtures/eval_goldens/module_slash_eval.help.txt`
 - `tests/fork/conftest.py`
 - `tests/fork/fakes.py`
+- `tests/fork/fixtures/action_items_characterization.json`
 - `tests/fork/fixtures/athena_callers.json`
 - `tests/fork/fixtures/background_model_calls.json`
+- `tests/fork/fixtures/ledger_characterization.json`
 - `tests/fork/fixtures/settings_readers.json`
 - `tests/fork/fixtures/state_files.json`
+- `tests/fork/fixtures/today_characterization.json`
 - `tests/fork/fixtures/turn_policy_decisions.json`
 - `tests/fork/fork_dom_golden.json`
 - `tests/fork/fork_views_look_golden.json`
+- `tests/fork/test_action_items_characterization.py`
 - `tests/fork/test_agent_thinking_switch.py`
 - `tests/fork/test_athena_callers.py`
 - `tests/fork/test_athena_client.py`
@@ -342,6 +346,7 @@ is an old path of a module that moved into `fork/`; it only aliases the new modu
 - `tests/fork/test_insight_routines.py`
 - `tests/fork/test_insight_trends.py`
 - `tests/fork/test_insight_weights.py`
+- `tests/fork/test_ledger_characterization.py`
 - `tests/fork/test_ledger_perf.py`
 - `tests/fork/test_log_redact.py`
 - `tests/fork/test_mcp_empty_answer.py`
@@ -372,6 +377,7 @@ is an old path of a module that moved into `fork/`; it only aliases the new modu
 - `tests/fork/test_state_files.py`
 - `tests/fork/test_subjects.py`
 - `tests/fork/test_summary_model_routes.py`
+- `tests/fork/test_today_characterization.py`
 - `tests/fork/test_today_insight.py`
 - `tests/fork/test_turn_policy.py`
 - `tests/fork/test_turn_policy_characterization.py`
