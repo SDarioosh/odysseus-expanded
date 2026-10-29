@@ -9,6 +9,7 @@ name, with the process and thread ids replaced). Compared with
 """
 from __future__ import annotations
 
+import itertools
 import json
 import os
 import threading
@@ -137,6 +138,25 @@ def observe(root: Path, monkeypatch) -> dict:
 
 def _fail(*args, **kwargs):
     raise OSError("rename refused")
+
+
+# Every name up to four characters long made of these, plus a few longer ones.
+TRICKY = ["".join(t) for n in range(5) for t in itertools.product("./\\a\x00", repeat=n)]
+TRICKY += [None, "../../etc/passwd", "/etc/passwd", "..\\..\\x", "~", "~/x", "%2e%2e",
+           "\u2025", "\uff0e\uff0e", "." * 300]
+
+
+def test_no_owner_name_leaves_its_feature_folder(data_dir):
+    root = data_dir.resolve()
+    for label, (path_of, _load, _save) in _features().items():
+        mine = path_of("alice").resolve().relative_to(root)
+        folder = root / mine.parts[0] if len(mine.parts) > 1 else root
+        for owner in TRICKY:
+            path = path_of(owner)
+            assert ".." not in path.parts and "." not in path.parts, (label, owner, path)
+            got = path.resolve()
+            assert got.is_relative_to(folder), (label, owner, path)
+            assert len(got.relative_to(root).parts) == len(mine.parts), (label, owner, path)
 
 
 def test_state_files_behave_as_recorded(data_dir, monkeypatch):

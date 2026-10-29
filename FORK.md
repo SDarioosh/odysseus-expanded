@@ -122,6 +122,7 @@ the link goes to its details (what it does, its files, whether it can go upstrea
 
 - [Daily Today insight](docs/fork/today-insight.md#daily-today-insight): the "Today Insight" task, the `/today` page, the token route and the chat block.
 - [Today insight learns from outcomes (Phase 3)](docs/fork/today-insight.md#today-insight-learns-from-outcomes-phase-3): outcome log, learned rule weights, push, routines, open loops and trends.
+- [Owner folder names](docs/fork/today-insight.md#owner-folder-names): an owner named `.` or `..` gets a hashed folder (`_<12 hex>`), so no per-owner state file lands outside its feature folder; every other owner keeps its folder.
 
 ### Handwritten notes
 

@@ -9,7 +9,8 @@ from fork.common import state
 
 SLUGS = [
     (None, "default", "default"), ("", "default", "default"), ("alice", "alice", "alice"),
-    ("a.b@x.org", "a.b@x.org", "a_b@x_org"), ("a/b", "a_b", "a_b"), ("..", "..", "__"),
+    ("a.b@x.org", "a.b@x.org", "a_b@x_org"), ("a/b", "a_b", "a_b"), (".", "_cdb4ee2aea69", "_"),
+    ("..", "_5ec1f7e700f3", "__"), ("...", "...", "___"), ("../x", ".._x", "___x"),
     ("a b", "a_b", "a_b"), ("\u00e4\u540d", "\u00e4\u540d", "\u00e4\u540d"),
     ("x:y\\z", "x_y_z", "x_y_z"), ("-_.@", "-_.@", "-__@"), ("\t", "_", "_"),
 ]
@@ -19,6 +20,13 @@ SLUGS = [
 def test_owner_slug(owner, slug, no_dots):
     assert state.owner_slug(owner) == slug
     assert state.owner_slug(owner, safe="-_@") == no_dots
+
+
+@pytest.mark.parametrize("safe", [state.SAFE, "-_@", ".", ""])
+def test_owner_slug_is_never_a_folder_or_empty(safe):
+    for owner in [None, "", ".", "..", "...", "/", "./", "/..", "\x00", "a"]:
+        slug = state.owner_slug(owner, safe=safe)
+        assert slug not in ("", ".", "..") and "/" not in slug and "\\" not in slug
 
 
 def test_owner_file(data_dir):
