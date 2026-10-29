@@ -304,6 +304,10 @@ The old paths (`src/mcp_trust.py`, `routes/sound_module_routes.py`, …) are shi
 alias the new modules; `docs/fork/files.md` marks each one, and
 `tests/fork/test_fork_package_shims.py` checks them. New code imports `fork.*`.
 
+The fork's own tests are in `tests/fork/` (`python -m pytest -q tests/fork`), with shared
+fixtures in `tests/fork/conftest.py` and fakes in `tests/fork/fakes.py`; upstream's tests
+stay in `tests/`.
+
 ## Setup
 
 1. Run it with Docker Compose using the fork's image and override:

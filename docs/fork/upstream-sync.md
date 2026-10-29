@@ -90,8 +90,7 @@ When resolving:
 1. The fork's tests and the upstream tests around the hooks:
 
    ```bash
-   python -m pytest -q tests/fork/test_mcp_trust.py tests/test_request_authority.py tests/test_tool_policy.py \
-     tests/fork/test_skill_mcp_toolsets.py tests/fork/test_modules_setup.py
+   python -m pytest -q -n 4 tests/fork tests/test_request_authority.py tests/test_tool_policy.py
    python -m py_compile app.py routes/*.py src/*.py
    ```
 
