@@ -9101,9 +9101,9 @@ def _web_search_unavailable_for_turn(
     if "web" not in set(intent_domains or ()):
         return False
     # Fork: words like "latest" or "recommend" classify as web intent, but an
-    # admin-trusted local knowledge server (src/mcp_trust.py) may answer them.
+    # admin-trusted local knowledge server (fork/mcp/trust.py) may answer them.
     # Let the model try those tools instead of refusing without a model call.
-    from src.mcp_trust import trusted_readonly_mcp_tools
+    from fork.mcp.trust import trusted_readonly_mcp_tools
     if trusted_readonly_mcp_tools() - set(disabled_tools or ()):
         return False
     # Mentioning web only to forbid its use is not affirmative web demand.
@@ -14533,8 +14533,8 @@ def _build_system_prompt(
             for skill in SkillsManager(DATA_DIR).load(owner=owner):
                 if skill.get("name") in active_lookup:
                     relevant_tools.add("manage_skills")
-                    # Fork: expand mcp:<server> entries (src/skill_mcp_toolsets.py)
-                    from src.skill_mcp_toolsets import expand_skill_toolsets
+                    # Fork: expand mcp:<server> entries (fork/routing/skill_mcp_toolsets.py)
+                    from fork.routing.skill_mcp_toolsets import expand_skill_toolsets
                     relevant_tools.update(expand_skill_toolsets(skill.get("requires_toolsets")))
         except Exception:
             logger.debug("active skill toolset expansion skipped", exc_info=True)
@@ -15311,8 +15311,8 @@ def _build_base_prompt(
             from src.constants import DATA_DIR
             _sm = SkillsManager(DATA_DIR)
             active_tools = list(set(TOOL_SECTIONS.keys()) - set(disabled or []))
-            # Fork: skills needing mcp:<server> stay listed while it is usable (src/skill_mcp_toolsets.py)
-            from src.skill_mcp_toolsets import with_mcp_toolsets
+            # Fork: skills needing mcp:<server> stay listed while it is usable (fork/routing/skill_mcp_toolsets.py)
+            from fork.routing.skill_mcp_toolsets import with_mcp_toolsets
             active_tools = list(with_mcp_toolsets(active_tools))
             skill_idx = _sm.index_for(
                 owner=owner,
@@ -21453,8 +21453,8 @@ async def stream_agent_loop(
         ),
         delegated_credential=bool(delegated_credential),
     )
-    # Fork: this chat's Auto/Ask choice for the approval gate (src/auto_mode.py)
-    from src.auto_mode import bind_run as _fork_bind_auto_mode
+    # Fork: this chat's Auto/Ask choice for the approval gate (fork/routing/auto_mode.py)
+    from fork.routing.auto_mode import bind_run as _fork_bind_auto_mode
     _fork_bind_auto_mode(run_security, owner=owner, session_id=session_id)
     _has_tui_host_bridge = _tui_host_bridge_is_usable(client_runtime_context)
     if (
@@ -22973,8 +22973,8 @@ async def stream_agent_loop(
                     # TOOL_SECTIONS — code-nav tools (grep/glob/ls) ship as
                     # schemas without a prompt-prose section.
                     _known = known_tool_names()
-                    # Fork: MCP entries in requires_toolsets (src/skill_mcp_toolsets.py)
-                    from src.skill_mcp_toolsets import expand_skill_toolsets, with_mcp_toolsets
+                    # Fork: MCP entries in requires_toolsets (fork/routing/skill_mcp_toolsets.py)
+                    from fork.routing.skill_mcp_toolsets import expand_skill_toolsets, with_mcp_toolsets
                     for _sk in _sm.get_relevant_skills(
                         _retrieval_query, skills=_owner_skills,
                         threshold=0.25, max_items=3,
@@ -25857,8 +25857,8 @@ async def stream_agent_loop(
                 f"data:{approved_image['mimeType']};base64,{approved_image['data']}"
             )
         yield "data: " + json.dumps(approved_event) + "\n\n"
-        # Fork: a failed approved web read continues the turn (src/web_read_recovery.py)
-        from src.web_read_recovery import recover_failed_web_read
+        # Fork: a failed approved web read continues the turn (fork/routing/web_read_recovery.py)
+        from fork.routing.web_read_recovery import recover_failed_web_read
         approved_result, _fork_web_read_recovered = recover_failed_web_read(approved.tool_name, approved_result)
         if approved.tool_name == "host_shell" and _is_host_bridge_failure_result(approved_result):
             # Approval continuations are new HTTP requests, so the normal
@@ -34251,8 +34251,8 @@ async def stream_agent_loop(
                         from src.constants import DATA_DIR as _DD
                         from src.tool_policy import known_tool_names as _ktn
                         _known = _ktn()
-                        # Fork: expand mcp:<server> entries (src/skill_mcp_toolsets.py)
-                        from src.skill_mcp_toolsets import expand_skill_toolsets
+                        # Fork: expand mcp:<server> entries (fork/routing/skill_mcp_toolsets.py)
+                        from fork.routing.skill_mcp_toolsets import expand_skill_toolsets
                         for _sk in _SkM(_DD).load(owner=owner):
                             if _sk.get("name") == _ms_name:
                                 _new = {
@@ -37593,8 +37593,8 @@ async def stream_agent_loop(
             else "unattended_preamble_recovery"
         )
     )
-    # Fork: answer an empty reply after module tools (src/mcp_trust.py)
-    from src.mcp_trust import ran_trusted_server_tool
+    # Fork: answer an empty reply after module tools (fork/mcp/trust.py)
+    from fork.mcp.trust import ran_trusted_server_tool
     _fork_module_empty_final = _unattended_empty_final and ran_trusted_server_tool(tool_events)
     if (
         (_unattended_native_runtime or _fork_module_empty_final)

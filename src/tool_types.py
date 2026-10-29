@@ -31,4 +31,4 @@ TOOL_TAGS = {
     "plan_edit", "run_editor_command", "get_editor_screenshot", "ai_edit_image",
     "app_api",
 } | BUILTIN_EMAIL_TOOLS
-TOOL_TAGS |= {"calculate"}  # Fork: calculator tool (src/auto_mode.py)
+TOOL_TAGS |= {"calculate"}  # Fork: calculator tool (fork/routing/auto_mode.py)

@@ -1217,8 +1217,8 @@ def _apply_local_qwen_thinking_mode(
     mode = _normalize_thinking_mode(thinking_mode)
     if not mode:
         return
-    # Fork: a private host counts as local even when its kind is api/proxy (src/private_endpoint_thinking.py)
-    from src.private_endpoint_thinking import is_private_host
+    # Fork: a private host counts as local even when its kind is api/proxy (fork/hub/private_endpoint_thinking.py)
+    from fork.hub.private_endpoint_thinking import is_private_host
     if not (is_local_endpoint(url) or is_private_host(url)):
         return
     if not (_supports_thinking(model) or _is_odysseus_qwen_tool_router_model(model)):

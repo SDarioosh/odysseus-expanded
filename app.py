@@ -121,7 +121,7 @@ try:
 except Exception as e:
     _root_logger.warning(f"Failed to initialize file logging handler (falling back to console-only): {e}")
 
-from src.log_redact import install as _fork_log_redact  # Fork: no tokens in logs (src/log_redact.py)
+from fork.hub.log_redact import install as _fork_log_redact  # Fork: no tokens in logs (fork/hub/log_redact.py)
 _fork_log_redact(_root_logger)
 
 logger = logging.getLogger(__name__)
@@ -317,7 +317,7 @@ if AUTH_ENABLED:
         "/api/version",
         "/login",
     }
-    AUTH_EXEMPT_EXACT.add("/api/pair/redeem")  # Fork: phone pairing, rate limited (routes/sound_relay_routes.py)
+    AUTH_EXEMPT_EXACT.add("/api/pair/redeem")  # Fork: phone pairing, rate limited (fork/athena/relay_routes.py)
     AUTH_EXEMPT_PREFIXES = ["/static"]
     # Dynamic paths whose own handler proves identity via a path-embedded
     # secret instead of the session/bearer auth. The route handler at
@@ -922,35 +922,35 @@ from routes.mcp.mcp_routes import setup_mcp_routes
 mcp_manager = McpManager()
 set_mcp_manager(mcp_manager)
 app.include_router(setup_mcp_routes(mcp_manager))
-# Fork: Athena conversations page (routes/sound_module_routes.py)
-from routes.sound_module_routes import setup_sound_module_routes  # noqa: E402
+# Fork: Athena conversations page (fork/athena/routes.py)
+from fork.athena.routes import setup_sound_module_routes  # noqa: E402
 app.include_router(setup_sound_module_routes())
-# Fork: Today insight page, votes and token route (routes/today_insight_routes.py)
-from routes.today_insight_routes import setup_today_insight_routes  # noqa: E402
+# Fork: Today insight page, votes and token route (fork/routes/today_insight_routes.py)
+from fork.routes.today_insight_routes import setup_today_insight_routes  # noqa: E402
 app.include_router(setup_today_insight_routes())
-# Fork: belief search, mounted before the review page's /api/beliefs/{id} (routes/belief_search_routes.py)
-from routes.belief_search_routes import setup_belief_search_routes  # noqa: E402
+# Fork: belief search, mounted before the review page's /api/beliefs/{id} (fork/routes/belief_search_routes.py)
+from fork.routes.belief_search_routes import setup_belief_search_routes  # noqa: E402
 app.include_router(setup_belief_search_routes())
-# Fork: belief review page and routes (routes/beliefs_routes.py)
-from routes.beliefs_routes import setup_beliefs_routes  # noqa: E402
+# Fork: belief review page and routes (fork/routes/beliefs_routes.py)
+from fork.routes.beliefs_routes import setup_beliefs_routes  # noqa: E402
 app.include_router(setup_beliefs_routes())
-# Fork: Athena phone relay through Odysseus, pairing by QR (routes/sound_relay_routes.py)
-from routes.sound_relay_routes import setup_sound_relay_routes  # noqa: E402
+# Fork: Athena phone relay through Odysseus, pairing by QR (fork/athena/relay_routes.py)
+from fork.athena.relay_routes import setup_sound_relay_routes  # noqa: E402
 app.include_router(setup_sound_relay_routes())
-# Fork: Athena's summary model for Settings → AI Defaults (routes/summary_model_routes.py)
-from routes.summary_model_routes import setup_summary_model_routes  # noqa: E402
+# Fork: Athena's summary model for Settings → AI Defaults (fork/athena/summary_model_routes.py)
+from fork.athena.summary_model_routes import setup_summary_model_routes  # noqa: E402
 app.include_router(setup_summary_model_routes())
-# Fork: Athena's whisper vocabulary for Settings → AI Defaults (routes/whisper_vocabulary_routes.py)
-from routes.whisper_vocabulary_routes import setup_whisper_vocabulary_routes  # noqa: E402
+# Fork: Athena's whisper vocabulary for Settings → AI Defaults (fork/athena/whisper_vocabulary_routes.py)
+from fork.athena.whisper_vocabulary_routes import setup_whisper_vocabulary_routes  # noqa: E402
 app.include_router(setup_whisper_vocabulary_routes())
-# Fork: "Enroll My Voice" in Settings → AI Defaults (routes/voice_enroll_routes.py)
-from routes.voice_enroll_routes import setup_voice_enroll_routes  # noqa: E402
+# Fork: "Enroll My Voice" in Settings → AI Defaults (fork/athena/voice_enroll_routes.py)
+from fork.athena.voice_enroll_routes import setup_voice_enroll_routes  # noqa: E402
 app.include_router(setup_voice_enroll_routes())
-# Fork: auto mode switch for Settings → Tools (routes/auto_mode_routes.py)
-from routes.auto_mode_routes import setup_auto_mode_routes  # noqa: E402
+# Fork: auto mode switch for Settings → Tools (fork/routes/auto_mode_routes.py)
+from fork.routes.auto_mode_routes import setup_auto_mode_routes  # noqa: E402
 app.include_router(setup_auto_mode_routes())
-# Fork: handwritten notes, the Write view's strokes (routes/ink_routes.py)
-from routes.ink_routes import setup_ink_routes  # noqa: E402
+# Fork: handwritten notes, the Write view's strokes (fork/routes/ink_routes.py)
+from fork.routes.ink_routes import setup_ink_routes  # noqa: E402
 app.include_router(setup_ink_routes())
 logger.info("MCP routes initialized")
 
@@ -1270,9 +1270,9 @@ async def _startup_event():
         _startup_tasks.append(start_bg_monitor())
     except Exception as _e:
         logger.warning("Failed to start background-job monitor: %s", _e)
-    # Fork: archive finished checklists after a few minutes (src/checklist_auto_archive.py)
+    # Fork: archive finished checklists after a few minutes (fork/hub/checklist_auto_archive.py)
     try:
-        from src.checklist_auto_archive import start as _start_checklist_archive
+        from fork.hub.checklist_auto_archive import start as _start_checklist_archive
         _startup_tasks.extend(t for t in [_start_checklist_archive()] if t)
     except Exception as _e:
         logger.warning("Failed to start checklist auto-archive: %s", _e)

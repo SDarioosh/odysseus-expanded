@@ -860,8 +860,8 @@ async def audit_memories(
         from src.utility_effort import effort_for_call
 
         existing = memory_manager.load(owner=owner)
-        # Fork: memories with provenance stay out of the audit (src/belief_consolidation.py)
-        from src.belief_consolidation import restore_sourced, split_sourced
+        # Fork: memories with provenance stay out of the audit (fork/beliefs/consolidation.py)
+        from fork.beliefs.consolidation import restore_sourced, split_sourced
         existing, _fork_sourced = split_sourced(existing)
         if not existing:
             logger.info("Memory audit: nothing to audit")
@@ -1008,7 +1008,7 @@ async def audit_memories(
             saved_entries = final_entries + other_entries
         else:
             saved_entries = final_entries
-        # Fork: put them back unchanged (src/belief_consolidation.py)
+        # Fork: put them back unchanged (fork/beliefs/consolidation.py)
         saved_entries = restore_sourced(saved_entries, all_entries if owner else _fork_sourced)
         memory_manager.save(saved_entries)
         logger.info(

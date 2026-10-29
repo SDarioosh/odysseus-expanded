@@ -299,7 +299,7 @@ _register(
 )
 
 
-# Fork: calculator, arithmetic only (src/auto_mode.py)
+# Fork: calculator, arithmetic only (fork/routing/auto_mode.py)
 _register({"calculate"}, ToolEffect.READ_PUBLIC)
 
 TOOL_CAPABILITIES: Mapping[str, ToolCapabilities] = MappingProxyType(dict(_REGISTRY))
@@ -839,8 +839,8 @@ class ToolRunSecurityContext:
             self.external_untrusted_context_seen = True
         if messages_contain_external_untrusted_context(message_list):
             self.external_untrusted_context_seen = True
-        # Fork: note URLs the owner wrote and results returned (src/auto_mode.py)
-        from src.auto_mode import observe_messages as auto_mode_observe
+        # Fork: note URLs the owner wrote and results returned (fork/routing/auto_mode.py)
+        from fork.routing.auto_mode import observe_messages as auto_mode_observe
         auto_mode_observe(self, message_list)
 
     def decision_for(self, tool_name: Any, content: Any = None) -> ToolGateDecision:
@@ -861,13 +861,13 @@ class ToolRunSecurityContext:
             return ToolGateDecision(True)
         if isinstance(tool_name, str) and tool_name in self.unattended_tools:
             return ToolGateDecision(True)
-        from src.mcp_trust import is_trusted_readonly_mcp_tool
+        from fork.mcp.trust import is_trusted_readonly_mcp_tool
         if is_trusted_readonly_mcp_tool(tool_name):
             return ToolGateDecision(True)
         if not self.external_untrusted_context_seen:
             return ToolGateDecision(True)
-        # Fork: auto mode decides safe reads and known-URL fetches (src/auto_mode.py)
-        from src.auto_mode import gate_decision as auto_mode_gate
+        # Fork: auto mode decides safe reads and known-URL fetches (fork/routing/auto_mode.py)
+        from fork.routing.auto_mode import gate_decision as auto_mode_gate
         auto_verdict = auto_mode_gate(self, tool_name, content)
         if auto_verdict is not None:
             return ToolGateDecision(*auto_verdict)
@@ -917,8 +917,8 @@ class ToolRunSecurityContext:
         result: Any,
         content: Any = None,
     ) -> None:
-        # Fork: note URLs a tool result returned (src/auto_mode.py)
-        from src.auto_mode import observe_tool_result as auto_mode_observe_result
+        # Fork: note URLs a tool result returned (fork/routing/auto_mode.py)
+        from fork.routing.auto_mode import observe_tool_result as auto_mode_observe_result
         auto_mode_observe_result(self, result, tool_name)
         if not tool_result_should_arm_gate(tool_name, result, content):
             return

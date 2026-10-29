@@ -1736,9 +1736,9 @@ async def execute_tool_block(
             "exit_code": 1, "blocked": True,
             "failure_kind": "request_authority_denied",
         }
-    # Fork: web_fetch of a page this run's web_search returned (src/web_turn_scope.py)
+    # Fork: web_fetch of a page this run's web_search returned (fork/routing/web_turn_scope.py)
     if not admitted and valid:
-        from src.web_turn_scope import with_search_hit_fetch
+        from fork.routing.web_turn_scope import with_search_hit_fetch
         authority, admitted = with_search_hit_fetch(
             authority, operation, security_context, client_runtime_context)
     if not admitted:

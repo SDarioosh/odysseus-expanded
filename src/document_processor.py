@@ -419,8 +419,8 @@ def _resolve_vl_model(configured: str, owner: str | None = None) -> tuple:
     if configured:
         return _resolve_model(configured, owner=owner)
 
-    # Fork: pick a vision-capable model the owner has configured (src/vision_auto_detect.py)
-    from src.vision_auto_detect import auto_detect_vision_model
+    # Fork: pick a vision-capable model the owner has configured (fork/hub/vision_auto_detect.py)
+    from fork.hub.vision_auto_detect import auto_detect_vision_model
     _found = auto_detect_vision_model(owner)
     if _found:
         return _found
