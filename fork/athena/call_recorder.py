@@ -52,7 +52,7 @@ DEFAULT_SERVER = settings.RECORDER_SERVER.default
 DEVICE_ENV = settings.CALL_DEVICE.name
 DEFAULT_DEVICE = settings.CALL_DEVICE.default
 
-# Same rule as Athena's ids (convo_server/pipeline.py _SAFE).
+# Same rule as Athena's ids (server/athena/validation.py _SAFE).
 SAFE_ID = re.compile(r"^[A-Za-z0-9._:-]{1,128}$")
 KINDS = {"conversation", "note"}  # Athena's session kinds
 MAX_CHUNK_BYTES = 5 * 1024 * 1024  # 30 s of Opus is ~60-250 KB; leaves room for 60 s at 64 kbit/s

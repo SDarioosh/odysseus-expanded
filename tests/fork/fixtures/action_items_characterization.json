@@ -1,0 +1,1608 @@
+{
+ "logged": [
+  [
+   "fork.athena.action_items",
+   "WARNING",
+   "Athena times are in Europe/Berlin but Odysseus runs in UTC; filed items keep the module's wall time (converted). Set CONVO_TIMEZONE to match."
+  ],
+  [
+   "fork.athena.action_items",
+   "INFO",
+   "Athena answered list_action_items with text; not filing"
+  ],
+  [
+   "fork.athena.action_items",
+   "INFO",
+   "Athena answered list_action_items with text; not filing"
+  ]
+ ],
+ "pure": {
+  "default_target": [
+   "note",
+   "calendar",
+   "todo",
+   "todo",
+   "todo"
+  ],
+  "is_explicit": [
+   true,
+   false,
+   true,
+   true,
+   true,
+   false,
+   true,
+   true,
+   true,
+   true,
+   false
+  ],
+  "item_title": [
+   "Short one",
+   "xxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxx…",
+   "word word word word word word word word word word word word…",
+   "An exactly sixty character long text that stops right there.",
+   "Action item #7",
+   "Ends with punctuation, and then a lot more words to cut here"
+  ],
+  "lists": [
+   [
+    "My Shopping list",
+    "shopping",
+    "My Shopping list",
+    "shopping list",
+    "Shopping list notes"
+   ],
+   [
+    "shopping",
+    "shopping",
+    "Shopping",
+    "shopping",
+    "Shopping notes"
+   ],
+   [
+    "the to-do list",
+    "",
+    null,
+    "to-do list",
+    "To-do list notes"
+   ],
+   [
+    "Groceries to-dos",
+    "groceries",
+    "Groceries to-dos",
+    "groceries to-dos",
+    "Groceries to-dos notes"
+   ],
+   [
+    "none",
+    "none",
+    null,
+    "",
+    null
+   ],
+   [
+    "  ",
+    "",
+    null,
+    "",
+    null
+   ],
+   [
+    "xxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxx",
+    "xxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxx",
+    null,
+    "xxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxx",
+    null
+   ],
+   [
+    "our hardware notes",
+    "hardware notes",
+    "Our hardware notes",
+    "hardware",
+    "Hardware notes"
+   ],
+   [
+    "Notes",
+    "notes",
+    "Notes",
+    "",
+    null
+   ],
+   [
+    "my Garden Notes",
+    "garden notes",
+    "My Garden Notes",
+    "garden",
+    "Garden notes"
+   ]
+  ],
+  "names": {
+   "ACTION": "barvis_sync_action_items",
+   "FILE_MODES": [
+    "explicit",
+    "auto",
+    "off"
+   ],
+   "HOUSEKEEPING_DEFAULT": {
+    "barvis_sync_action_items": {
+     "cron_expression": "*/5 * * * *",
+     "legacy_names": [
+      "Barvis Action Items"
+     ],
+     "name": "Module Action Items",
+     "old_cron_expressions": [
+      "*/15 * * * *"
+     ],
+     "schedule": "cron",
+     "scheduled_time": null,
+     "ship_paused": true
+    }
+   },
+   "INFO": "File Athena action items from voice notes into the calendar, to-dos and notes, keep their status in step, and push what was filed, items due today and the daily digest to the phone via ntfy. Reads them through the module's MCP tools.",
+   "LABEL": "odysseus-sound",
+   "TASK_NAME": "Module Action Items",
+   "VOICE_LIST": "Voice notes",
+   "state_file": "barvis_action_items_alice.json"
+  },
+  "open_url": [
+   "/#event-u1",
+   "/#open=notes&note=n1",
+   "/#open=notes&note=n2"
+  ],
+  "parse_action_items": [
+   [
+    12,
+    "open",
+    "Send Alice the revised spreadsheet",
+    "Me",
+    "2031-10-21",
+    "Tuesday",
+    "Q4 budget",
+    "2031-10-15 12:00",
+    "http://h:8000/view/a?sig=x#t=40"
+   ],
+   [
+    13,
+    "open",
+    "Pick up Aunt Rosa from the station",
+    null,
+    null,
+    "that afternoon",
+    "Dinner plans",
+    "2031-10-16 22:00",
+    "http://h:8000/view/b?sig=y#t=16"
+   ]
+  ],
+  "parse_items_json": [
+   [
+    {
+     "id": 3,
+     "text": "a"
+    }
+   ],
+   null,
+   null,
+   null
+  ],
+  "registered": [
+   [
+    "barvis_sync_action_items"
+   ],
+   {
+    "barvis_sync_action_items": "File Athena action items from voice notes into the calendar, to-dos and notes, keep their status in step, and push what was filed, items due today and the daily digest to the phone via ntfy. Reads them through the module's MCP tools."
+   },
+   {
+    "barvis_sync_action_items": {
+     "cron_expression": "*/5 * * * *",
+     "legacy_names": [
+      "Barvis Action Items"
+     ],
+     "name": "Module Action Items",
+     "old_cron_expressions": [
+      "*/15 * * * *"
+     ],
+     "schedule": "cron",
+     "scheduled_time": null,
+     "ship_paused": true
+    }
+   },
+   true
+  ]
+ },
+ "pushes": [
+  {
+   "body": "📅 Meet Jason · Wed 22 Oct 12:00 → Calendar\n📅 Dentist · Thu 23 Oct → Calendar\n☑️ Proposal · due Wed 22 Oct → To-dos\n⏰ Call Mom · due Mon 20 Oct 17:00 → To-dos ⚠️ check the time\n☑️ Think about the holidays and where to go this winter with… → Voice notes list\n... and 4 more on the Athena page",
+   "key": "module-filed-12-13-14-15-16-17-18-19-22",
+   "owner": "alice",
+   "reminder_channel": "ntfy",
+   "reminder_llm_synthesis": false,
+   "title": "Filed 9 items from your voice notes"
+  },
+  {
+   "body": "💡 Maybe read more\nAdd or dismiss them on the Athena page.",
+   "key": "module-suggested-21",
+   "owner": "alice",
+   "reminder_channel": "ntfy",
+   "reminder_llm_synthesis": false,
+   "title": "Suggested from your voice note"
+  },
+  {
+   "body": "- Pay the rent (due 2031-10-21)",
+   "key": "module-due-2031-10-21",
+   "owner": "alice",
+   "reminder_channel": "ntfy",
+   "reminder_llm_synthesis": false,
+   "title": "Action item due today"
+  },
+  {
+   "body": "You booked a crown and planned Mom's dinner.",
+   "key": "module-digest-2031-10-20",
+   "owner": "alice",
+   "reminder_channel": "ntfy",
+   "reminder_llm_synthesis": false,
+   "title": "Yesterday: Dentist and dinner plans"
+  },
+  {
+   "body": "- Book the restaurant (due 2031-10-23)",
+   "key": "module-items-14",
+   "owner": "bob",
+   "reminder_channel": "ntfy",
+   "reminder_llm_synthesis": false,
+   "title": "New action item"
+  },
+  {
+   "body": "- Pick up Aunt Rosa from the station (due that afternoon)",
+   "key": "module-items-16",
+   "owner": "carol",
+   "reminder_channel": "ntfy",
+   "reminder_llm_synthesis": false,
+   "title": "New action item"
+  },
+  {
+   "body": "- Send Alice the revised spreadsheet (due 2031-10-21)\n- Pick up Aunt Rosa from the station due that afternoon — from \"Dinner plans\" (voice note) 2031-10-16 22:00 http://h:8000/view/b?sig=y#t=16- #15 [open] Send Alice the revised spreadsheet (due 2031-10-21)",
+   "key": "module-due-2031-10-21",
+   "owner": "carol",
+   "reminder_channel": "ntfy",
+   "reminder_llm_synthesis": false,
+   "title": "2 action item due todays"
+  },
+  {
+   "body": "You booked a crown and planned Mom's dinner.",
+   "key": "module-digest-2031-10-20",
+   "owner": "carol",
+   "reminder_channel": "ntfy",
+   "reminder_llm_synthesis": false,
+   "title": "Yesterday: Dentist and dinner plans"
+  }
+ ],
+ "scenario": {
+  "after filing": {
+   "events": [
+    {
+     "all_day": true,
+     "description": "From your voice note \"Note 13\" — http://h:8000/view/c13?sig=s#t=4",
+     "dtend": "2031-10-24T00:00:00",
+     "dtstart": "2031-10-23T00:00:00",
+     "is_utc": false,
+     "location": "",
+     "status": "confirmed",
+     "summary": "Dentist",
+     "uid": "abc42b38-5fa9-558c-9970-2b37fa217b4d"
+    },
+    {
+     "all_day": false,
+     "description": "From your voice note \"Note 12\" — http://h:8000/view/c12?sig=s#t=4",
+     "dtend": "2031-10-22T10:45:00",
+     "dtstart": "2031-10-22T10:00:00",
+     "is_utc": true,
+     "location": "Cafe Blau",
+     "status": "confirmed",
+     "summary": "Meet Jason",
+     "uid": "d8a15a0a-d2b1-5246-a8b9-8d844527d6b7"
+    }
+   ],
+   "notes": [
+    {
+     "archived": false,
+     "content": null,
+     "due_date": "2031-10-22T09:30:00Z",
+     "id": "id1",
+     "items": "[{\"text\": \"Meet Jason @ Cafe Blau \\u2014 Wed Oct 22 12:00\", \"done\": false, \"checked\": false}]",
+     "label": "calendar",
+     "note_type": "todo",
+     "owner": "alice",
+     "repeat": "none",
+     "title": "Calendar reminder: Meet Jason"
+    },
+    {
+     "archived": false,
+     "content": "From your voice note \"Note 15\" — http://h:8000/view/c15?sig=s#t=4",
+     "due_date": "2031-10-20T17:00:00+02:00",
+     "id": "id2",
+     "items": "[{\"text\": \"Call Mom\", \"done\": false}]",
+     "label": "odysseus-sound",
+     "note_type": "todo",
+     "owner": "alice",
+     "repeat": "none",
+     "title": "Call Mom"
+    },
+    {
+     "archived": false,
+     "content": "Ideas for the garden\n\n- raised beds\n- compost\n\nFrom your voice note \"Note 18\" — http://h:8000/view/c18?sig=s#t=4",
+     "due_date": null,
+     "id": "id3",
+     "items": null,
+     "label": "odysseus-sound",
+     "note_type": "note",
+     "owner": "alice",
+     "repeat": "none",
+     "title": "Garden ideas"
+    },
+    {
+     "archived": false,
+     "content": "- Solder the second board",
+     "due_date": null,
+     "id": "id4",
+     "items": null,
+     "label": "odysseus-sound",
+     "note_type": "note",
+     "owner": "alice",
+     "repeat": "none",
+     "title": "Hardware notes"
+    },
+    {
+     "archived": false,
+     "content": null,
+     "due_date": null,
+     "id": "id5",
+     "items": "[{\"text\": \"Oat milk\", \"done\": false}]",
+     "label": "odysseus-sound",
+     "note_type": "todo",
+     "owner": "alice",
+     "repeat": "none",
+     "title": "My shopping list"
+    },
+    {
+     "archived": false,
+     "content": "From your voice note \"Note 14\" — http://h:8000/view/c14?sig=s#t=4",
+     "due_date": "2031-10-22T08:00:00+02:00",
+     "id": "id6",
+     "items": "[{\"text\": \"Get the proposal done\", \"done\": false}]",
+     "label": "odysseus-sound",
+     "note_type": "todo",
+     "owner": "alice",
+     "repeat": "none",
+     "title": "Proposal"
+    },
+    {
+     "archived": false,
+     "content": null,
+     "due_date": null,
+     "id": "id7",
+     "items": "[{\"text\": \"Think about the holidays and where to go this winter with\\u2026\", \"done\": false}, {\"text\": \"Remind me to water the plants\", \"done\": false}]",
+     "label": "odysseus-sound",
+     "note_type": "todo",
+     "owner": "alice",
+     "repeat": "none",
+     "title": "Voice notes"
+    }
+   ]
+  },
+  "hub": {
+   "events": [
+    {
+     "all_day": false,
+     "description": "From your voice note \"Note 16\" — http://h:8000/view/c16?sig=s#t=4",
+     "dtend": "2031-10-25T08:30:00",
+     "dtstart": "2031-10-25T07:30:00",
+     "is_utc": true,
+     "location": "",
+     "status": "confirmed",
+     "summary": "Think about the holidays and where to go this winter with the family and the dog",
+     "uid": "13b82a11-b6ae-55b5-bef9-70003241e428"
+    }
+   ],
+   "notes": [
+    {
+     "archived": false,
+     "content": null,
+     "due_date": null,
+     "id": "old-31",
+     "items": "[{\"text\": \"A page-filed one\", \"done\": false}]",
+     "label": "odysseus-sound",
+     "note_type": "todo",
+     "owner": "alice",
+     "repeat": "none",
+     "title": "A page-filed one"
+    },
+    {
+     "archived": false,
+     "content": null,
+     "due_date": "2031-10-25T07:00:00Z",
+     "id": "id10",
+     "items": "[{\"text\": \"Think about the holidays and where to go this winter with the family and the dog \\u2014 Sat Oct 25 09:30\", \"done\": false, \"checked\": false}]",
+     "label": "calendar",
+     "note_type": "todo",
+     "owner": "alice",
+     "repeat": "none",
+     "title": "Calendar reminder: Think about the holidays and where to go this winter with the family and the dog"
+    },
+    {
+     "archived": true,
+     "content": "From your voice note \"Note 15\" — http://h:8000/view/c15?sig=s#t=4",
+     "due_date": "2031-10-20T17:00:00+02:00",
+     "id": "id2",
+     "items": "[{\"text\": \"Call Mom\", \"done\": false}]",
+     "label": "odysseus-sound",
+     "note_type": "todo",
+     "owner": "alice",
+     "repeat": "none",
+     "title": "Call Mom"
+    },
+    {
+     "archived": false,
+     "content": null,
+     "due_date": null,
+     "id": "id9",
+     "items": "[]",
+     "label": "odysseus-sound",
+     "note_type": "todo",
+     "owner": "alice",
+     "repeat": "none",
+     "title": "Garden"
+    },
+    {
+     "archived": false,
+     "content": "Ideas for the garden\n\n- raised beds\n- compost\n\nFrom your voice note \"Note 18\" — http://h:8000/view/c18?sig=s#t=4",
+     "due_date": null,
+     "id": "id3",
+     "items": null,
+     "label": "odysseus-sound",
+     "note_type": "note",
+     "owner": "alice",
+     "repeat": "none",
+     "title": "Garden ideas"
+    },
+    {
+     "archived": false,
+     "content": "",
+     "due_date": null,
+     "id": "id4",
+     "items": null,
+     "label": "odysseus-sound",
+     "note_type": "note",
+     "owner": "alice",
+     "repeat": "none",
+     "title": "Hardware notes"
+    },
+    {
+     "archived": false,
+     "content": null,
+     "due_date": null,
+     "id": "id5",
+     "items": "[{\"text\": \"Oat milk\", \"done\": true}]",
+     "label": "odysseus-sound",
+     "note_type": "todo",
+     "owner": "alice",
+     "repeat": "none",
+     "title": "My shopping list"
+    },
+    {
+     "archived": false,
+     "content": "From your voice note \"Note 14\" — http://h:8000/view/c14?sig=s#t=4",
+     "due_date": "2031-10-22T08:00:00+02:00",
+     "id": "id6",
+     "items": "[{\"text\": \"Get the proposal done\", \"done\": true}]",
+     "label": "odysseus-sound",
+     "note_type": "todo",
+     "owner": "alice",
+     "repeat": "none",
+     "title": "Proposal"
+    },
+    {
+     "archived": false,
+     "content": "Send Alice the spreadsheet\n\nFrom your conversation \"Note 20\" — http://h:8000/view/c20?sig=s#t=4",
+     "due_date": null,
+     "id": "id8",
+     "items": null,
+     "label": "odysseus-sound",
+     "note_type": "note",
+     "owner": "alice",
+     "repeat": "none",
+     "title": "Send Alice the spreadsheet"
+    },
+    {
+     "archived": false,
+     "content": null,
+     "due_date": null,
+     "id": "id7",
+     "items": "[{\"text\": \"Maybe read more\", \"done\": false}, {\"text\": \"Meet Jason\", \"done\": false}]",
+     "label": "odysseus-sound",
+     "note_type": "todo",
+     "owner": "alice",
+     "repeat": "none",
+     "title": "Voice notes"
+    }
+   ]
+  },
+  "log": [
+   [
+    "call",
+    "list_action_items",
+    {
+     "format": "json",
+     "status": "all"
+    }
+   ],
+   [
+    "first pass",
+    {
+     "filed": 0,
+     "new": 1,
+     "pushed": 0,
+     "synced": 0
+    }
+   ],
+   [
+    "call",
+    "list_action_items",
+    {
+     "format": "json",
+     "status": "all"
+    }
+   ],
+   [
+    "call",
+    "update_action_item",
+    {
+     "item_id": 18,
+     "status": "done"
+    }
+   ],
+   [
+    "call",
+    "update_action_item",
+    {
+     "item_id": 19,
+     "status": "done"
+    }
+   ],
+   [
+    "filing pass",
+    {
+     "filed": 9,
+     "new": 12,
+     "pushed": 2,
+     "synced": 0
+    }
+   ],
+   [
+    "call",
+    "list_action_items",
+    {
+     "format": "json",
+     "status": "all"
+    }
+   ],
+   [
+    "call",
+    "update_action_item",
+    {
+     "item_id": 15,
+     "status": "done"
+    }
+   ],
+   [
+    "call",
+    "update_action_item",
+    {
+     "item_id": 17,
+     "status": "done"
+    }
+   ],
+   [
+    "call",
+    "get_daily_digest",
+    {
+     "date": "2031-10-19"
+    }
+   ],
+   [
+    "status pass",
+    {
+     "filed": 0,
+     "new": 0,
+     "pushed": 0,
+     "synced": 4
+    }
+   ],
+   [
+    "call",
+    "list_action_items",
+    {
+     "format": "json",
+     "status": "all"
+    }
+   ],
+   [
+    "call",
+    "get_daily_digest",
+    {
+     "date": "2031-10-20"
+    }
+   ],
+   [
+    "morning pass",
+    {
+     "filed": 0,
+     "new": 1,
+     "pushed": 2,
+     "synced": 0
+    }
+   ],
+   [
+    "call",
+    "list_action_items",
+    {
+     "format": "json",
+     "status": "all"
+    }
+   ],
+   [
+    "morning pass again",
+    {
+     "filed": 0,
+     "new": 0,
+     "pushed": 0,
+     "synced": 0
+    }
+   ],
+   [
+    "file suggestion",
+    {
+     "list": "Voice notes",
+     "open_url": "/#open=notes&note=id7",
+     "ref": "id7",
+     "target": "todo"
+    }
+   ],
+   [
+    "call",
+    "update_action_item",
+    {
+     "item_id": 20,
+     "status": "done"
+    }
+   ],
+   [
+    "file as note",
+    {
+     "open_url": "/#open=notes&note=id8",
+     "ref": "id8",
+     "target": "note"
+    }
+   ],
+   [
+    "file bad target",
+    {
+     "message": "target must be calendar, todo or note",
+     "raised": "ValueError"
+    }
+   ],
+   [
+    "call",
+    "list_action_items",
+    {
+     "format": "json",
+     "status": "all"
+    }
+   ],
+   [
+    "call",
+    "update_action_item",
+    {
+     "due_date": "none",
+     "item_id": 12,
+     "kind": "task"
+    }
+   ],
+   [
+    "call",
+    "list_action_items",
+    {
+     "format": "json",
+     "status": "all"
+    }
+   ],
+   [
+    "move to todo",
+    {
+     "list": "Voice notes",
+     "open_url": "/#open=notes&note=id7",
+     "ref": "id7",
+     "target": "todo"
+    }
+   ],
+   [
+    "call",
+    "list_action_items",
+    {
+     "format": "json",
+     "status": "all"
+    }
+   ],
+   [
+    "call",
+    "update_action_item",
+    {
+     "due_date": "2031-10-25",
+     "due_time": "09:30",
+     "item_id": 16,
+     "kind": "event"
+    }
+   ],
+   [
+    "call",
+    "list_action_items",
+    {
+     "format": "json",
+     "status": "all"
+    }
+   ],
+   [
+    "move to event",
+    {
+     "open_url": "/#event-13b82a11-b6ae-55b5-bef9-70003241e428",
+     "ref": "13b82a11-b6ae-55b5-bef9-70003241e428",
+     "target": "calendar"
+    }
+   ],
+   [
+    "call",
+    "list_action_items",
+    {
+     "format": "json",
+     "status": "all"
+    }
+   ],
+   [
+    "call",
+    "update_action_item",
+    {
+     "item_id": 22,
+     "kind": "task",
+     "list_name": "Garden"
+    }
+   ],
+   [
+    "call",
+    "list_action_items",
+    {
+     "format": "json",
+     "status": "all"
+    }
+   ],
+   [
+    "move to list",
+    {
+     "list": "Garden",
+     "open_url": "/#open=notes&note=id9",
+     "ref": "id9",
+     "target": "todo"
+    }
+   ],
+   [
+    "move bad kind",
+    {
+     "message": "kind must be task, event or reminder",
+     "raised": "ValueError"
+    }
+   ],
+   [
+    "move bad date",
+    {
+     "message": "due_date must be YYYY-MM-DD or none",
+     "raised": "ValueError"
+    }
+   ],
+   [
+    "call",
+    "list_action_items",
+    {
+     "format": "json",
+     "status": "all"
+    }
+   ],
+   [
+    "move event without date",
+    {
+     "message": "an event needs a date",
+     "raised": "ValueError"
+    }
+   ],
+   [
+    "call",
+    "list_action_items",
+    {
+     "format": "json",
+     "status": "all"
+    }
+   ],
+   [
+    "move missing",
+    {
+     "message": "No action item #404.",
+     "raised": "LookupError"
+    }
+   ],
+   [
+    "call",
+    "update_action_item",
+    {
+     "item_id": 15,
+     "status": "dismissed"
+    }
+   ],
+   [
+    "undo",
+    {
+     "ok": true,
+     "ref": "id2",
+     "target": "todo"
+    }
+   ],
+   [
+    "call",
+    "update_action_item",
+    {
+     "item_id": 19,
+     "status": "dismissed"
+    }
+   ],
+   [
+    "undo note line",
+    {
+     "ok": true,
+     "ref": "id4",
+     "target": "note"
+    }
+   ],
+   [
+    "call",
+    "update_action_item",
+    {
+     "item_id": 22,
+     "status": "dismissed"
+    }
+   ],
+   [
+    "undo list line",
+    {
+     "ok": true,
+     "ref": "id9",
+     "target": "todo"
+    }
+   ],
+   [
+    "undo again",
+    {
+     "message": "Action item #15 isn't filed in Odysseus.",
+     "raised": "LookupError"
+    }
+   ],
+   [
+    "undo never filed",
+    {
+     "message": "Action item #404 isn't filed in Odysseus.",
+     "raised": "LookupError"
+    }
+   ],
+   [
+    "call",
+    "list_action_items",
+    {
+     "format": "json",
+     "status": "all"
+    }
+   ],
+   [
+    "clean-up dry run",
+    {
+     "apply": false,
+     "removed": 0,
+     "todos": [
+      {
+       "id": 30,
+       "ref": "old-30",
+       "status": "open",
+       "text": "Stop prioritizing side projects",
+       "title": "Stop prioritizing side projects",
+       "why": [
+        "filed before explicit filing",
+        "not explicit now",
+        "a to-do of its own",
+        "no due date or reminder"
+       ]
+      }
+     ]
+    }
+   ],
+   [
+    "call",
+    "list_action_items",
+    {
+     "format": "json",
+     "status": "all"
+    }
+   ],
+   [
+    "clean-up all dry run",
+    {
+     "apply": false,
+     "removed": 0,
+     "todos": [
+      {
+       "id": 30,
+       "ref": "old-30",
+       "status": "open",
+       "text": "Stop prioritizing side projects",
+       "title": "Stop prioritizing side projects",
+       "why": [
+        "filed before explicit filing",
+        "not explicit now",
+        "a to-do of its own",
+        "no due date or reminder"
+       ]
+      },
+      {
+       "id": 31,
+       "ref": "old-31",
+       "status": "open",
+       "text": "A page-filed one",
+       "title": "A page-filed one",
+       "why": [
+        "filed in page mode (all)",
+        "not explicit now",
+        "a to-do of its own",
+        "no due date or reminder"
+       ]
+      }
+     ]
+    }
+   ],
+   [
+    "call",
+    "list_action_items",
+    {
+     "format": "json",
+     "status": "all"
+    }
+   ],
+   [
+    "call",
+    "update_action_item",
+    {
+     "item_id": 30,
+     "status": "dismissed"
+    }
+   ],
+   [
+    "clean-up apply",
+    {
+     "apply": true,
+     "removed": 1,
+     "todos": [
+      {
+       "id": 30,
+       "ref": "old-30",
+       "status": "open",
+       "text": "Stop prioritizing side projects",
+       "title": "Stop prioritizing side projects",
+       "why": [
+        "filed before explicit filing",
+        "not explicit now",
+        "a to-do of its own",
+        "no due date or reminder"
+       ]
+      }
+     ]
+    }
+   ],
+   [
+    "filed state",
+    {
+     "12": {
+      "at": "<now>",
+      "kind": "task",
+      "list": "Voice notes",
+      "open_url": "/#open=notes&note=id7",
+      "ref": "id7",
+      "removed": false,
+      "target": "todo",
+      "undone": false
+     },
+     "13": {
+      "at": "2031-10-20T05:00:00+00:00",
+      "kind": "event",
+      "open_url": "/#event-abc42b38-5fa9-558c-9970-2b37fa217b4d",
+      "ref": "abc42b38-5fa9-558c-9970-2b37fa217b4d",
+      "removed": true,
+      "target": "calendar",
+      "undone": false
+     },
+     "14": {
+      "at": "2031-10-20T05:00:00+00:00",
+      "kind": "task",
+      "open_url": "/#open=notes&note=id6",
+      "ref": "id6",
+      "removed": false,
+      "target": "todo",
+      "undone": false
+     },
+     "15": {
+      "at": "2031-10-20T05:00:00+00:00",
+      "kind": "reminder",
+      "open_url": "/#open=notes&note=id2",
+      "ref": "id2",
+      "removed": false,
+      "target": "todo",
+      "undone": true
+     },
+     "16": {
+      "at": "<now>",
+      "kind": "event",
+      "open_url": "/#event-13b82a11-b6ae-55b5-bef9-70003241e428",
+      "ref": "13b82a11-b6ae-55b5-bef9-70003241e428",
+      "removed": false,
+      "target": "calendar",
+      "undone": false
+     },
+     "17": {
+      "at": "2031-10-20T05:00:00+00:00",
+      "kind": "task",
+      "list": "My shopping list",
+      "open_url": "/#open=notes&note=id5",
+      "ref": "id5",
+      "removed": false,
+      "target": "todo",
+      "undone": false
+     },
+     "18": {
+      "at": "2031-10-20T05:00:00+00:00",
+      "kind": "note",
+      "open_url": "/#open=notes&note=id3",
+      "ref": "id3",
+      "removed": false,
+      "target": "note",
+      "undone": false
+     },
+     "19": {
+      "at": "2031-10-20T05:00:00+00:00",
+      "kind": "note",
+      "notes": "Hardware notes",
+      "open_url": "/#open=notes&note=id4",
+      "ref": "id4",
+      "removed": false,
+      "target": "note",
+      "undone": true
+     },
+     "20": {
+      "at": "<now>",
+      "kind": "event",
+      "open_url": "/#open=notes&note=id8",
+      "ref": "id8",
+      "removed": false,
+      "target": "note",
+      "undone": false
+     },
+     "21": {
+      "at": "<now>",
+      "kind": "task",
+      "list": "Voice notes",
+      "open_url": "/#open=notes&note=id7",
+      "ref": "id7",
+      "removed": false,
+      "target": "todo",
+      "undone": false
+     },
+     "22": {
+      "at": "<now>",
+      "kind": "task",
+      "list": "Garden",
+      "open_url": "/#open=notes&note=id9",
+      "ref": "id9",
+      "removed": false,
+      "target": "todo",
+      "undone": true
+     },
+     "30": {
+      "at": "2031-10-19T09:00:00+00:00",
+      "kind": "task",
+      "open_url": "/#open=notes&note=old-30",
+      "ref": "old-30",
+      "removed": false,
+      "target": "todo",
+      "undone": true
+     },
+     "31": {
+      "at": "2031-10-19T09:00:00+00:00",
+      "kind": "task",
+      "open_url": "/#open=notes&note=old-31",
+      "ref": "old-31",
+      "removed": false,
+      "target": "todo",
+      "undone": false
+     }
+    }
+   ],
+   [
+    "todo lists",
+    [
+     "Calendar reminder: Think about the holidays and where to go this winter with the family and the dog",
+     "My shopping list",
+     "Voice notes"
+    ]
+   ],
+   [
+    "call",
+    "list_action_items",
+    {
+     "format": "json",
+     "status": "all"
+    }
+   ],
+   [
+    "call",
+    "list_action_items",
+    {
+     "status": "open"
+    }
+   ],
+   [
+    "text first",
+    {
+     "new": 2,
+     "pushed": 0
+    }
+   ],
+   [
+    "call",
+    "list_action_items",
+    {
+     "format": "json",
+     "status": "all"
+    }
+   ],
+   [
+    "call",
+    "list_action_items",
+    {
+     "status": "open"
+    }
+   ],
+   [
+    "text second",
+    {
+     "new": 1,
+     "pushed": 1
+    }
+   ],
+   [
+    "call",
+    "list_action_items",
+    {
+     "status": "open"
+    }
+   ],
+   [
+    "off pass",
+    {
+     "new": 2,
+     "pushed": 0
+    }
+   ],
+   [
+    "call",
+    "list_action_items",
+    {
+     "status": "open"
+    }
+   ],
+   [
+    "call",
+    "get_daily_digest",
+    {
+     "date": "2031-10-20"
+    }
+   ],
+   [
+    "off pass 2",
+    {
+     "new": 1,
+     "pushed": 3
+    }
+   ],
+   [
+    "push off",
+    false
+   ]
+  ],
+  "state": {
+   "alice": {
+    "digest_pushed": "2031-10-20",
+    "due_pushed": "2031-10-21",
+    "file_attempts": {},
+    "file_since": "2031-10-20T05:00:00+00:00",
+    "filed": {
+     "12": {
+      "at": "<now>",
+      "filed_mode": "page",
+      "hub": "open",
+      "kind": "task",
+      "line": "Meet Jason",
+      "list": "Voice notes",
+      "module": "open",
+      "ref": "id7",
+      "rev": 1,
+      "target": "todo"
+     },
+     "13": {
+      "at": "2031-10-20T05:00:00+00:00",
+      "filed_mode": "explicit",
+      "hub": "dismissed",
+      "kind": "event",
+      "module": "dismissed",
+      "ref": "abc42b38-5fa9-558c-9970-2b37fa217b4d",
+      "rev": 0,
+      "target": "calendar"
+     },
+     "14": {
+      "at": "2031-10-20T05:00:00+00:00",
+      "filed_mode": "explicit",
+      "hub": "done",
+      "kind": "task",
+      "module": "done",
+      "ref": "id6",
+      "rev": 0,
+      "target": "todo"
+     },
+     "15": {
+      "at": "2031-10-20T05:00:00+00:00",
+      "filed_mode": "explicit",
+      "hub": "dismissed",
+      "kind": "reminder",
+      "module": "dismissed",
+      "ref": "id2",
+      "rev": 0,
+      "target": "todo",
+      "undone": true,
+      "undone_at": "<now>"
+     },
+     "16": {
+      "at": "<now>",
+      "filed_mode": "page",
+      "hub": "open",
+      "kind": "event",
+      "module": "open",
+      "ref": "13b82a11-b6ae-55b5-bef9-70003241e428",
+      "rev": 1,
+      "target": "calendar"
+     },
+     "17": {
+      "at": "2031-10-20T05:00:00+00:00",
+      "filed_mode": "explicit",
+      "hub": "done",
+      "kind": "task",
+      "line": "Oat milk",
+      "list": "My shopping list",
+      "module": "done",
+      "ref": "id5",
+      "rev": 0,
+      "target": "todo"
+     },
+     "18": {
+      "at": "2031-10-20T05:00:00+00:00",
+      "filed_mode": "explicit",
+      "hub": "open",
+      "kind": "note",
+      "module": "done",
+      "ref": "id3",
+      "rev": 0,
+      "target": "note"
+     },
+     "19": {
+      "at": "2031-10-20T05:00:00+00:00",
+      "block": "- Solder the second board",
+      "filed_mode": "explicit",
+      "hub": "dismissed",
+      "kind": "note",
+      "module": "dismissed",
+      "notes": "Hardware notes",
+      "ref": "id4",
+      "rev": 0,
+      "target": "note",
+      "undone": true,
+      "undone_at": "<now>"
+     },
+     "20": {
+      "at": "<now>",
+      "filed_mode": "page",
+      "hub": "open",
+      "kind": "event",
+      "module": "done",
+      "ref": "id8",
+      "rev": 0,
+      "target": "note"
+     },
+     "21": {
+      "at": "<now>",
+      "filed_mode": "page",
+      "hub": "open",
+      "kind": "task",
+      "line": "Maybe read more",
+      "list": "Voice notes",
+      "module": "open",
+      "ref": "id7",
+      "rev": 0,
+      "target": "todo"
+     },
+     "22": {
+      "at": "<now>",
+      "filed_mode": "page",
+      "hub": "dismissed",
+      "kind": "task",
+      "line": "Remind me to water the plants",
+      "list": "Garden",
+      "module": "dismissed",
+      "ref": "id9",
+      "rev": 1,
+      "target": "todo",
+      "undone": true,
+      "undone_at": "<now>"
+     },
+     "30": {
+      "at": "2031-10-19T09:00:00+00:00",
+      "hub": "dismissed",
+      "kind": "task",
+      "module": "dismissed",
+      "ref": "old-30",
+      "rev": 0,
+      "target": "todo",
+      "undone": true,
+      "undone_at": "<now>"
+     },
+     "31": {
+      "at": "2031-10-19T09:00:00+00:00",
+      "filed_mode": "page",
+      "hub": "open",
+      "kind": "task",
+      "module": "open",
+      "ref": "old-31",
+      "rev": 0,
+      "target": "todo"
+     }
+    },
+    "items": {},
+    "seen": [
+     1,
+     12,
+     13,
+     14,
+     15,
+     16,
+     17,
+     18,
+     19,
+     20,
+     21,
+     22,
+     23,
+     25,
+     26,
+     30,
+     31
+    ],
+    "tz_warned": "Europe/Berlin|UTC"
+   },
+   "bob": {
+    "items": {},
+    "seen": [
+     12,
+     13,
+     14
+    ]
+   },
+   "carol": {
+    "digest_pushed": "2031-10-20",
+    "due_pushed": "2031-10-21",
+    "items": {},
+    "seen": [
+     12,
+     13,
+     16
+    ]
+   }
+  }
+ },
+ "surface": [
+  "ACTION",
+  "ActionItem",
+  "CLOSED",
+  "DEFAULT_EVENT_MINUTES",
+  "FILE_MODES",
+  "HOUSEKEEPING_DEFAULT",
+  "INFO",
+  "KINDS",
+  "LABEL",
+  "LIST_TYPES",
+  "MAX_FILE_ATTEMPTS",
+  "MAX_PUSHED_ITEMS",
+  "NOTE_KIND",
+  "REMINDER_MINUTES",
+  "TARGETS",
+  "TASK_NAME",
+  "TITLE_MAX",
+  "VOICE_LIST",
+  "_COMMAND",
+  "_DUE_DATE",
+  "_DUE_TEXT",
+  "_LINE",
+  "_LIST_WORDS",
+  "_LOCKS",
+  "_NOTES_WORDS",
+  "_OWNER",
+  "_add_to_list",
+  "_add_to_notes",
+  "_archive_if_empty",
+  "_aware_utc",
+  "_block_index",
+  "_change_line",
+  "_cleanup_entry",
+  "_created_before",
+  "_daily_pushes",
+  "_digest_message",
+  "_event",
+  "_event_uid",
+  "_file_one",
+  "_filed_line",
+  "_filed_message",
+  "_find_row",
+  "_hhmm",
+  "_items_message",
+  "_line_index",
+  "_line_text",
+  "_lists",
+  "_lock",
+  "_norm_line",
+  "_note",
+  "_note_content",
+  "_note_items",
+  "_note_title",
+  "_on_voice_list",
+  "_placed",
+  "_public",
+  "_raw_items",
+  "_refile",
+  "_remove_block",
+  "_remove_entry",
+  "_row_item",
+  "_set_module_status",
+  "_set_note_done",
+  "_single_undated_todo",
+  "_source_line",
+  "_state_path",
+  "_suggested_message",
+  "_sync_json",
+  "_sync_status",
+  "_sync_text",
+  "_ticked",
+  "_valid_zone",
+  "_warn_timezone",
+  "_when_label",
+  "_ymd",
+  "_zone",
+  "action_sync_action_items",
+  "annotations",
+  "default_target",
+  "digest_hour",
+  "file_item",
+  "file_mode",
+  "filed_state",
+  "find_list",
+  "find_notes",
+  "hub_status",
+  "is_explicit",
+  "item_title",
+  "list_key",
+  "list_title",
+  "load_state",
+  "logger",
+  "mcp_caller",
+  "module_server_id",
+  "move_item",
+  "notes_key",
+  "notes_title",
+  "notify_channel",
+  "open_url",
+  "parse_action_items",
+  "parse_items_json",
+  "push",
+  "register_builtin_action",
+  "register_housekeeping",
+  "save_state",
+  "server_key",
+  "sync",
+  "todo_lists",
+  "unfile_auto_todos",
+  "unfile_item"
+ ],
+ "task": [
+  [
+   "TaskNoop",
+   "module MCP server 'convo' is not connected"
+  ],
+  [
+   "TaskNoop",
+   "no changes"
+  ],
+  [
+   "Action items: 2 new, 1 notifications sent.",
+   true
+  ],
+  [
+   "Action items: 1 new, 1 filed, 2 status changes, 1 notifications sent.",
+   true
+  ],
+  [
+   "Action item sync failed: Athena is down",
+   false
+  ]
+ ],
+ "uids": {
+  "Athena": [
+   "63cd9fc9-d785-58d0-a080-04d08fa4c99f",
+   "15c21c5f-2fff-521b-a7ad-bf9b6247e1ba",
+   "6481d0f0-08d0-5f0a-9400-8cdf3f4a9be3",
+   "ede732ad-ecd4-554e-8ddb-97454d903ac3",
+   "d7aff337-6ea0-5e9a-9068-110deb64ab78",
+   "671b914d-bd70-5707-9c86-f05be0c7238c",
+   "64fbba39-821e-5fc6-9f45-3a68845e3d78",
+   "b28d2322-e75e-5d9d-bb99-86b767f62918",
+   "8d595675-d888-50d5-b449-4d5e95d7eb50"
+  ],
+  "BARVIS": [
+   "be0116be-ff80-53a5-a563-b7a8fa91ca4e",
+   "ea65c22a-a79b-5909-ac0e-830a07128c4e",
+   "cafebfb6-55de-5bac-a503-9da4628cac7e",
+   "13320f6e-27f5-5b0e-a831-7a81062289e2",
+   "accfd654-edaf-520e-9eaf-0baf777f8bac",
+   "a59819e7-4cf6-5157-9eb9-5657be29b31b",
+   "3db62387-b742-548f-bbc1-b038e66e48b2",
+   "2a62b85c-b997-5db9-b279-63fc0d71767c",
+   "355d2934-b4f7-5807-a04c-c8a8723d87d1"
+  ],
+  "None": [
+   "7e31c3fd-ecba-595d-ba38-86ed451b113e",
+   "3959b2ee-8b87-5a05-8955-1d5a4b72ef77",
+   "404cad67-f629-5b52-86e1-78104eca5a6d",
+   "d8a15a0a-d2b1-5246-a8b9-8d844527d6b7",
+   "b3204101-739b-5275-8744-a71f1c52ccc7",
+   "ec26c0f2-b3a0-5a5a-8027-fbeefa219075",
+   "fe41b93c-5e20-5a0e-8d9f-88dfa9d00682",
+   "1e0a629e-6a61-5f87-af3c-cbd3e584beaa",
+   "ea91d2fe-fad7-56e5-aec8-b07e98da74b9"
+  ],
+  "convo": [
+   "7e31c3fd-ecba-595d-ba38-86ed451b113e",
+   "3959b2ee-8b87-5a05-8955-1d5a4b72ef77",
+   "404cad67-f629-5b52-86e1-78104eca5a6d",
+   "d8a15a0a-d2b1-5246-a8b9-8d844527d6b7",
+   "b3204101-739b-5275-8744-a71f1c52ccc7",
+   "ec26c0f2-b3a0-5a5a-8027-fbeefa219075",
+   "fe41b93c-5e20-5a0e-8d9f-88dfa9d00682",
+   "1e0a629e-6a61-5f87-af3c-cbd3e584beaa",
+   "ea91d2fe-fad7-56e5-aec8-b07e98da74b9"
+  ]
+ }
+}

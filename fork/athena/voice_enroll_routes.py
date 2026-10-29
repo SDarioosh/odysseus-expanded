@@ -15,7 +15,7 @@ owner's daily recordings.
 
 Odysseus reaches the module only through the MCP server's HTTP routes
 (``/speakers/enroll/next``, behind its MCP token; ``src/call_recorder.py``), never its
-storage. Module side: ``server/convo_server/voice_enroll.py`` in Athena (MCP 0.20.0).
+storage. Module side: ``server/athena/voice_enroll.py`` in Athena (MCP 0.20.0).
 """
 
 from __future__ import annotations

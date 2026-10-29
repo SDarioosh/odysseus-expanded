@@ -70,7 +70,8 @@ from fork.ink import transcribe as tr
 logger = logging.getLogger(__name__)
 
 SOURCE_PREFIX = "hub-note:"
-# Athena's limits for a written note (convo_server/pipeline.py, SDarioosh/Athena#108, #110)
+# Athena's limits for a written note (server/athena/validation.py, SDarioosh/Athena#108,
+# #110)
 MAX_TEXT_CHARS = 200_000
 MAX_TEXT_LINES = 5_000
 MAX_LINE_CHARS = 4_000       # a longer line is wrapped by Athena; each part counts as a line

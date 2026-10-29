@@ -65,7 +65,10 @@ Fork code so far: the fork's Python code is in the `fork/` package; every file t
 adds (code, tests, scripts, docs) is listed in
 [docs/fork/files.md](docs/fork/files.md), generated and kept complete by
 `tests/fork/test_fork_inventory.py`; the hooks into upstream files and the fork's features are
-listed in [FORK.md](FORK.md).
+listed in [FORK.md](FORK.md). The belief ledger, Athena's action items and the Today insight are
+each one module to import (`fork/beliefs/evidence_intake.py`, `fork/athena/action_items.py`,
+`fork/insight/today.py`) with smaller modules beside it
+([FORK.md](FORK.md#fork-files)).
 
 ## Fork rules (merge-friendly)
 

@@ -151,6 +151,7 @@ the link goes to its details (what it does, its files, whether it can go upstrea
 
 - [Test isolation: a fresh `core.middleware` no longer leaks](docs/fork/features/logs-and-tests.md#test-isolation-a-fresh-coremiddleware-no-longer-leaks): an upstream test no longer leaves a fresh `core.middleware` in `sys.modules`.
 - [No tokens in the logs](docs/fork/features/logs-and-tests.md#no-tokens-in-the-logs): log output writes `access_token` and similar query values as `***`.
+- [Upstream drift report](docs/fork/upstream-sync.md#how-far-behind): CI reports how many commits `barvis` is behind upstream `dev` and which hooked upstream files upstream changed (report only).
 
 ### Deployment
 
@@ -275,6 +276,15 @@ features), `fork/routes/` (the other route files; `fork.routes.mount` includes a
 fork's routers) and `fork/common/` (shared helpers). `fork/tasks.py` is the table of the
 fork's scheduled tasks; `fork/upstream.py` is the one place that reads upstream's private
 `_` names (`tests/fork/test_fork_upstream.py` fails when one is gone upstream).
+Three larger features are each one module that callers import, which offers all their
+names, with the rest in smaller modules beside it: the belief ledger
+(`fork/beliefs/evidence_intake.py`; `ledger_model`, `ledger_db` with the schema and
+migrations, `ledger_rows`, `ledger_subjects`, `ledger_reads`, `ledger_structure`,
+`ledger_memory`), Athena's action items (`fork/athena/action_items.py`;
+`action_items_state` with the stored names, `action_items_lists`, `action_items_filing`,
+`action_items_push`) and the Today insight (`fork/insight/today.py`; `today_candidates`,
+`today_gather`, `today_prompt`, `today_store`, `today_context`). Import and patch them
+through that module: the points tests replace are called through it.
 The old paths (`src/mcp_trust.py`, `routes/sound_module_routes.py`, …) are shims that
 alias the new modules; `docs/fork/files.md` marks each one, and
 `tests/fork/test_fork_package_shims.py` checks them. New code imports `fork.*`.

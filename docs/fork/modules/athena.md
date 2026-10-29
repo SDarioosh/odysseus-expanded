@@ -6,9 +6,11 @@
   Server docs: [server/README.md](https://github.com/SDarioosh/Athena/blob/main/server/README.md).
 - Contract it follows: [../modules.md](../modules.md).
 
-Code identifiers keep the old name: the Python package `convo_server`, the CLI
-`convo-server`, `CONVO_*` env vars, the MCP server name `convo-ai`, and the Odysseus server
-name `convo`. Don't rename them.
+Code identifiers keep old names where they are wired or stored: the `CONVO_*` env vars
+and the Odysseus server name `convo`. Don't rename them. The Python package is `athena`
+(`server/athena/`; `convo_server` stays an alias of it) and the CLI is `athena`, with
+`convo-server` still installed beside it (both run the same code); since MCP 0.20.1 the
+MCP server reports itself as `athena` (was `convo-ai`; the hub never reads that name).
 
 ## What it provides
 
@@ -21,7 +23,7 @@ SQLite (`server/data/convo.db`) and exposed through an MCP server.
 
 ## Tools
 
-Source: `server/convo_server/mcp_server.py` (`build_mcp`).
+Source: `server/athena/mcp_server.py` (`build_mcp`).
 
 | Tool | Arguments | Annotations |
 |---|---|---|
@@ -151,7 +153,7 @@ Then, per [../modules.md](../modules.md#registering-a-module-in-odysseus):
 - Skill **`athena`**, server **`convo`**: `/athena <question>` gives that one message
   Athena's 13 tools (plus `ask_user`/`update_plan`) and nothing else. `/context
   <question>` does the same for every trusted module (today only `convo`).
-- The skill's procedure is `INSTRUCTIONS` from `server/convo_server/mcp_server.py`, the
+- The skill's procedure is `INSTRUCTIONS` from `server/athena/mcp_server.py`, the
   same text as the Custom preset. Athena owns it: change it there, update the
   preset, rerun `modules_setup.py`.
 - Needed because with every Odysseus tool on and "Auto", a plain recording question
@@ -761,7 +763,7 @@ model:
   shows "update Athena".
 
 - Code: `routes/summary_model_routes.py`, `static/js/forkBackgroundModels.js`; test
-  `tests/fork/test_summary_model_routes.py`. Module side: `server/convo_server/llm_settings.py`.
+  `tests/fork/test_summary_model_routes.py`. Module side: `server/athena/llm_settings.py`.
 
 ## Transcription vocabulary in Settings
 
@@ -776,7 +778,7 @@ list short: on the module's AMI eval a 12-word list hurt timestamps. A module wi
 route shows "update Athena".
 
 - Code: `routes/whisper_vocabulary_routes.py`, `static/js/forkWhisperVocabulary.js`; test
-  `tests/fork/test_whisper_vocabulary_routes.py`. Module side: `server/convo_server/vocabulary.py`.
+  `tests/fork/test_whisper_vocabulary_routes.py`. Module side: `server/athena/vocabulary.py`.
 
 ## Enroll My Voice in Settings
 
@@ -808,7 +810,7 @@ Turn off `CONVO_LEARN_MEETING_VOICES` in Athena's `server/.env` first if you use
 bot: with an enrolled owner voice, each meeting adds Zoom clips of the owner to it.
 
 - Code: `routes/voice_enroll_routes.py`, `static/js/forkVoiceEnroll.js`; test
-  `tests/fork/test_voice_enroll_routes.py`. Module side: `server/convo_server/voice_enroll.py`.
+  `tests/fork/test_voice_enroll_routes.py`. Module side: `server/athena/voice_enroll.py`.
 
 ## Today insight
 

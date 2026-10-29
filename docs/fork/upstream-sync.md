@@ -25,6 +25,24 @@ git merge -s ours --allow-unrelated-histories 9712a54
 Since then `git merge-base origin/barvis upstream/dev` finds the last synced upstream
 commit and the weekly merge below works as is. Don't repeat that step.
 
+## How far behind
+
+The **Upstream drift** check (`.github/workflows/fork-upstream-drift.yml`, on every pull
+request, on pushes to `barvis` and weekly) writes to its job summary how many commits
+`barvis` is behind upstream `dev`, the merge base, and which upstream files the fork
+hooks upstream changed since then (with their commit counts): the likely conflicts of
+the next merge. It only reports, never fails, and needs no secret (it fetches public
+upstream into a ref of its own). Locally:
+
+```bash
+python scripts/upstream_drift.py            # against upstream/dev as fetched
+python scripts/upstream_drift.py --fetch    # fetch upstream dev first
+```
+
+A hooked file is an upstream file the fork changes that has a `Fork:` marker or a row in
+FORK.md's hooks table; other upstream files the fork changes (tests, docs) are listed
+apart. Tests: `tests/fork/test_upstream_drift.py` (throwaway git repos).
+
 ## Weekly merge
 
 ```bash
