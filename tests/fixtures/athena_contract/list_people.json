@@ -1,0 +1,154 @@
+{
+  "people": [
+    {
+      "aliases": [],
+      "conversations": 15,
+      "first_seen": "2026-09-15",
+      "has_voice": true,
+      "id": 1,
+      "is_owner": true,
+      "last_seen": "2026-10-19",
+      "name": "Me"
+    },
+    {
+      "aliases": [],
+      "conversations": 3,
+      "first_seen": "2026-09-22",
+      "has_voice": false,
+      "id": 4,
+      "is_owner": false,
+      "last_seen": "2026-10-19",
+      "name": "Maria"
+    },
+    {
+      "aliases": [],
+      "conversations": 4,
+      "first_seen": "2026-09-15",
+      "has_voice": true,
+      "id": 2,
+      "is_owner": false,
+      "last_seen": "2026-10-15",
+      "name": "Alice"
+    },
+    {
+      "aliases": [],
+      "conversations": 1,
+      "first_seen": "2026-10-13",
+      "has_voice": false,
+      "id": 13,
+      "is_owner": false,
+      "last_seen": "2026-10-13",
+      "name": "Sam Example"
+    },
+    {
+      "aliases": [],
+      "conversations": 1,
+      "first_seen": "2026-10-13",
+      "has_voice": false,
+      "id": 14,
+      "is_owner": false,
+      "last_seen": "2026-10-13",
+      "name": "Kai Example"
+    },
+    {
+      "aliases": [],
+      "conversations": 1,
+      "first_seen": "2026-10-13",
+      "has_voice": false,
+      "id": 3,
+      "is_owner": false,
+      "last_seen": "2026-10-13",
+      "name": "Dana Example"
+    },
+    {
+      "aliases": [],
+      "conversations": 1,
+      "first_seen": "2026-10-10",
+      "has_voice": false,
+      "id": 12,
+      "is_owner": false,
+      "last_seen": "2026-10-10",
+      "name": "Jonas"
+    },
+    {
+      "aliases": [],
+      "conversations": 1,
+      "first_seen": "2026-10-09",
+      "has_voice": false,
+      "id": 11,
+      "is_owner": false,
+      "last_seen": "2026-10-09",
+      "name": "Omar Example"
+    },
+    {
+      "aliases": [],
+      "conversations": 1,
+      "first_seen": "2026-10-09",
+      "has_voice": false,
+      "id": 9,
+      "is_owner": false,
+      "last_seen": "2026-10-09",
+      "name": "Priya Example"
+    },
+    {
+      "aliases": [],
+      "conversations": 1,
+      "first_seen": "2026-10-09",
+      "has_voice": false,
+      "id": 10,
+      "is_owner": false,
+      "last_seen": "2026-10-09",
+      "name": "Lena Example"
+    },
+    {
+      "aliases": [],
+      "conversations": 1,
+      "first_seen": "2026-10-07",
+      "has_voice": false,
+      "id": 8,
+      "is_owner": false,
+      "last_seen": "2026-10-07",
+      "name": "Ben"
+    },
+    {
+      "aliases": [],
+      "conversations": 1,
+      "first_seen": "2026-10-03",
+      "has_voice": false,
+      "id": 7,
+      "is_owner": false,
+      "last_seen": "2026-10-03",
+      "name": "Tom"
+    },
+    {
+      "aliases": [],
+      "conversations": 1,
+      "first_seen": "2026-09-30",
+      "has_voice": false,
+      "id": 6,
+      "is_owner": false,
+      "last_seen": "2026-09-30",
+      "name": "Dr. Patel"
+    },
+    {
+      "aliases": [],
+      "conversations": 3,
+      "first_seen": "2026-09-22",
+      "has_voice": false,
+      "id": 5,
+      "is_owner": false,
+      "last_seen": "2026-10-19",
+      "name": "Mom"
+    },
+    {
+      "aliases": [],
+      "conversations": 1,
+      "first_seen": "2026-10-16",
+      "has_voice": false,
+      "id": 15,
+      "is_owner": false,
+      "last_seen": "2026-10-16",
+      "name": "Aunt Rosa"
+    }
+  ]
+}
