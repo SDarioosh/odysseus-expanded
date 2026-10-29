@@ -256,6 +256,7 @@ is an old path of a module that moved into `fork/`; it only aliases the new modu
 - `tests/fork/conftest.py`
 - `tests/fork/fakes.py`
 - `tests/fork/fixtures/settings_readers.json`
+- `tests/fork/fixtures/state_files.json`
 - `tests/fork/test_agent_thinking_switch.py`
 - `tests/fork/test_athena_contract_fixtures.py`
 - `tests/fork/test_auto_mode.py`
@@ -329,6 +330,7 @@ is an old path of a module that moved into `fork/`; it only aliases the new modu
 - `tests/fork/test_skill_mcp_toolsets.py`
 - `tests/fork/test_sound_module_view.py`
 - `tests/fork/test_sound_relay.py`
+- `tests/fork/test_state_files.py`
 - `tests/fork/test_subjects.py`
 - `tests/fork/test_summary_model_routes.py`
 - `tests/fork/test_today_insight.py`
