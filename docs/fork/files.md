@@ -80,6 +80,13 @@ is an old path of a module that moved into `fork/`; it only aliases the new modu
 - `fork/beliefs/evidence_intake.py`
 - `fork/beliefs/export.py`
 - `fork/beliefs/forget.py`
+- `fork/beliefs/ledger_db.py`
+- `fork/beliefs/ledger_memory.py`
+- `fork/beliefs/ledger_model.py`
+- `fork/beliefs/ledger_reads.py`
+- `fork/beliefs/ledger_rows.py`
+- `fork/beliefs/ledger_structure.py`
+- `fork/beliefs/ledger_subjects.py`
 - `fork/beliefs/move.py`
 - `fork/beliefs/notes_evidence.py`
 - `fork/beliefs/search.py`

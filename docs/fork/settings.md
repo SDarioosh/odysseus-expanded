@@ -23,10 +23,10 @@ that are off by default are on for `1`, `true`, `yes` or `on` (any case).
 | `MODULE_FACTS_SYNC` | `BARVIS_FACTS_SYNC` | on/off | `on` | Copy Athena's confirmed facts into the belief ledger. | `fork/athena/facts.py` |
 | `SOUND_MODULE_SERVER` | `BARVIS_SOUND_SERVER` | text | `convo` | The Athena MCP server (name or id) for uploads, the Athena page, the meeting bot and the module's other HTTP routes. | `fork/athena/call_recorder.py`, `fork/athena/client.py`, `fork/athena/routes.py` |
 | `SOUND_MODULE_CALL_DEVICE` | - | device name | `computer` | The device name recordings from the hub are uploaded under; an invalid name means computer. | `fork/athena/call_recorder.py` |
-| `BELIEF_CONFIRM_SOURCES` | - | integer >= 1 | `2` | Distinct sources that confirm a belief. | `fork/beliefs/evidence_intake.py` |
-| `BELIEF_CONFIRM_TIMES` | - | integer >= 1 | `3` | Sightings that confirm a belief (with BELIEF_CONFIRM_DAYS). | `fork/beliefs/evidence_intake.py` |
-| `BELIEF_CONFIRM_DAYS` | - | integer >= 1 | `2` | Distinct days those sightings must span. | `fork/beliefs/evidence_intake.py` |
-| `BELIEF_STALE_DAYS` | - | integer >= 1 | `180` | Days without a sighting after which a belief goes stale. | `fork/beliefs/evidence_intake.py` |
+| `BELIEF_CONFIRM_SOURCES` | - | integer >= 1 | `2` | Distinct sources that confirm a belief. | `fork/beliefs/ledger_model.py` |
+| `BELIEF_CONFIRM_TIMES` | - | integer >= 1 | `3` | Sightings that confirm a belief (with BELIEF_CONFIRM_DAYS). | `fork/beliefs/ledger_model.py` |
+| `BELIEF_CONFIRM_DAYS` | - | integer >= 1 | `2` | Distinct days those sightings must span. | `fork/beliefs/ledger_model.py` |
+| `BELIEF_STALE_DAYS` | - | integer >= 1 | `180` | Days without a sighting after which a belief goes stale. | `fork/beliefs/ledger_model.py` |
 | `BELIEF_CONSOLIDATE` | - | on/off | `on` | Merge beliefs that say the same thing. | `fork/beliefs/consolidation.py` |
 | `BELIEF_STRUCTURE` | - | on/off | `on` | Give beliefs an attribute, value and validity with the local model. | `fork/beliefs/structure.py` |
 | `BELIEF_STRUCTURE_BATCH` | - | integer 1-10 | `5` | Beliefs per model call when structuring; clamped to 1-10. | `fork/beliefs/structure.py` |

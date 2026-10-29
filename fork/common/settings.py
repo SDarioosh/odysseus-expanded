@@ -134,18 +134,18 @@ CALL_DEVICE = _setting(
 # Beliefs (docs/fork/beliefs.md)
 CONFIRM_SOURCES = _setting(
     "BELIEF_CONFIRM_SOURCES", "2", "integer >= 1",
-    "Distinct sources that confirm a belief.", used_in=("fork/beliefs/evidence_intake.py",))
+    "Distinct sources that confirm a belief.", used_in=("fork/beliefs/ledger_model.py",))
 CONFIRM_TIMES = _setting(
     "BELIEF_CONFIRM_TIMES", "3", "integer >= 1",
     "Sightings that confirm a belief (with BELIEF_CONFIRM_DAYS).",
-    used_in=("fork/beliefs/evidence_intake.py",))
+    used_in=("fork/beliefs/ledger_model.py",))
 CONFIRM_DAYS = _setting(
     "BELIEF_CONFIRM_DAYS", "2", "integer >= 1",
-    "Distinct days those sightings must span.", used_in=("fork/beliefs/evidence_intake.py",))
+    "Distinct days those sightings must span.", used_in=("fork/beliefs/ledger_model.py",))
 STALE_DAYS = _setting(
     "BELIEF_STALE_DAYS", "180", "integer >= 1",
     "Days without a sighting after which a belief goes stale.",
-    used_in=("fork/beliefs/evidence_intake.py",))
+    used_in=("fork/beliefs/ledger_model.py",))
 CONSOLIDATE = _setting(
     "BELIEF_CONSOLIDATE", "on", "on/off",
     "Merge beliefs that say the same thing.", used_in=("fork/beliefs/consolidation.py",))
