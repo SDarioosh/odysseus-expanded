@@ -38,21 +38,21 @@ from __future__ import annotations
 import argparse
 import copy
 import json
-import shutil
 import sys
-import tempfile
-from dataclasses import asdict, dataclass
+from dataclasses import asdict
 from datetime import date as Date
 from datetime import datetime, timedelta, timezone
 from fractions import Fraction
 from pathlib import Path
 from types import SimpleNamespace
-from typing import Any
 from zoneinfo import ZoneInfo
 
 REPO = Path(__file__).resolve().parents[1]
 if str(REPO) not in sys.path:
     sys.path.insert(0, str(REPO))
+
+from scripts import eval_common
+from scripts.eval_common import Check
 
 FIXTURE = REPO / "scripts" / "fixtures" / "insight_eval_day.json"
 T5_FIXTURE = REPO / "scripts" / "fixtures" / "t5_weights_day.json"
@@ -62,18 +62,6 @@ CASES = ("rule_order", "weights", "tiers", "min_shown", "t5_table", "t5_day",
          "owner_marks", "reset")
 T5_CAP = 5  # the T5's rule-based items per section
 T5_SECTIONS = ("do_first", "coming_up", "also")
-
-
-@dataclass
-class Check:
-    case: str
-    step: str
-    expected: Any
-    actual: Any
-
-    @property
-    def ok(self) -> bool:
-        return self.expected == self.actual
 
 
 class SetupError(RuntimeError):
@@ -482,7 +470,6 @@ def run_eval(data_dir: Path, fixture: Path = FIXTURE,
              t5_fixture: Path = T5_FIXTURE) -> list[Check]:
     """Run every case in ``data_dir`` (must not hold an earlier run). DATA_DIR and the
     owner time zone are set for the run and restored after."""
-    from src import constants
     from fork.insight import outcomes as io
     from fork.insight import today as ti
 
@@ -492,39 +479,22 @@ def run_eval(data_dir: Path, fixture: Path = FIXTURE,
         raise SetupError(f"{data_dir} already holds an eval run; use an empty directory")
     data_dir.mkdir(parents=True, exist_ok=True)
     tz = ZoneInfo(fx.get("timezone") or "UTC")
-    saved = (constants.DATA_DIR, ti.owner_timezone, io._TITLES, io._LOCKS,
-             io._load_notes_by_id)
-    constants.DATA_DIR = str(data_dir)
+    saved = (ti.owner_timezone, io._TITLES, io._LOCKS, io._load_notes_by_id)
     ti.owner_timezone = lambda owner: tz
     io._TITLES, io._LOCKS = {}, {}
     io._load_notes_by_id = lambda owner, ids: {}  # every note is in the inputs
     checks: list[Check] = []
     try:
-        _cases(fx, checks)
-        _t5_day(load_fixture(t5_fixture), checks)
+        with eval_common.use_data_dir(data_dir):
+            _cases(fx, checks)
+            _t5_day(load_fixture(t5_fixture), checks)
     finally:
-        (constants.DATA_DIR, ti.owner_timezone, io._TITLES, io._LOCKS,
-         io._load_notes_by_id) = saved
+        ti.owner_timezone, io._TITLES, io._LOCKS, io._load_notes_by_id = saved
     return checks
 
 
 def table(checks: list[Check]) -> int:
-    failed = 0
-    for case in CASES:
-        mine = [c for c in checks if c.case == case]
-        ok = sum(c.ok for c in mine)
-        print(f"[{case}] {ok}/{len(mine)}")
-        for c in mine:
-            mark = "ok  " if c.ok else "FAIL"
-            print(f"  {mark} {c.step}")
-            if not c.ok:
-                failed += 1
-                print(f"       expected: {json.dumps(c.expected, ensure_ascii=False, default=str)}")
-                print(f"       got:      {json.dumps(c.actual, ensure_ascii=False, default=str)}")
-    cases_ok = sum(all(c.ok for c in checks if c.case == case) for case in CASES)
-    print(f"cases: {cases_ok}/{len(CASES)}")
-    print(f"score {sum(c.ok for c in checks)}/{len(checks)}")
-    return failed
+    return eval_common.case_table(checks, CASES)
 
 
 def main(argv: list[str] | None = None) -> int:
@@ -537,16 +507,12 @@ def main(argv: list[str] | None = None) -> int:
     ap.add_argument("--json", action="store_true", help="print the checks and score as JSON")
     args = ap.parse_args(argv)
     temp = args.data_dir is None
-    data_dir = Path(tempfile.mkdtemp(prefix="insight-eval-")) if temp else args.data_dir
-    try:
+    with eval_common.temp_data_dir(args.data_dir, "insight-eval-", keep=args.keep) as data_dir:
         try:
             checks = run_eval(data_dir, args.fixture, args.t5_fixture)
         except SetupError as e:
             print(f"insight_eval: {e}", file=sys.stderr)
             return 2
-    finally:
-        if temp and not args.keep:
-            shutil.rmtree(data_dir, ignore_errors=True)
     if args.json:
         failed = sum(not c.ok for c in checks)
         print(json.dumps({"score": sum(c.ok for c in checks), "total": len(checks),

@@ -31,12 +31,31 @@ from pathlib import Path
 EXTRA = ("What did Maria ask me to do on Friday?", ["maria-oct"], ["Rosa", "train", "station"])
 
 
-def main(argv: list[str] | None = None) -> int:
-    argv = list(sys.argv[1:] if argv is None else argv)
+def split_args(argv: list[str]) -> tuple[list[str], list[str]]:
+    """This script's own arguments and, after the first ``--``, bakeoff's."""
+    argv = list(argv)
     rest: list[str] = []
     if "--" in argv:
         i = argv.index("--")
         argv, rest = argv[:i], argv[i + 1:]
+    return argv, rest
+
+
+def log_line(seg: str) -> str:
+    """What one question left in the Odysseus log: exact approvals asked, the first six
+    ``tools_sent=`` counts and whether a skill pinned its tools."""
+    sent = re.findall(r"tools_sent=(\d+)", seg)
+    return (f"  approvals={seg.count('Exact approval required')} "
+            f"tools_sent={','.join(sent[:6])} pinned={'[skill-pin]' in seg}")
+
+
+def bakeoff_argv(bakeoff: Path, rest: list[str]) -> list[str]:
+    """``sys.argv`` for bakeoff's ``main``: the Odysseus frontend plus the passed args."""
+    return [str(bakeoff), "--frontend", "odysseus", *rest]
+
+
+def main(argv: list[str] | None = None) -> int:
+    argv, rest = split_args(sys.argv[1:] if argv is None else argv)
     ap = argparse.ArgumentParser(description=__doc__.splitlines()[0])
     ap.add_argument("--skill", help="slash skill to prefix, e.g. sound or context")
     ap.add_argument("--bakeoff", type=Path, default=Path("eval/bakeoff.py"),
@@ -65,13 +84,11 @@ def main(argv: list[str] | None = None) -> int:
             with args.log.open(errors="replace") as f:
                 f.seek(start)
                 seg = f.read()
-            sent = re.findall(r"tools_sent=(\d+)", seg)
-            print(f"  approvals={seg.count('Exact approval required')} "
-                  f"tools_sent={','.join(sent[:6])} pinned={'[skill-pin]' in seg}", flush=True)
+            print(log_line(seg), flush=True)
         return answer, tools
 
     bakeoff.run_odysseus = run
-    sys.argv = [str(args.bakeoff), "--frontend", "odysseus", *rest]
+    sys.argv = bakeoff_argv(args.bakeoff, rest)
     return bakeoff.main()
 
 

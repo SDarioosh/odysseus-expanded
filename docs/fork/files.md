@@ -148,6 +148,7 @@ is an old path of a module that moved into `fork/`; it only aliases the new modu
 
 - `scripts/belief_eval.py`
 - `scripts/belief_eval_scale.py`
+- `scripts/eval_common.py`
 - `scripts/fixtures/insight_eval_day.json`
 - `scripts/fixtures/t5_weights_day.json`
 - `scripts/fork_deploy.sh`
@@ -251,6 +252,19 @@ is an old path of a module that moved into `fork/`; it only aliases the new modu
 - `tests/fixtures/athena_contract/list_facts_confirmed.json`
 - `tests/fixtures/athena_contract/list_people.json`
 - `tests/fixtures/athena_contract/list_people_after_merge.json`
+- `tests/fixtures/eval_goldens/belief_eval.help.txt`
+- `tests/fixtures/eval_goldens/belief_eval.txt`
+- `tests/fixtures/eval_goldens/belief_eval_scale.help.txt`
+- `tests/fixtures/eval_goldens/belief_eval_scale.small.json`
+- `tests/fixtures/eval_goldens/belief_eval_scale.small.txt`
+- `tests/fixtures/eval_goldens/ink_eval.fixtures.json`
+- `tests/fixtures/eval_goldens/ink_eval.fixtures.txt`
+- `tests/fixtures/eval_goldens/ink_eval.fixtures_stored_per_page.txt`
+- `tests/fixtures/eval_goldens/ink_eval.help.txt`
+- `tests/fixtures/eval_goldens/insight_eval.help.txt`
+- `tests/fixtures/eval_goldens/insight_eval.json`
+- `tests/fixtures/eval_goldens/insight_eval.txt`
+- `tests/fixtures/eval_goldens/module_slash_eval.help.txt`
 - `tests/fork/conftest.py`
 - `tests/fork/fakes.py`
 - `tests/fork/test_agent_thinking_switch.py`
@@ -270,6 +284,8 @@ is an old path of a module that moved into `fork/`; it only aliases the new modu
 - `tests/fork/test_chat_mode_scope.py`
 - `tests/fork/test_checklist_auto_archive.py`
 - `tests/fork/test_codex_todos_json.py`
+- `tests/fork/test_eval_common.py`
+- `tests/fork/test_eval_goldens.py`
 - `tests/fork/test_evidence_intake.py`
 - `tests/fork/test_fork_atomic_writes.py`
 - `tests/fork/test_fork_deploy.py`
@@ -313,6 +329,7 @@ is an old path of a module that moved into `fork/`; it only aliases the new modu
 - `tests/fork/test_module_action_items.py`
 - `tests/fork/test_module_fact_kinds.py`
 - `tests/fork/test_module_facts.py`
+- `tests/fork/test_module_slash_eval.py`
 - `tests/fork/test_module_turn_scope.py`
 - `tests/fork/test_modules_setup.py`
 - `tests/fork/test_notes_evidence.py`
