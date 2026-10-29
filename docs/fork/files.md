@@ -9,7 +9,8 @@ regenerate this list:
 UPDATE_FORK_FILES=1 python -m pytest -q tests/test_fork_inventory.py
 ```
 
-Hooks in upstream files are listed in [FORK.md](../../FORK.md).
+Hooks in upstream files are listed in [FORK.md](../../FORK.md). A file marked "shim"
+is an old path of a module that moved into `fork/`; it only aliases the new module.
 
 ## (top level)
 
@@ -55,21 +56,93 @@ Hooks in upstream files are listed in [FORK.md](../../FORK.md).
 - `docs/fork/today-insight.md`
 - `docs/fork/upstream-sync.md`
 
+## fork/
+
+- `fork/__init__.py`
+- `fork/athena/__init__.py`
+- `fork/athena/action_items.py`
+- `fork/athena/call_recorder.py`
+- `fork/athena/facts.py`
+- `fork/athena/meeting_auto_join.py`
+- `fork/athena/meeting_bot.py`
+- `fork/athena/phone_pairing.py`
+- `fork/athena/record_share.py`
+- `fork/athena/relay_routes.py`
+- `fork/athena/routes.py`
+- `fork/athena/summary_model_routes.py`
+- `fork/athena/view.py`
+- `fork/athena/voice_enroll_routes.py`
+- `fork/athena/whisper_vocabulary_routes.py`
+- `fork/beliefs/__init__.py`
+- `fork/beliefs/consolidation.py`
+- `fork/beliefs/evidence_intake.py`
+- `fork/beliefs/export.py`
+- `fork/beliefs/forget.py`
+- `fork/beliefs/move.py`
+- `fork/beliefs/notes_evidence.py`
+- `fork/beliefs/search.py`
+- `fork/beliefs/structure.py`
+- `fork/common/__init__.py`
+- `fork/hub/__init__.py`
+- `fork/hub/builtin_task_authority.py`
+- `fork/hub/checklist_auto_archive.py`
+- `fork/hub/codex_todos_json.py`
+- `fork/hub/log_redact.py`
+- `fork/hub/private_endpoint_thinking.py`
+- `fork/hub/vision_auto_detect.py`
+- `fork/ink/__init__.py`
+- `fork/ink/athena.py`
+- `fork/ink/notebooks.py`
+- `fork/ink/notes.py`
+- `fork/ink/transcribe.py`
+- `fork/insight/__init__.py`
+- `fork/insight/inputs.py`
+- `fork/insight/outcomes.py`
+- `fork/insight/push.py`
+- `fork/insight/routines.py`
+- `fork/insight/today.py`
+- `fork/insight/trends.py`
+- `fork/insight/weights.py`
+- `fork/mcp/__init__.py`
+- `fork/mcp/session_recovery.py`
+- `fork/mcp/stdio_owner.py`
+- `fork/mcp/trust.py`
+- `fork/routes/__init__.py`
+- `fork/routes/auto_mode_routes.py`
+- `fork/routes/belief_search_routes.py`
+- `fork/routes/beliefs_routes.py`
+- `fork/routes/ink_routes.py`
+- `fork/routes/insight_outcome_routes.py`
+- `fork/routes/insight_trends_routes.py`
+- `fork/routes/insight_weights_routes.py`
+- `fork/routes/today_insight_routes.py`
+- `fork/routing/__init__.py`
+- `fork/routing/auto_mode.py`
+- `fork/routing/chat_mode_scope.py`
+- `fork/routing/module_turn_scope.py`
+- `fork/routing/offered_reads.py`
+- `fork/routing/personal_read_grants.py`
+- `fork/routing/personal_store_escalation.py`
+- `fork/routing/skill_invocation.py`
+- `fork/routing/skill_mcp_toolsets.py`
+- `fork/routing/web_read_recovery.py`
+- `fork/routing/web_turn_scope.py`
+
 ## routes/
 
-- `routes/auto_mode_routes.py`
-- `routes/belief_search_routes.py`
-- `routes/beliefs_routes.py`
-- `routes/ink_routes.py`
-- `routes/insight_outcome_routes.py`
-- `routes/insight_trends_routes.py`
-- `routes/insight_weights_routes.py`
-- `routes/sound_module_routes.py`
-- `routes/sound_relay_routes.py`
-- `routes/summary_model_routes.py`
-- `routes/today_insight_routes.py`
-- `routes/voice_enroll_routes.py`
-- `routes/whisper_vocabulary_routes.py`
+- `routes/auto_mode_routes.py` (shim for `fork/routes/auto_mode_routes.py`)
+- `routes/belief_search_routes.py` (shim for `fork/routes/belief_search_routes.py`)
+- `routes/beliefs_routes.py` (shim for `fork/routes/beliefs_routes.py`)
+- `routes/ink_routes.py` (shim for `fork/routes/ink_routes.py`)
+- `routes/insight_outcome_routes.py` (shim for `fork/routes/insight_outcome_routes.py`)
+- `routes/insight_trends_routes.py` (shim for `fork/routes/insight_trends_routes.py`)
+- `routes/insight_weights_routes.py` (shim for `fork/routes/insight_weights_routes.py`)
+- `routes/sound_module_routes.py` (shim for `fork/athena/routes.py`)
+- `routes/sound_relay_routes.py` (shim for `fork/athena/relay_routes.py`)
+- `routes/summary_model_routes.py` (shim for `fork/athena/summary_model_routes.py`)
+- `routes/today_insight_routes.py` (shim for `fork/routes/today_insight_routes.py`)
+- `routes/voice_enroll_routes.py` (shim for `fork/athena/voice_enroll_routes.py`)
+- `routes/whisper_vocabulary_routes.py` (shim for `fork/athena/whisper_vocabulary_routes.py`)
 
 ## scripts/
 
@@ -86,52 +159,52 @@ Hooks in upstream files are listed in [FORK.md](../../FORK.md).
 
 ## src/
 
-- `src/auto_mode.py`
-- `src/belief_consolidation.py`
-- `src/belief_export.py`
-- `src/belief_forget.py`
-- `src/belief_move.py`
-- `src/belief_search.py`
-- `src/belief_structure.py`
-- `src/builtin_task_authority.py`
-- `src/call_recorder.py`
-- `src/chat_mode_scope.py`
-- `src/checklist_auto_archive.py`
-- `src/codex_todos_json.py`
-- `src/evidence_intake.py`
-- `src/ink_athena.py`
-- `src/ink_notebooks.py`
-- `src/ink_notes.py`
-- `src/ink_transcribe.py`
-- `src/insight_inputs.py`
-- `src/insight_outcomes.py`
-- `src/insight_push.py`
-- `src/insight_routines.py`
-- `src/insight_trends.py`
-- `src/insight_weights.py`
-- `src/log_redact.py`
-- `src/mcp_session_recovery.py`
-- `src/mcp_stdio_owner.py`
-- `src/mcp_trust.py`
-- `src/meeting_auto_join.py`
-- `src/meeting_bot.py`
-- `src/module_action_items.py`
-- `src/module_facts.py`
-- `src/module_turn_scope.py`
-- `src/notes_evidence.py`
-- `src/offered_reads.py`
-- `src/personal_read_grants.py`
-- `src/personal_store_escalation.py`
-- `src/phone_pairing.py`
-- `src/private_endpoint_thinking.py`
-- `src/record_share.py`
-- `src/skill_invocation.py`
-- `src/skill_mcp_toolsets.py`
-- `src/sound_module_view.py`
-- `src/today_insight.py`
-- `src/vision_auto_detect.py`
-- `src/web_read_recovery.py`
-- `src/web_turn_scope.py`
+- `src/auto_mode.py` (shim for `fork/routing/auto_mode.py`)
+- `src/belief_consolidation.py` (shim for `fork/beliefs/consolidation.py`)
+- `src/belief_export.py` (shim for `fork/beliefs/export.py`)
+- `src/belief_forget.py` (shim for `fork/beliefs/forget.py`)
+- `src/belief_move.py` (shim for `fork/beliefs/move.py`)
+- `src/belief_search.py` (shim for `fork/beliefs/search.py`)
+- `src/belief_structure.py` (shim for `fork/beliefs/structure.py`)
+- `src/builtin_task_authority.py` (shim for `fork/hub/builtin_task_authority.py`)
+- `src/call_recorder.py` (shim for `fork/athena/call_recorder.py`)
+- `src/chat_mode_scope.py` (shim for `fork/routing/chat_mode_scope.py`)
+- `src/checklist_auto_archive.py` (shim for `fork/hub/checklist_auto_archive.py`)
+- `src/codex_todos_json.py` (shim for `fork/hub/codex_todos_json.py`)
+- `src/evidence_intake.py` (shim for `fork/beliefs/evidence_intake.py`)
+- `src/ink_athena.py` (shim for `fork/ink/athena.py`)
+- `src/ink_notebooks.py` (shim for `fork/ink/notebooks.py`)
+- `src/ink_notes.py` (shim for `fork/ink/notes.py`)
+- `src/ink_transcribe.py` (shim for `fork/ink/transcribe.py`)
+- `src/insight_inputs.py` (shim for `fork/insight/inputs.py`)
+- `src/insight_outcomes.py` (shim for `fork/insight/outcomes.py`)
+- `src/insight_push.py` (shim for `fork/insight/push.py`)
+- `src/insight_routines.py` (shim for `fork/insight/routines.py`)
+- `src/insight_trends.py` (shim for `fork/insight/trends.py`)
+- `src/insight_weights.py` (shim for `fork/insight/weights.py`)
+- `src/log_redact.py` (shim for `fork/hub/log_redact.py`)
+- `src/mcp_session_recovery.py` (shim for `fork/mcp/session_recovery.py`)
+- `src/mcp_stdio_owner.py` (shim for `fork/mcp/stdio_owner.py`)
+- `src/mcp_trust.py` (shim for `fork/mcp/trust.py`)
+- `src/meeting_auto_join.py` (shim for `fork/athena/meeting_auto_join.py`)
+- `src/meeting_bot.py` (shim for `fork/athena/meeting_bot.py`)
+- `src/module_action_items.py` (shim for `fork/athena/action_items.py`)
+- `src/module_facts.py` (shim for `fork/athena/facts.py`)
+- `src/module_turn_scope.py` (shim for `fork/routing/module_turn_scope.py`)
+- `src/notes_evidence.py` (shim for `fork/beliefs/notes_evidence.py`)
+- `src/offered_reads.py` (shim for `fork/routing/offered_reads.py`)
+- `src/personal_read_grants.py` (shim for `fork/routing/personal_read_grants.py`)
+- `src/personal_store_escalation.py` (shim for `fork/routing/personal_store_escalation.py`)
+- `src/phone_pairing.py` (shim for `fork/athena/phone_pairing.py`)
+- `src/private_endpoint_thinking.py` (shim for `fork/hub/private_endpoint_thinking.py`)
+- `src/record_share.py` (shim for `fork/athena/record_share.py`)
+- `src/skill_invocation.py` (shim for `fork/routing/skill_invocation.py`)
+- `src/skill_mcp_toolsets.py` (shim for `fork/routing/skill_mcp_toolsets.py`)
+- `src/sound_module_view.py` (shim for `fork/athena/view.py`)
+- `src/today_insight.py` (shim for `fork/insight/today.py`)
+- `src/vision_auto_detect.py` (shim for `fork/hub/vision_auto_detect.py`)
+- `src/web_read_recovery.py` (shim for `fork/routing/web_read_recovery.py`)
+- `src/web_turn_scope.py` (shim for `fork/routing/web_turn_scope.py`)
 
 ## static/
 
@@ -206,6 +279,7 @@ Hooks in upstream files are listed in [FORK.md](../../FORK.md).
 - `tests/test_fork_inventory.py`
 - `tests/test_fork_module_windows.py`
 - `tests/test_fork_override_env.py`
+- `tests/test_fork_package_shims.py`
 - `tests/test_fork_resume_fallback.py`
 - `tests/test_ink_athena.py`
 - `tests/test_ink_auto_send.py`

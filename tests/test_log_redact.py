@@ -105,7 +105,7 @@ def test_httpx_request_log_has_no_token(caplog):
 
 def test_app_installs_the_filter():
     src = (Path(__file__).resolve().parent.parent / "app.py").read_text()
-    assert "src.log_redact import install" in src
+    assert "fork.hub.log_redact import install" in src
 
 
 # ---- the fork's own module calls send the token as a header, never in the URL --------
