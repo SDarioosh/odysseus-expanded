@@ -166,96 +166,97 @@ to be offered) upstream, "with discussion" a change upstream may want in another
 
 | Upstream file | Function or spot | Fork file it calls | What | Upstreamable |
 |---|---|---|---|---|
-| `app.py` | after the logging handlers | `src/log_redact.py` | log formatters write token query values as `***` | yes |
-| `app.py` | `AUTH_EXEMPT_EXACT` | `routes/sound_relay_routes.py` | `/api/pair/redeem` needs no session (rate limited) | no |
-| `app.py` | routers, after the MCP routes | `routes/sound_module_routes.py` | Athena page and its routes | no |
-| `app.py` | routers | `routes/today_insight_routes.py` | Today page, votes, token route | no |
-| `app.py` | routers | `routes/belief_search_routes.py` | belief search, mounted before the review page's `/api/beliefs/{id}` | no |
-| `app.py` | routers | `routes/beliefs_routes.py` | belief review page and routes | no |
-| `app.py` | routers | `routes/sound_relay_routes.py` | phone relay and pairing | no |
-| `app.py` | routers | `routes/summary_model_routes.py` | summary model setting | no |
-| `app.py` | routers | `routes/whisper_vocabulary_routes.py` | transcription vocabulary setting | no |
-| `app.py` | routers | `routes/voice_enroll_routes.py` | Enroll My Voice setting | no |
-| `app.py` | routers | `routes/auto_mode_routes.py` | auto mode default | no |
-| `app.py` | routers | `routes/ink_routes.py` | handwritten notes | no |
-| `app.py` | `_startup_event` | `src/checklist_auto_archive.py` | start the checklist archiver | with discussion |
+| `app.py` | after the logging handlers | `fork/hub/log_redact.py` | log formatters write token query values as `***` | yes |
+| `app.py` | `AUTH_EXEMPT_EXACT` | `fork/athena/relay_routes.py` | `/api/pair/redeem` needs no session (rate limited) | no |
+| `app.py` | routers, after the MCP routes | `fork/athena/routes.py` | Athena page and its routes | no |
+| `app.py` | routers | `fork/routes/today_insight_routes.py` | Today page, votes, token route | no |
+| `app.py` | routers | `fork/routes/belief_search_routes.py` | belief search, mounted before the review page's `/api/beliefs/{id}` | no |
+| `app.py` | routers | `fork/routes/beliefs_routes.py` | belief review page and routes | no |
+| `app.py` | routers | `fork/athena/relay_routes.py` | phone relay and pairing | no |
+| `app.py` | routers | `fork/athena/summary_model_routes.py` | summary model setting | no |
+| `app.py` | routers | `fork/athena/whisper_vocabulary_routes.py` | transcription vocabulary setting | no |
+| `app.py` | routers | `fork/athena/voice_enroll_routes.py` | Enroll My Voice setting | no |
+| `app.py` | routers | `fork/routes/auto_mode_routes.py` | auto mode default | no |
+| `app.py` | routers | `fork/routes/ink_routes.py` | handwritten notes | no |
+| `app.py` | `_startup_event` | `fork/hub/checklist_auto_archive.py` | start the checklist archiver | with discussion |
 | `frontend/src/features/notes/application/workflows.js` | `_fetchNotes` | none (a filter; Write is `static/js/forkInk.js`) | handwritten notes left out of the Notes window | no |
 | `static/js/features/notes/application/workflows.js` | `_fetchNotes` (published copy of the above) | none | same filter | no |
-| `routes/api_token_routes.py` | `ALLOWED_SCOPES` | `routes/today_insight_routes.py` | scope `insight:read` | no |
-| `routes/api_token_routes.py` | `ALLOWED_SCOPES` | `routes/sound_relay_routes.py` | scopes `sound:ingest`, `sound:read`, `sound:write` | no |
-| `routes/calendar_routes.py` | `update_event`, before the success return | `src/meeting_auto_join.py` | Send Athena tasks follow the event | no |
-| `routes/calendar_routes.py` | `delete_event`, one occurrence | `src/meeting_auto_join.py` | same | no |
-| `routes/calendar_routes.py` | `delete_event`, whole event | `src/meeting_auto_join.py` | same | no |
+| `routes/api_token_routes.py` | `ALLOWED_SCOPES` | `fork/routes/today_insight_routes.py` | scope `insight:read` | no |
+| `routes/api_token_routes.py` | `ALLOWED_SCOPES` | `fork/athena/relay_routes.py` | scopes `sound:ingest`, `sound:read`, `sound:write` | no |
+| `routes/calendar_routes.py` | `update_event`, before the success return | `fork/athena/meeting_auto_join.py` | Send Athena tasks follow the event | no |
+| `routes/calendar_routes.py` | `delete_event`, one occurrence | `fork/athena/meeting_auto_join.py` | same | no |
+| `routes/calendar_routes.py` | `delete_event`, whole event | `fork/athena/meeting_auto_join.py` | same | no |
 | `routes/calendar_routes.py` | `quick_parse`, the model call | none | `thinking_mode="off"`, 1024 tokens, 30 s, so a thinking model returns JSON | yes |
-| `routes/chat_routes.py` | chat handler, form fields | `src/auto_mode.py` | remember the chat's Auto/Ask choice | no |
-| `routes/chat_routes.py` | after `_classify_tool_intent` | `src/chat_mode_scope.py` | how/why questions stay in chat mode | yes |
-| `routes/chat_routes.py` | chat→agent escalation | `src/skill_invocation.py` (`invoked_skill_needs_tools`; also runs `src/personal_store_escalation.py`, `src/module_turn_scope.py`) | slash skills with tools, store lookups and module questions run in agent mode | yes |
-| `routes/chat_routes.py` | after `request_authority_for_http` | `src/web_turn_scope.py` | `web_search` grant with the web toggle on | yes, with discussion |
-| `routes/chat_routes.py` | after the web-search hook | `src/personal_read_grants.py` | read actions of the personal-store tools | yes, with discussion |
-| `routes/chat_routes.py` | after the personal-read hook | `src/auto_mode.py` | calculator grant in Auto | no |
-| `routes/chat_routes.py` | exact-approval authority | `src/mcp_trust.py` | an approved trusted-module tool may run again | yes, with discussion |
-| `routes/chat_routes.py` | after `_successful_session_tool_names` | `src/mcp_trust.py` | follow-ups keep a used module's tools | yes |
-| `routes/chat_routes.py` | after `resolve_turn_contract` | `src/skill_invocation.py` (`pin_skill_contract`; also runs `src/module_turn_scope.py`) | pin a slash skill's tools | yes |
-| `routes/chat_routes.py` | after `resolve_turn_contract` | `src/auto_mode.py` | offer the calculator in Auto | no |
-| `routes/chat_routes.py` | after the final turn policy | `src/offered_reads.py` | read grants for every offered personal store | yes, with discussion |
-| `routes/codex_routes.py` | `list_todos` | `src/codex_todos_json.py` | `format=json` | yes |
+| `routes/chat_routes.py` | chat handler, form fields | `fork/routing/auto_mode.py` | remember the chat's Auto/Ask choice | no |
+| `routes/chat_routes.py` | after `_classify_tool_intent` | `fork/routing/chat_mode_scope.py` | how/why questions stay in chat mode | yes |
+| `routes/chat_routes.py` | chat→agent escalation | `fork/routing/skill_invocation.py` (`invoked_skill_needs_tools`; also runs `fork/routing/personal_store_escalation.py`, `fork/routing/module_turn_scope.py`) | slash skills with tools, store lookups and module questions run in agent mode | yes |
+| `routes/chat_routes.py` | after `request_authority_for_http` | `fork/routing/web_turn_scope.py` | `web_search` grant with the web toggle on | yes, with discussion |
+| `routes/chat_routes.py` | after the web-search hook | `fork/routing/personal_read_grants.py` | read actions of the personal-store tools | yes, with discussion |
+| `routes/chat_routes.py` | after the personal-read hook | `fork/routing/auto_mode.py` | calculator grant in Auto | no |
+| `routes/chat_routes.py` | exact-approval authority | `fork/mcp/trust.py` | an approved trusted-module tool may run again | yes, with discussion |
+| `routes/chat_routes.py` | after `_successful_session_tool_names` | `fork/mcp/trust.py` | follow-ups keep a used module's tools | yes |
+| `routes/chat_routes.py` | after `resolve_turn_contract` | `fork/routing/skill_invocation.py` (`pin_skill_contract`; also runs `fork/routing/module_turn_scope.py`) | pin a slash skill's tools | yes |
+| `routes/chat_routes.py` | after `resolve_turn_contract` | `fork/routing/auto_mode.py` | offer the calculator in Auto | no |
+| `routes/chat_routes.py` | after the final turn policy | `fork/routing/offered_reads.py` | read grants for every offered personal store | yes, with discussion |
+| `routes/codex_routes.py` | `list_todos` | `fork/hub/codex_todos_json.py` | `format=json` | yes |
+| `scripts/generate_env_reference.py` | `SOURCE_ROOTS` | none | walk `fork/` too, so the fork's settings stay in the reference | no |
 | `scripts/generate_env_reference.py` | `VARIABLE_NOTES` (two places) | none | notes for the fork's `ODYSSEUS_*` variables | with the trusted read-only change |
 | `website/configuration-reference.md` | generated | none | regenerated with those notes | with the trusted read-only change |
-| `services/memory/memory_extractor.py` | `audit_memories` (two places) | `src/belief_consolidation.py` | sourced memories skip the audit and are put back unchanged | no |
-| `services/memory/skills.py` | `SkillsManager.index_for` (two places) | `src/skill_invocation.py` | managed skills skip the audit gates | with discussion |
-| `src/agent_loop.py` | `_web_search_unavailable_for_turn` | `src/mcp_trust.py` | no "web disabled" reply while trusted MCP tools are on | yes |
-| `src/agent_loop.py` | `_build_system_prompt`, active skills | `src/skill_mcp_toolsets.py` | expand `mcp:` entries | yes |
-| `src/agent_loop.py` | `_build_base_prompt`, skill index | `src/skill_mcp_toolsets.py` | skills needing `mcp:<server>` stay listed | yes |
-| `src/agent_loop.py` | `stream_agent_loop`, run security setup | `src/auto_mode.py` | bind the chat's Auto/Ask choice to the run | no |
-| `src/agent_loop.py` | `stream_agent_loop`, skill matching | `src/skill_mcp_toolsets.py` | MCP entries in `requires_toolsets` | yes |
-| `src/agent_loop.py` | `stream_agent_loop`, exact-approval continuation (two places) | `src/web_read_recovery.py` | a failed approved web read continues the turn | yes |
+| `services/memory/memory_extractor.py` | `audit_memories` (two places) | `fork/beliefs/consolidation.py` | sourced memories skip the audit and are put back unchanged | no |
+| `services/memory/skills.py` | `SkillsManager.index_for` (two places) | `fork/routing/skill_invocation.py` | managed skills skip the audit gates | with discussion |
+| `src/agent_loop.py` | `_web_search_unavailable_for_turn` | `fork/mcp/trust.py` | no "web disabled" reply while trusted MCP tools are on | yes |
+| `src/agent_loop.py` | `_build_system_prompt`, active skills | `fork/routing/skill_mcp_toolsets.py` | expand `mcp:` entries | yes |
+| `src/agent_loop.py` | `_build_base_prompt`, skill index | `fork/routing/skill_mcp_toolsets.py` | skills needing `mcp:<server>` stay listed | yes |
+| `src/agent_loop.py` | `stream_agent_loop`, run security setup | `fork/routing/auto_mode.py` | bind the chat's Auto/Ask choice to the run | no |
+| `src/agent_loop.py` | `stream_agent_loop`, skill matching | `fork/routing/skill_mcp_toolsets.py` | MCP entries in `requires_toolsets` | yes |
+| `src/agent_loop.py` | `stream_agent_loop`, exact-approval continuation (two places) | `fork/routing/web_read_recovery.py` | a failed approved web read continues the turn | yes |
 | `src/agent_loop.py` | `stream_agent_loop`, `_active_route_state` | none (`tests/test_agent_thinking_switch.py`) | keep the turn's `thinking_mode` | yes |
-| `src/agent_loop.py` | `stream_agent_loop`, `manage_skills view` | `src/skill_mcp_toolsets.py` | expand `mcp:` entries | yes |
-| `src/agent_loop.py` | `stream_agent_loop`, end-of-loop empty-final recovery | `src/mcp_trust.py` | answer an empty reply after module tools | yes |
-| `src/agent_runtime/authority.py` | `create_request_authority` | `src/mcp_trust.py` | grant trusted read-only MCP tools | yes |
-| `src/agent_runtime/effect_adapters.py` | `classify` | `src/mcp_trust.py` | a trusted read-only call is an admitted read | yes |
-| `src/agent_tools/__init__.py` | `TOOL_HANDLERS` | `src/auto_mode.py` | `calculate` handler | no |
-| `src/builtin_actions.py` | `action_consolidate_memory` | `src/belief_consolidation.py` | Memory Tidy skips sourced memories | no |
-| `src/builtin_actions.py` | action registry, end of file | `src/module_action_items.py` | "Module Action Items" task | no |
-| `src/builtin_actions.py` | action registry | `src/module_facts.py` | "Module Facts" task | no |
-| `src/builtin_actions.py` | action registry | `src/today_insight.py` | "Today Insight" task | no |
-| `src/builtin_actions.py` | action registry | `src/notes_evidence.py` | "Notes Evidence" task | no |
-| `src/builtin_actions.py` | action registry | `src/belief_structure.py` | "Belief Structure" task | no |
-| `src/builtin_actions.py` | action registry | `src/meeting_auto_join.py` | `meeting_auto_join` action | no |
-| `src/caldav_sync.py` | `sync_caldav`, after the pull | `src/meeting_auto_join.py` | Send Athena tasks follow moved or deleted events | no |
-| `src/chat_processor.py` | `ChatProcessor.build_context_preface`, memory context | `src/today_insight.py` | Today and beliefs block on plan questions | no |
-| `src/document_processor.py` | `_resolve_vl_model` | `src/vision_auto_detect.py` | auto-detect the owner's vision models | yes |
-| `src/llm_core.py` | `_apply_local_qwen_thinking_mode` | `src/private_endpoint_thinking.py` | a private host counts as local | yes |
-| `src/mcp_manager.py` | `connect_server`, stdio | `src/mcp_stdio_owner.py` | own the stdio transport in a long-lived task | yes |
+| `src/agent_loop.py` | `stream_agent_loop`, `manage_skills view` | `fork/routing/skill_mcp_toolsets.py` | expand `mcp:` entries | yes |
+| `src/agent_loop.py` | `stream_agent_loop`, end-of-loop empty-final recovery | `fork/mcp/trust.py` | answer an empty reply after module tools | yes |
+| `src/agent_runtime/authority.py` | `create_request_authority` | `fork/mcp/trust.py` | grant trusted read-only MCP tools | yes |
+| `src/agent_runtime/effect_adapters.py` | `classify` | `fork/mcp/trust.py` | a trusted read-only call is an admitted read | yes |
+| `src/agent_tools/__init__.py` | `TOOL_HANDLERS` | `fork/routing/auto_mode.py` | `calculate` handler | no |
+| `src/builtin_actions.py` | `action_consolidate_memory` | `fork/beliefs/consolidation.py` | Memory Tidy skips sourced memories | no |
+| `src/builtin_actions.py` | action registry, end of file | `fork/athena/action_items.py` | "Module Action Items" task | no |
+| `src/builtin_actions.py` | action registry | `fork/athena/facts.py` | "Module Facts" task | no |
+| `src/builtin_actions.py` | action registry | `fork/insight/today.py` | "Today Insight" task | no |
+| `src/builtin_actions.py` | action registry | `fork/beliefs/notes_evidence.py` | "Notes Evidence" task | no |
+| `src/builtin_actions.py` | action registry | `fork/beliefs/structure.py` | "Belief Structure" task | no |
+| `src/builtin_actions.py` | action registry | `fork/athena/meeting_auto_join.py` | `meeting_auto_join` action | no |
+| `src/caldav_sync.py` | `sync_caldav`, after the pull | `fork/athena/meeting_auto_join.py` | Send Athena tasks follow moved or deleted events | no |
+| `src/chat_processor.py` | `ChatProcessor.build_context_preface`, memory context | `fork/insight/today.py` | Today and beliefs block on plan questions | no |
+| `src/document_processor.py` | `_resolve_vl_model` | `fork/hub/vision_auto_detect.py` | auto-detect the owner's vision models | yes |
+| `src/llm_core.py` | `_apply_local_qwen_thinking_mode` | `fork/hub/private_endpoint_thinking.py` | a private host counts as local | yes |
+| `src/mcp_manager.py` | `connect_server`, stdio | `fork/mcp/stdio_owner.py` | own the stdio transport in a long-lived task | yes |
 | `src/mcp_manager.py` | `_connect_http` | none | keep tool annotations | yes |
-| `src/mcp_manager.py` | `hold_owned_connection` | `src/mcp_stdio_owner.py` | stdio connections already have an owner task | yes |
-| `src/mcp_manager.py` | `call_tool`, the call | `src/mcp_session_recovery.py` | deadline for module calls | yes |
-| `src/mcp_manager.py` | `call_tool`, the error branch | `src/mcp_session_recovery.py` | reconnect a lost HTTP/SSE session and retry once | yes |
-| `src/task_scheduler.py` | `HOUSEKEEPING_DEFAULTS` | `src/module_action_items.py` | seed the task | no |
-| `src/task_scheduler.py` | `HOUSEKEEPING_DEFAULTS` | `src/module_facts.py` | seed the task | no |
-| `src/task_scheduler.py` | `HOUSEKEEPING_DEFAULTS` | `src/today_insight.py` | seed the task | no |
-| `src/task_scheduler.py` | `HOUSEKEEPING_DEFAULTS` | `src/notes_evidence.py` | seed the task | no |
-| `src/task_scheduler.py` | `HOUSEKEEPING_DEFAULTS` | `src/belief_structure.py` | seed the task | no |
-| `src/task_scheduler.py` | `_check_due_tasks` (two places) | `src/meeting_auto_join.py` | Send Athena joins are not deferred and skip the model slot | no |
-| `src/task_scheduler.py` | `_execute_action` | `src/builtin_task_authority.py` | re-seal a built-in task's broken authority, else say why | yes |
-| `src/task_scheduler.py` | `_SILENT_ACTIONS`, end of file | `src/module_action_items.py` | `barvis_sync_action_items` posts nothing to chat | no |
-| `src/task_scheduler.py` | `_SILENT_ACTIONS` | `src/module_facts.py` | `module_sync_facts` posts nothing to chat | no |
-| `src/task_scheduler.py` | `_SILENT_ACTIONS`, `_MODEL_BACKED_ACTIONS` | `src/today_insight.py` | `today_insight` silent, queued for the model | no |
-| `src/task_scheduler.py` | `_SILENT_ACTIONS`, `_MODEL_BACKED_ACTIONS` | `src/notes_evidence.py` | `notes_evidence` silent, queued for the model | no |
-| `src/task_scheduler.py` | `_SILENT_ACTIONS`, `_MODEL_BACKED_ACTIONS` | `src/belief_structure.py` | `belief_structure` silent, queued for the model | no |
-| `src/tool_capabilities.py` | capability registry (`_register`) | `src/auto_mode.py` | `calculate` is a public read | no |
-| `src/tool_capabilities.py` | `ToolRunSecurityContext.observe_messages` | `src/auto_mode.py` | note URLs the owner wrote | no |
-| `src/tool_capabilities.py` | `ToolRunSecurityContext.decision_for` | `src/mcp_trust.py` | trusted read-only tools pass the gate | yes |
-| `src/tool_capabilities.py` | `ToolRunSecurityContext.decision_for` | `src/auto_mode.py` | auto mode decides safe reads and known-URL fetches | no |
-| `src/tool_capabilities.py` | `ToolRunSecurityContext.observe_tool_result` | `src/auto_mode.py` | note URLs a tool returned | no |
-| `src/tool_execution.py` | `execute_tool_block`, before the request-authority denial | `src/web_turn_scope.py` | `web_fetch` of this run's search hits | yes, with discussion |
-| `src/tool_types.py` | `TOOL_TAGS` | `src/auto_mode.py` | `calculate` tag | no |
+| `src/mcp_manager.py` | `hold_owned_connection` | `fork/mcp/stdio_owner.py` | stdio connections already have an owner task | yes |
+| `src/mcp_manager.py` | `call_tool`, the call | `fork/mcp/session_recovery.py` | deadline for module calls | yes |
+| `src/mcp_manager.py` | `call_tool`, the error branch | `fork/mcp/session_recovery.py` | reconnect a lost HTTP/SSE session and retry once | yes |
+| `src/task_scheduler.py` | `HOUSEKEEPING_DEFAULTS` | `fork/athena/action_items.py` | seed the task | no |
+| `src/task_scheduler.py` | `HOUSEKEEPING_DEFAULTS` | `fork/athena/facts.py` | seed the task | no |
+| `src/task_scheduler.py` | `HOUSEKEEPING_DEFAULTS` | `fork/insight/today.py` | seed the task | no |
+| `src/task_scheduler.py` | `HOUSEKEEPING_DEFAULTS` | `fork/beliefs/notes_evidence.py` | seed the task | no |
+| `src/task_scheduler.py` | `HOUSEKEEPING_DEFAULTS` | `fork/beliefs/structure.py` | seed the task | no |
+| `src/task_scheduler.py` | `_check_due_tasks` (two places) | `fork/athena/meeting_auto_join.py` | Send Athena joins are not deferred and skip the model slot | no |
+| `src/task_scheduler.py` | `_execute_action` | `fork/hub/builtin_task_authority.py` | re-seal a built-in task's broken authority, else say why | yes |
+| `src/task_scheduler.py` | `_SILENT_ACTIONS`, end of file | `fork/athena/action_items.py` | `barvis_sync_action_items` posts nothing to chat | no |
+| `src/task_scheduler.py` | `_SILENT_ACTIONS` | `fork/athena/facts.py` | `module_sync_facts` posts nothing to chat | no |
+| `src/task_scheduler.py` | `_SILENT_ACTIONS`, `_MODEL_BACKED_ACTIONS` | `fork/insight/today.py` | `today_insight` silent, queued for the model | no |
+| `src/task_scheduler.py` | `_SILENT_ACTIONS`, `_MODEL_BACKED_ACTIONS` | `fork/beliefs/notes_evidence.py` | `notes_evidence` silent, queued for the model | no |
+| `src/task_scheduler.py` | `_SILENT_ACTIONS`, `_MODEL_BACKED_ACTIONS` | `fork/beliefs/structure.py` | `belief_structure` silent, queued for the model | no |
+| `src/tool_capabilities.py` | capability registry (`_register`) | `fork/routing/auto_mode.py` | `calculate` is a public read | no |
+| `src/tool_capabilities.py` | `ToolRunSecurityContext.observe_messages` | `fork/routing/auto_mode.py` | note URLs the owner wrote | no |
+| `src/tool_capabilities.py` | `ToolRunSecurityContext.decision_for` | `fork/mcp/trust.py` | trusted read-only tools pass the gate | yes |
+| `src/tool_capabilities.py` | `ToolRunSecurityContext.decision_for` | `fork/routing/auto_mode.py` | auto mode decides safe reads and known-URL fetches | no |
+| `src/tool_capabilities.py` | `ToolRunSecurityContext.observe_tool_result` | `fork/routing/auto_mode.py` | note URLs a tool returned | no |
+| `src/tool_execution.py` | `execute_tool_block`, before the request-authority denial | `fork/routing/web_turn_scope.py` | `web_fetch` of this run's search hits | yes, with discussion |
+| `src/tool_types.py` | `TOOL_TAGS` | `fork/routing/auto_mode.py` | `calculate` tag | no |
 | `src/tools/calendar.py` | `_create_calendar_reminder` | none (upstream `src/user_time.py`) | the reminder shows the wall time | yes |
-| `src/turn_contract.py` | `selected_tools_for_request`, model-discovery rule | `src/web_turn_scope.py` | comparisons and web lookups are web questions | yes, with discussion |
+| `src/turn_contract.py` | `selected_tools_for_request`, model-discovery rule | `fork/routing/web_turn_scope.py` | comparisons and web lookups are web questions | yes, with discussion |
 | `static/css/01-agent-chat.css` | `.chat-meta-overlay` with the Nobody eye | none | the chat title stays centered | yes |
-| `static/index.html` | sidebar Tools list | `routes/sound_module_routes.py` | Records link | no |
-| `static/index.html` | sidebar Tools list | `routes/today_insight_routes.py` | Today link | no |
-| `static/index.html` | sidebar Tools list | `routes/beliefs_routes.py` | Wisdom link | no |
+| `static/index.html` | sidebar Tools list | `fork/athena/routes.py` | Records link | no |
+| `static/index.html` | sidebar Tools list | `fork/routes/today_insight_routes.py` | Today link | no |
+| `static/index.html` | sidebar Tools list | `fork/routes/beliefs_routes.py` | Wisdom link | no |
 | `static/index.html` | script tags, end of body | `static/js/forkChatAsk.js` | `/?ask=` prefills a new chat | yes, with discussion |
 | `static/index.html` | script tags | `static/js/forkEntityHash.js` | open `#event-…` / `#open=notes&note=…` on load | yes |
 | `static/index.html` | script tags | `static/js/forkModuleWindows.js` | module windows, rail buttons, transcript links | no |
@@ -264,8 +265,8 @@ to be offered) upstream, "with discussion" a change upstream may want in another
 | `static/index.html` | script tags | `static/js/forkVoiceEnroll.js` | Enroll My Voice card | no |
 | `static/index.html` | script tags | `static/js/forkPhonePairing.js` | Pair a phone card | no |
 | `static/index.html` | script tags | `static/js/forkAutoMode.js` | Auto/Ask button and its default | no |
-| `static/js/admin.js` | `_TOKEN_SCOPES` | `routes/today_insight_routes.py` | `insight:read` in the token scope list | no |
-| `static/js/admin.js` | `_TOKEN_SCOPES` | `routes/sound_relay_routes.py` | `sound:*` in the token scope list | no |
+| `static/js/admin.js` | `_TOKEN_SCOPES` | `fork/routes/today_insight_routes.py` | `insight:read` in the token scope list | no |
+| `static/js/admin.js` | `_TOKEN_SCOPES` | `fork/athena/relay_routes.py` | `sound:*` in the token scope list | no |
 | `static/js/calendar.js` | `_showEventForm` | `static/js/forkMeetingAutoJoin.js` | Send Athena toggle (lazy import) | no |
 | `static/js/chat.js` | `_tryAutoRecover` | `static/js/forkResumeFallback.js` | reload a run that ended while away | yes |
 | `static/js/keyboard-shortcuts.js` | imports | `static/js/forkModuleShortcuts.js` | import the fork's shortcut tables | no |
@@ -289,6 +290,15 @@ Every file the fork adds (code, tests, scripts, docs) is listed in
 `tests/test_fork_inventory.py`; regenerate it with
 `UPDATE_FORK_FILES=1 python -m pytest -q tests/test_fork_inventory.py` after adding,
 moving or deleting a fork file.
+
+The fork's Python code lives in the `fork/` package, apart from upstream's `src/` and
+`routes/`: `fork/mcp/` (MCP client fixes), `fork/routing/` (what a turn is offered and
+granted), `fork/athena/` (the Athena module in the hub, its routes included),
+`fork/beliefs/`, `fork/insight/`, `fork/ink/`, `fork/hub/` (fixes to upstream's own
+features), `fork/routes/` (the other route files) and `fork/common/` (shared helpers).
+The old paths (`src/mcp_trust.py`, `routes/sound_module_routes.py`, …) are shims that
+alias the new modules; `docs/fork/files.md` marks each one, and
+`tests/test_fork_package_shims.py` checks them. New code imports `fork.*`.
 
 ## Setup
 

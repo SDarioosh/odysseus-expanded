@@ -58,3 +58,14 @@ the hub lanes and the rules that are specific to this repo.
   passed in ~5.3 min (2026-10-29).
 - 66 commits behind upstream `dev` (last base 2026-10-22), and 21 of the upstream files the
   fork hooks changed upstream since; lane 0D catches up and starts first.
+
+## Status
+
+- **2E done (branch `feature/cleanup-2e`, 2026-10-29):** the 59 fork Python files of
+  `src/` and `routes/` are in the `fork/` package (`mcp/`, `routing/`, `athena/`,
+  `beliefs/`, `insight/`, `ink/`, `hub/`, `routes/`, `common/`); the `sound_*` files have
+  Athena names (`fork/athena/view.py`, `routes.py`, `relay_routes.py`). Every old path is
+  a shim that aliases the new module (removed in 4C); hooks changed only their import
+  line and comment; route table and OpenAPI paths are unchanged; URLs, action ids,
+  stored names and logger-independent behaviour stay. Logger names follow the module
+  (`fork.athena.facts` instead of `src.module_facts`).
