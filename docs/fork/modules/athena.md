@@ -819,7 +819,9 @@ python3 scripts/athena_names_migrate.py --data-dir <data dir> \
   processes may not show, so stop it first).
 - **Rolling back:** `--rollback <backup dir>` puts every file back byte for byte (checked
   against the manifest's hashes) and removes a `-wal`/`-shm` that wasn't there before.
-  The code reads the old names, so the hub runs on the restored data as before.
+  The code reads the old names, so the hub runs on the restored data as before. The
+  restored files are those of before the apply: what the hub wrote to them since (chats,
+  notes, beliefs) is gone, so roll back soon or not at all (the code reads both names).
 - After it, `modules_setup.py` (run by `fork_deploy.sh deploy`) writes the skills with the
   server's registered name, `athena`; the `/context` description then names it too.
 - Tests: `tests/fork/test_athena_names.py` (both names read alike),
