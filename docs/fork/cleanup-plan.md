@@ -89,3 +89,15 @@ the hub lanes and the rules that are specific to this repo.
   `static/index.html` keeps only the fork's script tags. Sidebar DOM, layout, rail buttons
   and clicks, the windows' and standalone pages' content: identical before and after in
   Chromium.
+- **3K done (branch `feature/cleanup-3k`, 2026-10-29):** Wisdom and Meetings use the
+  `mountX(root, opts)` pattern of Records and Today: `mountBeliefs` in
+  `static/js/beliefs.js`, `mountMeetings` in `static/js/forkMeetings.js` (each holds its
+  markup), called by the window and by the page. Their inline CSS (and the Meetings and
+  pairing pages') is in `static/css/fork-modules.css` under fork classes;
+  `static/js/forkPageView.js` and `static/js/forkBeliefsWindow.js` are gone. The five pages
+  are thin shells sharing `static/js/forkPageTheme.js`. `tests/fork/test_fork_views_look.py`
+  pins the DOM and computed styles of these views (`tests/fork/fork_views_look_golden.json`,
+  recorded on the old code). Every element's computed style, box and text in all five
+  windows, the five pages, the app and upstream's Notes pane: identical before and after in
+  Chromium (desktop and phone, dark and light); only the pages' html and body classes and
+  the stylesheet link differ.

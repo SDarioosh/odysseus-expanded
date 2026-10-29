@@ -1,6 +1,7 @@
 """Fork: "Record a call" uploads forwarded to odysseus-sound's MCP HTTP server (src/call_recorder.py)."""
 import asyncio
 from datetime import UTC, datetime
+from pathlib import Path
 
 import httpx
 import pytest
@@ -10,6 +11,8 @@ from fastapi.testclient import TestClient
 from core.middleware import require_admin
 from routes.sound_module_routes import setup_sound_module_routes
 from src import call_recorder as rec
+
+_STATIC_JS = Path(__file__).resolve().parents[2] / "static" / "js"
 
 NOW = datetime(2026, 10, 22, 15, 0, tzinfo=UTC)
 TOKEN = "t" * 32
@@ -311,7 +314,9 @@ def test_routes_not_configured(client, monkeypatch):
 
 def test_record_page_is_served(client):
     r = client.get("/modules/sound/record")
-    assert r.status_code == 200 and "Meetings" in r.text and "callRecorder.js" in r.text
+    assert r.status_code == 200 and "Meetings" in r.text and "forkMeetings.js" in r.text
+    # the page mounts the cards from static/js/forkMeetings.js, which loads callRecorder.js
+    assert "'./callRecorder.js'" in (_STATIC_JS / "forkMeetings.js").read_text()
 
 
 def test_routes_are_admin_only(monkeypatch):

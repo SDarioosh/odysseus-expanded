@@ -283,7 +283,11 @@ alias the new modules; `docs/fork/files.md` marks each one, and
 `tests/fork/test_fork_package_shims.py` checks them. New code imports `fork.*`.
 
 The fork's page scripts share small DOM and fetch helpers (`el`, `$`, `api`, `request`)
-from `static/js/forkDom.js` instead of each keeping a copy.
+from `static/js/forkDom.js` instead of each keeping a copy. Each Athena view is one
+`mountX(root, opts)` function that both its window and its standalone page call; the
+pages are thin shells sharing one theme snippet (`static/js/forkPageTheme.js`), and every
+fork style is in `static/css/fork-modules.css` under a fork class
+([docs/fork/features/windows.md](docs/fork/features/windows.md)).
 
 The fork's own tests are in `tests/fork/` (`python -m pytest -q tests/fork`), with shared
 fixtures in `tests/fork/conftest.py` and fakes in `tests/fork/fakes.py`; upstream's tests

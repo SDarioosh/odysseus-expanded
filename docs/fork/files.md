@@ -225,7 +225,6 @@ is an old path of a module that moved into `fork/`; it only aliases the new modu
 - `static/js/forkAthenaMenu.js`
 - `static/js/forkAutoMode.js`
 - `static/js/forkBackgroundModels.js`
-- `static/js/forkBeliefsWindow.js`
 - `static/js/forkChatAsk.js`
 - `static/js/forkDom.js`
 - `static/js/forkEntityHash.js`
@@ -235,7 +234,7 @@ is an old path of a module that moved into `fork/`; it only aliases the new modu
 - `static/js/forkMeetings.js`
 - `static/js/forkModuleShortcuts.js`
 - `static/js/forkModuleWindows.js`
-- `static/js/forkPageView.js`
+- `static/js/forkPageTheme.js`
 - `static/js/forkPhonePairing.js`
 - `static/js/forkResumeFallback.js`
 - `static/js/forkShareRecord.js`
@@ -280,6 +279,7 @@ is an old path of a module that moved into `fork/`; it only aliases the new modu
 - `tests/fork/fixtures/settings_readers.json`
 - `tests/fork/fixtures/state_files.json`
 - `tests/fork/fork_dom_golden.json`
+- `tests/fork/fork_views_look_golden.json`
 - `tests/fork/test_agent_thinking_switch.py`
 - `tests/fork/test_athena_callers.py`
 - `tests/fork/test_athena_client.py`
@@ -319,6 +319,7 @@ is an old path of a module that moved into `fork/`; it only aliases the new modu
 - `tests/fork/test_fork_tasks.py`
 - `tests/fork/test_fork_tests_layout.py`
 - `tests/fork/test_fork_upstream.py`
+- `tests/fork/test_fork_views_look.py`
 - `tests/fork/test_ink_athena.py`
 - `tests/fork/test_ink_auto_send.py`
 - `tests/fork/test_ink_eval.py`
@@ -376,6 +377,7 @@ is an old path of a module that moved into `fork/`; it only aliases the new modu
 - `tests/fork/test_web_turn_scope.py`
 - `tests/fork/test_whisper_vocabulary_routes.py`
 - `tests/helpers/fork_dom_cases.mjs`
+- `tests/helpers/fork_views_look.mjs`
 - `tests/helpers/ink_notebooks_e2e.mjs`
 - `tests/helpers/ink_perf.mjs`
 - `tests/helpers/ink_pointer_e2e.mjs`

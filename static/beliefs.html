@@ -1,195 +1,22 @@
 <!DOCTYPE html>
-<html lang="en">
+<html lang="en" class="fm-page">
 <head>
   <meta charset="utf-8">
   <meta name="viewport" content="width=device-width, initial-scale=1">
   <title>Wisdom — Odysseus</title>
   <meta name="theme-color" content="#282c34">
   <link rel="icon" href="/static/icon.ico">
-  <script nonce="{{CSP_NONCE}}">
-  // Fork: apply the theme the owner picked in Odysseus (saved in localStorage
-  // as 'odysseus-theme'), like the early script in index.html and login.html.
-  // theme.js isn't imported: it boots the whole settings UI.
-  (function () {
-    try {
-      var t = JSON.parse(localStorage.getItem('odysseus-theme'));
-      var s = document.documentElement.style;
-      if (t && t.colors) {
-        var c = t.colors;
-        s.setProperty('--bg', c.bg);
-        s.setProperty('--fg', c.fg);
-        s.setProperty('--panel', c.panel);
-        s.setProperty('--border', c.border);
-        if (c.red) s.setProperty('--red', c.red);
-        var a = c.advanced || {};
-        if (a.inputBg) s.setProperty('--input-bg', a.inputBg);
-        if (a.inputBorder) s.setProperty('--input-border', a.inputBorder);
-        var m = document.querySelector('meta[name="theme-color"]');
-        if (m && c.bg) m.setAttribute('content', c.bg);
-      }
-      // Same names as FONT_MAP in static/js/theme.js; unknown fonts keep the default.
-      var fonts = {
-        mono: "'Fira Code', monospace",
-        sans: "system-ui, -apple-system, 'Segoe UI', sans-serif",
-        serif: "Georgia, 'Times New Roman', serif",
-        opendyslexic: "'OpenDyslexic', sans-serif"
-      };
-      if (t && t.font && fonts[t.font]) s.setProperty('--font-family', fonts[t.font]);
-      if (t && t.density && t.density !== 'comfortable') {
-        document.documentElement.classList.add('density-' + t.density);
-      }
-    } catch (e) { /* no saved theme: keep the defaults */ }
-  })();
-  </script>
+  <!-- Fork: the theme the owner picked in Odysseus (static/js/forkPageTheme.js) -->
+  <script src="/static/js/forkPageTheme.js"></script>
   <link rel="stylesheet" href="/static/css/00-tokens.css?v=20260929csssplit">
-  <style>
-    /* Fork: belief review page (routes/beliefs_routes.py), same look as the Today page
-       (static/today.html): Odysseus tokens plus the saved theme, no new colors. */
-    html, body { height: auto; overflow: visible; overscroll-behavior: auto; }
-    body { background: var(--bg); color: var(--fg); margin: 0; display: block;
-           min-height: 100vh;
-           font-family: var(--font-family, 'Fira Code', monospace); }
-    .bs-wrap { max-width: 860px; margin: 0 auto; padding: 16px; }
-    .bs-top { display: flex; align-items: center; gap: 10px; margin-bottom: 6px; }
-    .bs-top h1 { font-size: 1.1rem; font-weight: 600; margin: 0; flex: 1; }
-    .bs-top a { color: var(--fg); opacity: 0.7; text-decoration: none; }
-    .bs-top a:hover { opacity: 1; }
-    .bs-sub { font-size: 0.8rem; opacity: 0.65; margin: 0 0 12px; }
-    .bs-section { margin: 18px 0 8px; font-size: 0.85rem; text-transform: uppercase;
-                  letter-spacing: 0.06em; opacity: 0.6; overflow-wrap: anywhere; }
-    .bs-card { background: var(--panel); border: 1px solid var(--border); border-radius: 8px;
-               padding: 12px 14px; margin-bottom: 10px; }
-    .bs-meta { font-size: 0.8rem; opacity: 0.65; }
-    .bs-row { display: flex; flex-wrap: wrap; gap: 8px; align-items: center; margin-top: 8px; }
-    .bs-btn { background: transparent; color: var(--fg); border: 1px solid var(--border);
-              border-radius: 6px; padding: 6px 10px; font: inherit; font-size: 0.85rem;
-              cursor: pointer; min-height: 36px; box-sizing: border-box;
-              display: inline-flex; align-items: center; gap: 6px; }
-    .bs-btn:hover { border-color: var(--fg); }
-    .bs-btn:disabled { opacity: 0.4; cursor: default; }
-    .bs-btn svg { flex: none; opacity: 0.8; }
-    .bs-empty, .bs-status { font-size: 0.85rem; opacity: 0.7; padding: 6px 0; }
-    .bs-status.error { color: var(--red); opacity: 1; }
-    .bs-tabs { display: flex; flex-wrap: wrap; gap: 6px; margin-bottom: 10px; }
-    .bs-tab[aria-selected="true"] { border-color: var(--red); color: var(--red); }
-    .bs-tab .bs-count { opacity: 0.65; }
-    .bs-filter { width: 100%; box-sizing: border-box; background: var(--input-bg, var(--panel));
-                 color: var(--fg); border: 1px solid var(--input-border, var(--border));
-                 border-radius: 6px; padding: 8px 10px; font: inherit; font-size: 0.85rem;
-                 margin-bottom: 4px; }
-    .bs-text { font-size: 0.95rem; line-height: 1.45; margin: 0; overflow-wrap: anywhere; }
-    .bs-tag { display: inline-block; font-size: 0.72rem; border: 1px solid var(--border);
-              border-radius: 999px; padding: 1px 8px; margin-left: 6px; opacity: 0.8;
-              vertical-align: middle; }
-    .bs-chip { display: inline-block; font-size: 0.75rem; border: 1px solid var(--border);
-               border-radius: 999px; padding: 1px 8px; }
-    .bs-chip.confirmed { border-color: var(--fg); }
-    .bs-chip.rejected, .bs-chip.stale { opacity: 0.7; }
-    .bs-facts { display: flex; flex-wrap: wrap; gap: 4px 12px; align-items: center;
-                margin-top: 6px; font-size: 0.8rem; }
-    .bs-facts > span:not(.bs-chip) { opacity: 0.7; }
-    .bs-sources { list-style: none; margin: 8px 0 0; padding: 0; font-size: 0.8rem; }
-    .bs-sources li { display: flex; flex-wrap: wrap; gap: 4px 10px; align-items: center;
-                     padding: 4px 0;
-                     border-top: 1px solid color-mix(in srgb, var(--border) 40%, transparent); }
-    .bs-sources .bs-src { font-weight: 600; }
-    .bs-sources .bs-gone { opacity: 0.6; font-style: italic; }
-    .bs-sources a { color: var(--fg); display: inline-flex; align-items: center; gap: 4px; }
-    .bs-sources a:hover { text-decoration: none; }
-    .bs-sources .bs-said { flex-basis: 100%; font-style: italic; opacity: 0.8;
-                           overflow-wrap: anywhere; }
-    .bs-who { font-weight: 600; }
-    button.bs-who { background: none; border: 0; padding: 0; color: inherit; font: inherit;
-                    font-weight: 600; cursor: pointer; }
-    button.bs-who:hover { text-decoration: underline; }
-    .bs-conv { display: flex; flex-wrap: wrap; gap: 6px 12px; align-items: center;
-               justify-content: space-between; margin: 18px 0 8px; }
-    .bs-conv-name { font-size: 0.85rem; text-transform: uppercase; letter-spacing: 0.06em;
-                    opacity: 0.6; }
-    .bs-edit { display: flex; flex-wrap: wrap; gap: 8px; align-items: center; }
-    .bs-edit input { flex: 1 1 260px; min-width: 0; }
-    .bs-wrap [hidden] { display: none !important; }
-    .bs-section button { background: none; border: 0; padding: 0; color: inherit; font: inherit;
-                         letter-spacing: inherit; text-transform: inherit; cursor: pointer; }
-    .bs-section button:hover { text-decoration: underline; }
-    .bs-views { display: flex; flex-wrap: wrap; gap: 6px; margin: 8px 0 10px; }
-    .bs-view[aria-pressed="true"] { border-color: var(--red); color: var(--red); }
-    .bs-controls { display: flex; flex-wrap: wrap; gap: 8px; align-items: center;
-                   margin-bottom: 4px; }
-    .bs-controls .bs-filter { flex: 1 1 220px; width: auto; min-width: 0; margin-bottom: 0; }
-    .bs-select { background: var(--input-bg, var(--panel)); color: var(--fg);
-                 border: 1px solid var(--input-border, var(--border)); border-radius: 6px;
-                 padding: 6px 8px; font: inherit; font-size: 0.85rem; min-height: 36px;
-                 max-width: 100%; box-sizing: border-box; }
-    .bs-search { position: relative; margin-bottom: 4px; }
-    .bs-search svg { position: absolute; left: 10px; top: 50%; transform: translateY(-50%);
-                     opacity: 0.6; pointer-events: none; }
-    .bs-search .bs-filter { padding-left: 32px; margin-bottom: 0; }
-    .bs-why { font-size: 0.8rem; opacity: 0.75; margin: 6px 0 0; font-style: italic;
-              overflow-wrap: anywhere; }
-    .bs-attr { display: inline-flex; align-items: center; gap: 4px; font-size: 0.75rem;
-               border: 1px dashed var(--border); border-radius: 999px; padding: 1px 8px;
-               overflow-wrap: anywhere; }
-    .bs-attr b { font-weight: 600; }
-    .bs-kind { display: inline-flex; align-items: center; gap: 4px; }
-    .bs-kind svg { opacity: 0.8; }
-    .bs-subject-head { display: flex; flex-wrap: wrap; gap: 6px 10px; align-items: center; }
-    .bs-subject-name { font-size: 1rem; font-weight: 600; margin: 0; overflow-wrap: anywhere;
-                       background: none; border: 0; color: var(--fg); padding: 0;
-                       font-family: inherit; cursor: pointer; text-align: left; }
-    .bs-subject-name:hover { text-decoration: underline; }
-    h2.bs-subject-name { cursor: default; }
-    h2.bs-subject-name:hover { text-decoration: none; }
-    .bs-back { margin: 0 0 10px; }
-    .bs-panel { margin-top: 8px; padding: 8px 10px; border: 1px solid var(--border);
-                border-radius: 6px; }
-    .bs-panel .bs-filter { margin-bottom: 6px; }
-    .bs-pick { list-style: none; margin: 0; padding: 0; max-height: 260px; overflow-y: auto; }
-    .bs-pick li { padding: 2px 0; }
-    .bs-pick .bs-btn { width: 100%; justify-content: space-between; text-align: left; }
-    .bs-summary { font-size: 0.9rem; line-height: 1.5; margin: 0; overflow-wrap: anywhere; }
-    .bs-toast { position: fixed; left: 50%; bottom: 20px; transform: translateX(-50%);
-                max-width: min(560px, calc(100vw - 32px)); box-sizing: border-box;
-                background: var(--panel); color: var(--fg); border: 1px solid var(--border);
-                border-radius: 8px; padding: 10px 14px; font-size: 0.85rem;
-                box-shadow: 0 4px 16px rgba(0, 0, 0, 0.25); z-index: 10; }
-    .bs-toast.error { border-color: var(--red); color: var(--red); }
-  </style>
+  <!-- Fork: belief review page (fork/routes/beliefs_routes.py); same view and look as the
+       Wisdom window in the main app (static/js/forkModuleWindows.js) -->
+  <link rel="stylesheet" href="/static/css/fork-modules.css">
 </head>
 <body>
-  <div class="bs-wrap">
-    <div class="bs-top">
-      <a href="/" title="Back to Odysseus">
-        <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"
-          stroke-linecap="round" stroke-linejoin="round"><polyline points="15 18 9 12 15 6"/></svg>
-      </a>
-      <h1>What I know about you</h1>
-      <a class="bs-btn" id="bl-export" href="/api/beliefs/export" download
-        title="Download everything here and your memories as one JSON file">Download</a>
-      <button type="button" class="bs-btn" id="bl-sync" title="Read the module's facts now">Sync now</button>
-    </div>
-    <p class="bs-sub" id="bl-counts"></p>
-    <div class="bs-search">
-      <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"
-        stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><circle cx="11" cy="11" r="8"/>
-        <line x1="21" y1="21" x2="16.65" y2="16.65"/></svg>
-      <input type="search" class="bs-filter" id="bl-search" placeholder="Search what I know"
-        aria-label="Search what I know" autocomplete="off">
-    </div>
-    <div class="bs-views" role="group" aria-label="View" id="bl-views">
-      <button type="button" class="bs-btn bs-view" data-view="status" aria-pressed="true">By status</button>
-      <button type="button" class="bs-btn bs-view" data-view="subject" aria-pressed="false">By subject</button>
-    </div>
-    <div class="bs-tabs" role="tablist" id="bl-tabs"></div>
-    <div class="bs-controls">
-      <input type="search" class="bs-filter" id="bl-filter" placeholder="Filter by subject"
-        aria-label="Filter by subject" autocomplete="off">
-      <select class="bs-select" id="bl-attribute" aria-label="Filter by attribute"></select>
-      <select class="bs-select" id="bl-kind" aria-label="Filter by kind" hidden></select>
-    </div>
-    <div id="bl-main"><div class="bs-status">Loading…</div></div>
-  </div>
-  <div class="bs-toast" id="bl-toast" role="status" aria-live="polite" hidden></div>
-  <script type="module" src="/static/js/beliefs.js"></script>
+  <script type="module" nonce="{{CSP_NONCE}}">
+    import { mountBeliefs } from '/static/js/beliefs.js';
+    mountBeliefs(document.body);
+  </script>
 </body>
 </html>

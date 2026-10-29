@@ -1,9 +1,12 @@
-/* Fork: shared look of the module views (Athena Conversations, Meetings, Today).
+/* Fork: shared look of the module views (Athena Conversations, Meetings, Today, Wisdom).
    Used by their Odysseus windows (static/js/forkModuleWindows.js) and by the
-   standalone pages (static/sound-module.html, static/today.html). Mirrors the
+   standalone pages (static/sound-module.html, static/today.html, static/beliefs.html,
+   static/call-recorder.html, static/phone-pairing.html); every rule is under a fork
+   class, so nothing here restyles the app. Records, Today and Meetings windows mirror the
    built-in tool windows: Inter type like .modal-content, tabs like .memory-tab,
    cards like .admin-card, buttons like .memory-toolbar-btn. Colors are only the
-   Odysseus theme tokens (--bg, --fg, --panel, --border, --red, --input-*). */
+   Odysseus theme tokens (--bg, --fg, --panel, --border, --red, --input-*); only the
+   pairing page's QR code keeps a white background, so phones can read it. */
 
 .fm-root {
   color: var(--fg);
@@ -187,7 +190,8 @@
 .fm-modal-body { flex: 1 1 auto; min-height: 0; overflow-y: auto; overflow-x: hidden; padding: 0 4px 8px;
                  overscroll-behavior: contain; }
 
-/* ---- the standalone pages (/modules/sound, /today) */
+/* ---- the standalone pages (html.fm-page: /modules/sound, /modules/sound/record,
+   /modules/sound/pair, /today, /beliefs) */
 html.fm-page, html.fm-page body { height: auto; overflow: visible; overscroll-behavior: auto; }
 html.fm-page body { background: var(--bg); color: var(--fg); margin: 0; display: block; min-height: 100vh; }
 .fm-page-wrap { max-width: 860px; margin: 0 auto; padding: 12px 16px 24px; }
@@ -228,7 +232,7 @@ html.fm-page body { background: var(--bg); color: var(--fg); margin: 0; display:
                    background: color-mix(in srgb, var(--border) 50%, transparent); overflow: hidden; }
 .fm-root .tt-fill { display: block; height: 100%; background: var(--red); opacity: 0.75; }
 /* end Today: trends (Phase 3) */
-/* Meetings window (static/js/forkMeetings.js): the cards of static/call-recorder.html */
+/* Meetings window (static/js/forkMeetings.js, .fm-meetings); the page's look is below */
 .fm-meetings { padding-top: 8px; }
 .fm-meetings .bs-text { font-size: 13px; line-height: 1.45; margin: 6px 0 0; }
 .fm-meetings .bs-check { display: inline-flex; gap: 8px; align-items: center; min-height: 32px; cursor: pointer; }
@@ -281,9 +285,190 @@ html.fm-page body { background: var(--bg); color: var(--fg); margin: 0; display:
 .fork-athena-section.fork-athena-collapsing .fork-athena-items > .list-item:nth-last-child(7) { animation-delay: 0.15s; }
 .fork-athena-section.fork-athena-collapsing .fork-athena-items > .list-item:nth-last-child(8) { animation-delay: 0.175s; }
 /* end sidebar "Athena" group */
-/* Beliefs window (static/js/forkBeliefsWindow.js): the page's own styles come scoped
-   under .fm-beliefs; here only what the window needs on top of them */
+/* Wisdom, "What I know about you" (static/js/beliefs.js): the page (static/beliefs.html,
+   whose body is the root) and the window (forkModuleWindows.js) share these rules, all
+   under the root's class .fm-beliefs; the page's html and body come from .fm-page above */
 .fm-beliefs { color: var(--fg); font-family: var(--font-family, 'Fira Code', monospace); }
+.fm-beliefs .bs-wrap { max-width: 860px; margin: 0 auto; padding: 16px; }
+.fm-beliefs .bs-top { display: flex; align-items: center; gap: 10px; margin-bottom: 6px; }
+.fm-beliefs .bs-top h1 { font-size: 1.1rem; font-weight: 600; margin: 0; flex: 1; }
+.fm-beliefs .bs-top a { color: var(--fg); opacity: 0.7; text-decoration: none; }
+.fm-beliefs .bs-top a:hover { opacity: 1; }
+.fm-beliefs .bs-sub { font-size: 0.8rem; opacity: 0.65; margin: 0 0 12px; }
+.fm-beliefs .bs-section { margin: 18px 0 8px; font-size: 0.85rem; text-transform: uppercase;
+                          letter-spacing: 0.06em; opacity: 0.6; overflow-wrap: anywhere; }
+.fm-beliefs .bs-card { background: var(--panel); border: 1px solid var(--border); border-radius: 8px;
+                       padding: 12px 14px; margin-bottom: 10px; }
+.fm-beliefs .bs-meta { font-size: 0.8rem; opacity: 0.65; }
+.fm-beliefs .bs-row { display: flex; flex-wrap: wrap; gap: 8px; align-items: center; margin-top: 8px; }
+.fm-beliefs .bs-btn { background: transparent; color: var(--fg); border: 1px solid var(--border);
+                      border-radius: 6px; padding: 6px 10px; font: inherit; font-size: 0.85rem;
+                      cursor: pointer; min-height: 36px; box-sizing: border-box;
+                      display: inline-flex; align-items: center; gap: 6px; }
+.fm-beliefs .bs-btn:hover { border-color: var(--fg); }
+.fm-beliefs .bs-btn:disabled { opacity: 0.4; cursor: default; }
+.fm-beliefs .bs-btn svg { flex: none; opacity: 0.8; }
+.fm-beliefs .bs-empty, .fm-beliefs .bs-status { font-size: 0.85rem; opacity: 0.7; padding: 6px 0; }
+.fm-beliefs .bs-status.error { color: var(--red); opacity: 1; }
+.fm-beliefs .bs-tabs { display: flex; flex-wrap: wrap; gap: 6px; margin-bottom: 10px; }
+.fm-beliefs .bs-tab[aria-selected="true"] { border-color: var(--red); color: var(--red); }
+.fm-beliefs .bs-tab .bs-count { opacity: 0.65; }
+.fm-beliefs .bs-filter { width: 100%; box-sizing: border-box; background: var(--input-bg, var(--panel));
+                         color: var(--fg); border: 1px solid var(--input-border, var(--border));
+                         border-radius: 6px; padding: 8px 10px; font: inherit; font-size: 0.85rem;
+                         margin-bottom: 4px; }
+.fm-beliefs .bs-text { font-size: 0.95rem; line-height: 1.45; margin: 0; overflow-wrap: anywhere; }
+.fm-beliefs .bs-tag { display: inline-block; font-size: 0.72rem; border: 1px solid var(--border);
+                      border-radius: 999px; padding: 1px 8px; margin-left: 6px; opacity: 0.8;
+                      vertical-align: middle; }
+.fm-beliefs .bs-chip { display: inline-block; font-size: 0.75rem; border: 1px solid var(--border);
+                       border-radius: 999px; padding: 1px 8px; }
+.fm-beliefs .bs-chip.confirmed { border-color: var(--fg); }
+.fm-beliefs .bs-chip.rejected, .fm-beliefs .bs-chip.stale { opacity: 0.7; }
+.fm-beliefs .bs-facts { display: flex; flex-wrap: wrap; gap: 4px 12px; align-items: center;
+                        margin-top: 6px; font-size: 0.8rem; }
+.fm-beliefs .bs-facts > span:not(.bs-chip) { opacity: 0.7; }
+.fm-beliefs .bs-sources { list-style: none; margin: 8px 0 0; padding: 0; font-size: 0.8rem; }
+.fm-beliefs .bs-sources li { display: flex; flex-wrap: wrap; gap: 4px 10px; align-items: center;
+                             padding: 4px 0;
+                             border-top: 1px solid color-mix(in srgb, var(--border) 40%, transparent); }
+.fm-beliefs .bs-sources .bs-src { font-weight: 600; }
+.fm-beliefs .bs-sources .bs-gone { opacity: 0.6; font-style: italic; }
+.fm-beliefs .bs-sources a { color: var(--fg); display: inline-flex; align-items: center; gap: 4px; }
+.fm-beliefs .bs-sources a:hover { text-decoration: none; }
+.fm-beliefs .bs-sources .bs-said { flex-basis: 100%; font-style: italic; opacity: 0.8;
+                                   overflow-wrap: anywhere; }
+.fm-beliefs .bs-who { font-weight: 600; }
+.fm-beliefs button.bs-who { background: none; border: 0; padding: 0; color: inherit; font: inherit;
+                            font-weight: 600; cursor: pointer; }
+.fm-beliefs button.bs-who:hover { text-decoration: underline; }
+.fm-beliefs .bs-conv { display: flex; flex-wrap: wrap; gap: 6px 12px; align-items: center;
+                       justify-content: space-between; margin: 18px 0 8px; }
+.fm-beliefs .bs-conv-name { font-size: 0.85rem; text-transform: uppercase; letter-spacing: 0.06em;
+                            opacity: 0.6; }
+.fm-beliefs .bs-edit { display: flex; flex-wrap: wrap; gap: 8px; align-items: center; }
+.fm-beliefs .bs-edit input { flex: 1 1 260px; min-width: 0; }
+.fm-beliefs .bs-wrap [hidden] { display: none !important; }
+.fm-beliefs .bs-section button { background: none; border: 0; padding: 0; color: inherit; font: inherit;
+                                 letter-spacing: inherit; text-transform: inherit; cursor: pointer; }
+.fm-beliefs .bs-section button:hover { text-decoration: underline; }
+.fm-beliefs .bs-views { display: flex; flex-wrap: wrap; gap: 6px; margin: 8px 0 10px; }
+.fm-beliefs .bs-view[aria-pressed="true"] { border-color: var(--red); color: var(--red); }
+.fm-beliefs .bs-controls { display: flex; flex-wrap: wrap; gap: 8px; align-items: center;
+                           margin-bottom: 4px; }
+.fm-beliefs .bs-controls .bs-filter { flex: 1 1 220px; width: auto; min-width: 0; margin-bottom: 0; }
+.fm-beliefs .bs-select { background: var(--input-bg, var(--panel)); color: var(--fg);
+                         border: 1px solid var(--input-border, var(--border)); border-radius: 6px;
+                         padding: 6px 8px; font: inherit; font-size: 0.85rem; min-height: 36px;
+                         max-width: 100%; box-sizing: border-box; }
+.fm-beliefs .bs-search { position: relative; margin-bottom: 4px; }
+.fm-beliefs .bs-search svg { position: absolute; left: 10px; top: 50%; transform: translateY(-50%);
+                             opacity: 0.6; pointer-events: none; }
+.fm-beliefs .bs-search .bs-filter { padding-left: 32px; margin-bottom: 0; }
+.fm-beliefs .bs-why { font-size: 0.8rem; opacity: 0.75; margin: 6px 0 0; font-style: italic;
+                      overflow-wrap: anywhere; }
+.fm-beliefs .bs-attr { display: inline-flex; align-items: center; gap: 4px; font-size: 0.75rem;
+                       border: 1px dashed var(--border); border-radius: 999px; padding: 1px 8px;
+                       overflow-wrap: anywhere; }
+.fm-beliefs .bs-attr b { font-weight: 600; }
+.fm-beliefs .bs-kind { display: inline-flex; align-items: center; gap: 4px; }
+.fm-beliefs .bs-kind svg { opacity: 0.8; }
+.fm-beliefs .bs-subject-head { display: flex; flex-wrap: wrap; gap: 6px 10px; align-items: center; }
+.fm-beliefs .bs-subject-name { font-size: 1rem; font-weight: 600; margin: 0; overflow-wrap: anywhere;
+                               background: none; border: 0; color: var(--fg); padding: 0;
+                               font-family: inherit; cursor: pointer; text-align: left; }
+.fm-beliefs .bs-subject-name:hover { text-decoration: underline; }
+.fm-beliefs h2.bs-subject-name { cursor: default; }
+.fm-beliefs h2.bs-subject-name:hover { text-decoration: none; }
+.fm-beliefs .bs-back { margin: 0 0 10px; }
+.fm-beliefs .bs-panel { margin-top: 8px; padding: 8px 10px; border: 1px solid var(--border);
+                        border-radius: 6px; }
+.fm-beliefs .bs-panel .bs-filter { margin-bottom: 6px; }
+.fm-beliefs .bs-pick { list-style: none; margin: 0; padding: 0; max-height: 260px; overflow-y: auto; }
+.fm-beliefs .bs-pick li { padding: 2px 0; }
+.fm-beliefs .bs-pick .bs-btn { width: 100%; justify-content: space-between; text-align: left; }
+.fm-beliefs .bs-summary { font-size: 0.9rem; line-height: 1.5; margin: 0; overflow-wrap: anywhere; }
+.fm-beliefs .bs-toast { position: fixed; left: 50%; bottom: 20px; transform: translateX(-50%);
+                        max-width: min(560px, calc(100vw - 32px)); box-sizing: border-box;
+                        background: var(--panel); color: var(--fg); border: 1px solid var(--border);
+                        border-radius: 8px; padding: 10px 14px; font-size: 0.85rem;
+                        box-shadow: 0 4px 16px rgba(0, 0, 0, 0.25); z-index: 10; }
+.fm-beliefs .bs-toast.error { border-color: var(--red); color: var(--red); }
+/* the window: only what it needs on top of the rules above */
 #fork-beliefs-modal .fm-beliefs .bs-wrap { padding: 8px 4px 16px; }
 #fork-beliefs-modal .fm-beliefs .bs-top h1:empty { margin: 0; }
-/* end Beliefs window */
+/* end Wisdom */
+/* ---- the Meetings and phone pairing pages (static/call-recorder.html,
+   static/phone-pairing.html): cards in the theme font, under the body's .fm-card-page */
+.fm-card-page { font-family: var(--font-family, 'Fira Code', monospace); }
+.fm-card-page .bs-wrap { max-width: 860px; margin: 0 auto; padding: 16px; }
+.fm-card-page .bs-top { display: flex; align-items: center; gap: 10px; margin-bottom: 14px; }
+.fm-card-page .bs-top h1 { font-size: 1.1rem; font-weight: 600; margin: 0; flex: 1; }
+.fm-card-page .bs-top a { color: var(--fg); opacity: 0.7; text-decoration: none; }
+.fm-card-page .bs-top a:hover { opacity: 1; }
+.fm-card-page .bs-card { background: var(--panel); border: 1px solid var(--border); border-radius: 8px;
+                         padding: 12px 14px; margin-bottom: 10px; }
+.fm-card-page .bs-meta { font-size: 0.8rem; opacity: 0.65; }
+.fm-card-page .bs-text { font-size: 0.88rem; line-height: 1.45; margin: 6px 0 0; }
+.fm-card-page .bs-list { margin: 6px 0 0; padding-left: 20px; font-size: 0.88rem; line-height: 1.45; }
+.fm-card-page .bs-list li { margin: 3px 0; }
+.fm-card-page .bs-row { display: flex; flex-wrap: wrap; gap: 8px; align-items: center; margin-top: 10px; }
+.fm-card-page .bs-btn { background: transparent; color: var(--fg); border: 1px solid var(--border);
+                        border-radius: 6px; padding: 6px 10px; font: inherit; font-size: 0.85rem;
+                        cursor: pointer; min-height: 36px; box-sizing: border-box; }
+.fm-card-page .bs-btn:hover { border-color: var(--fg); }
+.fm-card-page .bs-btn.primary { border-color: var(--red); color: var(--red); }
+.fm-card-page .bs-btn:disabled { opacity: 0.4; cursor: default; }
+.fm-card-page a.bs-btn { display: inline-flex; align-items: center; text-decoration: none; }
+.fm-card-page .bs-notice { background: var(--panel); border: 1px solid var(--border); border-left: 3px solid var(--red);
+                           border-radius: 6px; padding: 8px 10px; margin: 8px 0; font-size: 0.86rem; }
+.fm-card-page .bs-notice:empty { display: none; }
+/* Meetings page, its own cards (static/js/forkMeetings.js) */
+.fm-meetings-page .bs-card h2 { font-size: 0.95rem; margin: 0 0 4px; font-weight: 600; }
+.fm-meetings-page .bs-text.rc-first { margin-top: 0; }
+.fm-meetings-page .bs-check { display: inline-flex; gap: 8px; align-items: center; font-size: 0.88rem;
+                              min-height: 36px; cursor: pointer; }
+.fm-meetings-page .rc-grid { display: grid; grid-template-columns: 9em 1fr; gap: 8px 12px; align-items: center;
+                             font-size: 0.88rem; margin-top: 10px; }
+.fm-meetings-page .rc-meter { height: 8px; border: 1px solid var(--border); border-radius: 999px; overflow: hidden; }
+.fm-meetings-page .rc-meter > div { height: 100%; width: 0; background: var(--red); transition: width 80ms linear; }
+.fm-meetings-page .rc-meter.off { opacity: 0.4; }
+.fm-meetings-page .rc-time { font-variant-numeric: tabular-nums; font-size: 1.2rem; font-weight: 600; }
+.fm-meetings-page .rc-dot { display: inline-block; width: 10px; height: 10px; border-radius: 50%;
+                            border: 1px solid var(--border); margin-right: 8px; vertical-align: middle; }
+.fm-meetings-page .rc-dot.on { background: var(--red); border-color: var(--red); }
+.fm-meetings-page .bs-input { background: var(--input-bg, var(--bg)); color: var(--fg);
+                              border: 1px solid var(--input-border, var(--border)); border-radius: 6px;
+                              padding: 6px 8px; font: inherit; font-size: 0.85rem; min-width: 0;
+                              box-sizing: border-box; }
+.fm-meetings-page .bs-input:focus { outline: none; border-color: var(--red); }
+.fm-meetings-page .mb-form { display: grid; grid-template-columns: 1fr 12em; gap: 8px; margin-top: 10px; }
+.fm-meetings-page .mb-form textarea { resize: vertical; min-height: 36px; height: 36px; line-height: 1.4; }
+.fm-meetings-page .mb-hint { margin-top: 6px; }
+.fm-meetings-page .mb-state { font-size: 0.88rem; margin-top: 10px; }
+.fm-meetings-page .mb-state:empty { display: none; }
+.fm-meetings-page .mb-signin { font-size: 0.88rem; margin-top: 10px; }
+.fm-meetings-page .mb-signin-line { display: flex; flex-wrap: wrap; gap: 8px; align-items: center; }
+.fm-meetings-page .mb-signin-line span:empty { display: none; }
+.fm-meetings-page .mb-signin a { color: var(--fg); }
+.fm-meetings-page .mb-paste { display: grid; grid-template-columns: 1fr auto; gap: 8px; margin-top: 8px; }
+.fm-meetings-page #mb-signin-msg:empty { display: none; }
+.fm-meetings-page [hidden] { display: none !important; }
+@media (max-width: 640px) {
+  .fm-meetings-page .mb-form, .fm-meetings-page .mb-paste { grid-template-columns: 1fr; }
+  .fm-meetings-page .rc-grid { grid-template-columns: 1fr; }
+  .fm-meetings-page .bs-row .bs-btn { flex: 1 1 calc(50% - 8px); }
+}
+/* phone pairing page (fork/athena/phone_pairing.py) */
+.fm-pairing-page .bs-text.pp-first { margin-top: 0; }
+.fm-pairing-page .bs-input { background: var(--input-bg, var(--bg)); color: var(--fg);
+                             border: 1px solid var(--input-border, var(--border)); border-radius: 6px;
+                             padding: 6px 8px; font: inherit; font-size: 0.88rem; min-height: 36px;
+                             box-sizing: border-box; flex: 1 1 18em; min-width: 0; }
+.fm-pairing-page .pp-qr { display: flex; flex-wrap: wrap; gap: 16px; align-items: flex-start; margin-top: 10px; }
+.fm-pairing-page .pp-qr img { width: 240px; height: 240px; image-rendering: pixelated; background: #fff;
+                              border-radius: 6px; }
+.fm-pairing-page .pp-qr[hidden] { display: none; }
+.fm-pairing-page .pp-link { font-size: 0.75rem; word-break: break-all; opacity: 0.8; user-select: all; }
+.fm-pairing-page .pp-state { font-weight: 600; }
+/* end Meetings and phone pairing pages */
