@@ -51,7 +51,7 @@ Merge, don't rebase: `barvis` is shared history.
 - `routes/chat_routes.py`: `pin_skill_contract` right after `resolve_turn_contract` in
   `chat_stream`. If upstream moves contract resolution, the hook goes after it.
 - `services/memory/skills.py`: managed-skill check in `index_for`.
-- `routes/skills_routes.py` (no hook): `tests/test_skill_mcp_toolsets.py` fails if the
+- `routes/skills_routes.py` (no hook): `tests/fork/test_skill_mcp_toolsets.py` fails if the
   invoke message format changes; update `INVOKE_PREFIX` in `src/skill_invocation.py`.
 - `src/agent_runtime/`: hooks in `authority.py` (`create_request_authority`) and
   `effect_adapters.py` (`classify`). Upstream is refactoring the agent runtime, so these
@@ -90,8 +90,7 @@ When resolving:
 1. The fork's tests and the upstream tests around the hooks:
 
    ```bash
-   python -m pytest -q tests/test_mcp_trust.py tests/test_request_authority.py tests/test_tool_policy.py \
-     tests/test_skill_mcp_toolsets.py tests/test_modules_setup.py
+   python -m pytest -q -n 4 tests/fork tests/test_request_authority.py tests/test_tool_policy.py
    python -m py_compile app.py routes/*.py src/*.py
    ```
 

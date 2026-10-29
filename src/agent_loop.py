@@ -26341,7 +26341,7 @@ async def stream_agent_loop(
                 if round_num == 1
                 else _round_compaction_state
             ),
-            # Fork: keep the turn's thinking switch for the primary model (tests/test_agent_thinking_switch.py)
+            # Fork: keep the turn's thinking switch for the primary model (tests/fork/test_agent_thinking_switch.py)
             "thinking_mode": _route_state.get("thinking_mode"),
         }
         if round_num == 1 and not _approved_result_injected:

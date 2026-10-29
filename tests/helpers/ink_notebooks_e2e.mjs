@@ -1,5 +1,5 @@
 // Fork: notebooks in the Write view (static/js/forkInk.js), in a real Chromium against
-// the real ink routes (tests/test_ink_notebooks.py starts them on a temporary database
+// the real ink routes (tests/fork/test_ink_notebooks.py starts them on a temporary database
 // and passes the base URL). Prints one JSON line {step: {ok, detail}}; "SKIP <reason>"
 // when no browser can be started.
 import { createRequire } from 'node:module';

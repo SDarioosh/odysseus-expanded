@@ -1,5 +1,5 @@
 // Fork: the Write view in a real Chromium, driven with synthetic pointer events
-// (tests/test_ink_palm_rejection.py). Serves static/ from disk and stands in for the
+// (tests/fork/test_ink_palm_rejection.py). Serves static/ from disk and stands in for the
 // hub's ink routes. Prints one JSON line with what happened; "SKIP <reason>" when no
 // browser can be started.
 import { createRequire } from 'node:module';

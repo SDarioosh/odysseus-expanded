@@ -2,7 +2,7 @@
 
 Athena's MCP answers with `format="json"` (fictional seed data), copied from Athena's
 `server/tests/contract/snapshots/` and regenerated there with `UPDATE_SNAPSHOTS=1`.
-`tests/test_athena_contract_fixtures.py` feeds them through the hub's parsers.
+`tests/fork/test_athena_contract_fixtures.py` feeds them through the hub's parsers.
 
 | File here | Athena snapshot | Call |
 |---|---|---|

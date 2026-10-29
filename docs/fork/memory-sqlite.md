@@ -230,7 +230,7 @@ upstream-file changes that are not a listed hook.
   corrupt database raises `MemoryStoreUnreadable`; unique-index dedup; import then export
   equals the original JSON; owner isolation in FTS and vector queries; stale-vector
   re-embedding is bounded.
-- Performance gate in the style of `tests/test_ledger_perf.py`: at 10k entries
+- Performance gate in the style of `tests/fork/test_ledger_perf.py`: at 10k entries
   `increment_uses` and `add` stay under a fixed millisecond budget set from the phase 1
   baseline, and recall latency does not grow linearly with a 5x larger store.
 

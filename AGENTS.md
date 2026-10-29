@@ -64,7 +64,7 @@ Odysseus is large (~478k lines of Python) and fast-moving. Start from these file
 Fork code so far: the fork's Python code is in the `fork/` package; every file the fork
 adds (code, tests, scripts, docs) is listed in
 [docs/fork/files.md](docs/fork/files.md), generated and kept complete by
-`tests/test_fork_inventory.py`; the hooks into upstream files and the fork's features are
+`tests/fork/test_fork_inventory.py`; the hooks into upstream files and the fork's features are
 listed in [FORK.md](FORK.md).
 
 ## Fork rules (merge-friendly)
@@ -73,7 +73,7 @@ Upstream changes every day, so every line we touch in an upstream file is a futu
 merge conflict.
 
 - Put fork code in **new files** (`fork/<area>/<feature>.py`, `scripts/<feature>.py`,
-  `tests/test_<feature>.py`, `docs/fork/`). The areas of the `fork/` package are listed
+  `tests/fork/test_<feature>.py`, `docs/fork/`). The areas of the `fork/` package are listed
   in [FORK.md](FORK.md#fork-files); import it as `fork.<area>.<feature>`. The old
   `src/`/`routes/` paths of moved fork modules are shims kept for old imports only.
 - Change upstream files only with **small hooks**: a lazy import plus a call into the new
@@ -91,7 +91,7 @@ merge conflict.
 - Record every new hook in the "Hooks into upstream files" table in [FORK.md](FORK.md),
   and every new feature in its "Fork features" list (details in its doc under `docs/fork/`).
   After adding, moving or deleting a fork file, regenerate `docs/fork/files.md`
-  (`UPDATE_FORK_FILES=1 python -m pytest -q tests/test_fork_inventory.py`).
+  (`UPDATE_FORK_FILES=1 python -m pytest -q tests/fork/test_fork_inventory.py`).
 
 ## Boundaries: hub and modules
 
@@ -156,10 +156,19 @@ the two PRs to each other.
 Upstream's full suite is slow and not clean. Run the focused tests for what you touched:
 
 ```bash
-python -m pytest -q tests/test_mcp_trust.py tests/test_request_authority.py tests/test_tool_policy.py
+python -m pytest -q tests/fork/test_mcp_trust.py tests/test_request_authority.py tests/test_tool_policy.py
+python -m pytest -q -n 4 tests/fork          # all of the fork's own tests
 python -m py_compile app.py routes/*.py src/*.py
 node --check static/js/<file-you-changed>.js
 ```
+
+The fork's own tests are in `tests/fork/` (upstream's stay in `tests/`). Shared fixtures
+are in `tests/fork/conftest.py` (`data_dir`: `DATA_DIR` in a temp folder;
+`fake_local_model`: the background model faked), the fake MCP manager in
+`tests/fork/fakes.py` (`from tests.fork.fakes import FakeMcpManager`). Never add
+`tests/fork/__init__.py`: it would shadow the `fork/` package
+(`tests/fork/test_fork_tests_layout.py` checks it). Test file names stay unique across
+`tests/`. CI needs no extra step: its sharded `pytest` run collects `tests/` recursively.
 
 Install first (`uv venv -p 3.11 venv && uv pip install -p venv/bin/python -r
 requirements.txt -r requirements-dev.txt && mkdir -p data`); the three files above run

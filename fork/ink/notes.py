@@ -36,7 +36,7 @@ Last edit wins: a save whose ``edited_at`` is older than the stored one is refus
 
 Every call into upstream notes code is in the **adapter** section at the end of this
 file; nothing else in the ink code imports upstream notes code.
-``tests/test_ink_upstream_contract.py`` runs each adapter function against the real
+``tests/fork/test_ink_upstream_contract.py`` runs each adapter function against the real
 upstream code.
 """
 
@@ -907,7 +907,7 @@ def _transcript_summary(stored: dict[str, Any] | None) -> dict[str, Any]:
 
 # =================================================================== the adapter
 # Every call into upstream notes code. When an upstream sync changes the notes code,
-# tests/test_ink_upstream_contract.py fails and the fix belongs here.
+# tests/fork/test_ink_upstream_contract.py fails and the fix belongs here.
 #
 # Notes are written through the ``Note`` model with the same owner rules as upstream's
 # notes routes (routes/note/note_routes.py): owner ``None`` (single-user mode) sees every

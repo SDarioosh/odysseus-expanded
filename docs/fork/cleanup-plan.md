@@ -17,7 +17,7 @@ the hub lanes and the rules that are specific to this repo.
 | 1 | 1D | Fork settings reach production (`docker/fork.override.yml`), unique temp names for atomic writes, the three unmarked hooks marked; `fork_deploy.sh` finds the `odysseus-expanded` remote | Gate 0 |
 | 1 | 1F | FORK.md split into a hook index and a feature list; AGENTS.md and FORK.md link the generated file list; roadmap trimmed to status and links; links to `SDarioosh/odysseus-expanded`, module doc `docs/fork/modules/athena.md` (stub at the old path) | 0C |
 | 2 | 2E | Fork `src/` and `routes/` files move into a `fork/` package; hooks change only their import line; `sound_*` files get Athena names (URLs stay until 4D) | Gate 1, 0D |
-| 2 | 2F | Fork tests into `tests/fork/` with shared fakes in `conftest.py`; `pytest tests/fork` in CI | 2E |
+| 2 | 2F | Fork tests into `tests/fork/` with shared fakes in `conftest.py`; `pytest tests/fork` runs them (CI already collects `tests/` recursively) | 2E |
 | 3 | 3F | One Athena client (`fork/athena/client.py`) for MCP and HTTP calls, one error type, one server setting | 3G settings |
 | 3 | 3G | `fork/common/`: typed settings table (`ATHENA_*` names first, old names still read), per-owner state files, local-model JSON calls, one boolean parser | Gate 2 |
 | 3 | 3H | Task table, `fork.routes.mount(app)`, `fork/upstream.py` as the only user of upstream private names | Gate 2 |
@@ -69,3 +69,14 @@ the hub lanes and the rules that are specific to this repo.
   line and comment; route table and OpenAPI paths are unchanged; URLs, action ids,
   and stored names stay. Logger names follow the module
   (`fork.athena.facts` instead of `src.module_facts`).
+- **2F done (branch `feature/cleanup-2f`, 2026-10-29):** the 78 test files the fork added
+  are in `tests/fork/` (moved with `git mv`; only depth-dependent paths and the imports
+  between fork tests changed). `tests/fork/conftest.py` has `data_dir` (27 fixtures that
+  patched `DATA_DIR` to `tmp_path` by hand use it; three that did only that are gone)
+  and `fake_local_model` (the two identical copies; `test_today_insight.py`'s records
+  only the workload and stays); `tests/fork/fakes.py` has `FakeMcpManager`, which
+  the three plain fakes subclass (the other three managers do more and stay). No
+  `tests/fork/__init__.py`, so `fork` stays the code package
+  (`tests/fork/test_fork_tests_layout.py`). CI is unchanged: its sharded run collects
+  `tests/` recursively, so `tests/fork/` was in the shards already; a separate
+  `pytest tests/fork` step would only run them twice.

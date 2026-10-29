@@ -66,7 +66,7 @@ Upstreamable: yes, with discussion
 
 **Store lookups leave chat mode.** The web UI starts in chat mode, and upstream promotes a chat-mode turn to agent mode only for the actions `src/action_intents.py` lists (add to calendar, send an email, set a reminder, run a command ...): it has no contacts pattern and none for a plain lookup, so "list the contact for Alex Example" or "what are my tasks for today?" stayed in chat mode with no tools, and the model answered from pinned memory or invented the record, with no tool card. A chat-mode message that the agent-mode classifier (`requested_capabilities`) puts in a personal-store family (contacts, calendar, tasks, notes, memory) now runs in agent mode, where the turn contract offers that store's tool. "no tools" in the message and slash commands are left alone. Off with `ODYSSEUS_PERSONAL_STORE_ESCALATION=0`. **No new hook:** it runs from the slash-skill hook, which hands a message without a slash command to the new file.
 
-Files: `src/personal_store_escalation.py` (new), called from `invoked_skill_needs_tools` in `src/skill_invocation.py`; test `tests/test_personal_store_escalation.py` (new)
+Files: `src/personal_store_escalation.py` (new), called from `invoked_skill_needs_tools` in `src/skill_invocation.py`; test `tests/fork/test_personal_store_escalation.py` (new)
 
 Upstreamable: yes, with discussion
 
@@ -74,7 +74,7 @@ Upstreamable: yes, with discussion
 
 **Reads of your own stores without exact wording.** Upstream grants a tool only when the message words name it, so "notate that Katherine is my fiance" or a pronoun follow-up got no grant and the model's `manage_contact` call was blocked as "outside server request authority"; a small local model could not recover. Every turn now also grants the read actions (list, search, find, view) of `manage_contact`, `manage_notes`, `manage_calendar`, `manage_tasks`, `manage_memory`, `manage_documents`, `manage_research` and `manage_skills`, taken from `_PRIVATE_ACTION_READS`. Writes and deletes keep their gate. Tool policy and per-tool disables still win. Off with `ODYSSEUS_PERSONAL_READ_GRANTS=0`.
 
-Files: `src/personal_read_grants.py` (new), hook in `routes/chat_routes.py` (after the web-search hook); test `tests/test_personal_read_grants.py` (new)
+Files: `src/personal_read_grants.py` (new), hook in `routes/chat_routes.py` (after the web-search hook); test `tests/fork/test_personal_read_grants.py` (new)
 
 Upstreamable: yes, with discussion
 
@@ -82,7 +82,7 @@ Upstreamable: yes, with discussion
 
 **Plain module questions reach the module's tools.** Without `/sound`, a question like "What did Alice say about the budget?" got no module tools: chat mode (the web UI default) stayed in chat mode, and the agent-mode turn contract has no family for MCP tools. A plain message with a module cue (conversation words such as "said", "told me", "meeting", "promised"; "my next/my rent…" questions; or a person the module's `list_people` knows, cached for 10 minutes and refreshed in the background) now runs in agent mode, and turns with no family, only personal-store families, or a cue are offered the trusted modules' **read-only** tools; on a cue with no family, bash/python/read_file are dropped. "Conversation" without a chat word ("chat", "session", "thread", "our/this conversation", "with you") means a recording: "what is my last conversation?" swaps the chat-history (`sessions`) tools for the module's reads instead of answering with `list_sessions`. Offers only: writes, policy and disables are unchanged. **No new hook:** it runs from the two slash-skill hooks, which hand a message without a slash command to the new file.
 
-Files: `src/module_turn_scope.py` (new), called from `invoked_skill_needs_tools` and `pin_skill_contract` in `src/skill_invocation.py`; test `tests/test_module_turn_scope.py` (new)
+Files: `src/module_turn_scope.py` (new), called from `invoked_skill_needs_tools` and `pin_skill_contract` in `src/skill_invocation.py`; test `tests/fork/test_module_turn_scope.py` (new)
 
 Upstreamable: with discussion
 
@@ -98,6 +98,6 @@ Upstreamable: with discussion
 
 **Chat-mode questions aren't run.** Upstream moves a chat-mode turn to agent mode and turns bash on when `src/action_intents.py` matches a shell or workspace pattern, and some of those are broad: "my home assistant on port 8123" matched "named computer task request" (any "on <word>"), and a bare "docker" or "git" matches "terminal workspace request". So "why can I not access ... how can I check if my server has port 8123 active?" came back as an approval card for `ssh ... "ss -tlnp"` instead of an answer. In chat mode, a shell/workspace match on a how/why question that asks the assistant to do nothing (no "can you ...", "please", "for me", or a sentence starting with run/check/ssh ...) now stays in chat mode. Agent mode, the web toggle and the other categories are unchanged.
 
-Files: `src/chat_mode_scope.py` (new), hook in `routes/chat_routes.py` (after `_classify_tool_intent`); test `tests/test_chat_mode_scope.py` (new)
+Files: `src/chat_mode_scope.py` (new), hook in `routes/chat_routes.py` (after `_classify_tool_intent`); test `tests/fork/test_chat_mode_scope.py` (new)
 
 Upstreamable: yes
