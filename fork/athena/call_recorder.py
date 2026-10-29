@@ -25,7 +25,6 @@ Odysseus never touches the module's storage (docs/fork/modules.md). Optional set
 from __future__ import annotations
 
 import logging
-import os
 import re
 from dataclasses import dataclass
 from datetime import UTC, datetime, timedelta
@@ -34,13 +33,16 @@ from urllib.parse import parse_qs, quote, urlsplit, urlunsplit
 
 import httpx
 
+from fork.common import settings
+
 logger = logging.getLogger(__name__)
 
-SERVER_ENV = "SOUND_MODULE_SERVER"
-LEGACY_SERVER_ENV = "BARVIS_SOUND_SERVER"  # former name, still read
-DEFAULT_SERVER = "convo"
-DEVICE_ENV = "SOUND_MODULE_CALL_DEVICE"
-DEFAULT_DEVICE = "computer"
+# The settings and their defaults are rows of fork/common/settings.py.
+SERVER_ENV = settings.RECORDER_SERVER.name  # SOUND_MODULE_SERVER
+LEGACY_SERVER_ENV = settings.RECORDER_SERVER.old[0]  # BARVIS_SOUND_SERVER: former name, still read
+DEFAULT_SERVER = settings.RECORDER_SERVER.default
+DEVICE_ENV = settings.CALL_DEVICE.name
+DEFAULT_DEVICE = settings.CALL_DEVICE.default
 
 # Same rule as Athena's ids (convo_server/pipeline.py _SAFE).
 SAFE_ID = re.compile(r"^[A-Za-z0-9._:-]{1,128}$")
@@ -91,16 +93,11 @@ class Link:
 
 
 def server_key() -> str:
-    return (os.environ.get(SERVER_ENV) or os.environ.get(LEGACY_SERVER_ENV)
-            or DEFAULT_SERVER).strip()
+    return settings.athena_recorder_server()
 
 
 def device() -> str:
-    name = (os.environ.get(DEVICE_ENV) or "").strip() or DEFAULT_DEVICE
-    if not SAFE_ID.match(name):
-        logger.warning("%s is not a valid device name; using %r", DEVICE_ENV, DEFAULT_DEVICE)
-        return DEFAULT_DEVICE
-    return name
+    return settings.call_device(logger, valid=SAFE_ID.match)
 
 
 def link_from_url(url: str) -> Link | None:

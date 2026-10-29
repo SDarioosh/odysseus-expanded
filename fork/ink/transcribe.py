@@ -59,7 +59,6 @@ import base64
 import io
 import json
 import logging
-import os
 import re
 import threading
 import time
@@ -67,6 +66,7 @@ import uuid
 import weakref
 from typing import Any, Awaitable, Callable
 
+from fork.common import settings
 from fork.ink import notes as ink
 
 logger = logging.getLogger(__name__)
@@ -86,7 +86,7 @@ PHOTO_PAPER_SPAN = 5                  # blocks (each way) the paper around a pix
 PHOTO_INK_CONTRAST = 40               # gray levels below the paper around it: ink
 MAX_PAGE_TEXT = 20_000                # characters kept per page (model or owner)
 UNREADABLE = "[?]"
-AUTO_SEND_ENV = "INK_AUTO_SEND"       # truthy: clean pages are accepted and sent unreviewed
+AUTO_SEND_ENV = settings.INK_AUTO_SEND.name    # truthy: clean pages are accepted and sent unreviewed
 
 # A model reader: the chat messages of one band in, the model's raw answer out.
 Reader = Callable[[list[dict]], Awaitable[str]]
@@ -538,7 +538,7 @@ def default_reader(owner: str | None) -> tuple[str, Reader]:
 # --------------------------------------------------------------- page state
 def auto_send_enabled() -> bool:
     """``INK_AUTO_SEND`` (1, true, yes, on), read at call time; off by default."""
-    return (os.environ.get(AUTO_SEND_ENV) or "").strip().lower() in {"1", "true", "yes", "on"}
+    return settings.ink_auto_send()
 
 
 def auto_acceptable(text: str | None) -> bool:

@@ -30,7 +30,6 @@ from __future__ import annotations
 import asyncio
 import json
 import logging
-import os
 import re
 import threading
 import uuid
@@ -59,8 +58,10 @@ _RUNNING: set[str] = set()  # task ids whose join is in progress (never deleted 
 
 # ------------------------------------------------------------------ storage
 def _slug(owner: str | None) -> str:
-    slug = "".join(c if (c.isalnum() or c in "-_@") else "_" for c in (owner or "default"))
-    return slug or "default"
+    from fork.common.state import owner_slug
+
+    # No "." here, unlike the other state files (a name can't be "." or "..").
+    return owner_slug(owner, safe="-_@") or "default"
 
 
 def state_path(owner: str | None) -> Path:
@@ -70,20 +71,17 @@ def state_path(owner: str | None) -> Path:
 
 
 def load(owner: str | None) -> dict[str, Any]:
-    try:
-        data = json.loads(state_path(owner).read_text(encoding="utf-8"))
-    except (OSError, ValueError):
-        data = {}
+    from fork.common.state import read_json
+
+    data = read_json(state_path(owner), {})
     events = data.get("events") if isinstance(data, dict) else None
     return {"events": {str(k): v for k, v in (events or {}).items() if isinstance(v, dict)}}
 
 
 def save(owner: str | None, state: dict[str, Any]) -> None:
-    path = state_path(owner)
-    path.parent.mkdir(parents=True, exist_ok=True)
-    tmp = path.with_name(f".{path.name}.{os.getpid()}.{threading.get_ident()}.tmp")
-    tmp.write_text(json.dumps(state, indent=1, sort_keys=True), encoding="utf-8")
-    tmp.replace(path)
+    from fork.common.state import write_json
+
+    write_json(state_path(owner), state, clean_up=False)
 
 
 def base_uid(uid: str) -> str:

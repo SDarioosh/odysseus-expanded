@@ -22,16 +22,16 @@ grant goes through ``RequestAuthority.restrict`` like any other.
 
 from __future__ import annotations
 
-import os
 from collections.abc import Iterable
 from typing import Any
 
-TRUSTED_READONLY_MCP_ENV = "ODYSSEUS_TRUSTED_READONLY_MCP"
+from fork.common import settings
+
+TRUSTED_READONLY_MCP_ENV = settings.TRUSTED_READONLY_MCP.name  # ODYSSEUS_TRUSTED_READONLY_MCP
 
 
 def trusted_readonly_server_keys() -> frozenset[str]:
-    raw = os.environ.get(TRUSTED_READONLY_MCP_ENV, "")
-    return frozenset(part.strip().casefold() for part in raw.split(",") if part.strip())
+    return settings.trusted_readonly_mcp()
 
 
 def _annotation(tool: dict, key: str) -> Any:

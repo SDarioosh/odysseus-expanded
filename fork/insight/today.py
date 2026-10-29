@@ -35,13 +35,13 @@ import asyncio
 import hashlib
 import json
 import logging
-import os
 import re
-import threading
 from datetime import date as Date
 from datetime import datetime, time, timedelta, timezone, tzinfo
 from pathlib import Path
 from typing import Any, Awaitable, Callable, Iterable
+
+from fork.common import settings
 
 logger = logging.getLogger(__name__)
 
@@ -67,7 +67,7 @@ MAX_ACTION_ITEMS = 10
 CONTEXT_LIMIT = 800
 MEMORY_CATEGORIES = frozenset({"preference", "contact", "fact"})
 MEMORY_SOURCE = "odysseus-sound"
-DEFAULT_SKIP_LISTS = "Shopping,Groceries,Grocery"
+DEFAULT_SKIP_LISTS = settings.SKIP_LISTS.default  # "Shopping,Groceries,Grocery"
 VOTES = ("up", "down")
 
 Llm = Callable[[list[dict]], Awaitable[str]]
@@ -76,13 +76,11 @@ CallTool = Callable[[str, dict], Awaitable[str]]
 
 # ----------------------------------------------------------------------- settings
 def enabled() -> bool:
-    value = (os.environ.get("TODAY_INSIGHT_ENABLED") or "on").strip().lower()
-    return value not in {"off", "no", "false", "0"}
+    return settings.today_insight()
 
 
 def skip_lists() -> set[str]:
-    raw = os.environ.get("TODAY_INSIGHT_SKIP_LISTS")
-    raw = DEFAULT_SKIP_LISTS if raw is None else raw
+    raw = settings.today_insight_skip_lists()
     return {k for k in (_list_key(p) for p in raw.split(",")) if k}
 
 
@@ -737,21 +735,9 @@ def build_messages(inputs: dict) -> list[dict]:
 
 def parse_answer(raw: str | None) -> dict | None:
     """The model's JSON object, or None when it isn't one with a headline."""
-    text = raw or ""
-    try:
-        from src.text_helpers import strip_think
+    from fork.common.llm import json_object
 
-        text = strip_think(text, prose=False, prompt_echo=False)
-    except Exception:  # noqa: BLE001
-        text = re.sub(r"<think>.*?</think>", "", text, flags=re.S)
-    text = re.sub(r"^```(?:json)?\s*|\s*```$", "", text.strip(), flags=re.M).strip()
-    start, end = text.find("{"), text.rfind("}")
-    if start == -1 or end <= start:
-        return None
-    try:
-        data = json.loads(text[start:end + 1])
-    except ValueError:
-        return None
+    data = json_object(raw)
     if not isinstance(data, dict) or not str(data.get("headline") or "").strip():
         return None
     return data
@@ -853,44 +839,30 @@ async def default_llm(owner: str | None, *, wait_quiet: bool = True) -> Llm:
     """The background-task model chain. ``wait_quiet=False`` (the page's Refresh, which the
     owner is waiting for) skips the wait for chat to go quiet: the refresh request itself
     counts as interactive activity, so it would wait for itself."""
-    from src.interactive_gate import wait_for_interactive_quiet
-    from src.llm_core import llm_call_async_with_fallback
-    from src.task_endpoint import resolve_task_candidates
+    from fork.common.llm import background_model
 
-    candidates = resolve_task_candidates(owner=owner or None)
-    if not candidates:
-        raise RuntimeError("no model endpoint configured")
-
-    async def call(messages: list[dict]) -> str:
-        if wait_quiet:
-            await wait_for_interactive_quiet("today insight")
-        return await llm_call_async_with_fallback(
-            candidates, messages=messages, temperature=0.2, max_tokens=1200, timeout=180,
-            thinking_mode="off", workload="background" if wait_quiet else "foreground")
-
-    return call
+    return await background_model(owner, "today insight", temperature=0.2, max_tokens=1200,
+                                  timeout=180, wait_quiet=wait_quiet)
 
 
 async def ask_model(llm: Llm, inputs: dict) -> dict | None:
     """The validated answer; one retry on unusable JSON; None when both fail."""
-    messages = build_messages(inputs)
-    for attempt in range(2):
-        raw = await llm(messages)
+    from fork.common.llm import ask_with_retry
+
+    def check(raw):
         answer = parse_answer(raw)
-        if answer is not None:
-            checked = validate(answer, inputs["candidates"], inputs.get("extra"))
-            if any(checked[s] for s in SECTIONS) or not (inputs["candidates"]
-                                                         or inputs.get("extra")):
-                return checked
-            problem, fix = ("named no candidate", "Use the labels from CANDIDATES (T1, E1, …) "
-                            "as refs and reply with the JSON object only.")
-        else:
-            problem, fix = ("was not usable JSON", "That was not valid JSON in the required "
-                            "shape. Reply with the JSON object only.")
-        logger.warning("today insight: model answer %d %s", attempt + 1, problem)
-        messages = [*messages, {"role": "assistant", "content": str(raw or "")[:2000]},
-                    {"role": "user", "content": fix}]
-    return None
+        if answer is None:
+            return None, ("was not usable JSON", "That was not valid JSON in the required "
+                          "shape. Reply with the JSON object only.")
+        checked = validate(answer, inputs["candidates"], inputs.get("extra"))
+        if any(checked[s] for s in SECTIONS) or not (inputs["candidates"]
+                                                     or inputs.get("extra")):
+            return checked, None
+        return None, ("named no candidate", "Use the labels from CANDIDATES (T1, E1, …) "
+                      "as refs and reply with the JSON object only.")
+
+    return await ask_with_retry(llm, build_messages(inputs), check, label="today insight",
+                                log=logger)
 
 
 # ------------------------------------------------------------------------ storage
@@ -909,7 +881,9 @@ def _run_lock(owner: str | None) -> asyncio.Lock:
 
 
 def _slug(owner: str | None) -> str:
-    return "".join(c if (c.isalnum() or c in "-_.@") else "_" for c in (owner or "default"))
+    from fork.common.state import owner_slug
+
+    return owner_slug(owner)
 
 
 def insight_path(owner: str | None, day: str) -> Path:
@@ -921,24 +895,17 @@ def insight_path(owner: str | None, day: str) -> Path:
 
 
 def load(owner: str | None, day: str) -> dict | None:
-    try:
-        data = json.loads(insight_path(owner, day).read_text(encoding="utf-8"))
-    except (OSError, ValueError):
-        return None
+    from fork.common.state import read_json
+
+    data = read_json(insight_path(owner, day))
     return data if isinstance(data, dict) else None
 
 
 def save(owner: str | None, insight: dict) -> None:
-    path = insight_path(owner, insight["date"])
-    path.parent.mkdir(parents=True, exist_ok=True)
-    # Unique per process and thread: two writers never share a temp file.
-    tmp = path.with_name(f".{path.name}.{os.getpid()}.{threading.get_ident()}.tmp")
-    try:
-        tmp.write_text(json.dumps(insight, indent=1, ensure_ascii=False), encoding="utf-8")
-        os.replace(tmp, path)
-    except BaseException:
-        tmp.unlink(missing_ok=True)
-        raise
+    from fork.common.state import write_json
+
+    write_json(insight_path(owner, insight["date"]), insight, sort_keys=False,
+               ensure_ascii=False)
 
 
 def _utc_iso(now: datetime | None = None) -> str:

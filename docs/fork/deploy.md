@@ -83,6 +83,9 @@ complete); a setting left out of `.env` keeps the code's default:
 - handwritten notes: `INK_AUTO_SEND`, and `APP_PUBLIC_URL` (link base when Settings has no
   public URL; upstream's MCP OAuth redirect reads it too).
 
+Each setting's type, default, former names and meaning: [settings.md](settings.md),
+generated from the one table in `fork/common/settings.py`, where the fork's code reads them.
+
 `ODYSSEUS_TRUSTED_READONLY_MCP=convo` is fixed in the override. Production runs the copy
 `docker-compose.override.yml`, so after a deploy that changes `docker/fork.override.yml`,
 compare and copy it (keep any lines you added by hand); the container gets it at the next
