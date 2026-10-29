@@ -781,8 +781,13 @@ and memory entries. Now they read `athena`, in two steps (`fork/common/athena_na
    exception: it keeps writing the name an owner's ledger already holds, so one ledger
    never holds both and one fact is never counted as two sources; a fresh ledger is
    written as `athena`.
-2. **The stored names change only when the owner runs** `scripts/athena_names_migrate.py`
-   on a stopped hub.
+2. **The stored names change when `scripts/fork_deploy.sh deploy` runs**
+   `scripts/athena_names_migrate.py --apply`: once, right after the deploy's data backup,
+   while Odysseus is stopped; later deploys find nothing to change. A failed rename leaves
+   the old names, which the code reads. A deploy that rolls back (the new image isn't
+   healthy) and a later `fork_deploy.sh rollback` undo the rename from its backup first,
+   because the older image knows only the old names. `FORK_ATHENA_NAMES=off` skips it.
+   The script can also be run by hand on a stopped hub (below).
 
 Never changed: the server's id (tool names `mcp__<id>__…`, approvals and per-tool
 disables are keyed by it), chat history (old chats keep their tool names), the action-items

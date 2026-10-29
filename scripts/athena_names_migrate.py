@@ -51,7 +51,7 @@ import sqlite3
 import sys
 import tempfile
 from dataclasses import dataclass, field
-from datetime import UTC, datetime
+from datetime import datetime, timezone
 from pathlib import Path
 
 REPO = Path(__file__).resolve().parents[1]
@@ -351,7 +351,7 @@ def _sha(path: Path) -> str:
 
 
 def backup(stores: list[Store], data_dir: Path, now: datetime | None = None) -> Path:
-    stamp = (now or datetime.now(UTC)).strftime("%Y%m%dT%H%M%S.%fZ")
+    stamp = (now or datetime.now(timezone.utc)).strftime("%Y%m%dT%H%M%S.%fZ")
     root = data_dir / BACKUPS / stamp
     root.mkdir(parents=True)
     files = []

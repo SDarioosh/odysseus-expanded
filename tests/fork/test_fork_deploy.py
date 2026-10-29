@@ -212,3 +212,73 @@ def test_deploy_from_a_clone_of_odysseus_expanded(checkout, tmp_path):
     checkout.images.write_text("odysseus-fork:current\n")
     r = checkout("deploy")
     assert r.returncode == 0, r.stdout + r.stderr
+
+
+def _athena_data(checkout) -> Path:
+    """The names script and a fictional hub data dir whose MCP server is still `convo`."""
+    import sqlite3
+    work = checkout.work
+    shutil.copy(ROOT / "scripts" / "athena_names_migrate.py", work / "scripts")
+    (work / "fork" / "common").mkdir(parents=True)
+    for rel in ("fork/__init__.py", "fork/common/__init__.py", "fork/common/athena_names.py"):
+        shutil.copy(ROOT / rel, work / rel)
+    db = work / "data" / "app.db"
+    c = sqlite3.connect(db)
+    c.execute("create table mcp_servers(id text, name text)")
+    c.execute("insert into mcp_servers values('ab12cd34', 'convo')")
+    c.commit()
+    c.close()  # an open handle would make the script refuse (the hub looks running)
+    return db
+
+
+def _server_name(db: Path) -> str:
+    import sqlite3
+    c = sqlite3.connect(db)
+    try:
+        return c.execute("select name from mcp_servers").fetchone()[0]
+    finally:
+        c.close()
+
+
+def test_deploy_renames_athenas_stored_names_once_and_rollback_undoes_it(checkout):
+    db = _athena_data(checkout)
+    checkout.images.write_text("odysseus-fork:current\n")
+    mark = checkout.home / "odysseus-backups" / "athena-names-last"
+
+    r = checkout("deploy")
+    assert r.returncode == 0, r.stdout + r.stderr
+    log = checkout.log.read_text()
+    # after the data backup (Odysseus stopped), before the new image starts
+    assert r.stdout.index("backing up") < r.stdout.index("renaming Athena's stored names") \
+        < r.stdout.index("starting odysseus-fork:")
+    assert "mcp_servers.name convo -> athena" in r.stdout
+    assert _server_name(db) == "athena" and mark.is_file()
+    assert "compose stop odysseus" in log
+
+    r = checkout("rollback")  # back to the image from before: the old name comes back
+    assert r.returncode == 0, r.stdout + r.stderr
+    assert "undoing the stored-name rename" in r.stdout
+    assert _server_name(db) == "convo" and not mark.exists()
+
+    r = checkout("deploy")
+    assert _server_name(db) == "athena"
+    r = checkout("deploy")  # nothing left to rename: a later rollback must not undo anything
+    assert r.returncode == 0, r.stdout + r.stderr
+    assert "Nothing to change" in r.stdout and not mark.exists()
+    r = checkout("rollback")
+    assert "undoing" not in r.stdout and _server_name(db) == "athena"
+
+
+def test_deploy_can_skip_the_rename(checkout):
+    db = _athena_data(checkout)
+    checkout.images.write_text("odysseus-fork:current\n")
+    r = checkout("deploy", env={"FORK_ATHENA_NAMES": "off"})
+    assert r.returncode == 0, r.stdout + r.stderr
+    assert "FORK_ATHENA_NAMES=off" in r.stdout and _server_name(db) == "convo"
+
+
+def test_deploy_without_the_names_script_goes_on(checkout):
+    checkout.images.write_text("odysseus-fork:current\n")
+    r = checkout("deploy")
+    assert r.returncode == 0, r.stdout + r.stderr
+    assert "renaming" not in r.stdout

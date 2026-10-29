@@ -119,6 +119,39 @@ backup_data() {
   ls -1t "$BACKUP_DIR"/data-*.tgz 2>/dev/null | tail -n +"$((KEEP_BACKUPS + 1))" | xargs -r rm -f
 }
 
+# Fork: rename Athena's stored names (convo / "odysseus-sound" -> athena) once, while
+# Odysseus is stopped and right after backup_data. Idempotent: later deploys find nothing
+# to change. The code reads both names, so a failure here leaves a working hub.
+# FORK_ATHENA_NAMES=off skips it. Sets NAMES_BACKUP when it changed something, and keeps
+# it in $NAMES_MARK so a later `rollback` to the image before this deploy undoes it too.
+NAMES_BACKUP=""
+NAMES_MARK=$BACKUP_DIR/athena-names-last
+migrate_names() {
+  local out
+  rm -f "$NAMES_MARK"  # only the deploy that renamed may undo it
+  [ "${FORK_ATHENA_NAMES:-on}" != off ] || { log "FORK_ATHENA_NAMES=off; not renaming Athena's stored names"; return 0; }
+  [ -f scripts/athena_names_migrate.py ] || return 0
+  log "renaming Athena's stored names (scripts/athena_names_migrate.py; backup first)"
+  if out=$(sudo python3 scripts/athena_names_migrate.py --data-dir "$DATA_DIR" --apply --i-stopped-the-hub 2>&1); then
+    echo "$out" | sed 's/^/    /'
+    NAMES_BACKUP=$(echo "$out" | sed -n 's/^backup: //p' | tail -n 1)
+    [ -z "$NAMES_BACKUP" ] || echo "$NAMES_BACKUP" > "$NAMES_MARK"
+  else
+    echo "$out" | sed 's/^/    /' >&2
+    log "renaming the stored names failed; nothing was renamed by this step, the hub reads the old names as before"
+  fi
+}
+
+undo_names() {  # before going back to an older image, which may know only the old names
+  [ -n "$NAMES_BACKUP" ] || return 0
+  log "undoing the stored-name rename ($NAMES_BACKUP)"
+  compose stop "$SERVICE" || true
+  sudo python3 scripts/athena_names_migrate.py --data-dir "$DATA_DIR" --rollback "$NAMES_BACKUP" --i-stopped-the-hub \
+    || log "could not undo it; restore the newest backup in $BACKUP_DIR (docs/fork/deploy.md)"
+  rm -f "$NAMES_MARK"
+  NAMES_BACKUP=""
+}
+
 run_setup() {
   if [ ! -f "$PASSWORD_FILE" ]; then
     log "no $PASSWORD_FILE; run scripts/modules_setup.py yourself"
@@ -198,11 +231,13 @@ cmd_deploy() {
     $DOCKER tag "$LEGACY_IMAGE:current" "$IMAGE:previous"
   fi
   backup_data
+  migrate_names
   log "starting $IMAGE:$sha"
   if ! { switch_to "$IMAGE:$sha" && wait_healthy; }; then
     compose logs --tail 40 "$SERVICE" >&2 || true
     if has_image "$IMAGE:previous"; then
       log "$IMAGE:$sha did not start or is not healthy after 2 min; rolling back to $IMAGE:previous"
+      undo_names
       switch_to "$IMAGE:previous" && wait_healthy || true
       die "deploy of $sha failed and was rolled back. If the database was migrated, restore the newest backup in $BACKUP_DIR (docs/fork/deploy.md)"
     fi
@@ -216,6 +251,8 @@ cmd_deploy() {
 cmd_rollback() {
   preflight
   has_image "$IMAGE:previous" || die "no $IMAGE:previous image"
+  [ ! -f "$NAMES_MARK" ] || NAMES_BACKUP=$(cat "$NAMES_MARK")
+  undo_names
   log "switching back to $IMAGE:previous"
   switch_to "$IMAGE:previous" && wait_healthy || die "not healthy after rollback; see: $DOCKER compose logs $SERVICE"
   local latest

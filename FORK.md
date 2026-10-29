@@ -94,7 +94,7 @@ the link goes to its details (what it does, its files, whether it can go upstrea
 - [Background & summary model setting](docs/fork/modules/athena.md#background--summary-model-setting): Settings → AI Defaults: the hub's background-task model and Athena's summary model.
 - [Transcription vocabulary setting](docs/fork/modules/athena.md#transcription-vocabulary-setting): Settings → AI Defaults: words Athena's whisper is nudged toward.
 - [Enroll My Voice](docs/fork/modules/athena.md#enroll-my-voice): Settings → AI Defaults: enroll the next watch recording as the owner's voice.
-- [Stored names](docs/fork/modules/athena.md#stored-names): the MCP server `convo` and the stored `"odysseus-sound"` (note label, belief and memory source) read `athena`: the code reads both names, `scripts/athena_names_migrate.py` renames the stored ones (dry run, backup, rollback); filed calendar events keep their ids.
+- [Stored names](docs/fork/modules/athena.md#stored-names): the MCP server `convo` and the stored `"odysseus-sound"` (note label, belief and memory source) read `athena`: the code reads both names, `scripts/athena_names_migrate.py` renames the stored ones (dry run, backup, rollback; `scripts/fork_deploy.sh deploy` runs it once, after its data backup); filed calendar events keep their ids.
 
 ### Modules setup and eval
 

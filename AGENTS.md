@@ -22,8 +22,8 @@ this repository. Read this file completely before changing anything.
   Details: [docs/fork/modules/athena.md](docs/fork/modules/athena.md).
   The MCP server `convo` and the string `"odysseus-sound"` (the belief source, the label
   on filed notes, the memory source) become `athena`: the code reads both names and
-  writes `athena` (`fork/common/athena_names.py`); the stored values change only when the
-  owner runs `scripts/athena_names_migrate.py`
+  writes `athena` (`fork/common/athena_names.py`); the stored values change when the owner's
+  `scripts/fork_deploy.sh deploy` runs `scripts/athena_names_migrate.py` (once, with a backup)
   ([stored names](docs/fork/modules/athena.md#stored-names)). The calendar uid input
   `odysseus-sound:item:convo:<id>` never changes, whatever the server is called: a
   changed uid files every event again. Don't "fix" it. The slash command is `/athena`
