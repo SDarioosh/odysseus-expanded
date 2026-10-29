@@ -88,7 +88,7 @@ CHANGED: dict[tuple[str, str], dict[str, str]] = {
 
 def _run() -> dict:
     proc = subprocess.run(["node", str(SCRIPT)], capture_output=True, text=True,
-                          cwd=str(REPO), timeout=180)
+                          cwd=str(REPO), timeout=180, check=False)
     assert proc.returncode == 0, proc.stderr
     return json.loads(proc.stdout.strip().splitlines()[-1])
 
