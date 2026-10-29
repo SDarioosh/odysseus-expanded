@@ -43,9 +43,10 @@ Policy, per-tool disables and request authority still apply before the gate.
 
 Hooks: ``src/tool_capabilities.py`` (gate, URL tracking, calculator
 capability), ``src/tool_types.py`` and ``src/agent_tools/__init__.py``
-(calculator tool), ``routes/chat_routes.py`` (the chat's choice, calculator
-grant and offer), ``src/agent_loop.py`` (binds the choice to the run),
-``app.py`` (default route), ``static/index.html`` (button and settings card).
+(calculator tool), ``routes/chat_routes.py`` (the chat's choice; calculator
+grant and offer through ``fork/routing/turn_policy.py``), ``src/agent_loop.py``
+(binds the choice to the run), ``app.py`` (default route), ``static/index.html``
+(button and settings card).
 """
 
 from __future__ import annotations

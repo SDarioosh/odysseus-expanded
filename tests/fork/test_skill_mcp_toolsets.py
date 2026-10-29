@@ -261,8 +261,8 @@ def test_chat_route_escalates_slash_skills_to_agent_mode():
     import routes.chat_routes as chat_routes
 
     src = inspect.getsource(chat_routes)
-    hook = src.index("invoked_skill_needs_tools(message, effective_user(request))")
-    assert src.index("auto_escalated = False") < hook < src.index("pin_skill_contract(_turn_contract")
+    hook = src.index("escalate_chat_mode(chat_mode, auto_escalated, message=message")
+    assert src.index("auto_escalated = False") < hook < src.index("extend_contract(_turn_contract")
 
 
 def test_crlf_message_from_the_web_ui_is_recognized(owner_skills):

@@ -12,10 +12,9 @@ the budget?") in "Auto" got none of them:
   sees the module.
 
 Two small steps fix that, both for servers in ``ODYSSEUS_TRUSTED_READONLY_MCP``
-only. Both run from the existing slash-skill hooks in routes/chat_routes.py
-(``invoked_skill_needs_tools`` and ``pin_skill_contract`` in
-``src/skill_invocation.py`` hand a message without a slash command to this
-file), so this feature adds no lines to upstream files:
+only. The chat route's turn policy (``fork/routing/turn_policy.py``:
+``needs_agent_mode`` and ``scoped_contract``) hands a message without a slash
+command to this file, from the hooks that also serve slash skills:
 
 * :func:`module_turn_requested`: a chat-mode message with a module cue runs in
   agent mode. A cue is conversation vocabulary ("said", "told me", "meeting",
@@ -31,7 +30,7 @@ Only offers change. Trusted read-only tools are already granted on every turn
 (``src/mcp_trust.py``); write tools aren't added here (a follow-up gets them back
 through ``with_trusted_server_tools``). Policy, per-tool disables and
 ``disable_mcp`` still apply: added names must already be executable in the
-contract. Slash invocations are left to ``pin_skill_contract``.
+contract. Slash invocations are left to ``pin_invoked_skill``.
 """
 
 from __future__ import annotations

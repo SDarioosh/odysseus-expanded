@@ -129,6 +129,7 @@ is an old path of a module that moved into `fork/`; it only aliases the new modu
 - `fork/routing/personal_store_escalation.py`
 - `fork/routing/skill_invocation.py`
 - `fork/routing/skill_mcp_toolsets.py`
+- `fork/routing/turn_policy.py`
 - `fork/routing/web_read_recovery.py`
 - `fork/routing/web_turn_scope.py`
 - `fork/tasks.py`
@@ -364,6 +365,7 @@ is an old path of a module that moved into `fork/`; it only aliases the new modu
 - `tests/fork/test_subjects.py`
 - `tests/fork/test_summary_model_routes.py`
 - `tests/fork/test_today_insight.py`
+- `tests/fork/test_turn_policy.py`
 - `tests/fork/test_turn_policy_characterization.py`
 - `tests/fork/test_vision_auto_detect.py`
 - `tests/fork/test_voice_enroll_routes.py`

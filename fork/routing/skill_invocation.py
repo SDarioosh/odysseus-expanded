@@ -16,7 +16,7 @@ added for matched skills. So a skill's ``requires_toolsets`` reached the model
 only when the SKILL.md text happened to name the tool, and the SKILL.md text
 could itself be misread (for example as a "search skills" request).
 
-:func:`pin_skill_contract` recognizes the composed message server-side, looks
+:func:`pin_invoked_skill` (called once the message is recognized) looks
 the skill up in the sender's own invokable skills (the same ``index_for`` list
 the invoke route uses), and resolves the turn contract from the skill's
 declared tools only (plus ``ask_user``/``update_plan``). It looks only at the
@@ -31,10 +31,10 @@ decision comes from the owner's skill store, not from the message text. A
 user who pastes the format by hand gets exactly what typing the slash command
 would give them.
 
-Plain module questions: the same two hooks also cover a message with no slash
-command that asks about a trusted module's data ("What did Alice say?"); see
-``src/module_turn_scope.py``. Sharing the hooks keeps the fork's footprint in
-routes/chat_routes.py unchanged.
+Plain module questions and store lookups: the chat route's turn policy
+(``fork/routing/turn_policy.py``) sends a message with a slash command here and any
+other message to ``module_turn_scope.py`` (module questions) and
+``personal_store_escalation.py`` (store lookups), from the same hooks.
 
 Managed skills: skills an admin creates through configuration (source
 ``managed``, e.g. ``scripts/modules_setup.py``) are slash-invokable without the
@@ -109,23 +109,15 @@ def _invokable_skill(name: str, owner):
     return next((s for s in manager.load(owner=owner) if s.get("name") == name), None)
 
 
-def invoked_skill_needs_tools(message, owner) -> bool:
-    """True when ``message`` slash-invokes one of ``owner``'s skills that declares tools.
+def slash_skill_needs_tools(invoked: InvokedSkill, owner) -> bool:
+    """True when the slash-invoked skill is one of ``owner``'s and declares tools.
 
-    Without a slash command it answers whether the message is a plain question
-    about a trusted module (``src/module_turn_scope.py``) or a lookup in one of
-    the owner's personal stores (``src/personal_store_escalation.py``).
-
-    The chat route uses this to run such a turn in agent mode: in chat mode the turn
-    contract (and so :func:`pin_skill_contract`) never runs, and the lexical tool-intent
-    classifier doesn't see a tool request in the composed skill message, so the model
-    would answer with no tools at all.
+    The chat route uses this (through ``fork/routing/turn_policy.py``) to run such a
+    turn in agent mode: in chat mode the turn contract (and so
+    :func:`pin_invoked_skill`) never runs, and the lexical tool-intent classifier
+    doesn't see a tool request in the composed skill message, so the model would
+    answer with no tools at all.
     """
-    invoked = parse_invoke_message(message)
-    if invoked is None:
-        from fork.routing.module_turn_scope import module_turn_requested
-        from fork.routing.personal_store_escalation import personal_store_turn
-        return module_turn_requested(message) or personal_store_turn(message)
     try:
         skill = _invokable_skill(invoked.name, owner)
     except Exception:
@@ -134,20 +126,25 @@ def invoked_skill_needs_tools(message, owner) -> bool:
     return bool((skill or {}).get("requires_toolsets"))
 
 
-def pin_skill_contract(contract, *, message, owner, schemas, policy, manager=None):
+def invoked_skill_needs_tools(message, owner) -> bool:
+    """True when ``message`` slash-invokes one of ``owner``'s skills that declares tools.
+
+    Without a slash command it answers whether the message is a plain question
+    about a trusted module or a lookup in one of the owner's personal stores. Kept
+    for old callers: it is ``fork.routing.turn_policy.needs_agent_mode``.
+    """
+    from fork.routing.turn_policy import needs_agent_mode
+
+    return needs_agent_mode(message, owner)
+
+
+def pin_invoked_skill(contract, invoked: InvokedSkill, *, owner, schemas, policy, manager=None):
     """Return a contract offering the invoked skill's tools, or ``contract`` unchanged.
 
-    A message without a slash command goes to
-    :func:`src.module_turn_scope.with_module_tools` (plain module questions).
-    Unchanged when the skill isn't one
-    the owner may invoke, or the skill declares no ``requires_toolsets``.
-    An MCP entry that matches no connected, enabled server is reported as
-    unavailable (the turn then says which one) instead of being dropped.
+    Unchanged when the skill isn't one the owner may invoke, or the skill declares
+    no ``requires_toolsets``. An MCP entry that matches no connected, enabled server
+    is reported as unavailable (the turn then says which one) instead of being dropped.
     """
-    invoked = parse_invoke_message(message)
-    if invoked is None:
-        from fork.routing.module_turn_scope import with_module_tools
-        return with_module_tools(contract, message=message, schemas=schemas, manager=manager)
     try:
         skill = _invokable_skill(invoked.name, owner)
     except Exception:
@@ -171,3 +168,14 @@ def pin_skill_contract(contract, *, message, owner, schemas, policy, manager=Non
         invoked.name, required, sorted(pinned.offered), sorted(pinned.unavailable),
     )
     return pinned
+
+
+def pin_skill_contract(contract, *, message, owner, schemas, policy, manager=None):
+    """The contract for a slash skill (:func:`pin_invoked_skill`) or, without a slash
+    command, for a plain module question (``with_module_tools``). Kept for old
+    callers: it is ``fork.routing.turn_policy.scoped_contract``.
+    """
+    from fork.routing.turn_policy import scoped_contract
+
+    return scoped_contract(contract, message=message, owner=owner, schemas=schemas,
+                           policy=policy, manager=manager)

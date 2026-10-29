@@ -12,7 +12,8 @@ keep their existing gate: wording that names them, or an approval.
 
 Off with ``ODYSSEUS_PERSONAL_READ_GRANTS=0``. Policy and per-tool disables still
 win (denied tools are skipped here, and the caller applies ``restrict`` later).
-Hook: ``routes/chat_routes.py``, after the request authority is created.
+Hook: ``routes/chat_routes.py``, after the request authority is created, through
+``extend_authority`` in ``fork/routing/turn_policy.py``.
 """
 
 from __future__ import annotations
@@ -39,11 +40,21 @@ def enabled() -> bool:
     return settings.personal_read_grants()
 
 
+def store_read_actions(tool: str) -> frozenset[str]:
+    """The read actions of ``tool`` in upstream's ``_PRIVATE_ACTION_READS``, else empty.
+
+    The one lookup of "which actions only read" for this hook and the offered-store
+    hook (``offered_reads.py``).
+    """
+    from fork.upstream import private_action_reads
+
+    return frozenset(private_action_reads().get(tool, ()))
+
+
 def with_personal_store_reads(authority):
     """Add read-only grants for the personal-store tools to ``authority``."""
     if authority is None or not enabled() or getattr(authority, "block_all", False):
         return authority
-    from fork.upstream import private_action_reads
     from src.agent_runtime.authority import OperationGrant, canonical_tool
     from src.agent_runtime.resources import seal_owned_scopes
 
@@ -51,15 +62,15 @@ def with_personal_store_reads(authority):
     added = []
     for name in PERSONAL_STORE_TOOLS:
         tool = canonical_tool(name)
-        reads = private_action_reads().get(tool)
+        reads = store_read_actions(tool)
         if not reads or tool in authority.denied:
             continue
         current = grants.get(tool)
         if current is None:
-            grants[tool] = OperationGrant(tool, frozenset(reads))
+            grants[tool] = OperationGrant(tool, reads)
             added.append(tool)
         elif current.actions is not None and current.inputs is None:
-            grants[tool] = OperationGrant(tool, current.actions | frozenset(reads))
+            grants[tool] = OperationGrant(tool, current.actions | reads)
         # An unrestricted or input-pinned grant already came from the words.
     scopes = {(s.namespace, s.owner, s.thread_id): s for s in authority.owned_scopes or ()}
     for scope in seal_owned_scopes(authority.owner, authority.session_id, added):
