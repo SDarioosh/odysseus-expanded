@@ -149,11 +149,9 @@ async def owner_contacts(owner: str) -> list[dict]:
 def module_caller() -> mf.CallTool | None:
     """A ``list_facts``/``retire_fact`` caller for the connected Athena MCP
     server, or None when it isn't connected."""
-    from src.tool_utils import get_mcp_manager
+    from fork.athena.client import ATHENA
 
-    manager = get_mcp_manager()
-    server_id = mf.module_server_id(manager) if manager is not None else None
-    return mf.mcp_caller(manager, server_id) if server_id else None
+    return ATHENA.caller()
 
 
 async def forget(owner: str, belief_id: int, reason: str = "") -> dict[str, Any]:

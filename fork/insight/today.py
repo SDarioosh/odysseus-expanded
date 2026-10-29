@@ -501,12 +501,9 @@ def _action_item_lines(owner: str | None, result: str | list,
 
 def _module_caller() -> CallTool | None:
     try:
-        from fork.athena import action_items as mai
-        from src.tool_utils import get_mcp_manager
+        from fork.athena.client import ATHENA
 
-        manager = get_mcp_manager()
-        server_id = mai.module_server_id(manager) if manager is not None else None
-        return mai.mcp_caller(manager, server_id) if server_id else None
+        return ATHENA.caller()
     except Exception as e:  # noqa: BLE001
         logger.debug("today insight: module not reachable: %s", e)
         return None
