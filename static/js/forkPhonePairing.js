@@ -1,5 +1,5 @@
 // Fork: "Phone relay" card in Settings → Integrations (admin only), with the
-// **Pair a phone** button that opens /modules/sound/pair (src/phone_pairing.py,
+// **Pair a phone** button that opens /modules/athena/pair (src/phone_pairing.py,
 // routes/sound_relay_routes.py). Loaded by one hook in static/index.html. The phone's
 // token then shows in the integrations list above the card, where it is revoked.
 
@@ -23,7 +23,7 @@ function buildCard() {
     + '"Phone relay <date>"; delete it there to unpair that phone.');
   sub.style.marginBottom = '8px';
   const actions = el('div', { style: 'text-align:right;padding:8px 0;' });
-  const link = el('a', { class: 'admin-btn-add', href: '/modules/sound/pair',
+  const link = el('a', { class: 'admin-btn-add', href: '/modules/athena/pair',
                          style: 'display:inline-flex;align-items:center;gap:5px;text-decoration:none;' },
     'Pair a phone');
   actions.append(link);

@@ -384,6 +384,6 @@ def test_pair_a_phone_lives_in_settings_not_conversations():
     index = (root / "static/index.html").read_text()
     assert 'src="/static/js/forkPhonePairing.js"' in index
     card = (root / "static/js/forkPhonePairing.js").read_text()
-    assert '[data-settings-panel="integrations"]' in card and "/modules/sound/pair" in card
+    assert '[data-settings-panel="integrations"]' in card and "/modules/athena/pair" in card
     assert "admin-only" in card
-    assert "/modules/sound/pair" not in (root / "static/js/soundModule.js").read_text()
+    assert "/modules/athena/pair" not in (root / "static/js/soundModule.js").read_text()

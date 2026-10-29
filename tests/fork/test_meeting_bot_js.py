@@ -67,7 +67,7 @@ const state = () => ({
 await import('./static/js/meetingBot.js');
 await tick();
 // The start-up sign-in read: answered "signed in" unless the scenario wants it.
-const si = pending.findIndex((p) => p.path === '/api/modules/sound/zoom-signin');
+const si = pending.findIndex((p) => p.path === '/api/modules/athena/zoom-signin');
 if (si >= 0 && !globalThis.KEEP_SIGNIN) {
   answer(si, 200, { configured: true, signed_in: true, join_token: 'obf', missing: [] });
   await tick();
@@ -85,10 +85,10 @@ const signinState = () => ({
 const find = (method, path) => pending.findIndex((p) => p.method === method && p.path === path);
 """
 
-API = "/api/modules/sound/meetings"
+API = "/api/modules/athena/meetings"
 
 
-SIGNIN = "/api/modules/sound/zoom-signin"
+SIGNIN = "/api/modules/athena/zoom-signin"
 KEEP = "globalThis.KEEP_SIGNIN = true;\n"
 NOT_SIGNED_IN = "{ configured: true, signed_in: false, join_token: 'none', missing: [] }"
 AUTHORIZE = "https://zoom.us/oauth/authorize?client_id=FictionalClient&state=FictionalState1"

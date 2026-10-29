@@ -60,7 +60,7 @@ function whoCard(s, onDone) {
     }
     buttons.forEach((b) => { b.disabled = true; });
     try {
-      const r = await api('/api/modules/sound/name-speaker', {
+      const r = await api('/api/modules/athena/name-speaker', {
         method: 'POST', headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({ conversation_id: s.conversation_id, speaker_label: s.label, name }),
       });
@@ -102,7 +102,7 @@ function whoCard(s, onDone) {
 async function loadWho() {
   const box = $('#bs-who');
   try {
-    const { speakers } = await api('/api/modules/sound/unnamed?limit=10');
+    const { speakers } = await api('/api/modules/athena/unnamed?limit=10');
     if (!speakers.length) {
       status(box, 'Everyone is named.');
       return;
@@ -193,7 +193,7 @@ function listEditor(it, onSave, onCancel) {
   const input = el('input', { className: 'bs-input', type: 'text', list: id, maxlength: '40',
                               'aria-label': 'To-do list', placeholder: 'e.g. Shopping',
                               value: current });
-  api('/api/modules/sound/todo-lists').then((r) => {
+  api('/api/modules/athena/todo-lists').then((r) => {
     (r.lists || []).forEach((name) => options.append(el('option', { value: name })));
   }).catch(() => {});
   const save = el('button', { type: 'button', className: 'bs-btn primary', onclick: () => {
@@ -250,7 +250,7 @@ function itemCard(it, note = '') {
       setBusy(false);
     }
   };
-  const base = `/api/modules/sound/action-items/${encodeURIComponent(it.id)}`;
+  const base = `/api/modules/athena/action-items/${encodeURIComponent(it.id)}`;
   const setStatus = (statusName) => run('Saving', async () => {
     const r = await postJSON(base, { status: statusName });
     return r.ok ? { ok: true } : r;
@@ -388,7 +388,7 @@ function refreshItemGroups() {
 async function loadItems() {
   const box = $('#bs-items');
   try {
-    const { action_items: items } = await api('/api/modules/sound/action-items?status=open');
+    const { action_items: items } = await api('/api/modules/athena/action-items?status=open');
     if (!items.length) {
       status(box, 'No open action items.');
       return;
@@ -489,7 +489,7 @@ async function loadList() {
   params.set('limit', '30');
   status(box, 'Loading…');
   try {
-    const { conversations } = await api(`/api/modules/sound/conversations?${params}`);
+    const { conversations } = await api(`/api/modules/athena/conversations?${params}`);
     if (gen !== listGen) return;
     if (!conversations.length) {
       status(box, list.empty);
@@ -728,10 +728,10 @@ function speakerEditor(ln, close) {
     let path;
     let body;
     if (kind === 'line') {
-      path = `/api/modules/sound/lines/${encodeURIComponent(ln.id)}`;
+      path = `/api/modules/athena/lines/${encodeURIComponent(ln.id)}`;
       body = { name };
     } else if (kind === 'label') {
-      path = '/api/modules/sound/name-speaker';
+      path = '/api/modules/athena/name-speaker';
       body = { conversation_id: reader.id, speaker_label: label, name };
     } else {
       if (name === label) {
@@ -743,7 +743,7 @@ function speakerEditor(ln, close) {
         + `If "${name}" already exists, the two people are merged into one.\n`
         + 'This can\'t be undone.');
       if (!sure) return;
-      path = '/api/modules/sound/rename-speaker';
+      path = '/api/modules/athena/rename-speaker';
       body = { old_name: label, new_name: name };
     }
     buttons.forEach((b) => { b.disabled = true; });
@@ -785,7 +785,7 @@ function speakerEditor(ln, close) {
 }
 
 async function fetchPage(id, start) {
-  return api(`/api/modules/sound/conversations/${encodeURIComponent(id)}/transcript`
+  return api(`/api/modules/athena/conversations/${encodeURIComponent(id)}/transcript`
     + `?start_seconds=${encodeURIComponent(start)}`);
 }
 
@@ -828,7 +828,7 @@ async function loadMore(btn) {
 async function loadReader(id, keepPages = 1, seekT = null) {
   const gen = ++reader.gen;
   const [detail, transcript] = await Promise.allSettled([
-    api(`/api/modules/sound/conversations/${encodeURIComponent(id)}`),
+    api(`/api/modules/athena/conversations/${encodeURIComponent(id)}`),
     (async () => {
       const acc = { lines: [], seen: new Set(), next: null, pages: 0 };
       let start = 0;
@@ -988,7 +988,7 @@ function buildView() {
         tabButton('who', 'Who is this?')),
       el('div', { className: 'bs-bar-end' },
         // Recording a call lives in Meetings: its own window in the app, a link on this page.
-        ctx.embedded ? null : el('a', { className: 'bs-btn', href: '/modules/sound/record' }, 'Meetings'),
+        ctx.embedded ? null : el('a', { className: 'bs-btn', href: '/modules/athena/record' }, 'Meetings'),
         el('button', { type: 'button', className: 'bs-btn bs-icon-btn bs-refresh', title: 'Refresh',
                        'aria-label': 'Refresh' }, refreshIcon()))),
     list('records'),

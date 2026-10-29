@@ -1,6 +1,6 @@
 // Fork: the Meetings view: "Send Athena to a meeting" (static/js/meetingBot.js) and "Record
 // it on this computer" (static/js/callRecorder.js). Shown by the standalone Meetings page
-// (static/call-recorder.html, served at /modules/sound/record) and by the Meetings window
+// (static/call-recorder.html, served at /modules/athena/record) and by the Meetings window
 // of the main app (static/js/forkModuleWindows.js). Their look is in
 // static/css/fork-modules.css: the page's under .fm-meetings-page, the window's under
 // .fm-meetings.
@@ -76,7 +76,7 @@ const MARKUP = `
       <div class="bs-row">
         <button type="button" class="bs-btn primary" id="rc-start" disabled>Start recording</button>
         <button type="button" class="bs-btn" id="rc-stop" disabled>Stop</button>
-        <a class="bs-btn" href="/modules/sound" data-conversations>Records</a>
+        <a class="bs-btn" href="/modules/athena" data-conversations>Records</a>
       </div>
       <div class="rc-grid">
         <div><span class="rc-dot" id="rc-dot"></span><span class="rc-time" id="rc-time">0:00:00</span></div>
@@ -99,7 +99,7 @@ let mounted = false;
  * - inApp: true in the app's window: `root` is the window body and shows only the cards
  *   (the window has its own title bar), with the lines meant for the window. On the page,
  *   `root` is the page's .bs-wrap and the cards go after its top row.
- * - openConversations(): opens the Records window (the cards link to /modules/sound).
+ * - openConversations(): opens the Records window (the cards link to /modules/athena).
  * Returns { refresh }.
  */
 export async function mountMeetings(root, { inApp = false, openConversations = null } = {}) {

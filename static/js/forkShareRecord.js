@@ -1,5 +1,5 @@
 // Fork: the Records reader's Share button (static/js/soundModule.js). Gets the record as a
-// file from GET /api/modules/sound/conversations/{id}/export (routes/sound_module_routes.py,
+// file from GET /api/modules/athena/conversations/{id}/export (routes/sound_module_routes.py,
 // src/record_share.py; Athena makes the file) and hands it to the system share sheet where
 // the browser can share files (Android), else downloads it.
 
@@ -52,7 +52,7 @@ export function fileName(disposition, format) {
 
 export function exportUrl(id, opts) {
   const q = new URLSearchParams({ format: opts.format, include: opts.include.join(',') });
-  return `/api/modules/sound/conversations/${encodeURIComponent(id)}/export?${q}`;
+  return `/api/modules/athena/conversations/${encodeURIComponent(id)}/export?${q}`;
 }
 
 async function getFile(id, opts) {

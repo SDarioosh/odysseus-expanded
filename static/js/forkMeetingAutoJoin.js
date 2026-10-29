@@ -4,7 +4,7 @@
 // static/js/calendar.js (_showEventForm) for a saved event; renders nothing for
 // non-admins, events without a Zoom link, or when the route is missing.
 
-const ROUTE = '/api/modules/sound/auto-join';
+const ROUTE = '/api/modules/athena/auto-join';
 
 function esc(s) {
   return String(s ?? '').replace(/[&<>"']/g, c => ({

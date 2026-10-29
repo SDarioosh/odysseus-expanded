@@ -1,7 +1,7 @@
 """Fork: the Wisdom (beliefs) and Meetings views look the same as windows and as pages.
 
 tests/helpers/fork_views_look.mjs opens them in Chromium (the app's windows from
-static/index.html, and the standalone pages /beliefs, /modules/sound/record, plus the phone
+static/index.html, and the standalone pages /beliefs, /modules/athena/record, plus the phone
 pairing page) at desktop and phone widths, in the default dark theme and in the light
 theme, with fictional data. It records every element of each view (tag, id, classes,
 attributes, own text) with a fixed list of computed style properties, and the theme each
