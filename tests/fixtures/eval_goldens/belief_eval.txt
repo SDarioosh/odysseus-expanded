@@ -21,7 +21,7 @@ source-confirmed  10-03 3 times on 2 days                           confirmed/so
 variant           10-03 variant joins: 2 sightings                  tentative/-/out                                   tentative/-/out                                   ok
 variant           10-03 one belief, evidence ids                    9009,9010                                         9009,9010                                         ok
 forgotten         10-03 owner forgets it                            rejected/-/out                                    rejected/-/out                                    ok
-forgotten         10-03 reject returns its evidence                 odysseus-sound:9006                               odysseus-sound:9006                               ok
+forgotten         10-03 reject returns its evidence                 athena:9006                                       athena:9006                                       ok
 corrected         10-03 owner corrects it                           confirmed/owner/mem                               confirmed/owner/mem                               ok
 corrected         10-03 shown text                                  Priya Nair's birthday is on 21 May                Priya Nair's birthday is on 21 May                ok
 corrected         10-03 memory text                                 Priya Nair's birthday is on 21 May (source: http  Priya Nair's birthday is on 21 May (source: http  ok

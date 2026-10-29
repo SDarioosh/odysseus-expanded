@@ -310,7 +310,7 @@ def test_fact_in_a_note_and_a_conversation_confirms_by_two_sources(db):
     assert stats["confirmed"] == 1
     (kath,) = [b for b in ledger.list_beliefs("alice") if b["subject"] == "Kath"]
     assert (kath["status"], kath["confirmed_by"]) == ("confirmed", "rule")
-    assert {e["source"] for e in kath["evidence"]} == {"notes", "odysseus-sound"}
+    assert {e["source"] for e in kath["evidence"]} == {"notes", "athena"}
     texts = [m["text"] for m in memories(db.path)]
     assert len(texts) == 1 and texts[0].startswith("Kath lives in Lisbon")
     # the Pixel fact, in the note only, still waits for the owner
@@ -406,7 +406,7 @@ def test_owner_fact_in_a_note_and_a_conversation_confirms(db):
     assert (stats["beliefs_added"], stats["confirmed"]) == (0, 1)
     (belief,) = ledger.list_beliefs("alice")
     assert (belief["status"], belief["confirmed_by"]) == ("confirmed", "rule")
-    assert {e["source"] for e in belief["evidence"]} == {"notes", "odysseus-sound"}
+    assert {e["source"] for e in belief["evidence"]} == {"notes", "athena"}
 
 
 def test_handwritten_notes_are_skipped():

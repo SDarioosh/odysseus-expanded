@@ -33,9 +33,13 @@ class FakeManager(FakeMcpManager):
         super().__init__(tools, connections)
 
 
-@pytest.fixture
-def manager(monkeypatch):
+# Athena's server under its old name and under the new one (renamed in Settings → MCP or
+# by scripts/athena_names_migrate.py): the same trust and grants either way, whichever
+# name ODYSSEUS_TRUSTED_READONLY_MCP gives (fork/common/athena_names.py).
+@pytest.fixture(params=["convo", "athena"])
+def manager(monkeypatch, request):
     m = FakeManager()
+    m._connections["srv1"]["name"] = request.param
     monkeypatch.setattr(mcp_trust, "_manager", lambda: m)
     return m
 

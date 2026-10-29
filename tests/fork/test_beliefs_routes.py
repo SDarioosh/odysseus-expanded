@@ -97,7 +97,7 @@ def test_get_has_evidence_and_events(client):
     body = client.get(f"/api/beliefs/{ids()['Prefers oat milk in coffee']}").json()
     assert body["status"] == "confirmed"
     assert body["evidence"][0]["link"] == "http://h:8000/view/c1?sig=abc#t=10"
-    assert body["evidence"][0]["source"] == "odysseus-sound"
+    assert body["evidence"][0]["source"] == "athena"
     assert [e["kind"] for e in body["events"]][-1] == "added"
     assert client.get("/api/beliefs/99999").status_code == 404
 

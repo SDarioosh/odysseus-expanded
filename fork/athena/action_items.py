@@ -155,6 +155,7 @@ from fork.athena.action_items_state import (  # noqa: F401 -- re-exported
     HOUSEKEEPING_DEFAULT,
     INFO,
     LABEL,
+    OLD_LABEL,
     TASK_NAME,
     TITLE_MAX,
     VOICE_LIST,
@@ -171,6 +172,7 @@ from fork.athena.action_items_state import (  # noqa: F401 -- re-exported
     _zone,
     digest_hour,
     file_mode,
+    is_label,
     item_title,
     load_state,
     mcp_caller,
@@ -420,7 +422,7 @@ def _cleanup_entry(entry: dict, row: dict | None, include_all: bool) -> str | No
 
 def _single_undated_todo(note) -> bool:
     """A filed to-do of its own still in Odysseus: one line, no due date, no reminder."""
-    return (note is not None and not note.archived and note.label == LABEL
+    return (note is not None and not note.archived and is_label(note.label)
             and note.note_type == "todo" and len(_note_items(note)) <= 1
             and not note.due_date and (note.repeat or "none") == "none")
 
@@ -428,9 +430,9 @@ def _single_undated_todo(note) -> bool:
 async def unfile_auto_todos(owner: str, call: CallTool, *, apply: bool = False,
                             only: set[int] | None = None, include_all: bool = False) -> dict:
     """Clean-up for the to-dos filed one per voice-note item before ``explicit`` filing
-    and the "Voice notes" list: filed to-dos of their own (label ``odysseus-sound``, one
-    checklist line, no due date, no reminder) of voice-note items that are not explicit
-    now. Entries filed in ``explicit`` mode or from the page are left out unless
+    and the "Voice notes" list: filed to-dos of their own (label ``athena``, or
+    ``odysseus-sound`` before the rename; one checklist line, no due date, no reminder) of
+    voice-note items that are not explicit now. Entries filed in ``explicit`` mode or from the page are left out unless
     ``include_all``. With ``apply`` each is deleted and its item, when still open,
     dismissed in the module; the item stays recorded as filed (undone), so it is never
     filed again. ``only``: just these item ids. Returns ``{"apply", "todos": [{"id",

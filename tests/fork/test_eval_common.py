@@ -20,7 +20,7 @@ def test_check_ok_compares_expected_and_actual():
 
 def test_module_link():
     assert ec.module_link(9004, "eval") == "http://127.0.0.1:8090/view/c9004?sig=eval#t=80"
-    assert ec.MODULE == "odysseus-sound" and ec.NOTES == "notes"
+    assert ec.MODULE == "athena" and ec.NOTES == "notes"
 
 
 def test_table_with_a_failure():

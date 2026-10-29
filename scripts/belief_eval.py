@@ -2,7 +2,7 @@
 """Fork: the memory eval for the belief ledger (personal-context plan stage 1.6).
 
 Seeds a fictional evidence history (one owner, three people, a project; sources
-``odysseus-sound`` and ``notes``) through the ledger's public API in
+``athena`` and ``notes``) through the ledger's public API in
 ``src/evidence_intake.py``, with every ``now`` given, and checks each case: status,
 ``confirmed_by`` and whether the belief is in Odysseus memory. Then the memory mirror:
 exactly the confirmed beliefs are in ``memory.json``, as ``<text> (source: <link>)``,
@@ -51,7 +51,7 @@ if str(REPO) not in sys.path:
     sys.path.insert(0, str(REPO))
 
 from scripts import eval_common
-from scripts.eval_common import MODULE, NOTES, Check, table
+from scripts.eval_common import MODULE, NOTES, Check, source_name, table
 
 OWNER = "eval-owner"
 ME, PRIYA, TOMAS, LENA, HERON = ("Sam Rivera", "Priya Nair", "Tomas Berg", "Lena Okafor",
@@ -160,7 +160,7 @@ class Run:
         present = {str(fid) for fid in self.module}
         present |= {e["source_id"] for b in ledger.list_beliefs(self.owner, limit=100000)
                     for e in b["evidence"]
-                    if e["source"] == MODULE and not _eval_id(e["source_id"])}
+                    if source_name(e["source"]) == MODULE and not _eval_id(e["source_id"])}
         ledger.reconcile_source(self.owner, MODULE, present, now=now, mirror=False)
         ledger.apply_decay(self.owner, now=now, mirror=False)
         ledger.sync_memory(self.owner, now=now)
@@ -219,7 +219,7 @@ def _eval_id(source_id: str) -> bool:
 
 def _eval_evidence(source: str, source_id: str) -> bool:
     """Evidence this eval submits: module fact ids 9001-9099, notes ``belief-eval-note-*``."""
-    return ((source == MODULE and _eval_id(source_id))
+    return ((source_name(source) == MODULE and _eval_id(source_id))
             or (source == NOTES and source_id.startswith(NOTE_PREFIX)))
 
 
@@ -293,7 +293,8 @@ def scenario(r: Run) -> None:
     evidence = ledger.reject(r.owner, employer["id"], "wrong company", now=at(10, 3, 12))
     r.expect("forgotten", "10-03 owner forgets it", EMPLOYER, REJ)
     r.check("forgotten", "10-03 reject returns its evidence",
-            "odysseus-sound:9006", ",".join(f"{e['source']}:{e['source_id']}" for e in evidence))
+            "athena:9006", ",".join(f"{source_name(e['source'])}:{e['source_id']}"
+                                    for e in evidence))
 
     birthday = r.belief(BIRTHDAY)
     memory_id = r.mirrored()[birthday["id"]]["id"]

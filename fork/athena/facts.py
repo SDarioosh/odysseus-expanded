@@ -3,7 +3,8 @@
 A built-in scheduled task ("Module Facts", hourly) reads every current fact Athena
 holds (``list_facts {"format": "json", "limit": 1000}``) through the module's MCP server
 and submits each one to the belief ledger (``src/evidence_intake.py``) as evidence from
-source ``odysseus-sound`` with the module fact id as source id. The ledger decides what is
+source ``athena`` (a ledger written before the rename: ``odysseus-sound``, see
+``fork/common/athena_names.py``) with the module fact id as source id. The ledger decides what is
 confirmed and mirrors confirmed beliefs into Odysseus memory, one memory per belief, text
 ``<fact> (source: <link>)``; see ``docs/fork/beliefs.md``.
 
@@ -80,6 +81,7 @@ logger = logging.getLogger(__name__)
 ACTION = "module_sync_facts"
 TASK_NAME = "Module Facts"
 SOURCE = ledger.MODULE_SOURCE
+is_source = ledger.is_module_source  # the new name or, in an older ledger, the old one
 HOUSEKEEPING_DEFAULT = {
     ACTION: {"name": TASK_NAME, "schedule": "cron", "scheduled_time": None,
              "cron_expression": "0 * * * *"},
@@ -376,7 +378,7 @@ async def sweep_handwritten() -> dict[str, int] | None:
 # ------------------------------------------------------------------------ forget
 def _fact_ids(belief: dict | Iterable[dict]) -> list[int]:
     rows = (belief.get("evidence") or []) if isinstance(belief, dict) else list(belief)
-    ids = {_int(e.get("source_id")) for e in rows if e.get("source") == SOURCE}
+    ids = {_int(e.get("source_id")) for e in rows if is_source(e.get("source"))}
     return sorted(i for i in ids if i > 0)
 
 

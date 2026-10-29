@@ -101,6 +101,7 @@ is an old path of a module that moved into `fork/`; it only aliases the new modu
 - `fork/beliefs/search.py`
 - `fork/beliefs/structure.py`
 - `fork/common/__init__.py`
+- `fork/common/athena_names.py`
 - `fork/common/llm.py`
 - `fork/common/settings.py`
 - `fork/common/state.py`
@@ -175,6 +176,7 @@ is an old path of a module that moved into `fork/`; it only aliases the new modu
 
 ## scripts/
 
+- `scripts/athena_names_migrate.py`
 - `scripts/belief_eval.py`
 - `scripts/belief_eval_scale.py`
 - `scripts/eval_common.py`
@@ -312,6 +314,9 @@ is an old path of a module that moved into `fork/`; it only aliases the new modu
 - `tests/fork/test_athena_callers.py`
 - `tests/fork/test_athena_client.py`
 - `tests/fork/test_athena_contract_fixtures.py`
+- `tests/fork/test_athena_event_uids.py`
+- `tests/fork/test_athena_names.py`
+- `tests/fork/test_athena_names_migrate.py`
 - `tests/fork/test_athena_urls.py`
 - `tests/fork/test_auto_mode.py`
 - `tests/fork/test_background_model_calls.py`

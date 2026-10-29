@@ -4,7 +4,7 @@ The open to-do items and calendar events of the next days, each bucketed and giv
 ref, in the published rule order (:func:`order_candidates`); the memory lines for the
 prompt (:func:`select_memory`); and the hash of everything the insight is built from.
 Pure functions over what ``today.py`` loaded. ``MEMORY_SOURCE`` (Athena's memory
-source) is defined here only.
+source, ``athena``; ``MEMORY_SOURCES`` adds the old ``odysseus-sound``) is defined here only.
 """
 
 from __future__ import annotations
@@ -18,7 +18,7 @@ from datetime import date as Date
 from datetime import datetime, timedelta, tzinfo
 from typing import Any
 
-from fork.common import settings
+from fork.common import athena_names, settings
 
 logger = logging.getLogger("fork.insight.today")  # the insight's one logger
 
@@ -27,7 +27,8 @@ TODO_TYPES = ("checklist", "todo", "goal")
 MAX_CANDIDATES = 30
 MAX_MEMORY = 40
 MEMORY_CATEGORIES = frozenset({"preference", "contact", "fact"})
-MEMORY_SOURCE = "odysseus-sound"
+MEMORY_SOURCE = athena_names.SOURCE
+MEMORY_SOURCES = athena_names.SOURCES  # entries written before the rename: the old name
 DEFAULT_SKIP_LISTS = settings.SKIP_LISTS.default  # "Shopping,Groceries,Grocery"
 
 
@@ -241,7 +242,7 @@ def _by_use(entries: Iterable[dict], limit: int) -> tuple[list[str], list[dict]]
         if not text:
             continue
         category = str(m.get("category") or "fact").strip().lower()
-        if category in MEMORY_CATEGORIES or m.get("source") == MEMORY_SOURCE:
+        if category in MEMORY_CATEGORIES or m.get("source") in MEMORY_SOURCES:
             picked.append(m)
 
     def num(v):

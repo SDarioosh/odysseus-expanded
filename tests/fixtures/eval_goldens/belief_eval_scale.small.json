@@ -4,7 +4,7 @@
   "owner": "scale-owner",
   "data_dir": "<tmp>",
   "corpus": {
-    "digest": "f3491ecbc85f7a1a",
+    "digest": "c27a677aa1103dba",
     "subjects": 31,
     "beliefs": 300,
     "queries": 60,
@@ -111,7 +111,7 @@
   },
   "memory": {
     "entries": 179,
-    "bytes": 130892
+    "bytes": 129476
   },
   "structure": {
     "candidates": 179,

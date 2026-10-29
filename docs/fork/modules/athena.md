@@ -6,8 +6,10 @@
   Server docs: [server/README.md](https://github.com/SDarioosh/Athena/blob/main/server/README.md).
 - Contract it follows: [../modules.md](../modules.md).
 
-Code identifiers keep old names where they are wired or stored: the `CONVO_*` env vars
-and the Odysseus server name `convo`. Don't rename them. The Python package is `athena`
+Code identifiers keep old names where they are wired: the `CONVO_*` env vars. The
+Odysseus server name `convo` and the stored `"odysseus-sound"` (note label, belief and
+memory source) become `athena` in two steps: the hub reads both names, and the stored
+ones change when the owner runs the migration ([Stored names](#stored-names)). The Python package is `athena`
 (`server/athena/`; `convo_server` stays an alias of it) and the CLI is `athena`, with
 `convo-server` still installed beside it (both run the same code); since MCP 0.20.1 the
 MCP server reports itself as `athena` (was `convo-ai`; the hub never reads that name).
@@ -209,18 +211,18 @@ Where a filed item goes:
 | Item kind (module) | Example | Filed as |
 |---|---|---|
 | `event` | "meeting with Jason on Wednesday at 12 pm" | calendar event in the default calendar: timed (60 min or the stated length, reminder 30 min before), or all-day when no time was said |
-| `task` with a date | "get the proposal done on Wednesday" | to-do (checklist note, label `odysseus-sound`), due that day at `MODULE_DIGEST_HOUR`, titled with the short title, the full text as its line |
+| `task` with a date | "get the proposal done on Wednesday" | to-do (checklist note, label `athena`), due that day at `MODULE_DIGEST_HOUR`, titled with the short title, the full text as its line |
 | `task` without a date or list | "add a to-do: oil the bike chain" | one line (the short title) on the to-do list **Voice notes** (see below) |
 | `reminder` | "remind me at 5 to call Mom" | to-do due at that time (Odysseus fires its own reminder), titled like a dated task |
 | any task or reminder with a `list_name` | "add milk to my shopping list" | one line on that to-do list (see below) |
-| `note` | "create a note battery dimensions are 13mm x 14mm x 3mm" | an Odysseus note (type note, label `odysseus-sound`) titled with the module's `note_title` ("Battery dimensions"), the text, the voice note's key points as a list (MCP 0.15.0 `key_points`, when the note is the whole voice note) and the source link as content |
+| `note` | "create a note battery dimensions are 13mm x 14mm x 3mm" | an Odysseus note (type note, label `athena`) titled with the module's `note_title` ("Battery dimensions"), the text, the voice note's key points as a list (MCP 0.15.0 `key_points`, when the note is the whole voice note) and the source link as content |
 | `note` with a `list_name` | "add to my hardware notes: the screen is 1.4 inch" | one line `- The screen is 1.4 inch` on those notes (see below) |
 
 - **Named to-do lists.** When the note names a list, the module returns `list_name`
   (`shopping`, without "my"/"the"/"list") and the item text without the phrase
   (`Milk`). Odysseus adds it as a line to the open checklist or to-do note with that
   title, in any case and with or without "list" ("Shopping", "shopping list"); if there
-  is none, it creates a to-do list titled "Shopping" (label `odysseus-sound`). A due date
+  is none, it creates a to-do list titled "Shopping" (label `athena`). A due date
   goes into the line's text ("Eggs (due Wed 22 Oct)"); lines have no reminder of their
   own. An open line with the same text isn't added twice. The line's status follows
   both ways: ticked ↔ done, line removed → dismissed, list archived → done. Undo and
@@ -236,7 +238,7 @@ Where a filed item goes:
   without `title`: the start of the text, cut at a word (60 characters at most).
 - **The "Voice notes" list.** In every mode, a voice-note task without a due date and
   without a `list_name` is one line on the to-do list titled "Voice notes" (label
-  `odysseus-sound`, made if missing, not pinned), instead of a to-do of its own. It
+  `athena`, made if missing, not pinned), instead of a to-do of its own. It
   follows the named-list rules above: status per line both ways, Undo takes the line
   only, and once every line is ticked the list is archived 10 minutes later, so the next
   undated task starts a new "Voice notes" list. When its last line is taken off (Undo,
@@ -275,7 +277,7 @@ Where a filed item goes:
   `/modules/athena` removes one. For all of them, run
   `python scripts/unfile_voice_note_todos.py --url <hub> --password-file <admin password file>`:
   it lists the to-dos it would remove, each with why it qualifies: a to-do of its own
-  (label `odysseus-sound`, one line, not a list line) of a voice-note item that is not
+  (label `athena`, one line, not a list line) of a voice-note item that is not
   explicit now, with no due date and no reminder, still in Odysseus, and filed before
   explicit filing (or in `auto` mode). Dated to-dos and reminders never qualify, so a
   reminder filed today or an old item the owner since gave a date stays. To-dos filed in
@@ -323,7 +325,8 @@ note's URL for a fact from a handwritten note, else false and null); the facts j
 doesn't read them yet, and the fact's `link` is still the signed transcript link. From
 MCP 0.13.0 each row also has `valid_until` (additive).
 
-- **Evidence per fact**: source `odysseus-sound`, source id = the fact id, the fact text,
+- **Evidence per fact**: source `athena` (`odysseus-sound` in a ledger from before the
+  rename, see [Stored names](#stored-names)), source id = the fact id, the fact text,
   the signed transcript link, `first_said`/`last_said` as seen dates, `times_said`/`days`
   as totals, and the row's `confirmed` (the module's own threshold) as the source's
   verdict. A module that doesn't send `confirmed` per row yet gets one more call,
@@ -338,7 +341,8 @@ MCP 0.13.0 each row also has `valid_until` (additive).
   source saying the same thing (`BELIEF_CONFIRM_SOURCES`), by enough sightings on enough
   days, or by the owner. One memory per belief, for the task's owner: text = the fact
   text (or the owner's correction) followed by ` (source: <link>)`; fields `source:
-  "odysseus-sound"`, `belief_id`, `module_fact_id`, `link`, `subject`, `about`,
+  "athena"` (the ledger's name for it, so `"odysseus-sound"` before the migration),
+  `belief_id`, `module_fact_id`, `link`, `subject`, `about`,
   `times_said`, `days`, `first_said`, `last_said`, `first_seen`, `last_seen` and
   `synced_at`. The memory text ends with the transcript link so chat answers can cite it
   (chat context injects only a memory's text). Copies written before the ledger are
@@ -762,6 +766,70 @@ new paths and scope names).
   `static/phone-pairing.html`, `static/js/phonePairing.js`; test
   `tests/fork/test_sound_relay.py`. Relay side: Athena's `android-relay` README.
 
+## Stored names
+
+Until 2026-10-29 the hub stored Athena under its former names, and the owner sees them:
+the MCP server `convo` (Settings → MCP, approval cards, `/athena`'s `mcp:convo`) and
+`"odysseus-sound"`, the label on filed notes and the source of Athena's beliefs (Wisdom)
+and memory entries. Now they read `athena`, in two steps (`fork/common/athena_names.py`):
+
+1. **The code reads both names** and writes `athena`. A server named `convo` or `athena`
+   is Athena's, whichever name a setting (`MODULE_ACTION_ITEMS_SERVER`,
+   `SOUND_MODULE_SERVER`, `ODYSSEUS_TRUSTED_READONLY_MCP`), a skill (`mcp:convo`) or
+   `modules_setup.py` gives (the exact name first, when both exist). Labels and sources of
+   either name are Athena's. New notes are labelled `athena`. The belief ledger is the one
+   exception: it keeps writing the name an owner's ledger already holds, so one ledger
+   never holds both and one fact is never counted as two sources; a fresh ledger is
+   written as `athena`.
+2. **The stored names change only when the owner runs** `scripts/athena_names_migrate.py`
+   on a stopped hub.
+
+Never changed: the server's id (tool names `mcp__<id>__…`, approvals and per-tool
+disables are keyed by it), chat history (old chats keep their tool names), the action-items
+state files (keyed by item id; nothing in them names the server), and **filed calendar
+events**: an event's uid hashes `odysseus-sound:item:convo:<item id>` whatever the server
+is called now, so nothing is filed twice (`tests/fork/test_athena_event_uids.py` pins
+them).
+
+**The migration** (`python3` with the standard library is enough; run from the checkout):
+
+```bash
+python3 scripts/athena_names_migrate.py --data-dir <data dir> [--env-file <.env>]   # dry run
+python3 scripts/athena_names_migrate.py --data-dir <data dir> [--env-file <.env>] \
+    --apply --i-stopped-the-hub
+python3 scripts/athena_names_migrate.py --data-dir <data dir> \
+    --rollback <data dir>/athena_names_backups/<time> --i-stopped-the-hub
+```
+
+| Where | What changes |
+|---|---|
+| `app.db` | `mcp_servers.name` `convo` → `athena` (left alone, with a warning, when an `athena` server exists too); `notes.label`; the old `memories.source` |
+| `beliefs.db` | `evidence.source`, `subject_sources.source`, the event lines naming the source (`from odysseus-sound` …); one transaction |
+| `memory.json` | the `source` of Athena's memory entries |
+| `skills/**/SKILL.md`, `skills.json` | `mcp:convo` → `mcp:athena` in `requires_toolsets` (`/athena`, `/context`) |
+| `--env-file` files | `convo` → `athena` in `ODYSSEUS_TRUSTED_READONLY_MCP`, `MODULE_ACTION_ITEMS_SERVER`, `SOUND_MODULE_SERVER` and their `BARVIS_*` names (optional: the code takes either name) |
+
+- The dry run (the default) lists every row id and file it would change, with counts, and
+  touches nothing.
+- `--apply` first copies every file it will change (a database with its `-wal` and
+  `-shm`) to `<data dir>/athena_names_backups/<UTC time>/` with a `manifest.json`, then
+  changes them, one transaction per database. Run again, it finds nothing to change.
+- `--apply` and `--rollback` refuse without `--i-stopped-the-hub`, and while another
+  process has a file of the data folder open (as far as `/proc` shows; a container's
+  processes may not show, so stop it first).
+- **Rolling back:** `--rollback <backup dir>` puts every file back byte for byte (checked
+  against the manifest's hashes) and removes a `-wal`/`-shm` that wasn't there before.
+  The code reads the old names, so the hub runs on the restored data as before. The
+  restored files are those of before the apply: what the hub wrote to them since (chats,
+  notes, beliefs) is gone, so roll back soon or not at all (the code reads both names).
+- After it, `modules_setup.py` (run by `fork_deploy.sh deploy`) writes the skills with the
+  server's registered name, `athena`; the `/context` description then names it too.
+- Tests: `tests/fork/test_athena_names.py` (both names read alike),
+  `tests/fork/test_athena_names_migrate.py` (a fictional hub data folder written as the hub
+  before the rename wrote it: dry run, apply, second apply, rollback, and the hub's jobs,
+  grants and skills on the old and on the migrated data), and the characterization tests
+  run on old-name and new-name data.
+
 ## Summary model in Settings
 
 Settings → AI Defaults → **Background & Summaries** (admin only) picks, apart from the chat
@@ -898,7 +966,7 @@ the features and the hooks into upstream files.
 
 ### Voice notes into calendar and to-dos; action items on the phone
 
-**Voice notes into calendar and to-dos; action items on the phone.** A built-in task "Module Action Items" (every 5 min; `modules_setup.py` resumes it) reads Athena's action items live through its MCP tools (`list_action_items` `format=json`). Explicit items from voice notes are filed (`MODULE_FILE_ITEMS=explicit`, the default: the module's `explicit` flag, or a date, time, list, reminder/event/note kind or command word; `auto` files all): events into the default calendar (`do_manage_calendar`, stable uid per item, 30-min reminder, all-day without a time), dated tasks and reminders into to-dos of their own (`do_manage_notes`, label `odysseus-sound`, titled with the module's short `title`, the full text as the line), undated tasks as one line on a single "Voice notes" to-do list, or as one line onto the to-do list the note named (`list_name`, e.g. "add milk to my shopping list"; the list is made if missing, status follows the line). Notes ("create a note …", kind `note`) become Odysseus notes titled with `note_title`, or one `- …` line on the named notes ("add to my hardware notes …" → "Hardware notes", made if missing); a filed note is marked done in the module. One push per pass says what went where; filed items get no other push. Status syncs both ways once per change (to-do ticked/archived ↔ item done, event deleted → dismissed, past event → done). Conversation items and the other voice-note items are only suggestions on `/modules/athena` (one "Suggested from your voice note" push per pass for the voice-note ones). `POST /api/modules/athena/unfile-todos` (admin; `scripts/unfile_voice_note_todos.py`) lists (with why each qualifies), and with `apply` removes, the undated to-dos filed one per voice-note item before explicit filing (never a dated to-do or a reminder, nor an item explicit now; entries filed in `explicit` mode or from the page only with `all`), dismissing their open items. An emptied "Voice notes" list is archived (`is_empty` in `src/checklist_auto_archive.py`). Also pushes items due today (not filed ones) and yesterday's digest via ntfy, verbatim. `MODULE_FILE_ITEMS=off` (or an older text-only module) = pushes only, as before. The module stays the source of truth; state keeps only ids, refs and statuses. Never touches the module's database.
+**Voice notes into calendar and to-dos; action items on the phone.** A built-in task "Module Action Items" (every 5 min; `modules_setup.py` resumes it) reads Athena's action items live through its MCP tools (`list_action_items` `format=json`). Explicit items from voice notes are filed (`MODULE_FILE_ITEMS=explicit`, the default: the module's `explicit` flag, or a date, time, list, reminder/event/note kind or command word; `auto` files all): events into the default calendar (`do_manage_calendar`, stable uid per item, 30-min reminder, all-day without a time), dated tasks and reminders into to-dos of their own (`do_manage_notes`, label `athena`, titled with the module's short `title`, the full text as the line), undated tasks as one line on a single "Voice notes" to-do list, or as one line onto the to-do list the note named (`list_name`, e.g. "add milk to my shopping list"; the list is made if missing, status follows the line). Notes ("create a note …", kind `note`) become Odysseus notes titled with `note_title`, or one `- …` line on the named notes ("add to my hardware notes …" → "Hardware notes", made if missing); a filed note is marked done in the module. One push per pass says what went where; filed items get no other push. Status syncs both ways once per change (to-do ticked/archived ↔ item done, event deleted → dismissed, past event → done). Conversation items and the other voice-note items are only suggestions on `/modules/athena` (one "Suggested from your voice note" push per pass for the voice-note ones). `POST /api/modules/athena/unfile-todos` (admin; `scripts/unfile_voice_note_todos.py`) lists (with why each qualifies), and with `apply` removes, the undated to-dos filed one per voice-note item before explicit filing (never a dated to-do or a reminder, nor an item explicit now; entries filed in `explicit` mode or from the page only with `all`), dismissing their open items. An emptied "Voice notes" list is archived (`is_empty` in `src/checklist_auto_archive.py`). Also pushes items due today (not filed ones) and yesterday's digest via ntfy, verbatim. `MODULE_FILE_ITEMS=off` (or an older text-only module) = pushes only, as before. The module stays the source of truth; state keeps only ids, refs and statuses. Never touches the module's database.
 
 Files: `src/module_action_items.py`, `scripts/unfile_voice_note_todos.py` (new), hooks in `src/builtin_actions.py` (action registry) and `src/task_scheduler.py` (housekeeping default, silent action)
 

@@ -1,8 +1,10 @@
 """Fork: the Athena action-items job's names, settings, state and rows (``fork/athena/action_items.py``).
 
 The values the job stores in the owner's data are defined here and nowhere else: the
-task's action id (``ACTION``), the label on filed notes (``LABEL``), the state file's
-name (``_state_path``) and the input of a filed calendar event's uid (``_event_uid``).
+task's action id (``ACTION``), the label on filed notes (``LABEL``, ``athena``; notes filed
+before it read ``odysseus-sound``, and :func:`is_label` accepts both), the state file's
+name (``_state_path``) and the input of a filed calendar event's uid (``_event_uid``,
+frozen: ``fork/common/athena_names.py``).
 Also the job's settings, its state file, Athena's rows (the text list and the JSON rows)
 and the item fields every part reads (dates, times, zones, the short title).
 """
@@ -21,14 +23,15 @@ from typing import Any
 from zoneinfo import ZoneInfo
 
 from fork.athena import client as athena
-from fork.common import settings
+from fork.common import athena_names, settings
 
 logger = logging.getLogger("fork.athena.action_items")  # the job's one logger
 
 
 # The action id is stored in each user's scheduled task, so it keeps the fork's former name.
 ACTION = "barvis_sync_action_items"
-LABEL = "odysseus-sound"
+LABEL = athena_names.SOURCE  # new filed notes; older ones carry OLD_LABEL
+OLD_LABEL = athena_names.OLD_SOURCE
 TASK_NAME = "Module Action Items"
 HOUSEKEEPING_DEFAULT = {
     ACTION: {"name": TASK_NAME, "schedule": "cron", "scheduled_time": None,
@@ -222,8 +225,15 @@ def _aware_utc(now: datetime | None) -> datetime:
     return now.astimezone(timezone.utc)  # naive = server local time
 
 
+def is_label(label: Any) -> bool:
+    """Whether a note's label marks it as filed from Athena (the new or the old label)."""
+    return athena_names.is_source(label)
+
+
 def _event_uid(item_id: int, rev: int = 0) -> str:
-    base = f"odysseus-sound:item:{server_key()}:{item_id}"
+    # ``odysseus-sound:item:convo:<id>`` also when the server is called ``athena``: a
+    # changed uid would file every event again (fork/common/athena_names.py)
+    base = f"odysseus-sound:item:{athena_names.event_uid_server(server_key())}:{item_id}"
     return str(uuid.uuid5(uuid.NAMESPACE_URL, base + (f":{rev}" if rev else "")))
 
 

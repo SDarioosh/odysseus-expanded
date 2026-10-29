@@ -20,12 +20,14 @@ this repository. Read this file completely before changing anything.
 - First module: [Athena](https://github.com/SDarioosh/Athena) (formerly
   odysseus-sound; recorded conversations: transcripts, summaries, action items, facts).
   Details: [docs/fork/modules/athena.md](docs/fork/modules/athena.md).
-  The rename is wording only. Code and stored values keep the old names: the MCP server
-  `convo` and the
-  string `"odysseus-sound"` used as the belief source, the label on filed notes, the
-  memory source and calendar uid prefixes. Changing them breaks existing data; don't
-  "fix" them. The slash command is the exception: it is now `/athena` (was `/sound`;
-  `scripts/modules_setup.py` deletes the old managed skill). The hub's Athena URLs and
+  The MCP server `convo` and the string `"odysseus-sound"` (the belief source, the label
+  on filed notes, the memory source) become `athena`: the code reads both names and
+  writes `athena` (`fork/common/athena_names.py`); the stored values change only when the
+  owner runs `scripts/athena_names_migrate.py`
+  ([stored names](docs/fork/modules/athena.md#stored-names)). The calendar uid input
+  `odysseus-sound:item:convo:<id>` never changes, whatever the server is called: a
+  changed uid files every event again. Don't "fix" it. The slash command is `/athena`
+  (was `/sound`; `scripts/modules_setup.py` deletes the old managed skill). The hub's Athena URLs and
   token scopes have Athena names too (`/modules/athena`, `/api/modules/athena/*`,
   `/api/codex/athena/*`, `athena:*`), and the old `sound` ones keep working for good
   (installed phones, existing tokens): `fork/athena/urls.py`.

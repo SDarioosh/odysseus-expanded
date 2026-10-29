@@ -21,6 +21,7 @@ from fork.beliefs.ledger_model import (
     _int,
     _payload,
     _read_settings,
+    is_module_source,
 )
 
 
@@ -65,7 +66,7 @@ def link_rank(e: Mapping) -> int:
     link = str(e.get("link") or "").strip().lower()
     if not link.startswith(("http://", "https://")):
         return 0
-    return 2 if e.get("source") == MODULE_SOURCE else 1
+    return 2 if is_module_source(e.get("source")) else 1
 
 
 def primary_evidence(evidence: list[dict]) -> dict | None:
@@ -142,7 +143,9 @@ def confirmation_for(belief: Mapping, evidence_rows: Iterable[Mapping],
         return None
     if any(bool(e["source_confirmed"]) for e in live):
         return "source"
-    if len({e["source"] for e in live}) >= st.confirm_sources:
+    # Athena under its old and new name is one source
+    if len({MODULE_SOURCE if is_module_source(e["source"]) else e["source"]
+            for e in live}) >= st.confirm_sources:
         return "rule"
     times = sum(max(1, _int(e["times"], 1)) for e in live)
     dates = {d for e in live for d in (e["seen_first"], e["seen_last"]) if d}

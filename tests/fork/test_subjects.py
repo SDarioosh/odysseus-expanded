@@ -26,7 +26,7 @@ def ev(source="notes", source_id="n1", text="Likes jazz", *, about="owner", subj
 
 
 def module_ev(fid, text, *, about="person", subject="Priya Nair", person_id=None, **kw):
-    return ev("odysseus-sound", str(fid), text, about=about, subject=subject,
+    return ev("athena", str(fid), text, about=about, subject=subject,
               person_id=person_id, source_confirmed=kw.pop("source_confirmed", True), **kw)
 
 
@@ -79,7 +79,7 @@ def test_every_belief_gets_a_subject_by_about(data):
 
 def test_one_owner_subject_takes_real_names_as_aliases(data):
     ei.submit("alice", [ev("notes", "a", "I am vegetarian", subject="Me"),
-                        ev("odysseus-sound", "1", "Sam Rivera runs on Saturdays",
+                        ev("athena", "1", "Sam Rivera runs on Saturdays",
                            subject="Sam Rivera"),
                         ev("notes", "b", "The owner hates queues", subject="Owner")], now=T0)
     (owner,) = ei.list_subjects("alice", kind="owner")
@@ -112,7 +112,7 @@ def test_person_id_wins_over_names_and_adds_the_new_name_as_alias(data):
     assert belief("Priya runs the design review")["subject_id"] == sid
     subject = ei.get_subject("alice", sid)
     assert subject["display"] == "Priya Nair" and subject["aliases"] == ["Priya N"]
-    assert subject["sources"] == [{"source": "odysseus-sound", "person_id": "p7",
+    assert subject["sources"] == [{"source": "athena", "person_id": "p7",
                                    "name": "Priya Nair"}]
     # a different person with the same name as the alias of nobody: its own subject
     ei.submit("alice", [module_ev(3, "Tomas likes sailing", subject="Tomas Berg",
@@ -279,14 +279,14 @@ def test_memory_entries_carry_subject_fields_without_text_change(data):
     ei.submit("alice", [module_ev(1, "Priya is allergic to peanuts", person_id="p7")], now=T0)
     b = belief("Priya is allergic to peanuts")
     entry = mirrored(data)[b["id"]]
-    assert entry["text"] == "Priya is allergic to peanuts (source: http://h/odysseus-sound/1)"
+    assert entry["text"] == "Priya is allergic to peanuts (source: http://h/athena/1)"
     assert (entry["subject_id"], entry["subject_kind"]) == (b["subject_id"], "person")
     assert "contact_id" not in entry
     memory_id = entry["id"]
     ei.link_contact("alice", b["subject_id"], "uid-priya", now=T1)
     entry = mirrored(data)[b["id"]]
     assert entry["contact_id"] == "uid-priya" and entry["id"] == memory_id
-    assert entry["text"] == "Priya is allergic to peanuts (source: http://h/odysseus-sound/1)"
+    assert entry["text"] == "Priya is allergic to peanuts (source: http://h/athena/1)"
     ei.set_subject_kind("alice", b["subject_id"], "thing", now=T1)
     assert mirrored(data)[b["id"]]["subject_kind"] == "thing"
     ei.unlink_contact("alice", b["subject_id"], now=T1)
@@ -340,7 +340,7 @@ async def test_sync_maps_people_and_facts_land_on_them(data):
     assert set(got) == {"Sam Rivera", "Priya Nair", "Tomas Berg"}
     owner = got["Sam Rivera"]
     assert owner["kind"] == "owner" and "Owner" in owner["aliases"]
-    assert owner["sources"] == [{"source": "odysseus-sound", "person_id": "1",
+    assert owner["sources"] == [{"source": "athena", "person_id": "1",
                                  "name": "Sam Rivera"}]
     assert set(got["Priya Nair"]["aliases"]) == {"Priya", "P. Nair"}
     assert belief("Priya is allergic to peanuts")["subject_id"] == got["Priya Nair"]["id"]
@@ -451,11 +451,11 @@ def test_correct_and_source_edit_reset_structure(data):
 
 
 def test_project_inferred_from_structure_attributes(data):
-    ei.submit("alice", [ev("odysseus-sound", "1", "Heron is in beta", about="other",
+    ei.submit("alice", [ev("athena", "1", "Heron is in beta", about="other",
                            subject="Heron", source_confirmed=True),
-                        ev("odysseus-sound", "2", "Bolt is due in March", about="other",
+                        ev("athena", "2", "Bolt is due in March", about="other",
                            subject="Bolt", source_confirmed=True),
-                        ev("odysseus-sound", "3", "Vera's deadline is Friday",
+                        ev("athena", "3", "Vera's deadline is Friday",
                            about="person", subject="Vera", source_confirmed=True)], now=T0)
     for text, attribute in (("Heron is in beta", "project_status"),
                             ("Bolt is due in March", "deadline"),
@@ -503,7 +503,7 @@ async def test_an_owner_word_person_is_the_owner_when_no_one_is_marked(data, wor
     kinds = sorted(s["kind"] for s in ei.list_subjects("alice"))
     assert kinds == ["owner", "person"]
     (owner,) = ei.list_subjects("alice", kind="owner")
-    assert owner["sources"] == [{"source": "odysseus-sound", "person_id": "2", "name": word}]
+    assert owner["sources"] == [{"source": "athena", "person_id": "2", "name": word}]
     assert word in owner["aliases"] and owner["counts"]["total"] == 1
     assert belief("Me likes figs")["subject_id"] == owner["id"]
 
@@ -525,8 +525,8 @@ def test_a_stray_owner_word_subject_from_an_earlier_pass_is_folded_in(data):
                    "updated_at) VALUES (50, 'alice', 'me', 'Me', 'person', 't', 't')")
         db.execute("INSERT INTO subject_sources (subject_id, owner, source, "
                    "source_person_id, name, updated_at) VALUES "
-                   "(50, 'alice', 'odysseus-sound', '2', 'Me', 't')")
-    counts = ei.sync_people("alice", "odysseus-sound",
+                   "(50, 'alice', 'athena', '2', 'Me', 't')")
+    counts = ei.sync_people("alice", "athena",
                             [{"id": 2, "name": "Me", "is_owner": False}], now=T0)
     assert counts["mapped"] == 1
     (owner,) = ei.list_subjects("alice")
