@@ -52,10 +52,8 @@ import asyncio
 import json
 import math
 import os
-import shutil
 import statistics
 import sys
-import tempfile
 import time
 import unicodedata
 import uuid
@@ -67,6 +65,8 @@ from typing import Any
 REPO = Path(__file__).resolve().parents[1]
 if str(REPO) not in sys.path:
     sys.path.insert(0, str(REPO))
+
+from scripts.eval_common import temp_data_dir
 
 UNREADABLE = "[?]"  # as src/ink_transcribe.py UNREADABLE
 
@@ -613,21 +613,17 @@ def _set_data_dir(path: str) -> None:
 
 def main(argv: Sequence[str] | None = None) -> int:
     args = parse_args(argv)
-    tmp = None
     if args.fixtures:
         if args.data_dir:
             print("--fixtures writes fictional pages to a temp dir; leave out --data-dir",
                   file=sys.stderr)
             return 2
-        tmp = tempfile.mkdtemp(prefix="ink-eval-")
-        _set_data_dir(tmp)
-    elif args.data_dir:
+        with temp_data_dir(None, "ink-eval-") as tmp:
+            _set_data_dir(str(tmp))
+            return _run(args)
+    if args.data_dir:
         _set_data_dir(str(Path(args.data_dir).expanduser()))
-    try:
-        return _run(args)
-    finally:
-        if tmp:
-            shutil.rmtree(tmp, ignore_errors=True)
+    return _run(args)
 
 
 def _run(args: argparse.Namespace) -> int:
