@@ -25,6 +25,7 @@ from __future__ import annotations
 
 import json
 import os
+import re
 import time
 from pathlib import Path
 
@@ -216,6 +217,26 @@ def route_world(monkeypatch, data_dir):
         set_mcp_manager(previous)
 
 
+_NATIVE = re.compile(
+    r"NativeBackendResource\(tool_id='([^']*)', namespace='native', external=False, contained=False\)")
+
+
+_FAKE_MCP = re.compile(
+    r"ExternalResource\(namespace='mcp', endpoint_id='endpoint:(\w+)', server_id='\1', "
+    r"tool_id='([^']*)', incarnation='incarnation', external=True, contained=False, owner=''\)")
+
+
+def _backend(resource) -> str:
+    """A sealed backend: ``native:<tool>`` for a plain native one, ``mcp:<tool>`` for one of
+    the fake servers' tools as ``route_world`` seals it, else its full repr."""
+    text = repr(resource)
+    if match := _NATIVE.fullmatch(text):
+        return f"native:{match[1]}"
+    if match := _FAKE_MCP.fullmatch(text):
+        return f"mcp:{match[2]}"
+    return text
+
+
 def _authority(authority):
     if authority is None:
         return None
@@ -227,7 +248,7 @@ def _authority(authority):
         "disable_mcp": authority.disable_mcp,
         "inherited": authority.inherited,
         "backends": None if authority.backend_resources is None
-        else [repr(b) for b in authority.backend_resources],
+        else [_backend(b) for b in authority.backend_resources],
         "owned_scopes": None if authority.owned_scopes is None
         else [repr(s) for s in authority.owned_scopes],
     }
@@ -341,6 +362,13 @@ def _load():
         return {}
 
 
+def _save(recorded: dict) -> None:
+    """One line per turn, so a changed decision shows as one changed line."""
+    lines = [f"{json.dumps(k)}: {json.dumps(v, sort_keys=True, separators=(',', ':'))}"
+             for k, v in sorted(recorded.items())]
+    FIXTURE.write_text("{\n" + ",\n".join(lines) + "\n}\n")
+
+
 _UPDATE = os.environ.get("UPDATE_SNAPSHOTS") == "1"
 
 
@@ -353,8 +381,7 @@ async def test_turn_decisions_are_unchanged(monkeypatch, route_world, name):
     if _UPDATE:
         recorded = _load()
         recorded[name] = got
-        FIXTURE.write_text(json.dumps(dict(sorted(recorded.items())), indent=1,
-                                      sort_keys=True) + "\n")
+        _save(recorded)
         return
     expected = _load().get(name)
     assert expected is not None, f"no recorded decision for {name}; run with UPDATE_SNAPSHOTS=1"
