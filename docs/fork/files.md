@@ -33,8 +33,10 @@ is an old path of a module that moved into `fork/`; it only aliases the new modu
 ## docs/
 
 - `docs/fork/architecture.md`
+- `docs/fork/athena-messages.md`
 - `docs/fork/beliefs.md`
 - `docs/fork/cleanup-plan.md`
+- `docs/fork/context-growth.md`
 - `docs/fork/context-module.md`
 - `docs/fork/deploy.md`
 - `docs/fork/features/chat-ui.md`
