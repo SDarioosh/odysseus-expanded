@@ -235,12 +235,9 @@ to be offered) upstream, "with discussion" a change upstream may want in another
 | `src/tools/calendar.py` | `_create_calendar_reminder` | none (upstream `src/user_time.py`) | the reminder shows the wall time | yes |
 | `src/turn_contract.py` | `selected_tools_for_request`, model-discovery rule | `fork/routing/web_turn_scope.py` | comparisons and web lookups are web questions | yes, with discussion |
 | `static/css/01-agent-chat.css` | `.chat-meta-overlay` with the Nobody eye | none | the chat title stays centered | yes |
-| `static/index.html` | sidebar Tools list | `fork/athena/routes.py` | Records link | no |
-| `static/index.html` | sidebar Tools list | `fork/routes/today_insight_routes.py` | Today link | no |
-| `static/index.html` | sidebar Tools list | `fork/routes/beliefs_routes.py` | Wisdom link | no |
 | `static/index.html` | script tags, end of body | `static/js/forkChatAsk.js` | `/?ask=` prefills a new chat | yes, with discussion |
 | `static/index.html` | script tags | `static/js/forkEntityHash.js` | open `#event-…` / `#open=notes&note=…` on load | yes |
-| `static/index.html` | script tags | `static/js/forkModuleWindows.js` | module windows, rail buttons, transcript links | no |
+| `static/index.html` | script tags | `static/js/forkModuleWindows.js` | the five Athena sidebar entries, module windows, rail buttons, transcript links | no |
 | `static/index.html` | script tags | `static/js/forkBackgroundModels.js` | Background & Summaries card | no |
 | `static/index.html` | script tags | `static/js/forkWhisperVocabulary.js` | Transcription Vocabulary card | no |
 | `static/index.html` | script tags | `static/js/forkVoiceEnroll.js` | Enroll My Voice card | no |
@@ -284,6 +281,9 @@ fork's scheduled tasks; `fork/upstream.py` is the one place that reads upstream'
 The old paths (`src/mcp_trust.py`, `routes/sound_module_routes.py`, …) are shims that
 alias the new modules; `docs/fork/files.md` marks each one, and
 `tests/fork/test_fork_package_shims.py` checks them. New code imports `fork.*`.
+
+The fork's page scripts share small DOM and fetch helpers (`el`, `$`, `api`, `request`)
+from `static/js/forkDom.js` instead of each keeping a copy.
 
 The fork's own tests are in `tests/fork/` (`python -m pytest -q tests/fork`), with shared
 fixtures in `tests/fork/conftest.py` and fakes in `tests/fork/fakes.py`; upstream's tests

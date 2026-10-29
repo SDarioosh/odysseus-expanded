@@ -2,22 +2,9 @@
 // A collapsed "Last weeks" panel under "How Today ranks"; loads on first open.
 // Route: routes/insight_trends_routes.py (GET /api/insight/trends?weeks=8).
 
-const WEEKS = 8;
+import { el } from './forkDom.js';
 
-function el(tag, attrs = {}, ...children) {
-  const node = document.createElement(tag);
-  for (const [k, v] of Object.entries(attrs)) {
-    if (v === undefined || v === null || v === false) continue;
-    if (k === 'className') node.className = v;
-    else if (k === 'style') node.style.cssText = v;
-    else node.setAttribute(k, v === true ? '' : v);
-  }
-  for (const c of children) {
-    if (c === null || c === undefined) continue;
-    node.append(c instanceof Node ? c : document.createTextNode(String(c)));
-  }
-  return node;
-}
+const WEEKS = 8;
 
 const MONTHS = ['Jan', 'Feb', 'Mar', 'Apr', 'May', 'Jun', 'Jul', 'Aug', 'Sep', 'Oct', 'Nov', 'Dec'];
 

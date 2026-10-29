@@ -15,7 +15,7 @@
 // and the line, and the Tentative tab groups beliefs by conversation, each group with
 // "Dismiss all".
 
-const $ = (sel) => document.querySelector(sel);
+import { el, $, api } from './forkDom.js';
 
 const TABS = [
   ['tentative', 'Tentative'],
@@ -91,41 +91,6 @@ const ICONS = {
   kind_thing: svg('<path d="M21 16V8a2 2 0 0 0-1-1.73l-7-4a2 2 0 0 0-2 0l-7 4A2 2 0 0 0 3 8v8a2 2 0 0 0 1 1.73l7 4a2 2 0 0 0 2 0l7-4A2 2 0 0 0 21 16z"/>' +
                   '<polyline points="3.27 6.96 12 12.01 20.73 6.96"/><line x1="12" y1="22.08" x2="12" y2="12"/>'),
 };
-
-function el(tag, attrs = {}, ...children) {
-  const node = document.createElement(tag);
-  for (const [k, v] of Object.entries(attrs)) {
-    if (v === undefined || v === null || v === false) continue;
-    if (k === 'className') node.className = v;
-    else if (k === 'html') node.innerHTML = v; // only for our own static SVG strings
-    else if (k.startsWith('on')) node.addEventListener(k.slice(2), v);
-    else node.setAttribute(k, v === true ? '' : v);
-  }
-  for (const c of children) {
-    if (c === null || c === undefined || c === false) continue;
-    node.append(c instanceof Node ? c : document.createTextNode(String(c)));
-  }
-  return node;
-}
-
-async function api(path, options = {}) {
-  const res = await fetch(path, { credentials: 'same-origin', ...options });
-  if (res.status === 401) {
-    window.location.href = '/login';
-    throw new Error('not logged in');
-  }
-  let data = {};
-  try {
-    data = await res.json();
-  } catch (e) {}
-  if (!res.ok) {
-    const err = new Error(data.detail || data.error || `HTTP ${res.status}`);
-    err.status = res.status;
-    err.data = data;
-    throw err;
-  }
-  return data;
-}
 
 function postJSON(path, body) {
   return api(path, {

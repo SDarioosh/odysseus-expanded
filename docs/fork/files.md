@@ -227,6 +227,7 @@ is an old path of a module that moved into `fork/`; it only aliases the new modu
 - `static/js/forkBackgroundModels.js`
 - `static/js/forkBeliefsWindow.js`
 - `static/js/forkChatAsk.js`
+- `static/js/forkDom.js`
 - `static/js/forkEntityHash.js`
 - `static/js/forkInk.js`
 - `static/js/forkInkLinks.js`
@@ -278,6 +279,7 @@ is an old path of a module that moved into `fork/`; it only aliases the new modu
 - `tests/fork/fixtures/background_model_calls.json`
 - `tests/fork/fixtures/settings_readers.json`
 - `tests/fork/fixtures/state_files.json`
+- `tests/fork/fork_dom_golden.json`
 - `tests/fork/test_agent_thinking_switch.py`
 - `tests/fork/test_athena_callers.py`
 - `tests/fork/test_athena_client.py`
@@ -305,6 +307,7 @@ is an old path of a module that moved into `fork/`; it only aliases the new modu
 - `tests/fork/test_fork_common_llm.py`
 - `tests/fork/test_fork_common_state.py`
 - `tests/fork/test_fork_deploy.py`
+- `tests/fork/test_fork_dom.py`
 - `tests/fork/test_fork_inventory.py`
 - `tests/fork/test_fork_module_windows.py`
 - `tests/fork/test_fork_override_env.py`
@@ -372,6 +375,7 @@ is an old path of a module that moved into `fork/`; it only aliases the new modu
 - `tests/fork/test_web_read_recovery.py`
 - `tests/fork/test_web_turn_scope.py`
 - `tests/fork/test_whisper_vocabulary_routes.py`
+- `tests/helpers/fork_dom_cases.mjs`
 - `tests/helpers/ink_notebooks_e2e.mjs`
 - `tests/helpers/ink_perf.mjs`
 - `tests/helpers/ink_pointer_e2e.mjs`
