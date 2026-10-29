@@ -49,9 +49,7 @@ from __future__ import annotations
 import asyncio
 import json
 import logging
-import os
 import re
-import threading
 from collections.abc import Awaitable, Callable
 from datetime import date, datetime, timedelta, timezone
 from pathlib import Path
@@ -130,17 +128,16 @@ _MONTH_OR_DAY = re.compile(
 # ----------------------------------------------------------------------- settings
 def enabled() -> bool:
     """``BELIEF_STRUCTURE``: on (default) or off."""
-    value = (os.environ.get("BELIEF_STRUCTURE") or "on").strip().lower()
-    return value not in {"off", "no", "false", "0"}
+    from fork.common import settings
+
+    return settings.belief_structure()
 
 
 def batch_size() -> int:
     """``BELIEF_STRUCTURE_BATCH``: beliefs per model call (default 5, 1 to 10)."""
-    try:
-        value = int((os.environ.get("BELIEF_STRUCTURE_BATCH") or "").strip() or BATCH)
-    except ValueError:
-        value = BATCH
-    return min(MAX_BATCH, max(1, value))
+    from fork.common import settings
+
+    return settings.belief_structure_batch()
 
 
 def max_tokens(size: int) -> int:
@@ -158,17 +155,15 @@ def _lock(owner: str | None) -> asyncio.Lock:
 
 # -------------------------------------------------------------------------- state
 def _state_path(owner: str | None) -> Path:
-    from src.constants import DATA_DIR
+    from fork.common.state import owner_file
 
-    slug = "".join(c if (c.isalnum() or c in "-_.@") else "_" for c in (owner or "default"))
-    return Path(DATA_DIR) / f"belief_structure_{slug}.json"
+    return owner_file("belief_structure", owner)
 
 
 def load_state(owner: str | None) -> dict[str, Any]:
-    try:
-        state = json.loads(_state_path(owner).read_text(encoding="utf-8"))
-    except (OSError, ValueError):
-        state = {}
+    from fork.common.state import read_json
+
+    state = read_json(_state_path(owner), {})
     if not isinstance(state, dict):
         state = {}
     if not isinstance(state.get("tried"), dict):
@@ -177,16 +172,9 @@ def load_state(owner: str | None) -> dict[str, Any]:
 
 
 def save_state(owner: str | None, state: dict[str, Any]) -> None:
-    path = _state_path(owner)
-    path.parent.mkdir(parents=True, exist_ok=True)
-    # Unique per process and thread: two writers never share a temp file.
-    tmp = path.with_name(f".{path.name}.{os.getpid()}.{threading.get_ident()}.tmp")
-    try:
-        tmp.write_text(json.dumps(state, indent=1, sort_keys=True), encoding="utf-8")
-        os.replace(tmp, path)
-    except BaseException:
-        tmp.unlink(missing_ok=True)
-        raise
+    from fork.common import state as files
+
+    files.write_json(_state_path(owner), state)
 
 
 def pick(candidates: list[dict], tried: dict[str, str], limit: int) -> list[dict]:
@@ -280,21 +268,9 @@ def parse_items(raw: str | None, batch: list[dict]) -> dict[int, dict] | None:
     """The model's items by belief id, mapped back from their number ``n`` (1..len(batch))
     and validated (see the module doc); an item that doesn't fit its belief has
     ``rejected: True``. None when the answer isn't a JSON object with an ``items`` list."""
-    text = raw or ""
-    try:
-        from src.text_helpers import strip_think
+    from fork.common.llm import json_object
 
-        text = strip_think(text, prose=False, prompt_echo=False)
-    except Exception:  # noqa: BLE001
-        text = re.sub(r"<think>.*?</think>", "", text, flags=re.DOTALL)
-    text = re.sub(r"^```(?:json)?\s*|\s*```$", "", text.strip(), flags=re.MULTILINE).strip()
-    start, end = text.find("{"), text.rfind("}")
-    if start == -1 or end <= start:
-        return None
-    try:
-        data = json.loads(text[start:end + 1])
-    except ValueError:
-        return None
+    data = json_object(raw)
     if not isinstance(data, dict) or not isinstance(data.get("items"), list):
         return None
     out: dict[int, dict] = {}
@@ -325,37 +301,24 @@ def parse_items(raw: str | None, batch: list[dict]) -> dict[int, dict] | None:
 
 async def ask(llm: Llm, batch: list[dict]) -> dict[int, dict] | None:
     """The batch's items; one retry on unusable JSON; None when both answers fail."""
-    messages = build_messages(batch)
-    for attempt in range(2):
-        raw = await llm(messages)
+    from fork.common.llm import ask_with_retry
+
+    def check(raw):
         items = parse_items(raw, batch)
-        if items is not None:
-            return items
-        logger.warning("belief structure: model answer %d was not usable JSON", attempt + 1)
-        messages = [*messages, {"role": "assistant", "content": str(raw or "")[:2000]},
-                    {"role": "user", "content": RETRY_MESSAGE}]
-    return None
+        return (items, None) if items is not None else (
+            None, ("was not usable JSON", RETRY_MESSAGE))
+
+    return await ask_with_retry(llm, build_messages(batch), check, label="belief structure",
+                                log=logger)
 
 
 async def default_llm(owner: str | None) -> Llm:
     """The background-task model chain; waits for chat to go quiet before each call. The
     answer budget follows the batch size."""
-    from src.interactive_gate import wait_for_interactive_quiet
-    from src.llm_core import llm_call_async_with_fallback
-    from src.task_endpoint import resolve_task_candidates
+    from fork.common.llm import background_model
 
-    candidates = resolve_task_candidates(owner=owner or None)
-    if not candidates:
-        raise RuntimeError("no model endpoint configured")
-    budget = max_tokens(batch_size())
-
-    async def call(messages: list[dict]) -> str:
-        await wait_for_interactive_quiet("belief structure")
-        return await llm_call_async_with_fallback(
-            candidates, messages=messages, temperature=0.1, max_tokens=budget, timeout=180,
-            thinking_mode="off", workload="background")
-
-    return call
+    return await background_model(owner, "belief structure", temperature=0.1,
+                                  max_tokens=max_tokens(batch_size()), timeout=180)
 
 
 # ---------------------------------------------------------------------------- run

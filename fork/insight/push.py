@@ -23,7 +23,6 @@ Docs: ``docs/fork/today-insight.md#push``.
 from __future__ import annotations
 
 import logging
-import os
 from datetime import datetime, timezone
 from typing import Any, Awaitable, Callable
 
@@ -38,8 +37,9 @@ Push = Callable[[str, str, str, str], Awaitable[bool]]
 
 def enabled() -> bool:
     """``TODAY_INSIGHT_PUSH``: ``on`` or ``off`` (default)."""
-    value = (os.environ.get("TODAY_INSIGHT_PUSH") or "off").strip().lower()
-    return value in {"on", "yes", "true", "1"}
+    from fork.common import settings
+
+    return settings.today_insight_push()
 
 
 def is_empty(insight: dict) -> bool:

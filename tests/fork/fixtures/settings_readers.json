@@ -1,0 +1,7799 @@
+{
+ "cross": {
+  "BARVIS_ACTION_ITEMS_SERVER": {
+   "action_items.server_key": {
+    "result": "other"
+   },
+   "call_recorder.server_key": {
+    "result": "convo"
+   }
+  },
+  "BARVIS_SOUND_SERVER": {
+   "action_items.server_key": {
+    "result": "convo"
+   },
+   "call_recorder.server_key": {
+    "result": "other"
+   }
+  },
+  "MODULE_ACTION_ITEMS_SERVER": {
+   "action_items.server_key": {
+    "result": "other"
+   },
+   "call_recorder.server_key": {
+    "result": "convo"
+   }
+  },
+  "SOUND_MODULE_SERVER": {
+   "action_items.server_key": {
+    "result": "convo"
+   },
+   "call_recorder.server_key": {
+    "result": "other"
+   }
+  }
+ },
+ "pairs": {
+  "MODULE_ACTION_ITEMS_SERVER+BARVIS_ACTION_ITEMS_SERVER action_items.server_key": {
+   "MODULE_ACTION_ITEMS_SERVER=' ' BARVIS_ACTION_ITEMS_SERVER=' '": {
+    "result": ""
+   },
+   "MODULE_ACTION_ITEMS_SERVER=' ' BARVIS_ACTION_ITEMS_SERVER=''": {
+    "result": ""
+   },
+   "MODULE_ACTION_ITEMS_SERVER=' ' BARVIS_ACTION_ITEMS_SERVER='3'": {
+    "result": ""
+   },
+   "MODULE_ACTION_ITEMS_SERVER=' ' BARVIS_ACTION_ITEMS_SERVER='Browser'": {
+    "result": ""
+   },
+   "MODULE_ACTION_ITEMS_SERVER=' ' BARVIS_ACTION_ITEMS_SERVER='Convo'": {
+    "result": ""
+   },
+   "MODULE_ACTION_ITEMS_SERVER=' ' BARVIS_ACTION_ITEMS_SERVER='off'": {
+    "result": ""
+   },
+   "MODULE_ACTION_ITEMS_SERVER=' ' BARVIS_ACTION_ITEMS_SERVER=<unset>": {
+    "result": ""
+   },
+   "MODULE_ACTION_ITEMS_SERVER='' BARVIS_ACTION_ITEMS_SERVER=' '": {
+    "result": ""
+   },
+   "MODULE_ACTION_ITEMS_SERVER='' BARVIS_ACTION_ITEMS_SERVER=''": {
+    "result": "convo"
+   },
+   "MODULE_ACTION_ITEMS_SERVER='' BARVIS_ACTION_ITEMS_SERVER='3'": {
+    "result": "3"
+   },
+   "MODULE_ACTION_ITEMS_SERVER='' BARVIS_ACTION_ITEMS_SERVER='Browser'": {
+    "result": "browser"
+   },
+   "MODULE_ACTION_ITEMS_SERVER='' BARVIS_ACTION_ITEMS_SERVER='Convo'": {
+    "result": "convo"
+   },
+   "MODULE_ACTION_ITEMS_SERVER='' BARVIS_ACTION_ITEMS_SERVER='off'": {
+    "result": "off"
+   },
+   "MODULE_ACTION_ITEMS_SERVER='' BARVIS_ACTION_ITEMS_SERVER=<unset>": {
+    "result": "convo"
+   },
+   "MODULE_ACTION_ITEMS_SERVER='3' BARVIS_ACTION_ITEMS_SERVER=' '": {
+    "result": "3"
+   },
+   "MODULE_ACTION_ITEMS_SERVER='3' BARVIS_ACTION_ITEMS_SERVER=''": {
+    "result": "3"
+   },
+   "MODULE_ACTION_ITEMS_SERVER='3' BARVIS_ACTION_ITEMS_SERVER='3'": {
+    "result": "3"
+   },
+   "MODULE_ACTION_ITEMS_SERVER='3' BARVIS_ACTION_ITEMS_SERVER='Browser'": {
+    "result": "3"
+   },
+   "MODULE_ACTION_ITEMS_SERVER='3' BARVIS_ACTION_ITEMS_SERVER='Convo'": {
+    "result": "3"
+   },
+   "MODULE_ACTION_ITEMS_SERVER='3' BARVIS_ACTION_ITEMS_SERVER='off'": {
+    "result": "3"
+   },
+   "MODULE_ACTION_ITEMS_SERVER='3' BARVIS_ACTION_ITEMS_SERVER=<unset>": {
+    "result": "3"
+   },
+   "MODULE_ACTION_ITEMS_SERVER='Browser' BARVIS_ACTION_ITEMS_SERVER=' '": {
+    "result": "browser"
+   },
+   "MODULE_ACTION_ITEMS_SERVER='Browser' BARVIS_ACTION_ITEMS_SERVER=''": {
+    "result": "browser"
+   },
+   "MODULE_ACTION_ITEMS_SERVER='Browser' BARVIS_ACTION_ITEMS_SERVER='3'": {
+    "result": "browser"
+   },
+   "MODULE_ACTION_ITEMS_SERVER='Browser' BARVIS_ACTION_ITEMS_SERVER='Browser'": {
+    "result": "browser"
+   },
+   "MODULE_ACTION_ITEMS_SERVER='Browser' BARVIS_ACTION_ITEMS_SERVER='Convo'": {
+    "result": "browser"
+   },
+   "MODULE_ACTION_ITEMS_SERVER='Browser' BARVIS_ACTION_ITEMS_SERVER='off'": {
+    "result": "browser"
+   },
+   "MODULE_ACTION_ITEMS_SERVER='Browser' BARVIS_ACTION_ITEMS_SERVER=<unset>": {
+    "result": "browser"
+   },
+   "MODULE_ACTION_ITEMS_SERVER='Convo' BARVIS_ACTION_ITEMS_SERVER=' '": {
+    "result": "convo"
+   },
+   "MODULE_ACTION_ITEMS_SERVER='Convo' BARVIS_ACTION_ITEMS_SERVER=''": {
+    "result": "convo"
+   },
+   "MODULE_ACTION_ITEMS_SERVER='Convo' BARVIS_ACTION_ITEMS_SERVER='3'": {
+    "result": "convo"
+   },
+   "MODULE_ACTION_ITEMS_SERVER='Convo' BARVIS_ACTION_ITEMS_SERVER='Browser'": {
+    "result": "convo"
+   },
+   "MODULE_ACTION_ITEMS_SERVER='Convo' BARVIS_ACTION_ITEMS_SERVER='Convo'": {
+    "result": "convo"
+   },
+   "MODULE_ACTION_ITEMS_SERVER='Convo' BARVIS_ACTION_ITEMS_SERVER='off'": {
+    "result": "convo"
+   },
+   "MODULE_ACTION_ITEMS_SERVER='Convo' BARVIS_ACTION_ITEMS_SERVER=<unset>": {
+    "result": "convo"
+   },
+   "MODULE_ACTION_ITEMS_SERVER='off' BARVIS_ACTION_ITEMS_SERVER=' '": {
+    "result": "off"
+   },
+   "MODULE_ACTION_ITEMS_SERVER='off' BARVIS_ACTION_ITEMS_SERVER=''": {
+    "result": "off"
+   },
+   "MODULE_ACTION_ITEMS_SERVER='off' BARVIS_ACTION_ITEMS_SERVER='3'": {
+    "result": "off"
+   },
+   "MODULE_ACTION_ITEMS_SERVER='off' BARVIS_ACTION_ITEMS_SERVER='Browser'": {
+    "result": "off"
+   },
+   "MODULE_ACTION_ITEMS_SERVER='off' BARVIS_ACTION_ITEMS_SERVER='Convo'": {
+    "result": "off"
+   },
+   "MODULE_ACTION_ITEMS_SERVER='off' BARVIS_ACTION_ITEMS_SERVER='off'": {
+    "result": "off"
+   },
+   "MODULE_ACTION_ITEMS_SERVER='off' BARVIS_ACTION_ITEMS_SERVER=<unset>": {
+    "result": "off"
+   },
+   "MODULE_ACTION_ITEMS_SERVER=<unset> BARVIS_ACTION_ITEMS_SERVER=' '": {
+    "result": ""
+   },
+   "MODULE_ACTION_ITEMS_SERVER=<unset> BARVIS_ACTION_ITEMS_SERVER=''": {
+    "result": "convo"
+   },
+   "MODULE_ACTION_ITEMS_SERVER=<unset> BARVIS_ACTION_ITEMS_SERVER='3'": {
+    "result": "3"
+   },
+   "MODULE_ACTION_ITEMS_SERVER=<unset> BARVIS_ACTION_ITEMS_SERVER='Browser'": {
+    "result": "browser"
+   },
+   "MODULE_ACTION_ITEMS_SERVER=<unset> BARVIS_ACTION_ITEMS_SERVER='Convo'": {
+    "result": "convo"
+   },
+   "MODULE_ACTION_ITEMS_SERVER=<unset> BARVIS_ACTION_ITEMS_SERVER='off'": {
+    "result": "off"
+   },
+   "MODULE_ACTION_ITEMS_SERVER=<unset> BARVIS_ACTION_ITEMS_SERVER=<unset>": {
+    "result": "convo"
+   }
+  },
+  "MODULE_DIGEST_HOUR+BARVIS_DIGEST_HOUR action_items.digest_hour": {
+   "MODULE_DIGEST_HOUR=' ' BARVIS_DIGEST_HOUR=' '": {
+    "result": null
+   },
+   "MODULE_DIGEST_HOUR=' ' BARVIS_DIGEST_HOUR=''": {
+    "result": null
+   },
+   "MODULE_DIGEST_HOUR=' ' BARVIS_DIGEST_HOUR='3'": {
+    "result": null
+   },
+   "MODULE_DIGEST_HOUR=' ' BARVIS_DIGEST_HOUR='Browser'": {
+    "result": null
+   },
+   "MODULE_DIGEST_HOUR=' ' BARVIS_DIGEST_HOUR='Convo'": {
+    "result": null
+   },
+   "MODULE_DIGEST_HOUR=' ' BARVIS_DIGEST_HOUR='off'": {
+    "result": null
+   },
+   "MODULE_DIGEST_HOUR=' ' BARVIS_DIGEST_HOUR=<unset>": {
+    "result": null
+   },
+   "MODULE_DIGEST_HOUR='' BARVIS_DIGEST_HOUR=' '": {
+    "result": null
+   },
+   "MODULE_DIGEST_HOUR='' BARVIS_DIGEST_HOUR=''": {
+    "result": 8
+   },
+   "MODULE_DIGEST_HOUR='' BARVIS_DIGEST_HOUR='3'": {
+    "result": 3
+   },
+   "MODULE_DIGEST_HOUR='' BARVIS_DIGEST_HOUR='Browser'": {
+    "result": 8
+   },
+   "MODULE_DIGEST_HOUR='' BARVIS_DIGEST_HOUR='Convo'": {
+    "result": 8
+   },
+   "MODULE_DIGEST_HOUR='' BARVIS_DIGEST_HOUR='off'": {
+    "result": null
+   },
+   "MODULE_DIGEST_HOUR='' BARVIS_DIGEST_HOUR=<unset>": {
+    "result": 8
+   },
+   "MODULE_DIGEST_HOUR='3' BARVIS_DIGEST_HOUR=' '": {
+    "result": 3
+   },
+   "MODULE_DIGEST_HOUR='3' BARVIS_DIGEST_HOUR=''": {
+    "result": 3
+   },
+   "MODULE_DIGEST_HOUR='3' BARVIS_DIGEST_HOUR='3'": {
+    "result": 3
+   },
+   "MODULE_DIGEST_HOUR='3' BARVIS_DIGEST_HOUR='Browser'": {
+    "result": 3
+   },
+   "MODULE_DIGEST_HOUR='3' BARVIS_DIGEST_HOUR='Convo'": {
+    "result": 3
+   },
+   "MODULE_DIGEST_HOUR='3' BARVIS_DIGEST_HOUR='off'": {
+    "result": 3
+   },
+   "MODULE_DIGEST_HOUR='3' BARVIS_DIGEST_HOUR=<unset>": {
+    "result": 3
+   },
+   "MODULE_DIGEST_HOUR='Browser' BARVIS_DIGEST_HOUR=' '": {
+    "result": 8
+   },
+   "MODULE_DIGEST_HOUR='Browser' BARVIS_DIGEST_HOUR=''": {
+    "result": 8
+   },
+   "MODULE_DIGEST_HOUR='Browser' BARVIS_DIGEST_HOUR='3'": {
+    "result": 8
+   },
+   "MODULE_DIGEST_HOUR='Browser' BARVIS_DIGEST_HOUR='Browser'": {
+    "result": 8
+   },
+   "MODULE_DIGEST_HOUR='Browser' BARVIS_DIGEST_HOUR='Convo'": {
+    "result": 8
+   },
+   "MODULE_DIGEST_HOUR='Browser' BARVIS_DIGEST_HOUR='off'": {
+    "result": 8
+   },
+   "MODULE_DIGEST_HOUR='Browser' BARVIS_DIGEST_HOUR=<unset>": {
+    "result": 8
+   },
+   "MODULE_DIGEST_HOUR='Convo' BARVIS_DIGEST_HOUR=' '": {
+    "result": 8
+   },
+   "MODULE_DIGEST_HOUR='Convo' BARVIS_DIGEST_HOUR=''": {
+    "result": 8
+   },
+   "MODULE_DIGEST_HOUR='Convo' BARVIS_DIGEST_HOUR='3'": {
+    "result": 8
+   },
+   "MODULE_DIGEST_HOUR='Convo' BARVIS_DIGEST_HOUR='Browser'": {
+    "result": 8
+   },
+   "MODULE_DIGEST_HOUR='Convo' BARVIS_DIGEST_HOUR='Convo'": {
+    "result": 8
+   },
+   "MODULE_DIGEST_HOUR='Convo' BARVIS_DIGEST_HOUR='off'": {
+    "result": 8
+   },
+   "MODULE_DIGEST_HOUR='Convo' BARVIS_DIGEST_HOUR=<unset>": {
+    "result": 8
+   },
+   "MODULE_DIGEST_HOUR='off' BARVIS_DIGEST_HOUR=' '": {
+    "result": null
+   },
+   "MODULE_DIGEST_HOUR='off' BARVIS_DIGEST_HOUR=''": {
+    "result": null
+   },
+   "MODULE_DIGEST_HOUR='off' BARVIS_DIGEST_HOUR='3'": {
+    "result": null
+   },
+   "MODULE_DIGEST_HOUR='off' BARVIS_DIGEST_HOUR='Browser'": {
+    "result": null
+   },
+   "MODULE_DIGEST_HOUR='off' BARVIS_DIGEST_HOUR='Convo'": {
+    "result": null
+   },
+   "MODULE_DIGEST_HOUR='off' BARVIS_DIGEST_HOUR='off'": {
+    "result": null
+   },
+   "MODULE_DIGEST_HOUR='off' BARVIS_DIGEST_HOUR=<unset>": {
+    "result": null
+   },
+   "MODULE_DIGEST_HOUR=<unset> BARVIS_DIGEST_HOUR=' '": {
+    "result": null
+   },
+   "MODULE_DIGEST_HOUR=<unset> BARVIS_DIGEST_HOUR=''": {
+    "result": 8
+   },
+   "MODULE_DIGEST_HOUR=<unset> BARVIS_DIGEST_HOUR='3'": {
+    "result": 3
+   },
+   "MODULE_DIGEST_HOUR=<unset> BARVIS_DIGEST_HOUR='Browser'": {
+    "result": 8
+   },
+   "MODULE_DIGEST_HOUR=<unset> BARVIS_DIGEST_HOUR='Convo'": {
+    "result": 8
+   },
+   "MODULE_DIGEST_HOUR=<unset> BARVIS_DIGEST_HOUR='off'": {
+    "result": null
+   },
+   "MODULE_DIGEST_HOUR=<unset> BARVIS_DIGEST_HOUR=<unset>": {
+    "result": 8
+   }
+  },
+  "MODULE_FACTS_SYNC+BARVIS_FACTS_SYNC facts.enabled": {
+   "MODULE_FACTS_SYNC=' ' BARVIS_FACTS_SYNC=' '": {
+    "result": true
+   },
+   "MODULE_FACTS_SYNC=' ' BARVIS_FACTS_SYNC=''": {
+    "result": true
+   },
+   "MODULE_FACTS_SYNC=' ' BARVIS_FACTS_SYNC='3'": {
+    "result": true
+   },
+   "MODULE_FACTS_SYNC=' ' BARVIS_FACTS_SYNC='Browser'": {
+    "result": true
+   },
+   "MODULE_FACTS_SYNC=' ' BARVIS_FACTS_SYNC='Convo'": {
+    "result": true
+   },
+   "MODULE_FACTS_SYNC=' ' BARVIS_FACTS_SYNC='off'": {
+    "result": true
+   },
+   "MODULE_FACTS_SYNC=' ' BARVIS_FACTS_SYNC=<unset>": {
+    "result": true
+   },
+   "MODULE_FACTS_SYNC='' BARVIS_FACTS_SYNC=' '": {
+    "result": true
+   },
+   "MODULE_FACTS_SYNC='' BARVIS_FACTS_SYNC=''": {
+    "result": true
+   },
+   "MODULE_FACTS_SYNC='' BARVIS_FACTS_SYNC='3'": {
+    "result": true
+   },
+   "MODULE_FACTS_SYNC='' BARVIS_FACTS_SYNC='Browser'": {
+    "result": true
+   },
+   "MODULE_FACTS_SYNC='' BARVIS_FACTS_SYNC='Convo'": {
+    "result": true
+   },
+   "MODULE_FACTS_SYNC='' BARVIS_FACTS_SYNC='off'": {
+    "result": false
+   },
+   "MODULE_FACTS_SYNC='' BARVIS_FACTS_SYNC=<unset>": {
+    "result": true
+   },
+   "MODULE_FACTS_SYNC='3' BARVIS_FACTS_SYNC=' '": {
+    "result": true
+   },
+   "MODULE_FACTS_SYNC='3' BARVIS_FACTS_SYNC=''": {
+    "result": true
+   },
+   "MODULE_FACTS_SYNC='3' BARVIS_FACTS_SYNC='3'": {
+    "result": true
+   },
+   "MODULE_FACTS_SYNC='3' BARVIS_FACTS_SYNC='Browser'": {
+    "result": true
+   },
+   "MODULE_FACTS_SYNC='3' BARVIS_FACTS_SYNC='Convo'": {
+    "result": true
+   },
+   "MODULE_FACTS_SYNC='3' BARVIS_FACTS_SYNC='off'": {
+    "result": true
+   },
+   "MODULE_FACTS_SYNC='3' BARVIS_FACTS_SYNC=<unset>": {
+    "result": true
+   },
+   "MODULE_FACTS_SYNC='Browser' BARVIS_FACTS_SYNC=' '": {
+    "result": true
+   },
+   "MODULE_FACTS_SYNC='Browser' BARVIS_FACTS_SYNC=''": {
+    "result": true
+   },
+   "MODULE_FACTS_SYNC='Browser' BARVIS_FACTS_SYNC='3'": {
+    "result": true
+   },
+   "MODULE_FACTS_SYNC='Browser' BARVIS_FACTS_SYNC='Browser'": {
+    "result": true
+   },
+   "MODULE_FACTS_SYNC='Browser' BARVIS_FACTS_SYNC='Convo'": {
+    "result": true
+   },
+   "MODULE_FACTS_SYNC='Browser' BARVIS_FACTS_SYNC='off'": {
+    "result": true
+   },
+   "MODULE_FACTS_SYNC='Browser' BARVIS_FACTS_SYNC=<unset>": {
+    "result": true
+   },
+   "MODULE_FACTS_SYNC='Convo' BARVIS_FACTS_SYNC=' '": {
+    "result": true
+   },
+   "MODULE_FACTS_SYNC='Convo' BARVIS_FACTS_SYNC=''": {
+    "result": true
+   },
+   "MODULE_FACTS_SYNC='Convo' BARVIS_FACTS_SYNC='3'": {
+    "result": true
+   },
+   "MODULE_FACTS_SYNC='Convo' BARVIS_FACTS_SYNC='Browser'": {
+    "result": true
+   },
+   "MODULE_FACTS_SYNC='Convo' BARVIS_FACTS_SYNC='Convo'": {
+    "result": true
+   },
+   "MODULE_FACTS_SYNC='Convo' BARVIS_FACTS_SYNC='off'": {
+    "result": true
+   },
+   "MODULE_FACTS_SYNC='Convo' BARVIS_FACTS_SYNC=<unset>": {
+    "result": true
+   },
+   "MODULE_FACTS_SYNC='off' BARVIS_FACTS_SYNC=' '": {
+    "result": false
+   },
+   "MODULE_FACTS_SYNC='off' BARVIS_FACTS_SYNC=''": {
+    "result": false
+   },
+   "MODULE_FACTS_SYNC='off' BARVIS_FACTS_SYNC='3'": {
+    "result": false
+   },
+   "MODULE_FACTS_SYNC='off' BARVIS_FACTS_SYNC='Browser'": {
+    "result": false
+   },
+   "MODULE_FACTS_SYNC='off' BARVIS_FACTS_SYNC='Convo'": {
+    "result": false
+   },
+   "MODULE_FACTS_SYNC='off' BARVIS_FACTS_SYNC='off'": {
+    "result": false
+   },
+   "MODULE_FACTS_SYNC='off' BARVIS_FACTS_SYNC=<unset>": {
+    "result": false
+   },
+   "MODULE_FACTS_SYNC=<unset> BARVIS_FACTS_SYNC=' '": {
+    "result": true
+   },
+   "MODULE_FACTS_SYNC=<unset> BARVIS_FACTS_SYNC=''": {
+    "result": true
+   },
+   "MODULE_FACTS_SYNC=<unset> BARVIS_FACTS_SYNC='3'": {
+    "result": true
+   },
+   "MODULE_FACTS_SYNC=<unset> BARVIS_FACTS_SYNC='Browser'": {
+    "result": true
+   },
+   "MODULE_FACTS_SYNC=<unset> BARVIS_FACTS_SYNC='Convo'": {
+    "result": true
+   },
+   "MODULE_FACTS_SYNC=<unset> BARVIS_FACTS_SYNC='off'": {
+    "result": false
+   },
+   "MODULE_FACTS_SYNC=<unset> BARVIS_FACTS_SYNC=<unset>": {
+    "result": true
+   }
+  },
+  "MODULE_FILE_ITEMS+BARVIS_FILE_ITEMS action_items.file_mode": {
+   "MODULE_FILE_ITEMS=' ' BARVIS_FILE_ITEMS=' '": {
+    "result": "explicit"
+   },
+   "MODULE_FILE_ITEMS=' ' BARVIS_FILE_ITEMS=''": {
+    "result": "explicit"
+   },
+   "MODULE_FILE_ITEMS=' ' BARVIS_FILE_ITEMS='3'": {
+    "result": "explicit"
+   },
+   "MODULE_FILE_ITEMS=' ' BARVIS_FILE_ITEMS='Browser'": {
+    "result": "explicit"
+   },
+   "MODULE_FILE_ITEMS=' ' BARVIS_FILE_ITEMS='Convo'": {
+    "result": "explicit"
+   },
+   "MODULE_FILE_ITEMS=' ' BARVIS_FILE_ITEMS='off'": {
+    "result": "explicit"
+   },
+   "MODULE_FILE_ITEMS=' ' BARVIS_FILE_ITEMS=<unset>": {
+    "result": "explicit"
+   },
+   "MODULE_FILE_ITEMS='' BARVIS_FILE_ITEMS=' '": {
+    "result": "explicit"
+   },
+   "MODULE_FILE_ITEMS='' BARVIS_FILE_ITEMS=''": {
+    "result": "explicit"
+   },
+   "MODULE_FILE_ITEMS='' BARVIS_FILE_ITEMS='3'": {
+    "result": "explicit"
+   },
+   "MODULE_FILE_ITEMS='' BARVIS_FILE_ITEMS='Browser'": {
+    "result": "explicit"
+   },
+   "MODULE_FILE_ITEMS='' BARVIS_FILE_ITEMS='Convo'": {
+    "result": "explicit"
+   },
+   "MODULE_FILE_ITEMS='' BARVIS_FILE_ITEMS='off'": {
+    "result": "off"
+   },
+   "MODULE_FILE_ITEMS='' BARVIS_FILE_ITEMS=<unset>": {
+    "result": "explicit"
+   },
+   "MODULE_FILE_ITEMS='3' BARVIS_FILE_ITEMS=' '": {
+    "result": "explicit"
+   },
+   "MODULE_FILE_ITEMS='3' BARVIS_FILE_ITEMS=''": {
+    "result": "explicit"
+   },
+   "MODULE_FILE_ITEMS='3' BARVIS_FILE_ITEMS='3'": {
+    "result": "explicit"
+   },
+   "MODULE_FILE_ITEMS='3' BARVIS_FILE_ITEMS='Browser'": {
+    "result": "explicit"
+   },
+   "MODULE_FILE_ITEMS='3' BARVIS_FILE_ITEMS='Convo'": {
+    "result": "explicit"
+   },
+   "MODULE_FILE_ITEMS='3' BARVIS_FILE_ITEMS='off'": {
+    "result": "explicit"
+   },
+   "MODULE_FILE_ITEMS='3' BARVIS_FILE_ITEMS=<unset>": {
+    "result": "explicit"
+   },
+   "MODULE_FILE_ITEMS='Browser' BARVIS_FILE_ITEMS=' '": {
+    "result": "explicit"
+   },
+   "MODULE_FILE_ITEMS='Browser' BARVIS_FILE_ITEMS=''": {
+    "result": "explicit"
+   },
+   "MODULE_FILE_ITEMS='Browser' BARVIS_FILE_ITEMS='3'": {
+    "result": "explicit"
+   },
+   "MODULE_FILE_ITEMS='Browser' BARVIS_FILE_ITEMS='Browser'": {
+    "result": "explicit"
+   },
+   "MODULE_FILE_ITEMS='Browser' BARVIS_FILE_ITEMS='Convo'": {
+    "result": "explicit"
+   },
+   "MODULE_FILE_ITEMS='Browser' BARVIS_FILE_ITEMS='off'": {
+    "result": "explicit"
+   },
+   "MODULE_FILE_ITEMS='Browser' BARVIS_FILE_ITEMS=<unset>": {
+    "result": "explicit"
+   },
+   "MODULE_FILE_ITEMS='Convo' BARVIS_FILE_ITEMS=' '": {
+    "result": "explicit"
+   },
+   "MODULE_FILE_ITEMS='Convo' BARVIS_FILE_ITEMS=''": {
+    "result": "explicit"
+   },
+   "MODULE_FILE_ITEMS='Convo' BARVIS_FILE_ITEMS='3'": {
+    "result": "explicit"
+   },
+   "MODULE_FILE_ITEMS='Convo' BARVIS_FILE_ITEMS='Browser'": {
+    "result": "explicit"
+   },
+   "MODULE_FILE_ITEMS='Convo' BARVIS_FILE_ITEMS='Convo'": {
+    "result": "explicit"
+   },
+   "MODULE_FILE_ITEMS='Convo' BARVIS_FILE_ITEMS='off'": {
+    "result": "explicit"
+   },
+   "MODULE_FILE_ITEMS='Convo' BARVIS_FILE_ITEMS=<unset>": {
+    "result": "explicit"
+   },
+   "MODULE_FILE_ITEMS='off' BARVIS_FILE_ITEMS=' '": {
+    "result": "off"
+   },
+   "MODULE_FILE_ITEMS='off' BARVIS_FILE_ITEMS=''": {
+    "result": "off"
+   },
+   "MODULE_FILE_ITEMS='off' BARVIS_FILE_ITEMS='3'": {
+    "result": "off"
+   },
+   "MODULE_FILE_ITEMS='off' BARVIS_FILE_ITEMS='Browser'": {
+    "result": "off"
+   },
+   "MODULE_FILE_ITEMS='off' BARVIS_FILE_ITEMS='Convo'": {
+    "result": "off"
+   },
+   "MODULE_FILE_ITEMS='off' BARVIS_FILE_ITEMS='off'": {
+    "result": "off"
+   },
+   "MODULE_FILE_ITEMS='off' BARVIS_FILE_ITEMS=<unset>": {
+    "result": "off"
+   },
+   "MODULE_FILE_ITEMS=<unset> BARVIS_FILE_ITEMS=' '": {
+    "result": "explicit"
+   },
+   "MODULE_FILE_ITEMS=<unset> BARVIS_FILE_ITEMS=''": {
+    "result": "explicit"
+   },
+   "MODULE_FILE_ITEMS=<unset> BARVIS_FILE_ITEMS='3'": {
+    "result": "explicit"
+   },
+   "MODULE_FILE_ITEMS=<unset> BARVIS_FILE_ITEMS='Browser'": {
+    "result": "explicit"
+   },
+   "MODULE_FILE_ITEMS=<unset> BARVIS_FILE_ITEMS='Convo'": {
+    "result": "explicit"
+   },
+   "MODULE_FILE_ITEMS=<unset> BARVIS_FILE_ITEMS='off'": {
+    "result": "off"
+   },
+   "MODULE_FILE_ITEMS=<unset> BARVIS_FILE_ITEMS=<unset>": {
+    "result": "explicit"
+   }
+  },
+  "MODULE_NOTIFY_CHANNEL+BARVIS_NOTIFY_CHANNEL action_items.notify_channel": {
+   "MODULE_NOTIFY_CHANNEL=' ' BARVIS_NOTIFY_CHANNEL=' '": {
+    "result": "ntfy"
+   },
+   "MODULE_NOTIFY_CHANNEL=' ' BARVIS_NOTIFY_CHANNEL=''": {
+    "result": "ntfy"
+   },
+   "MODULE_NOTIFY_CHANNEL=' ' BARVIS_NOTIFY_CHANNEL='3'": {
+    "result": "ntfy"
+   },
+   "MODULE_NOTIFY_CHANNEL=' ' BARVIS_NOTIFY_CHANNEL='Browser'": {
+    "result": "ntfy"
+   },
+   "MODULE_NOTIFY_CHANNEL=' ' BARVIS_NOTIFY_CHANNEL='Convo'": {
+    "result": "ntfy"
+   },
+   "MODULE_NOTIFY_CHANNEL=' ' BARVIS_NOTIFY_CHANNEL='off'": {
+    "result": "ntfy"
+   },
+   "MODULE_NOTIFY_CHANNEL=' ' BARVIS_NOTIFY_CHANNEL=<unset>": {
+    "result": "ntfy"
+   },
+   "MODULE_NOTIFY_CHANNEL='' BARVIS_NOTIFY_CHANNEL=' '": {
+    "result": "ntfy"
+   },
+   "MODULE_NOTIFY_CHANNEL='' BARVIS_NOTIFY_CHANNEL=''": {
+    "result": "ntfy"
+   },
+   "MODULE_NOTIFY_CHANNEL='' BARVIS_NOTIFY_CHANNEL='3'": {
+    "result": "ntfy"
+   },
+   "MODULE_NOTIFY_CHANNEL='' BARVIS_NOTIFY_CHANNEL='Browser'": {
+    "result": "browser"
+   },
+   "MODULE_NOTIFY_CHANNEL='' BARVIS_NOTIFY_CHANNEL='Convo'": {
+    "result": "ntfy"
+   },
+   "MODULE_NOTIFY_CHANNEL='' BARVIS_NOTIFY_CHANNEL='off'": {
+    "result": "off"
+   },
+   "MODULE_NOTIFY_CHANNEL='' BARVIS_NOTIFY_CHANNEL=<unset>": {
+    "result": "ntfy"
+   },
+   "MODULE_NOTIFY_CHANNEL='3' BARVIS_NOTIFY_CHANNEL=' '": {
+    "result": "ntfy"
+   },
+   "MODULE_NOTIFY_CHANNEL='3' BARVIS_NOTIFY_CHANNEL=''": {
+    "result": "ntfy"
+   },
+   "MODULE_NOTIFY_CHANNEL='3' BARVIS_NOTIFY_CHANNEL='3'": {
+    "result": "ntfy"
+   },
+   "MODULE_NOTIFY_CHANNEL='3' BARVIS_NOTIFY_CHANNEL='Browser'": {
+    "result": "ntfy"
+   },
+   "MODULE_NOTIFY_CHANNEL='3' BARVIS_NOTIFY_CHANNEL='Convo'": {
+    "result": "ntfy"
+   },
+   "MODULE_NOTIFY_CHANNEL='3' BARVIS_NOTIFY_CHANNEL='off'": {
+    "result": "ntfy"
+   },
+   "MODULE_NOTIFY_CHANNEL='3' BARVIS_NOTIFY_CHANNEL=<unset>": {
+    "result": "ntfy"
+   },
+   "MODULE_NOTIFY_CHANNEL='Browser' BARVIS_NOTIFY_CHANNEL=' '": {
+    "result": "browser"
+   },
+   "MODULE_NOTIFY_CHANNEL='Browser' BARVIS_NOTIFY_CHANNEL=''": {
+    "result": "browser"
+   },
+   "MODULE_NOTIFY_CHANNEL='Browser' BARVIS_NOTIFY_CHANNEL='3'": {
+    "result": "browser"
+   },
+   "MODULE_NOTIFY_CHANNEL='Browser' BARVIS_NOTIFY_CHANNEL='Browser'": {
+    "result": "browser"
+   },
+   "MODULE_NOTIFY_CHANNEL='Browser' BARVIS_NOTIFY_CHANNEL='Convo'": {
+    "result": "browser"
+   },
+   "MODULE_NOTIFY_CHANNEL='Browser' BARVIS_NOTIFY_CHANNEL='off'": {
+    "result": "browser"
+   },
+   "MODULE_NOTIFY_CHANNEL='Browser' BARVIS_NOTIFY_CHANNEL=<unset>": {
+    "result": "browser"
+   },
+   "MODULE_NOTIFY_CHANNEL='Convo' BARVIS_NOTIFY_CHANNEL=' '": {
+    "result": "ntfy"
+   },
+   "MODULE_NOTIFY_CHANNEL='Convo' BARVIS_NOTIFY_CHANNEL=''": {
+    "result": "ntfy"
+   },
+   "MODULE_NOTIFY_CHANNEL='Convo' BARVIS_NOTIFY_CHANNEL='3'": {
+    "result": "ntfy"
+   },
+   "MODULE_NOTIFY_CHANNEL='Convo' BARVIS_NOTIFY_CHANNEL='Browser'": {
+    "result": "ntfy"
+   },
+   "MODULE_NOTIFY_CHANNEL='Convo' BARVIS_NOTIFY_CHANNEL='Convo'": {
+    "result": "ntfy"
+   },
+   "MODULE_NOTIFY_CHANNEL='Convo' BARVIS_NOTIFY_CHANNEL='off'": {
+    "result": "ntfy"
+   },
+   "MODULE_NOTIFY_CHANNEL='Convo' BARVIS_NOTIFY_CHANNEL=<unset>": {
+    "result": "ntfy"
+   },
+   "MODULE_NOTIFY_CHANNEL='off' BARVIS_NOTIFY_CHANNEL=' '": {
+    "result": "off"
+   },
+   "MODULE_NOTIFY_CHANNEL='off' BARVIS_NOTIFY_CHANNEL=''": {
+    "result": "off"
+   },
+   "MODULE_NOTIFY_CHANNEL='off' BARVIS_NOTIFY_CHANNEL='3'": {
+    "result": "off"
+   },
+   "MODULE_NOTIFY_CHANNEL='off' BARVIS_NOTIFY_CHANNEL='Browser'": {
+    "result": "off"
+   },
+   "MODULE_NOTIFY_CHANNEL='off' BARVIS_NOTIFY_CHANNEL='Convo'": {
+    "result": "off"
+   },
+   "MODULE_NOTIFY_CHANNEL='off' BARVIS_NOTIFY_CHANNEL='off'": {
+    "result": "off"
+   },
+   "MODULE_NOTIFY_CHANNEL='off' BARVIS_NOTIFY_CHANNEL=<unset>": {
+    "result": "off"
+   },
+   "MODULE_NOTIFY_CHANNEL=<unset> BARVIS_NOTIFY_CHANNEL=' '": {
+    "result": "ntfy"
+   },
+   "MODULE_NOTIFY_CHANNEL=<unset> BARVIS_NOTIFY_CHANNEL=''": {
+    "result": "ntfy"
+   },
+   "MODULE_NOTIFY_CHANNEL=<unset> BARVIS_NOTIFY_CHANNEL='3'": {
+    "result": "ntfy"
+   },
+   "MODULE_NOTIFY_CHANNEL=<unset> BARVIS_NOTIFY_CHANNEL='Browser'": {
+    "result": "browser"
+   },
+   "MODULE_NOTIFY_CHANNEL=<unset> BARVIS_NOTIFY_CHANNEL='Convo'": {
+    "result": "ntfy"
+   },
+   "MODULE_NOTIFY_CHANNEL=<unset> BARVIS_NOTIFY_CHANNEL='off'": {
+    "result": "off"
+   },
+   "MODULE_NOTIFY_CHANNEL=<unset> BARVIS_NOTIFY_CHANNEL=<unset>": {
+    "result": "ntfy"
+   }
+  },
+  "SOUND_MODULE_SERVER+BARVIS_SOUND_SERVER athena_routes._caller": {
+   "SOUND_MODULE_SERVER=' ' BARVIS_SOUND_SERVER=' '": {
+    "result": "The Athena MCP server ('') is not connected."
+   },
+   "SOUND_MODULE_SERVER=' ' BARVIS_SOUND_SERVER=''": {
+    "result": "The Athena MCP server ('') is not connected."
+   },
+   "SOUND_MODULE_SERVER=' ' BARVIS_SOUND_SERVER='3'": {
+    "result": "The Athena MCP server ('') is not connected."
+   },
+   "SOUND_MODULE_SERVER=' ' BARVIS_SOUND_SERVER='Browser'": {
+    "result": "The Athena MCP server ('') is not connected."
+   },
+   "SOUND_MODULE_SERVER=' ' BARVIS_SOUND_SERVER='Convo'": {
+    "result": "The Athena MCP server ('') is not connected."
+   },
+   "SOUND_MODULE_SERVER=' ' BARVIS_SOUND_SERVER='off'": {
+    "result": "The Athena MCP server ('') is not connected."
+   },
+   "SOUND_MODULE_SERVER=' ' BARVIS_SOUND_SERVER=<unset>": {
+    "result": "The Athena MCP server ('') is not connected."
+   },
+   "SOUND_MODULE_SERVER='' BARVIS_SOUND_SERVER=' '": {
+    "result": "The Athena MCP server ('') is not connected."
+   },
+   "SOUND_MODULE_SERVER='' BARVIS_SOUND_SERVER=''": {
+    "result": "The Athena MCP server ('convo') is not connected."
+   },
+   "SOUND_MODULE_SERVER='' BARVIS_SOUND_SERVER='3'": {
+    "result": "The Athena MCP server ('3') is not connected."
+   },
+   "SOUND_MODULE_SERVER='' BARVIS_SOUND_SERVER='Browser'": {
+    "result": "The Athena MCP server ('Browser') is not connected."
+   },
+   "SOUND_MODULE_SERVER='' BARVIS_SOUND_SERVER='Convo'": {
+    "result": "The Athena MCP server ('Convo') is not connected."
+   },
+   "SOUND_MODULE_SERVER='' BARVIS_SOUND_SERVER='off'": {
+    "result": "The Athena MCP server ('off') is not connected."
+   },
+   "SOUND_MODULE_SERVER='' BARVIS_SOUND_SERVER=<unset>": {
+    "result": "The Athena MCP server ('convo') is not connected."
+   },
+   "SOUND_MODULE_SERVER='3' BARVIS_SOUND_SERVER=' '": {
+    "result": "The Athena MCP server ('3') is not connected."
+   },
+   "SOUND_MODULE_SERVER='3' BARVIS_SOUND_SERVER=''": {
+    "result": "The Athena MCP server ('3') is not connected."
+   },
+   "SOUND_MODULE_SERVER='3' BARVIS_SOUND_SERVER='3'": {
+    "result": "The Athena MCP server ('3') is not connected."
+   },
+   "SOUND_MODULE_SERVER='3' BARVIS_SOUND_SERVER='Browser'": {
+    "result": "The Athena MCP server ('3') is not connected."
+   },
+   "SOUND_MODULE_SERVER='3' BARVIS_SOUND_SERVER='Convo'": {
+    "result": "The Athena MCP server ('3') is not connected."
+   },
+   "SOUND_MODULE_SERVER='3' BARVIS_SOUND_SERVER='off'": {
+    "result": "The Athena MCP server ('3') is not connected."
+   },
+   "SOUND_MODULE_SERVER='3' BARVIS_SOUND_SERVER=<unset>": {
+    "result": "The Athena MCP server ('3') is not connected."
+   },
+   "SOUND_MODULE_SERVER='Browser' BARVIS_SOUND_SERVER=' '": {
+    "result": "The Athena MCP server ('Browser') is not connected."
+   },
+   "SOUND_MODULE_SERVER='Browser' BARVIS_SOUND_SERVER=''": {
+    "result": "The Athena MCP server ('Browser') is not connected."
+   },
+   "SOUND_MODULE_SERVER='Browser' BARVIS_SOUND_SERVER='3'": {
+    "result": "The Athena MCP server ('Browser') is not connected."
+   },
+   "SOUND_MODULE_SERVER='Browser' BARVIS_SOUND_SERVER='Browser'": {
+    "result": "The Athena MCP server ('Browser') is not connected."
+   },
+   "SOUND_MODULE_SERVER='Browser' BARVIS_SOUND_SERVER='Convo'": {
+    "result": "The Athena MCP server ('Browser') is not connected."
+   },
+   "SOUND_MODULE_SERVER='Browser' BARVIS_SOUND_SERVER='off'": {
+    "result": "The Athena MCP server ('Browser') is not connected."
+   },
+   "SOUND_MODULE_SERVER='Browser' BARVIS_SOUND_SERVER=<unset>": {
+    "result": "The Athena MCP server ('Browser') is not connected."
+   },
+   "SOUND_MODULE_SERVER='Convo' BARVIS_SOUND_SERVER=' '": {
+    "result": "The Athena MCP server ('Convo') is not connected."
+   },
+   "SOUND_MODULE_SERVER='Convo' BARVIS_SOUND_SERVER=''": {
+    "result": "The Athena MCP server ('Convo') is not connected."
+   },
+   "SOUND_MODULE_SERVER='Convo' BARVIS_SOUND_SERVER='3'": {
+    "result": "The Athena MCP server ('Convo') is not connected."
+   },
+   "SOUND_MODULE_SERVER='Convo' BARVIS_SOUND_SERVER='Browser'": {
+    "result": "The Athena MCP server ('Convo') is not connected."
+   },
+   "SOUND_MODULE_SERVER='Convo' BARVIS_SOUND_SERVER='Convo'": {
+    "result": "The Athena MCP server ('Convo') is not connected."
+   },
+   "SOUND_MODULE_SERVER='Convo' BARVIS_SOUND_SERVER='off'": {
+    "result": "The Athena MCP server ('Convo') is not connected."
+   },
+   "SOUND_MODULE_SERVER='Convo' BARVIS_SOUND_SERVER=<unset>": {
+    "result": "The Athena MCP server ('Convo') is not connected."
+   },
+   "SOUND_MODULE_SERVER='off' BARVIS_SOUND_SERVER=' '": {
+    "result": "The Athena MCP server ('off') is not connected."
+   },
+   "SOUND_MODULE_SERVER='off' BARVIS_SOUND_SERVER=''": {
+    "result": "The Athena MCP server ('off') is not connected."
+   },
+   "SOUND_MODULE_SERVER='off' BARVIS_SOUND_SERVER='3'": {
+    "result": "The Athena MCP server ('off') is not connected."
+   },
+   "SOUND_MODULE_SERVER='off' BARVIS_SOUND_SERVER='Browser'": {
+    "result": "The Athena MCP server ('off') is not connected."
+   },
+   "SOUND_MODULE_SERVER='off' BARVIS_SOUND_SERVER='Convo'": {
+    "result": "The Athena MCP server ('off') is not connected."
+   },
+   "SOUND_MODULE_SERVER='off' BARVIS_SOUND_SERVER='off'": {
+    "result": "The Athena MCP server ('off') is not connected."
+   },
+   "SOUND_MODULE_SERVER='off' BARVIS_SOUND_SERVER=<unset>": {
+    "result": "The Athena MCP server ('off') is not connected."
+   },
+   "SOUND_MODULE_SERVER=<unset> BARVIS_SOUND_SERVER=' '": {
+    "result": "The Athena MCP server ('') is not connected."
+   },
+   "SOUND_MODULE_SERVER=<unset> BARVIS_SOUND_SERVER=''": {
+    "result": "The Athena MCP server ('convo') is not connected."
+   },
+   "SOUND_MODULE_SERVER=<unset> BARVIS_SOUND_SERVER='3'": {
+    "result": "The Athena MCP server ('3') is not connected."
+   },
+   "SOUND_MODULE_SERVER=<unset> BARVIS_SOUND_SERVER='Browser'": {
+    "result": "The Athena MCP server ('Browser') is not connected."
+   },
+   "SOUND_MODULE_SERVER=<unset> BARVIS_SOUND_SERVER='Convo'": {
+    "result": "The Athena MCP server ('Convo') is not connected."
+   },
+   "SOUND_MODULE_SERVER=<unset> BARVIS_SOUND_SERVER='off'": {
+    "result": "The Athena MCP server ('off') is not connected."
+   },
+   "SOUND_MODULE_SERVER=<unset> BARVIS_SOUND_SERVER=<unset>": {
+    "result": "The Athena MCP server ('convo') is not connected."
+   }
+  },
+  "SOUND_MODULE_SERVER+BARVIS_SOUND_SERVER call_recorder.server_key": {
+   "SOUND_MODULE_SERVER=' ' BARVIS_SOUND_SERVER=' '": {
+    "result": ""
+   },
+   "SOUND_MODULE_SERVER=' ' BARVIS_SOUND_SERVER=''": {
+    "result": ""
+   },
+   "SOUND_MODULE_SERVER=' ' BARVIS_SOUND_SERVER='3'": {
+    "result": ""
+   },
+   "SOUND_MODULE_SERVER=' ' BARVIS_SOUND_SERVER='Browser'": {
+    "result": ""
+   },
+   "SOUND_MODULE_SERVER=' ' BARVIS_SOUND_SERVER='Convo'": {
+    "result": ""
+   },
+   "SOUND_MODULE_SERVER=' ' BARVIS_SOUND_SERVER='off'": {
+    "result": ""
+   },
+   "SOUND_MODULE_SERVER=' ' BARVIS_SOUND_SERVER=<unset>": {
+    "result": ""
+   },
+   "SOUND_MODULE_SERVER='' BARVIS_SOUND_SERVER=' '": {
+    "result": ""
+   },
+   "SOUND_MODULE_SERVER='' BARVIS_SOUND_SERVER=''": {
+    "result": "convo"
+   },
+   "SOUND_MODULE_SERVER='' BARVIS_SOUND_SERVER='3'": {
+    "result": "3"
+   },
+   "SOUND_MODULE_SERVER='' BARVIS_SOUND_SERVER='Browser'": {
+    "result": "Browser"
+   },
+   "SOUND_MODULE_SERVER='' BARVIS_SOUND_SERVER='Convo'": {
+    "result": "Convo"
+   },
+   "SOUND_MODULE_SERVER='' BARVIS_SOUND_SERVER='off'": {
+    "result": "off"
+   },
+   "SOUND_MODULE_SERVER='' BARVIS_SOUND_SERVER=<unset>": {
+    "result": "convo"
+   },
+   "SOUND_MODULE_SERVER='3' BARVIS_SOUND_SERVER=' '": {
+    "result": "3"
+   },
+   "SOUND_MODULE_SERVER='3' BARVIS_SOUND_SERVER=''": {
+    "result": "3"
+   },
+   "SOUND_MODULE_SERVER='3' BARVIS_SOUND_SERVER='3'": {
+    "result": "3"
+   },
+   "SOUND_MODULE_SERVER='3' BARVIS_SOUND_SERVER='Browser'": {
+    "result": "3"
+   },
+   "SOUND_MODULE_SERVER='3' BARVIS_SOUND_SERVER='Convo'": {
+    "result": "3"
+   },
+   "SOUND_MODULE_SERVER='3' BARVIS_SOUND_SERVER='off'": {
+    "result": "3"
+   },
+   "SOUND_MODULE_SERVER='3' BARVIS_SOUND_SERVER=<unset>": {
+    "result": "3"
+   },
+   "SOUND_MODULE_SERVER='Browser' BARVIS_SOUND_SERVER=' '": {
+    "result": "Browser"
+   },
+   "SOUND_MODULE_SERVER='Browser' BARVIS_SOUND_SERVER=''": {
+    "result": "Browser"
+   },
+   "SOUND_MODULE_SERVER='Browser' BARVIS_SOUND_SERVER='3'": {
+    "result": "Browser"
+   },
+   "SOUND_MODULE_SERVER='Browser' BARVIS_SOUND_SERVER='Browser'": {
+    "result": "Browser"
+   },
+   "SOUND_MODULE_SERVER='Browser' BARVIS_SOUND_SERVER='Convo'": {
+    "result": "Browser"
+   },
+   "SOUND_MODULE_SERVER='Browser' BARVIS_SOUND_SERVER='off'": {
+    "result": "Browser"
+   },
+   "SOUND_MODULE_SERVER='Browser' BARVIS_SOUND_SERVER=<unset>": {
+    "result": "Browser"
+   },
+   "SOUND_MODULE_SERVER='Convo' BARVIS_SOUND_SERVER=' '": {
+    "result": "Convo"
+   },
+   "SOUND_MODULE_SERVER='Convo' BARVIS_SOUND_SERVER=''": {
+    "result": "Convo"
+   },
+   "SOUND_MODULE_SERVER='Convo' BARVIS_SOUND_SERVER='3'": {
+    "result": "Convo"
+   },
+   "SOUND_MODULE_SERVER='Convo' BARVIS_SOUND_SERVER='Browser'": {
+    "result": "Convo"
+   },
+   "SOUND_MODULE_SERVER='Convo' BARVIS_SOUND_SERVER='Convo'": {
+    "result": "Convo"
+   },
+   "SOUND_MODULE_SERVER='Convo' BARVIS_SOUND_SERVER='off'": {
+    "result": "Convo"
+   },
+   "SOUND_MODULE_SERVER='Convo' BARVIS_SOUND_SERVER=<unset>": {
+    "result": "Convo"
+   },
+   "SOUND_MODULE_SERVER='off' BARVIS_SOUND_SERVER=' '": {
+    "result": "off"
+   },
+   "SOUND_MODULE_SERVER='off' BARVIS_SOUND_SERVER=''": {
+    "result": "off"
+   },
+   "SOUND_MODULE_SERVER='off' BARVIS_SOUND_SERVER='3'": {
+    "result": "off"
+   },
+   "SOUND_MODULE_SERVER='off' BARVIS_SOUND_SERVER='Browser'": {
+    "result": "off"
+   },
+   "SOUND_MODULE_SERVER='off' BARVIS_SOUND_SERVER='Convo'": {
+    "result": "off"
+   },
+   "SOUND_MODULE_SERVER='off' BARVIS_SOUND_SERVER='off'": {
+    "result": "off"
+   },
+   "SOUND_MODULE_SERVER='off' BARVIS_SOUND_SERVER=<unset>": {
+    "result": "off"
+   },
+   "SOUND_MODULE_SERVER=<unset> BARVIS_SOUND_SERVER=' '": {
+    "result": ""
+   },
+   "SOUND_MODULE_SERVER=<unset> BARVIS_SOUND_SERVER=''": {
+    "result": "convo"
+   },
+   "SOUND_MODULE_SERVER=<unset> BARVIS_SOUND_SERVER='3'": {
+    "result": "3"
+   },
+   "SOUND_MODULE_SERVER=<unset> BARVIS_SOUND_SERVER='Browser'": {
+    "result": "Browser"
+   },
+   "SOUND_MODULE_SERVER=<unset> BARVIS_SOUND_SERVER='Convo'": {
+    "result": "Convo"
+   },
+   "SOUND_MODULE_SERVER=<unset> BARVIS_SOUND_SERVER='off'": {
+    "result": "off"
+   },
+   "SOUND_MODULE_SERVER=<unset> BARVIS_SOUND_SERVER=<unset>": {
+    "result": "convo"
+   }
+  }
+ },
+ "single": {
+  "APP_PUBLIC_URL ink_athena.hub_base": {
+   "' '": {
+    "result": ""
+   },
+   "' 7 '": {
+    "result": "7"
+   },
+   "' Convo '": {
+    "result": "Convo"
+   },
+   "' Off\\n'": {
+    "result": "Off"
+   },
+   "' a , B ,, c '": {
+    "result": "a , B ,, c"
+   },
+   "' yes '": {
+    "result": "yes"
+   },
+   "''": {
+    "result": ""
+   },
+   "'+3'": {
+    "result": "+3"
+   },
+   "','": {
+    "result": ","
+   },
+   "'-1'": {
+    "result": "-1"
+   },
+   "'0'": {
+    "result": "0"
+   },
+   "'0.5'": {
+    "result": "0.5"
+   },
+   "'00'": {
+    "result": "00"
+   },
+   "'1'": {
+    "result": "1"
+   },
+   "'10'": {
+    "result": "10"
+   },
+   "'11'": {
+    "result": "11"
+   },
+   "'1e3'": {
+    "result": "1e3"
+   },
+   "'2'": {
+    "result": "2"
+   },
+   "'23'": {
+    "result": "23"
+   },
+   "'24'": {
+    "result": "24"
+   },
+   "'25'": {
+    "result": "25"
+   },
+   "'3_0'": {
+    "result": "3_0"
+   },
+   "'ALL'": {
+    "result": "ALL"
+   },
+   "'Browser'": {
+    "result": "Browser"
+   },
+   "'CONVO'": {
+    "result": "CONVO"
+   },
+   "'False'": {
+    "result": "False"
+   },
+   "'Groceries list,Work'": {
+    "result": "Groceries list,Work"
+   },
+   "'HTTPS://Hub.Example.org/'": {
+    "result": "https://Hub.Example.org"
+   },
+   "'NO'": {
+    "result": "NO"
+   },
+   "'None'": {
+    "result": "None"
+   },
+   "'ON'": {
+    "result": "ON"
+   },
+   "'On '": {
+    "result": "On"
+   },
+   "'Shopping'": {
+    "result": "Shopping"
+   },
+   "'Stra\u00dfe'": {
+    "result": "Stra\u00dfe"
+   },
+   "'TRUE'": {
+    "result": "TRUE"
+   },
+   "'True'": {
+    "result": "True"
+   },
+   "'Y'": {
+    "result": "Y"
+   },
+   "'\\n'": {
+    "result": ""
+   },
+   "'\\t'": {
+    "result": ""
+   },
+   "'a b'": {
+    "result": "a b"
+   },
+   "'a.b'": {
+    "result": "a.b"
+   },
+   "'abc'": {
+    "result": "abc"
+   },
+   "'all'": {
+    "result": "all"
+   },
+   "'auto'": {
+    "result": "auto"
+   },
+   "'browser'": {
+    "result": "browser"
+   },
+   "'convo'": {
+    "result": "convo"
+   },
+   "'explicit'": {
+    "result": "explicit"
+   },
+   "'false'": {
+    "result": "false"
+   },
+   "'ftp://x'": {
+    "result": "ftp://x"
+   },
+   "'http://10.0.0.5:7000/x?y=1#z'": {
+    "result": "http://10.0.0.5:7000/x"
+   },
+   "'https://hub.example.org'": {
+    "result": "https://hub.example.org"
+   },
+   "'inf'": {
+    "result": "inf"
+   },
+   "'maybe'": {
+    "result": "maybe"
+   },
+   "'nan'": {
+    "result": "nan"
+   },
+   "'nil'": {
+    "result": "nil"
+   },
+   "'no'": {
+    "result": "no"
+   },
+   "'none'": {
+    "result": "none"
+   },
+   "'ntfy'": {
+    "result": "ntfy"
+   },
+   "'off'": {
+    "result": "off"
+   },
+   "'on'": {
+    "result": "on"
+   },
+   "'phone-1'": {
+    "result": "phone-1"
+   },
+   "'true'": {
+    "result": "true"
+   },
+   "'x,y'": {
+    "result": "x,y"
+   },
+   "'xxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxx'": {
+    "result": "xxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxx"
+   },
+   "'yes'": {
+    "result": "yes"
+   },
+   "<unset>": {
+    "result": ""
+   }
+  },
+  "BELIEF_CONFIRM_DAYS evidence_intake.settings": {
+   "' '": {
+    "result": {
+     "confirm_days": 2,
+     "confirm_sources": 2,
+     "confirm_times": 3,
+     "stale_days": 180
+    }
+   },
+   "' 7 '": {
+    "result": {
+     "confirm_days": 7,
+     "confirm_sources": 2,
+     "confirm_times": 3,
+     "stale_days": 180
+    }
+   },
+   "' Convo '": {
+    "result": {
+     "confirm_days": 2,
+     "confirm_sources": 2,
+     "confirm_times": 3,
+     "stale_days": 180
+    }
+   },
+   "' Off\\n'": {
+    "result": {
+     "confirm_days": 2,
+     "confirm_sources": 2,
+     "confirm_times": 3,
+     "stale_days": 180
+    }
+   },
+   "' a , B ,, c '": {
+    "result": {
+     "confirm_days": 2,
+     "confirm_sources": 2,
+     "confirm_times": 3,
+     "stale_days": 180
+    }
+   },
+   "' yes '": {
+    "result": {
+     "confirm_days": 2,
+     "confirm_sources": 2,
+     "confirm_times": 3,
+     "stale_days": 180
+    }
+   },
+   "''": {
+    "result": {
+     "confirm_days": 2,
+     "confirm_sources": 2,
+     "confirm_times": 3,
+     "stale_days": 180
+    }
+   },
+   "'+3'": {
+    "result": {
+     "confirm_days": 3,
+     "confirm_sources": 2,
+     "confirm_times": 3,
+     "stale_days": 180
+    }
+   },
+   "','": {
+    "result": {
+     "confirm_days": 2,
+     "confirm_sources": 2,
+     "confirm_times": 3,
+     "stale_days": 180
+    }
+   },
+   "'-1'": {
+    "result": {
+     "confirm_days": 1,
+     "confirm_sources": 2,
+     "confirm_times": 3,
+     "stale_days": 180
+    }
+   },
+   "'0'": {
+    "result": {
+     "confirm_days": 1,
+     "confirm_sources": 2,
+     "confirm_times": 3,
+     "stale_days": 180
+    }
+   },
+   "'0.5'": {
+    "result": {
+     "confirm_days": 2,
+     "confirm_sources": 2,
+     "confirm_times": 3,
+     "stale_days": 180
+    }
+   },
+   "'00'": {
+    "result": {
+     "confirm_days": 1,
+     "confirm_sources": 2,
+     "confirm_times": 3,
+     "stale_days": 180
+    }
+   },
+   "'1'": {
+    "result": {
+     "confirm_days": 1,
+     "confirm_sources": 2,
+     "confirm_times": 3,
+     "stale_days": 180
+    }
+   },
+   "'10'": {
+    "result": {
+     "confirm_days": 10,
+     "confirm_sources": 2,
+     "confirm_times": 3,
+     "stale_days": 180
+    }
+   },
+   "'11'": {
+    "result": {
+     "confirm_days": 11,
+     "confirm_sources": 2,
+     "confirm_times": 3,
+     "stale_days": 180
+    }
+   },
+   "'1e3'": {
+    "result": {
+     "confirm_days": 2,
+     "confirm_sources": 2,
+     "confirm_times": 3,
+     "stale_days": 180
+    }
+   },
+   "'2'": {
+    "result": {
+     "confirm_days": 2,
+     "confirm_sources": 2,
+     "confirm_times": 3,
+     "stale_days": 180
+    }
+   },
+   "'23'": {
+    "result": {
+     "confirm_days": 23,
+     "confirm_sources": 2,
+     "confirm_times": 3,
+     "stale_days": 180
+    }
+   },
+   "'24'": {
+    "result": {
+     "confirm_days": 24,
+     "confirm_sources": 2,
+     "confirm_times": 3,
+     "stale_days": 180
+    }
+   },
+   "'25'": {
+    "result": {
+     "confirm_days": 25,
+     "confirm_sources": 2,
+     "confirm_times": 3,
+     "stale_days": 180
+    }
+   },
+   "'3_0'": {
+    "result": {
+     "confirm_days": 30,
+     "confirm_sources": 2,
+     "confirm_times": 3,
+     "stale_days": 180
+    }
+   },
+   "'ALL'": {
+    "result": {
+     "confirm_days": 2,
+     "confirm_sources": 2,
+     "confirm_times": 3,
+     "stale_days": 180
+    }
+   },
+   "'Browser'": {
+    "result": {
+     "confirm_days": 2,
+     "confirm_sources": 2,
+     "confirm_times": 3,
+     "stale_days": 180
+    }
+   },
+   "'CONVO'": {
+    "result": {
+     "confirm_days": 2,
+     "confirm_sources": 2,
+     "confirm_times": 3,
+     "stale_days": 180
+    }
+   },
+   "'False'": {
+    "result": {
+     "confirm_days": 2,
+     "confirm_sources": 2,
+     "confirm_times": 3,
+     "stale_days": 180
+    }
+   },
+   "'Groceries list,Work'": {
+    "result": {
+     "confirm_days": 2,
+     "confirm_sources": 2,
+     "confirm_times": 3,
+     "stale_days": 180
+    }
+   },
+   "'HTTPS://Hub.Example.org/'": {
+    "result": {
+     "confirm_days": 2,
+     "confirm_sources": 2,
+     "confirm_times": 3,
+     "stale_days": 180
+    }
+   },
+   "'NO'": {
+    "result": {
+     "confirm_days": 2,
+     "confirm_sources": 2,
+     "confirm_times": 3,
+     "stale_days": 180
+    }
+   },
+   "'None'": {
+    "result": {
+     "confirm_days": 2,
+     "confirm_sources": 2,
+     "confirm_times": 3,
+     "stale_days": 180
+    }
+   },
+   "'ON'": {
+    "result": {
+     "confirm_days": 2,
+     "confirm_sources": 2,
+     "confirm_times": 3,
+     "stale_days": 180
+    }
+   },
+   "'On '": {
+    "result": {
+     "confirm_days": 2,
+     "confirm_sources": 2,
+     "confirm_times": 3,
+     "stale_days": 180
+    }
+   },
+   "'Shopping'": {
+    "result": {
+     "confirm_days": 2,
+     "confirm_sources": 2,
+     "confirm_times": 3,
+     "stale_days": 180
+    }
+   },
+   "'Stra\u00dfe'": {
+    "result": {
+     "confirm_days": 2,
+     "confirm_sources": 2,
+     "confirm_times": 3,
+     "stale_days": 180
+    }
+   },
+   "'TRUE'": {
+    "result": {
+     "confirm_days": 2,
+     "confirm_sources": 2,
+     "confirm_times": 3,
+     "stale_days": 180
+    }
+   },
+   "'True'": {
+    "result": {
+     "confirm_days": 2,
+     "confirm_sources": 2,
+     "confirm_times": 3,
+     "stale_days": 180
+    }
+   },
+   "'Y'": {
+    "result": {
+     "confirm_days": 2,
+     "confirm_sources": 2,
+     "confirm_times": 3,
+     "stale_days": 180
+    }
+   },
+   "'\\n'": {
+    "result": {
+     "confirm_days": 2,
+     "confirm_sources": 2,
+     "confirm_times": 3,
+     "stale_days": 180
+    }
+   },
+   "'\\t'": {
+    "result": {
+     "confirm_days": 2,
+     "confirm_sources": 2,
+     "confirm_times": 3,
+     "stale_days": 180
+    }
+   },
+   "'a b'": {
+    "result": {
+     "confirm_days": 2,
+     "confirm_sources": 2,
+     "confirm_times": 3,
+     "stale_days": 180
+    }
+   },
+   "'a.b'": {
+    "result": {
+     "confirm_days": 2,
+     "confirm_sources": 2,
+     "confirm_times": 3,
+     "stale_days": 180
+    }
+   },
+   "'abc'": {
+    "result": {
+     "confirm_days": 2,
+     "confirm_sources": 2,
+     "confirm_times": 3,
+     "stale_days": 180
+    }
+   },
+   "'all'": {
+    "result": {
+     "confirm_days": 2,
+     "confirm_sources": 2,
+     "confirm_times": 3,
+     "stale_days": 180
+    }
+   },
+   "'auto'": {
+    "result": {
+     "confirm_days": 2,
+     "confirm_sources": 2,
+     "confirm_times": 3,
+     "stale_days": 180
+    }
+   },
+   "'browser'": {
+    "result": {
+     "confirm_days": 2,
+     "confirm_sources": 2,
+     "confirm_times": 3,
+     "stale_days": 180
+    }
+   },
+   "'convo'": {
+    "result": {
+     "confirm_days": 2,
+     "confirm_sources": 2,
+     "confirm_times": 3,
+     "stale_days": 180
+    }
+   },
+   "'explicit'": {
+    "result": {
+     "confirm_days": 2,
+     "confirm_sources": 2,
+     "confirm_times": 3,
+     "stale_days": 180
+    }
+   },
+   "'false'": {
+    "result": {
+     "confirm_days": 2,
+     "confirm_sources": 2,
+     "confirm_times": 3,
+     "stale_days": 180
+    }
+   },
+   "'ftp://x'": {
+    "result": {
+     "confirm_days": 2,
+     "confirm_sources": 2,
+     "confirm_times": 3,
+     "stale_days": 180
+    }
+   },
+   "'http://10.0.0.5:7000/x?y=1#z'": {
+    "result": {
+     "confirm_days": 2,
+     "confirm_sources": 2,
+     "confirm_times": 3,
+     "stale_days": 180
+    }
+   },
+   "'https://hub.example.org'": {
+    "result": {
+     "confirm_days": 2,
+     "confirm_sources": 2,
+     "confirm_times": 3,
+     "stale_days": 180
+    }
+   },
+   "'inf'": {
+    "result": {
+     "confirm_days": 2,
+     "confirm_sources": 2,
+     "confirm_times": 3,
+     "stale_days": 180
+    }
+   },
+   "'maybe'": {
+    "result": {
+     "confirm_days": 2,
+     "confirm_sources": 2,
+     "confirm_times": 3,
+     "stale_days": 180
+    }
+   },
+   "'nan'": {
+    "result": {
+     "confirm_days": 2,
+     "confirm_sources": 2,
+     "confirm_times": 3,
+     "stale_days": 180
+    }
+   },
+   "'nil'": {
+    "result": {
+     "confirm_days": 2,
+     "confirm_sources": 2,
+     "confirm_times": 3,
+     "stale_days": 180
+    }
+   },
+   "'no'": {
+    "result": {
+     "confirm_days": 2,
+     "confirm_sources": 2,
+     "confirm_times": 3,
+     "stale_days": 180
+    }
+   },
+   "'none'": {
+    "result": {
+     "confirm_days": 2,
+     "confirm_sources": 2,
+     "confirm_times": 3,
+     "stale_days": 180
+    }
+   },
+   "'ntfy'": {
+    "result": {
+     "confirm_days": 2,
+     "confirm_sources": 2,
+     "confirm_times": 3,
+     "stale_days": 180
+    }
+   },
+   "'off'": {
+    "result": {
+     "confirm_days": 2,
+     "confirm_sources": 2,
+     "confirm_times": 3,
+     "stale_days": 180
+    }
+   },
+   "'on'": {
+    "result": {
+     "confirm_days": 2,
+     "confirm_sources": 2,
+     "confirm_times": 3,
+     "stale_days": 180
+    }
+   },
+   "'phone-1'": {
+    "result": {
+     "confirm_days": 2,
+     "confirm_sources": 2,
+     "confirm_times": 3,
+     "stale_days": 180
+    }
+   },
+   "'true'": {
+    "result": {
+     "confirm_days": 2,
+     "confirm_sources": 2,
+     "confirm_times": 3,
+     "stale_days": 180
+    }
+   },
+   "'x,y'": {
+    "result": {
+     "confirm_days": 2,
+     "confirm_sources": 2,
+     "confirm_times": 3,
+     "stale_days": 180
+    }
+   },
+   "'xxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxx'": {
+    "result": {
+     "confirm_days": 2,
+     "confirm_sources": 2,
+     "confirm_times": 3,
+     "stale_days": 180
+    }
+   },
+   "'yes'": {
+    "result": {
+     "confirm_days": 2,
+     "confirm_sources": 2,
+     "confirm_times": 3,
+     "stale_days": 180
+    }
+   },
+   "<unset>": {
+    "result": {
+     "confirm_days": 2,
+     "confirm_sources": 2,
+     "confirm_times": 3,
+     "stale_days": 180
+    }
+   }
+  },
+  "BELIEF_CONFIRM_SOURCES evidence_intake.settings": {
+   "' '": {
+    "result": {
+     "confirm_days": 2,
+     "confirm_sources": 2,
+     "confirm_times": 3,
+     "stale_days": 180
+    }
+   },
+   "' 7 '": {
+    "result": {
+     "confirm_days": 2,
+     "confirm_sources": 7,
+     "confirm_times": 3,
+     "stale_days": 180
+    }
+   },
+   "' Convo '": {
+    "result": {
+     "confirm_days": 2,
+     "confirm_sources": 2,
+     "confirm_times": 3,
+     "stale_days": 180
+    }
+   },
+   "' Off\\n'": {
+    "result": {
+     "confirm_days": 2,
+     "confirm_sources": 2,
+     "confirm_times": 3,
+     "stale_days": 180
+    }
+   },
+   "' a , B ,, c '": {
+    "result": {
+     "confirm_days": 2,
+     "confirm_sources": 2,
+     "confirm_times": 3,
+     "stale_days": 180
+    }
+   },
+   "' yes '": {
+    "result": {
+     "confirm_days": 2,
+     "confirm_sources": 2,
+     "confirm_times": 3,
+     "stale_days": 180
+    }
+   },
+   "''": {
+    "result": {
+     "confirm_days": 2,
+     "confirm_sources": 2,
+     "confirm_times": 3,
+     "stale_days": 180
+    }
+   },
+   "'+3'": {
+    "result": {
+     "confirm_days": 2,
+     "confirm_sources": 3,
+     "confirm_times": 3,
+     "stale_days": 180
+    }
+   },
+   "','": {
+    "result": {
+     "confirm_days": 2,
+     "confirm_sources": 2,
+     "confirm_times": 3,
+     "stale_days": 180
+    }
+   },
+   "'-1'": {
+    "result": {
+     "confirm_days": 2,
+     "confirm_sources": 1,
+     "confirm_times": 3,
+     "stale_days": 180
+    }
+   },
+   "'0'": {
+    "result": {
+     "confirm_days": 2,
+     "confirm_sources": 1,
+     "confirm_times": 3,
+     "stale_days": 180
+    }
+   },
+   "'0.5'": {
+    "result": {
+     "confirm_days": 2,
+     "confirm_sources": 2,
+     "confirm_times": 3,
+     "stale_days": 180
+    }
+   },
+   "'00'": {
+    "result": {
+     "confirm_days": 2,
+     "confirm_sources": 1,
+     "confirm_times": 3,
+     "stale_days": 180
+    }
+   },
+   "'1'": {
+    "result": {
+     "confirm_days": 2,
+     "confirm_sources": 1,
+     "confirm_times": 3,
+     "stale_days": 180
+    }
+   },
+   "'10'": {
+    "result": {
+     "confirm_days": 2,
+     "confirm_sources": 10,
+     "confirm_times": 3,
+     "stale_days": 180
+    }
+   },
+   "'11'": {
+    "result": {
+     "confirm_days": 2,
+     "confirm_sources": 11,
+     "confirm_times": 3,
+     "stale_days": 180
+    }
+   },
+   "'1e3'": {
+    "result": {
+     "confirm_days": 2,
+     "confirm_sources": 2,
+     "confirm_times": 3,
+     "stale_days": 180
+    }
+   },
+   "'2'": {
+    "result": {
+     "confirm_days": 2,
+     "confirm_sources": 2,
+     "confirm_times": 3,
+     "stale_days": 180
+    }
+   },
+   "'23'": {
+    "result": {
+     "confirm_days": 2,
+     "confirm_sources": 23,
+     "confirm_times": 3,
+     "stale_days": 180
+    }
+   },
+   "'24'": {
+    "result": {
+     "confirm_days": 2,
+     "confirm_sources": 24,
+     "confirm_times": 3,
+     "stale_days": 180
+    }
+   },
+   "'25'": {
+    "result": {
+     "confirm_days": 2,
+     "confirm_sources": 25,
+     "confirm_times": 3,
+     "stale_days": 180
+    }
+   },
+   "'3_0'": {
+    "result": {
+     "confirm_days": 2,
+     "confirm_sources": 30,
+     "confirm_times": 3,
+     "stale_days": 180
+    }
+   },
+   "'ALL'": {
+    "result": {
+     "confirm_days": 2,
+     "confirm_sources": 2,
+     "confirm_times": 3,
+     "stale_days": 180
+    }
+   },
+   "'Browser'": {
+    "result": {
+     "confirm_days": 2,
+     "confirm_sources": 2,
+     "confirm_times": 3,
+     "stale_days": 180
+    }
+   },
+   "'CONVO'": {
+    "result": {
+     "confirm_days": 2,
+     "confirm_sources": 2,
+     "confirm_times": 3,
+     "stale_days": 180
+    }
+   },
+   "'False'": {
+    "result": {
+     "confirm_days": 2,
+     "confirm_sources": 2,
+     "confirm_times": 3,
+     "stale_days": 180
+    }
+   },
+   "'Groceries list,Work'": {
+    "result": {
+     "confirm_days": 2,
+     "confirm_sources": 2,
+     "confirm_times": 3,
+     "stale_days": 180
+    }
+   },
+   "'HTTPS://Hub.Example.org/'": {
+    "result": {
+     "confirm_days": 2,
+     "confirm_sources": 2,
+     "confirm_times": 3,
+     "stale_days": 180
+    }
+   },
+   "'NO'": {
+    "result": {
+     "confirm_days": 2,
+     "confirm_sources": 2,
+     "confirm_times": 3,
+     "stale_days": 180
+    }
+   },
+   "'None'": {
+    "result": {
+     "confirm_days": 2,
+     "confirm_sources": 2,
+     "confirm_times": 3,
+     "stale_days": 180
+    }
+   },
+   "'ON'": {
+    "result": {
+     "confirm_days": 2,
+     "confirm_sources": 2,
+     "confirm_times": 3,
+     "stale_days": 180
+    }
+   },
+   "'On '": {
+    "result": {
+     "confirm_days": 2,
+     "confirm_sources": 2,
+     "confirm_times": 3,
+     "stale_days": 180
+    }
+   },
+   "'Shopping'": {
+    "result": {
+     "confirm_days": 2,
+     "confirm_sources": 2,
+     "confirm_times": 3,
+     "stale_days": 180
+    }
+   },
+   "'Stra\u00dfe'": {
+    "result": {
+     "confirm_days": 2,
+     "confirm_sources": 2,
+     "confirm_times": 3,
+     "stale_days": 180
+    }
+   },
+   "'TRUE'": {
+    "result": {
+     "confirm_days": 2,
+     "confirm_sources": 2,
+     "confirm_times": 3,
+     "stale_days": 180
+    }
+   },
+   "'True'": {
+    "result": {
+     "confirm_days": 2,
+     "confirm_sources": 2,
+     "confirm_times": 3,
+     "stale_days": 180
+    }
+   },
+   "'Y'": {
+    "result": {
+     "confirm_days": 2,
+     "confirm_sources": 2,
+     "confirm_times": 3,
+     "stale_days": 180
+    }
+   },
+   "'\\n'": {
+    "result": {
+     "confirm_days": 2,
+     "confirm_sources": 2,
+     "confirm_times": 3,
+     "stale_days": 180
+    }
+   },
+   "'\\t'": {
+    "result": {
+     "confirm_days": 2,
+     "confirm_sources": 2,
+     "confirm_times": 3,
+     "stale_days": 180
+    }
+   },
+   "'a b'": {
+    "result": {
+     "confirm_days": 2,
+     "confirm_sources": 2,
+     "confirm_times": 3,
+     "stale_days": 180
+    }
+   },
+   "'a.b'": {
+    "result": {
+     "confirm_days": 2,
+     "confirm_sources": 2,
+     "confirm_times": 3,
+     "stale_days": 180
+    }
+   },
+   "'abc'": {
+    "result": {
+     "confirm_days": 2,
+     "confirm_sources": 2,
+     "confirm_times": 3,
+     "stale_days": 180
+    }
+   },
+   "'all'": {
+    "result": {
+     "confirm_days": 2,
+     "confirm_sources": 2,
+     "confirm_times": 3,
+     "stale_days": 180
+    }
+   },
+   "'auto'": {
+    "result": {
+     "confirm_days": 2,
+     "confirm_sources": 2,
+     "confirm_times": 3,
+     "stale_days": 180
+    }
+   },
+   "'browser'": {
+    "result": {
+     "confirm_days": 2,
+     "confirm_sources": 2,
+     "confirm_times": 3,
+     "stale_days": 180
+    }
+   },
+   "'convo'": {
+    "result": {
+     "confirm_days": 2,
+     "confirm_sources": 2,
+     "confirm_times": 3,
+     "stale_days": 180
+    }
+   },
+   "'explicit'": {
+    "result": {
+     "confirm_days": 2,
+     "confirm_sources": 2,
+     "confirm_times": 3,
+     "stale_days": 180
+    }
+   },
+   "'false'": {
+    "result": {
+     "confirm_days": 2,
+     "confirm_sources": 2,
+     "confirm_times": 3,
+     "stale_days": 180
+    }
+   },
+   "'ftp://x'": {
+    "result": {
+     "confirm_days": 2,
+     "confirm_sources": 2,
+     "confirm_times": 3,
+     "stale_days": 180
+    }
+   },
+   "'http://10.0.0.5:7000/x?y=1#z'": {
+    "result": {
+     "confirm_days": 2,
+     "confirm_sources": 2,
+     "confirm_times": 3,
+     "stale_days": 180
+    }
+   },
+   "'https://hub.example.org'": {
+    "result": {
+     "confirm_days": 2,
+     "confirm_sources": 2,
+     "confirm_times": 3,
+     "stale_days": 180
+    }
+   },
+   "'inf'": {
+    "result": {
+     "confirm_days": 2,
+     "confirm_sources": 2,
+     "confirm_times": 3,
+     "stale_days": 180
+    }
+   },
+   "'maybe'": {
+    "result": {
+     "confirm_days": 2,
+     "confirm_sources": 2,
+     "confirm_times": 3,
+     "stale_days": 180
+    }
+   },
+   "'nan'": {
+    "result": {
+     "confirm_days": 2,
+     "confirm_sources": 2,
+     "confirm_times": 3,
+     "stale_days": 180
+    }
+   },
+   "'nil'": {
+    "result": {
+     "confirm_days": 2,
+     "confirm_sources": 2,
+     "confirm_times": 3,
+     "stale_days": 180
+    }
+   },
+   "'no'": {
+    "result": {
+     "confirm_days": 2,
+     "confirm_sources": 2,
+     "confirm_times": 3,
+     "stale_days": 180
+    }
+   },
+   "'none'": {
+    "result": {
+     "confirm_days": 2,
+     "confirm_sources": 2,
+     "confirm_times": 3,
+     "stale_days": 180
+    }
+   },
+   "'ntfy'": {
+    "result": {
+     "confirm_days": 2,
+     "confirm_sources": 2,
+     "confirm_times": 3,
+     "stale_days": 180
+    }
+   },
+   "'off'": {
+    "result": {
+     "confirm_days": 2,
+     "confirm_sources": 2,
+     "confirm_times": 3,
+     "stale_days": 180
+    }
+   },
+   "'on'": {
+    "result": {
+     "confirm_days": 2,
+     "confirm_sources": 2,
+     "confirm_times": 3,
+     "stale_days": 180
+    }
+   },
+   "'phone-1'": {
+    "result": {
+     "confirm_days": 2,
+     "confirm_sources": 2,
+     "confirm_times": 3,
+     "stale_days": 180
+    }
+   },
+   "'true'": {
+    "result": {
+     "confirm_days": 2,
+     "confirm_sources": 2,
+     "confirm_times": 3,
+     "stale_days": 180
+    }
+   },
+   "'x,y'": {
+    "result": {
+     "confirm_days": 2,
+     "confirm_sources": 2,
+     "confirm_times": 3,
+     "stale_days": 180
+    }
+   },
+   "'xxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxx'": {
+    "result": {
+     "confirm_days": 2,
+     "confirm_sources": 2,
+     "confirm_times": 3,
+     "stale_days": 180
+    }
+   },
+   "'yes'": {
+    "result": {
+     "confirm_days": 2,
+     "confirm_sources": 2,
+     "confirm_times": 3,
+     "stale_days": 180
+    }
+   },
+   "<unset>": {
+    "result": {
+     "confirm_days": 2,
+     "confirm_sources": 2,
+     "confirm_times": 3,
+     "stale_days": 180
+    }
+   }
+  },
+  "BELIEF_CONFIRM_TIMES evidence_intake.settings": {
+   "' '": {
+    "result": {
+     "confirm_days": 2,
+     "confirm_sources": 2,
+     "confirm_times": 3,
+     "stale_days": 180
+    }
+   },
+   "' 7 '": {
+    "result": {
+     "confirm_days": 2,
+     "confirm_sources": 2,
+     "confirm_times": 7,
+     "stale_days": 180
+    }
+   },
+   "' Convo '": {
+    "result": {
+     "confirm_days": 2,
+     "confirm_sources": 2,
+     "confirm_times": 3,
+     "stale_days": 180
+    }
+   },
+   "' Off\\n'": {
+    "result": {
+     "confirm_days": 2,
+     "confirm_sources": 2,
+     "confirm_times": 3,
+     "stale_days": 180
+    }
+   },
+   "' a , B ,, c '": {
+    "result": {
+     "confirm_days": 2,
+     "confirm_sources": 2,
+     "confirm_times": 3,
+     "stale_days": 180
+    }
+   },
+   "' yes '": {
+    "result": {
+     "confirm_days": 2,
+     "confirm_sources": 2,
+     "confirm_times": 3,
+     "stale_days": 180
+    }
+   },
+   "''": {
+    "result": {
+     "confirm_days": 2,
+     "confirm_sources": 2,
+     "confirm_times": 3,
+     "stale_days": 180
+    }
+   },
+   "'+3'": {
+    "result": {
+     "confirm_days": 2,
+     "confirm_sources": 2,
+     "confirm_times": 3,
+     "stale_days": 180
+    }
+   },
+   "','": {
+    "result": {
+     "confirm_days": 2,
+     "confirm_sources": 2,
+     "confirm_times": 3,
+     "stale_days": 180
+    }
+   },
+   "'-1'": {
+    "result": {
+     "confirm_days": 2,
+     "confirm_sources": 2,
+     "confirm_times": 1,
+     "stale_days": 180
+    }
+   },
+   "'0'": {
+    "result": {
+     "confirm_days": 2,
+     "confirm_sources": 2,
+     "confirm_times": 1,
+     "stale_days": 180
+    }
+   },
+   "'0.5'": {
+    "result": {
+     "confirm_days": 2,
+     "confirm_sources": 2,
+     "confirm_times": 3,
+     "stale_days": 180
+    }
+   },
+   "'00'": {
+    "result": {
+     "confirm_days": 2,
+     "confirm_sources": 2,
+     "confirm_times": 1,
+     "stale_days": 180
+    }
+   },
+   "'1'": {
+    "result": {
+     "confirm_days": 2,
+     "confirm_sources": 2,
+     "confirm_times": 1,
+     "stale_days": 180
+    }
+   },
+   "'10'": {
+    "result": {
+     "confirm_days": 2,
+     "confirm_sources": 2,
+     "confirm_times": 10,
+     "stale_days": 180
+    }
+   },
+   "'11'": {
+    "result": {
+     "confirm_days": 2,
+     "confirm_sources": 2,
+     "confirm_times": 11,
+     "stale_days": 180
+    }
+   },
+   "'1e3'": {
+    "result": {
+     "confirm_days": 2,
+     "confirm_sources": 2,
+     "confirm_times": 3,
+     "stale_days": 180
+    }
+   },
+   "'2'": {
+    "result": {
+     "confirm_days": 2,
+     "confirm_sources": 2,
+     "confirm_times": 2,
+     "stale_days": 180
+    }
+   },
+   "'23'": {
+    "result": {
+     "confirm_days": 2,
+     "confirm_sources": 2,
+     "confirm_times": 23,
+     "stale_days": 180
+    }
+   },
+   "'24'": {
+    "result": {
+     "confirm_days": 2,
+     "confirm_sources": 2,
+     "confirm_times": 24,
+     "stale_days": 180
+    }
+   },
+   "'25'": {
+    "result": {
+     "confirm_days": 2,
+     "confirm_sources": 2,
+     "confirm_times": 25,
+     "stale_days": 180
+    }
+   },
+   "'3_0'": {
+    "result": {
+     "confirm_days": 2,
+     "confirm_sources": 2,
+     "confirm_times": 30,
+     "stale_days": 180
+    }
+   },
+   "'ALL'": {
+    "result": {
+     "confirm_days": 2,
+     "confirm_sources": 2,
+     "confirm_times": 3,
+     "stale_days": 180
+    }
+   },
+   "'Browser'": {
+    "result": {
+     "confirm_days": 2,
+     "confirm_sources": 2,
+     "confirm_times": 3,
+     "stale_days": 180
+    }
+   },
+   "'CONVO'": {
+    "result": {
+     "confirm_days": 2,
+     "confirm_sources": 2,
+     "confirm_times": 3,
+     "stale_days": 180
+    }
+   },
+   "'False'": {
+    "result": {
+     "confirm_days": 2,
+     "confirm_sources": 2,
+     "confirm_times": 3,
+     "stale_days": 180
+    }
+   },
+   "'Groceries list,Work'": {
+    "result": {
+     "confirm_days": 2,
+     "confirm_sources": 2,
+     "confirm_times": 3,
+     "stale_days": 180
+    }
+   },
+   "'HTTPS://Hub.Example.org/'": {
+    "result": {
+     "confirm_days": 2,
+     "confirm_sources": 2,
+     "confirm_times": 3,
+     "stale_days": 180
+    }
+   },
+   "'NO'": {
+    "result": {
+     "confirm_days": 2,
+     "confirm_sources": 2,
+     "confirm_times": 3,
+     "stale_days": 180
+    }
+   },
+   "'None'": {
+    "result": {
+     "confirm_days": 2,
+     "confirm_sources": 2,
+     "confirm_times": 3,
+     "stale_days": 180
+    }
+   },
+   "'ON'": {
+    "result": {
+     "confirm_days": 2,
+     "confirm_sources": 2,
+     "confirm_times": 3,
+     "stale_days": 180
+    }
+   },
+   "'On '": {
+    "result": {
+     "confirm_days": 2,
+     "confirm_sources": 2,
+     "confirm_times": 3,
+     "stale_days": 180
+    }
+   },
+   "'Shopping'": {
+    "result": {
+     "confirm_days": 2,
+     "confirm_sources": 2,
+     "confirm_times": 3,
+     "stale_days": 180
+    }
+   },
+   "'Stra\u00dfe'": {
+    "result": {
+     "confirm_days": 2,
+     "confirm_sources": 2,
+     "confirm_times": 3,
+     "stale_days": 180
+    }
+   },
+   "'TRUE'": {
+    "result": {
+     "confirm_days": 2,
+     "confirm_sources": 2,
+     "confirm_times": 3,
+     "stale_days": 180
+    }
+   },
+   "'True'": {
+    "result": {
+     "confirm_days": 2,
+     "confirm_sources": 2,
+     "confirm_times": 3,
+     "stale_days": 180
+    }
+   },
+   "'Y'": {
+    "result": {
+     "confirm_days": 2,
+     "confirm_sources": 2,
+     "confirm_times": 3,
+     "stale_days": 180
+    }
+   },
+   "'\\n'": {
+    "result": {
+     "confirm_days": 2,
+     "confirm_sources": 2,
+     "confirm_times": 3,
+     "stale_days": 180
+    }
+   },
+   "'\\t'": {
+    "result": {
+     "confirm_days": 2,
+     "confirm_sources": 2,
+     "confirm_times": 3,
+     "stale_days": 180
+    }
+   },
+   "'a b'": {
+    "result": {
+     "confirm_days": 2,
+     "confirm_sources": 2,
+     "confirm_times": 3,
+     "stale_days": 180
+    }
+   },
+   "'a.b'": {
+    "result": {
+     "confirm_days": 2,
+     "confirm_sources": 2,
+     "confirm_times": 3,
+     "stale_days": 180
+    }
+   },
+   "'abc'": {
+    "result": {
+     "confirm_days": 2,
+     "confirm_sources": 2,
+     "confirm_times": 3,
+     "stale_days": 180
+    }
+   },
+   "'all'": {
+    "result": {
+     "confirm_days": 2,
+     "confirm_sources": 2,
+     "confirm_times": 3,
+     "stale_days": 180
+    }
+   },
+   "'auto'": {
+    "result": {
+     "confirm_days": 2,
+     "confirm_sources": 2,
+     "confirm_times": 3,
+     "stale_days": 180
+    }
+   },
+   "'browser'": {
+    "result": {
+     "confirm_days": 2,
+     "confirm_sources": 2,
+     "confirm_times": 3,
+     "stale_days": 180
+    }
+   },
+   "'convo'": {
+    "result": {
+     "confirm_days": 2,
+     "confirm_sources": 2,
+     "confirm_times": 3,
+     "stale_days": 180
+    }
+   },
+   "'explicit'": {
+    "result": {
+     "confirm_days": 2,
+     "confirm_sources": 2,
+     "confirm_times": 3,
+     "stale_days": 180
+    }
+   },
+   "'false'": {
+    "result": {
+     "confirm_days": 2,
+     "confirm_sources": 2,
+     "confirm_times": 3,
+     "stale_days": 180
+    }
+   },
+   "'ftp://x'": {
+    "result": {
+     "confirm_days": 2,
+     "confirm_sources": 2,
+     "confirm_times": 3,
+     "stale_days": 180
+    }
+   },
+   "'http://10.0.0.5:7000/x?y=1#z'": {
+    "result": {
+     "confirm_days": 2,
+     "confirm_sources": 2,
+     "confirm_times": 3,
+     "stale_days": 180
+    }
+   },
+   "'https://hub.example.org'": {
+    "result": {
+     "confirm_days": 2,
+     "confirm_sources": 2,
+     "confirm_times": 3,
+     "stale_days": 180
+    }
+   },
+   "'inf'": {
+    "result": {
+     "confirm_days": 2,
+     "confirm_sources": 2,
+     "confirm_times": 3,
+     "stale_days": 180
+    }
+   },
+   "'maybe'": {
+    "result": {
+     "confirm_days": 2,
+     "confirm_sources": 2,
+     "confirm_times": 3,
+     "stale_days": 180
+    }
+   },
+   "'nan'": {
+    "result": {
+     "confirm_days": 2,
+     "confirm_sources": 2,
+     "confirm_times": 3,
+     "stale_days": 180
+    }
+   },
+   "'nil'": {
+    "result": {
+     "confirm_days": 2,
+     "confirm_sources": 2,
+     "confirm_times": 3,
+     "stale_days": 180
+    }
+   },
+   "'no'": {
+    "result": {
+     "confirm_days": 2,
+     "confirm_sources": 2,
+     "confirm_times": 3,
+     "stale_days": 180
+    }
+   },
+   "'none'": {
+    "result": {
+     "confirm_days": 2,
+     "confirm_sources": 2,
+     "confirm_times": 3,
+     "stale_days": 180
+    }
+   },
+   "'ntfy'": {
+    "result": {
+     "confirm_days": 2,
+     "confirm_sources": 2,
+     "confirm_times": 3,
+     "stale_days": 180
+    }
+   },
+   "'off'": {
+    "result": {
+     "confirm_days": 2,
+     "confirm_sources": 2,
+     "confirm_times": 3,
+     "stale_days": 180
+    }
+   },
+   "'on'": {
+    "result": {
+     "confirm_days": 2,
+     "confirm_sources": 2,
+     "confirm_times": 3,
+     "stale_days": 180
+    }
+   },
+   "'phone-1'": {
+    "result": {
+     "confirm_days": 2,
+     "confirm_sources": 2,
+     "confirm_times": 3,
+     "stale_days": 180
+    }
+   },
+   "'true'": {
+    "result": {
+     "confirm_days": 2,
+     "confirm_sources": 2,
+     "confirm_times": 3,
+     "stale_days": 180
+    }
+   },
+   "'x,y'": {
+    "result": {
+     "confirm_days": 2,
+     "confirm_sources": 2,
+     "confirm_times": 3,
+     "stale_days": 180
+    }
+   },
+   "'xxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxx'": {
+    "result": {
+     "confirm_days": 2,
+     "confirm_sources": 2,
+     "confirm_times": 3,
+     "stale_days": 180
+    }
+   },
+   "'yes'": {
+    "result": {
+     "confirm_days": 2,
+     "confirm_sources": 2,
+     "confirm_times": 3,
+     "stale_days": 180
+    }
+   },
+   "<unset>": {
+    "result": {
+     "confirm_days": 2,
+     "confirm_sources": 2,
+     "confirm_times": 3,
+     "stale_days": 180
+    }
+   }
+  },
+  "BELIEF_CONSOLIDATE consolidation.enabled": {
+   "' '": {
+    "result": true
+   },
+   "' 7 '": {
+    "result": true
+   },
+   "' Convo '": {
+    "result": true
+   },
+   "' Off\\n'": {
+    "result": false
+   },
+   "' a , B ,, c '": {
+    "result": true
+   },
+   "' yes '": {
+    "result": true
+   },
+   "''": {
+    "result": true
+   },
+   "'+3'": {
+    "result": true
+   },
+   "','": {
+    "result": true
+   },
+   "'-1'": {
+    "result": true
+   },
+   "'0'": {
+    "result": false
+   },
+   "'0.5'": {
+    "result": true
+   },
+   "'00'": {
+    "result": true
+   },
+   "'1'": {
+    "result": true
+   },
+   "'10'": {
+    "result": true
+   },
+   "'11'": {
+    "result": true
+   },
+   "'1e3'": {
+    "result": true
+   },
+   "'2'": {
+    "result": true
+   },
+   "'23'": {
+    "result": true
+   },
+   "'24'": {
+    "result": true
+   },
+   "'25'": {
+    "result": true
+   },
+   "'3_0'": {
+    "result": true
+   },
+   "'ALL'": {
+    "result": true
+   },
+   "'Browser'": {
+    "result": true
+   },
+   "'CONVO'": {
+    "result": true
+   },
+   "'False'": {
+    "result": false
+   },
+   "'Groceries list,Work'": {
+    "result": true
+   },
+   "'HTTPS://Hub.Example.org/'": {
+    "result": true
+   },
+   "'NO'": {
+    "result": false
+   },
+   "'None'": {
+    "result": true
+   },
+   "'ON'": {
+    "result": true
+   },
+   "'On '": {
+    "result": true
+   },
+   "'Shopping'": {
+    "result": true
+   },
+   "'Stra\u00dfe'": {
+    "result": true
+   },
+   "'TRUE'": {
+    "result": true
+   },
+   "'True'": {
+    "result": true
+   },
+   "'Y'": {
+    "result": true
+   },
+   "'\\n'": {
+    "result": true
+   },
+   "'\\t'": {
+    "result": true
+   },
+   "'a b'": {
+    "result": true
+   },
+   "'a.b'": {
+    "result": true
+   },
+   "'abc'": {
+    "result": true
+   },
+   "'all'": {
+    "result": true
+   },
+   "'auto'": {
+    "result": true
+   },
+   "'browser'": {
+    "result": true
+   },
+   "'convo'": {
+    "result": true
+   },
+   "'explicit'": {
+    "result": true
+   },
+   "'false'": {
+    "result": false
+   },
+   "'ftp://x'": {
+    "result": true
+   },
+   "'http://10.0.0.5:7000/x?y=1#z'": {
+    "result": true
+   },
+   "'https://hub.example.org'": {
+    "result": true
+   },
+   "'inf'": {
+    "result": true
+   },
+   "'maybe'": {
+    "result": true
+   },
+   "'nan'": {
+    "result": true
+   },
+   "'nil'": {
+    "result": true
+   },
+   "'no'": {
+    "result": false
+   },
+   "'none'": {
+    "result": true
+   },
+   "'ntfy'": {
+    "result": true
+   },
+   "'off'": {
+    "result": false
+   },
+   "'on'": {
+    "result": true
+   },
+   "'phone-1'": {
+    "result": true
+   },
+   "'true'": {
+    "result": true
+   },
+   "'x,y'": {
+    "result": true
+   },
+   "'xxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxx'": {
+    "result": true
+   },
+   "'yes'": {
+    "result": true
+   },
+   "<unset>": {
+    "result": true
+   }
+  },
+  "BELIEF_STALE_DAYS evidence_intake.settings": {
+   "' '": {
+    "result": {
+     "confirm_days": 2,
+     "confirm_sources": 2,
+     "confirm_times": 3,
+     "stale_days": 180
+    }
+   },
+   "' 7 '": {
+    "result": {
+     "confirm_days": 2,
+     "confirm_sources": 2,
+     "confirm_times": 3,
+     "stale_days": 7
+    }
+   },
+   "' Convo '": {
+    "result": {
+     "confirm_days": 2,
+     "confirm_sources": 2,
+     "confirm_times": 3,
+     "stale_days": 180
+    }
+   },
+   "' Off\\n'": {
+    "result": {
+     "confirm_days": 2,
+     "confirm_sources": 2,
+     "confirm_times": 3,
+     "stale_days": 180
+    }
+   },
+   "' a , B ,, c '": {
+    "result": {
+     "confirm_days": 2,
+     "confirm_sources": 2,
+     "confirm_times": 3,
+     "stale_days": 180
+    }
+   },
+   "' yes '": {
+    "result": {
+     "confirm_days": 2,
+     "confirm_sources": 2,
+     "confirm_times": 3,
+     "stale_days": 180
+    }
+   },
+   "''": {
+    "result": {
+     "confirm_days": 2,
+     "confirm_sources": 2,
+     "confirm_times": 3,
+     "stale_days": 180
+    }
+   },
+   "'+3'": {
+    "result": {
+     "confirm_days": 2,
+     "confirm_sources": 2,
+     "confirm_times": 3,
+     "stale_days": 3
+    }
+   },
+   "','": {
+    "result": {
+     "confirm_days": 2,
+     "confirm_sources": 2,
+     "confirm_times": 3,
+     "stale_days": 180
+    }
+   },
+   "'-1'": {
+    "result": {
+     "confirm_days": 2,
+     "confirm_sources": 2,
+     "confirm_times": 3,
+     "stale_days": 1
+    }
+   },
+   "'0'": {
+    "result": {
+     "confirm_days": 2,
+     "confirm_sources": 2,
+     "confirm_times": 3,
+     "stale_days": 1
+    }
+   },
+   "'0.5'": {
+    "result": {
+     "confirm_days": 2,
+     "confirm_sources": 2,
+     "confirm_times": 3,
+     "stale_days": 180
+    }
+   },
+   "'00'": {
+    "result": {
+     "confirm_days": 2,
+     "confirm_sources": 2,
+     "confirm_times": 3,
+     "stale_days": 1
+    }
+   },
+   "'1'": {
+    "result": {
+     "confirm_days": 2,
+     "confirm_sources": 2,
+     "confirm_times": 3,
+     "stale_days": 1
+    }
+   },
+   "'10'": {
+    "result": {
+     "confirm_days": 2,
+     "confirm_sources": 2,
+     "confirm_times": 3,
+     "stale_days": 10
+    }
+   },
+   "'11'": {
+    "result": {
+     "confirm_days": 2,
+     "confirm_sources": 2,
+     "confirm_times": 3,
+     "stale_days": 11
+    }
+   },
+   "'1e3'": {
+    "result": {
+     "confirm_days": 2,
+     "confirm_sources": 2,
+     "confirm_times": 3,
+     "stale_days": 180
+    }
+   },
+   "'2'": {
+    "result": {
+     "confirm_days": 2,
+     "confirm_sources": 2,
+     "confirm_times": 3,
+     "stale_days": 2
+    }
+   },
+   "'23'": {
+    "result": {
+     "confirm_days": 2,
+     "confirm_sources": 2,
+     "confirm_times": 3,
+     "stale_days": 23
+    }
+   },
+   "'24'": {
+    "result": {
+     "confirm_days": 2,
+     "confirm_sources": 2,
+     "confirm_times": 3,
+     "stale_days": 24
+    }
+   },
+   "'25'": {
+    "result": {
+     "confirm_days": 2,
+     "confirm_sources": 2,
+     "confirm_times": 3,
+     "stale_days": 25
+    }
+   },
+   "'3_0'": {
+    "result": {
+     "confirm_days": 2,
+     "confirm_sources": 2,
+     "confirm_times": 3,
+     "stale_days": 30
+    }
+   },
+   "'ALL'": {
+    "result": {
+     "confirm_days": 2,
+     "confirm_sources": 2,
+     "confirm_times": 3,
+     "stale_days": 180
+    }
+   },
+   "'Browser'": {
+    "result": {
+     "confirm_days": 2,
+     "confirm_sources": 2,
+     "confirm_times": 3,
+     "stale_days": 180
+    }
+   },
+   "'CONVO'": {
+    "result": {
+     "confirm_days": 2,
+     "confirm_sources": 2,
+     "confirm_times": 3,
+     "stale_days": 180
+    }
+   },
+   "'False'": {
+    "result": {
+     "confirm_days": 2,
+     "confirm_sources": 2,
+     "confirm_times": 3,
+     "stale_days": 180
+    }
+   },
+   "'Groceries list,Work'": {
+    "result": {
+     "confirm_days": 2,
+     "confirm_sources": 2,
+     "confirm_times": 3,
+     "stale_days": 180
+    }
+   },
+   "'HTTPS://Hub.Example.org/'": {
+    "result": {
+     "confirm_days": 2,
+     "confirm_sources": 2,
+     "confirm_times": 3,
+     "stale_days": 180
+    }
+   },
+   "'NO'": {
+    "result": {
+     "confirm_days": 2,
+     "confirm_sources": 2,
+     "confirm_times": 3,
+     "stale_days": 180
+    }
+   },
+   "'None'": {
+    "result": {
+     "confirm_days": 2,
+     "confirm_sources": 2,
+     "confirm_times": 3,
+     "stale_days": 180
+    }
+   },
+   "'ON'": {
+    "result": {
+     "confirm_days": 2,
+     "confirm_sources": 2,
+     "confirm_times": 3,
+     "stale_days": 180
+    }
+   },
+   "'On '": {
+    "result": {
+     "confirm_days": 2,
+     "confirm_sources": 2,
+     "confirm_times": 3,
+     "stale_days": 180
+    }
+   },
+   "'Shopping'": {
+    "result": {
+     "confirm_days": 2,
+     "confirm_sources": 2,
+     "confirm_times": 3,
+     "stale_days": 180
+    }
+   },
+   "'Stra\u00dfe'": {
+    "result": {
+     "confirm_days": 2,
+     "confirm_sources": 2,
+     "confirm_times": 3,
+     "stale_days": 180
+    }
+   },
+   "'TRUE'": {
+    "result": {
+     "confirm_days": 2,
+     "confirm_sources": 2,
+     "confirm_times": 3,
+     "stale_days": 180
+    }
+   },
+   "'True'": {
+    "result": {
+     "confirm_days": 2,
+     "confirm_sources": 2,
+     "confirm_times": 3,
+     "stale_days": 180
+    }
+   },
+   "'Y'": {
+    "result": {
+     "confirm_days": 2,
+     "confirm_sources": 2,
+     "confirm_times": 3,
+     "stale_days": 180
+    }
+   },
+   "'\\n'": {
+    "result": {
+     "confirm_days": 2,
+     "confirm_sources": 2,
+     "confirm_times": 3,
+     "stale_days": 180
+    }
+   },
+   "'\\t'": {
+    "result": {
+     "confirm_days": 2,
+     "confirm_sources": 2,
+     "confirm_times": 3,
+     "stale_days": 180
+    }
+   },
+   "'a b'": {
+    "result": {
+     "confirm_days": 2,
+     "confirm_sources": 2,
+     "confirm_times": 3,
+     "stale_days": 180
+    }
+   },
+   "'a.b'": {
+    "result": {
+     "confirm_days": 2,
+     "confirm_sources": 2,
+     "confirm_times": 3,
+     "stale_days": 180
+    }
+   },
+   "'abc'": {
+    "result": {
+     "confirm_days": 2,
+     "confirm_sources": 2,
+     "confirm_times": 3,
+     "stale_days": 180
+    }
+   },
+   "'all'": {
+    "result": {
+     "confirm_days": 2,
+     "confirm_sources": 2,
+     "confirm_times": 3,
+     "stale_days": 180
+    }
+   },
+   "'auto'": {
+    "result": {
+     "confirm_days": 2,
+     "confirm_sources": 2,
+     "confirm_times": 3,
+     "stale_days": 180
+    }
+   },
+   "'browser'": {
+    "result": {
+     "confirm_days": 2,
+     "confirm_sources": 2,
+     "confirm_times": 3,
+     "stale_days": 180
+    }
+   },
+   "'convo'": {
+    "result": {
+     "confirm_days": 2,
+     "confirm_sources": 2,
+     "confirm_times": 3,
+     "stale_days": 180
+    }
+   },
+   "'explicit'": {
+    "result": {
+     "confirm_days": 2,
+     "confirm_sources": 2,
+     "confirm_times": 3,
+     "stale_days": 180
+    }
+   },
+   "'false'": {
+    "result": {
+     "confirm_days": 2,
+     "confirm_sources": 2,
+     "confirm_times": 3,
+     "stale_days": 180
+    }
+   },
+   "'ftp://x'": {
+    "result": {
+     "confirm_days": 2,
+     "confirm_sources": 2,
+     "confirm_times": 3,
+     "stale_days": 180
+    }
+   },
+   "'http://10.0.0.5:7000/x?y=1#z'": {
+    "result": {
+     "confirm_days": 2,
+     "confirm_sources": 2,
+     "confirm_times": 3,
+     "stale_days": 180
+    }
+   },
+   "'https://hub.example.org'": {
+    "result": {
+     "confirm_days": 2,
+     "confirm_sources": 2,
+     "confirm_times": 3,
+     "stale_days": 180
+    }
+   },
+   "'inf'": {
+    "result": {
+     "confirm_days": 2,
+     "confirm_sources": 2,
+     "confirm_times": 3,
+     "stale_days": 180
+    }
+   },
+   "'maybe'": {
+    "result": {
+     "confirm_days": 2,
+     "confirm_sources": 2,
+     "confirm_times": 3,
+     "stale_days": 180
+    }
+   },
+   "'nan'": {
+    "result": {
+     "confirm_days": 2,
+     "confirm_sources": 2,
+     "confirm_times": 3,
+     "stale_days": 180
+    }
+   },
+   "'nil'": {
+    "result": {
+     "confirm_days": 2,
+     "confirm_sources": 2,
+     "confirm_times": 3,
+     "stale_days": 180
+    }
+   },
+   "'no'": {
+    "result": {
+     "confirm_days": 2,
+     "confirm_sources": 2,
+     "confirm_times": 3,
+     "stale_days": 180
+    }
+   },
+   "'none'": {
+    "result": {
+     "confirm_days": 2,
+     "confirm_sources": 2,
+     "confirm_times": 3,
+     "stale_days": 180
+    }
+   },
+   "'ntfy'": {
+    "result": {
+     "confirm_days": 2,
+     "confirm_sources": 2,
+     "confirm_times": 3,
+     "stale_days": 180
+    }
+   },
+   "'off'": {
+    "result": {
+     "confirm_days": 2,
+     "confirm_sources": 2,
+     "confirm_times": 3,
+     "stale_days": 180
+    }
+   },
+   "'on'": {
+    "result": {
+     "confirm_days": 2,
+     "confirm_sources": 2,
+     "confirm_times": 3,
+     "stale_days": 180
+    }
+   },
+   "'phone-1'": {
+    "result": {
+     "confirm_days": 2,
+     "confirm_sources": 2,
+     "confirm_times": 3,
+     "stale_days": 180
+    }
+   },
+   "'true'": {
+    "result": {
+     "confirm_days": 2,
+     "confirm_sources": 2,
+     "confirm_times": 3,
+     "stale_days": 180
+    }
+   },
+   "'x,y'": {
+    "result": {
+     "confirm_days": 2,
+     "confirm_sources": 2,
+     "confirm_times": 3,
+     "stale_days": 180
+    }
+   },
+   "'xxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxx'": {
+    "result": {
+     "confirm_days": 2,
+     "confirm_sources": 2,
+     "confirm_times": 3,
+     "stale_days": 180
+    }
+   },
+   "'yes'": {
+    "result": {
+     "confirm_days": 2,
+     "confirm_sources": 2,
+     "confirm_times": 3,
+     "stale_days": 180
+    }
+   },
+   "<unset>": {
+    "result": {
+     "confirm_days": 2,
+     "confirm_sources": 2,
+     "confirm_times": 3,
+     "stale_days": 180
+    }
+   }
+  },
+  "BELIEF_STRUCTURE structure.enabled": {
+   "' '": {
+    "result": true
+   },
+   "' 7 '": {
+    "result": true
+   },
+   "' Convo '": {
+    "result": true
+   },
+   "' Off\\n'": {
+    "result": false
+   },
+   "' a , B ,, c '": {
+    "result": true
+   },
+   "' yes '": {
+    "result": true
+   },
+   "''": {
+    "result": true
+   },
+   "'+3'": {
+    "result": true
+   },
+   "','": {
+    "result": true
+   },
+   "'-1'": {
+    "result": true
+   },
+   "'0'": {
+    "result": false
+   },
+   "'0.5'": {
+    "result": true
+   },
+   "'00'": {
+    "result": true
+   },
+   "'1'": {
+    "result": true
+   },
+   "'10'": {
+    "result": true
+   },
+   "'11'": {
+    "result": true
+   },
+   "'1e3'": {
+    "result": true
+   },
+   "'2'": {
+    "result": true
+   },
+   "'23'": {
+    "result": true
+   },
+   "'24'": {
+    "result": true
+   },
+   "'25'": {
+    "result": true
+   },
+   "'3_0'": {
+    "result": true
+   },
+   "'ALL'": {
+    "result": true
+   },
+   "'Browser'": {
+    "result": true
+   },
+   "'CONVO'": {
+    "result": true
+   },
+   "'False'": {
+    "result": false
+   },
+   "'Groceries list,Work'": {
+    "result": true
+   },
+   "'HTTPS://Hub.Example.org/'": {
+    "result": true
+   },
+   "'NO'": {
+    "result": false
+   },
+   "'None'": {
+    "result": true
+   },
+   "'ON'": {
+    "result": true
+   },
+   "'On '": {
+    "result": true
+   },
+   "'Shopping'": {
+    "result": true
+   },
+   "'Stra\u00dfe'": {
+    "result": true
+   },
+   "'TRUE'": {
+    "result": true
+   },
+   "'True'": {
+    "result": true
+   },
+   "'Y'": {
+    "result": true
+   },
+   "'\\n'": {
+    "result": true
+   },
+   "'\\t'": {
+    "result": true
+   },
+   "'a b'": {
+    "result": true
+   },
+   "'a.b'": {
+    "result": true
+   },
+   "'abc'": {
+    "result": true
+   },
+   "'all'": {
+    "result": true
+   },
+   "'auto'": {
+    "result": true
+   },
+   "'browser'": {
+    "result": true
+   },
+   "'convo'": {
+    "result": true
+   },
+   "'explicit'": {
+    "result": true
+   },
+   "'false'": {
+    "result": false
+   },
+   "'ftp://x'": {
+    "result": true
+   },
+   "'http://10.0.0.5:7000/x?y=1#z'": {
+    "result": true
+   },
+   "'https://hub.example.org'": {
+    "result": true
+   },
+   "'inf'": {
+    "result": true
+   },
+   "'maybe'": {
+    "result": true
+   },
+   "'nan'": {
+    "result": true
+   },
+   "'nil'": {
+    "result": true
+   },
+   "'no'": {
+    "result": false
+   },
+   "'none'": {
+    "result": true
+   },
+   "'ntfy'": {
+    "result": true
+   },
+   "'off'": {
+    "result": false
+   },
+   "'on'": {
+    "result": true
+   },
+   "'phone-1'": {
+    "result": true
+   },
+   "'true'": {
+    "result": true
+   },
+   "'x,y'": {
+    "result": true
+   },
+   "'xxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxx'": {
+    "result": true
+   },
+   "'yes'": {
+    "result": true
+   },
+   "<unset>": {
+    "result": true
+   }
+  },
+  "BELIEF_STRUCTURE_BATCH structure.batch_size": {
+   "' '": {
+    "result": 5
+   },
+   "' 7 '": {
+    "result": 7
+   },
+   "' Convo '": {
+    "result": 5
+   },
+   "' Off\\n'": {
+    "result": 5
+   },
+   "' a , B ,, c '": {
+    "result": 5
+   },
+   "' yes '": {
+    "result": 5
+   },
+   "''": {
+    "result": 5
+   },
+   "'+3'": {
+    "result": 3
+   },
+   "','": {
+    "result": 5
+   },
+   "'-1'": {
+    "result": 1
+   },
+   "'0'": {
+    "result": 1
+   },
+   "'0.5'": {
+    "result": 5
+   },
+   "'00'": {
+    "result": 1
+   },
+   "'1'": {
+    "result": 1
+   },
+   "'10'": {
+    "result": 10
+   },
+   "'11'": {
+    "result": 10
+   },
+   "'1e3'": {
+    "result": 5
+   },
+   "'2'": {
+    "result": 2
+   },
+   "'23'": {
+    "result": 10
+   },
+   "'24'": {
+    "result": 10
+   },
+   "'25'": {
+    "result": 10
+   },
+   "'3_0'": {
+    "result": 10
+   },
+   "'ALL'": {
+    "result": 5
+   },
+   "'Browser'": {
+    "result": 5
+   },
+   "'CONVO'": {
+    "result": 5
+   },
+   "'False'": {
+    "result": 5
+   },
+   "'Groceries list,Work'": {
+    "result": 5
+   },
+   "'HTTPS://Hub.Example.org/'": {
+    "result": 5
+   },
+   "'NO'": {
+    "result": 5
+   },
+   "'None'": {
+    "result": 5
+   },
+   "'ON'": {
+    "result": 5
+   },
+   "'On '": {
+    "result": 5
+   },
+   "'Shopping'": {
+    "result": 5
+   },
+   "'Stra\u00dfe'": {
+    "result": 5
+   },
+   "'TRUE'": {
+    "result": 5
+   },
+   "'True'": {
+    "result": 5
+   },
+   "'Y'": {
+    "result": 5
+   },
+   "'\\n'": {
+    "result": 5
+   },
+   "'\\t'": {
+    "result": 5
+   },
+   "'a b'": {
+    "result": 5
+   },
+   "'a.b'": {
+    "result": 5
+   },
+   "'abc'": {
+    "result": 5
+   },
+   "'all'": {
+    "result": 5
+   },
+   "'auto'": {
+    "result": 5
+   },
+   "'browser'": {
+    "result": 5
+   },
+   "'convo'": {
+    "result": 5
+   },
+   "'explicit'": {
+    "result": 5
+   },
+   "'false'": {
+    "result": 5
+   },
+   "'ftp://x'": {
+    "result": 5
+   },
+   "'http://10.0.0.5:7000/x?y=1#z'": {
+    "result": 5
+   },
+   "'https://hub.example.org'": {
+    "result": 5
+   },
+   "'inf'": {
+    "result": 5
+   },
+   "'maybe'": {
+    "result": 5
+   },
+   "'nan'": {
+    "result": 5
+   },
+   "'nil'": {
+    "result": 5
+   },
+   "'no'": {
+    "result": 5
+   },
+   "'none'": {
+    "result": 5
+   },
+   "'ntfy'": {
+    "result": 5
+   },
+   "'off'": {
+    "result": 5
+   },
+   "'on'": {
+    "result": 5
+   },
+   "'phone-1'": {
+    "result": 5
+   },
+   "'true'": {
+    "result": 5
+   },
+   "'x,y'": {
+    "result": 5
+   },
+   "'xxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxx'": {
+    "result": 5
+   },
+   "'yes'": {
+    "result": 5
+   },
+   "<unset>": {
+    "result": 5
+   }
+  },
+  "EVIDENCE_NOTES notes_evidence.enabled": {
+   "' '": {
+    "result": false
+   },
+   "' 7 '": {
+    "result": false
+   },
+   "' Convo '": {
+    "result": false
+   },
+   "' Off\\n'": {
+    "result": false
+   },
+   "' a , B ,, c '": {
+    "result": false
+   },
+   "' yes '": {
+    "result": true
+   },
+   "''": {
+    "result": false
+   },
+   "'+3'": {
+    "result": false
+   },
+   "','": {
+    "result": false
+   },
+   "'-1'": {
+    "result": false
+   },
+   "'0'": {
+    "result": false
+   },
+   "'0.5'": {
+    "result": false
+   },
+   "'00'": {
+    "result": false
+   },
+   "'1'": {
+    "result": true
+   },
+   "'10'": {
+    "result": false
+   },
+   "'11'": {
+    "result": false
+   },
+   "'1e3'": {
+    "result": false
+   },
+   "'2'": {
+    "result": false
+   },
+   "'23'": {
+    "result": false
+   },
+   "'24'": {
+    "result": false
+   },
+   "'25'": {
+    "result": false
+   },
+   "'3_0'": {
+    "result": false
+   },
+   "'ALL'": {
+    "result": false
+   },
+   "'Browser'": {
+    "result": false
+   },
+   "'CONVO'": {
+    "result": false
+   },
+   "'False'": {
+    "result": false
+   },
+   "'Groceries list,Work'": {
+    "result": false
+   },
+   "'HTTPS://Hub.Example.org/'": {
+    "result": false
+   },
+   "'NO'": {
+    "result": false
+   },
+   "'None'": {
+    "result": false
+   },
+   "'ON'": {
+    "result": true
+   },
+   "'On '": {
+    "result": true
+   },
+   "'Shopping'": {
+    "result": false
+   },
+   "'Stra\u00dfe'": {
+    "result": false
+   },
+   "'TRUE'": {
+    "result": true
+   },
+   "'True'": {
+    "result": true
+   },
+   "'Y'": {
+    "result": false
+   },
+   "'\\n'": {
+    "result": false
+   },
+   "'\\t'": {
+    "result": false
+   },
+   "'a b'": {
+    "result": false
+   },
+   "'a.b'": {
+    "result": false
+   },
+   "'abc'": {
+    "result": false
+   },
+   "'all'": {
+    "result": false
+   },
+   "'auto'": {
+    "result": false
+   },
+   "'browser'": {
+    "result": false
+   },
+   "'convo'": {
+    "result": false
+   },
+   "'explicit'": {
+    "result": false
+   },
+   "'false'": {
+    "result": false
+   },
+   "'ftp://x'": {
+    "result": false
+   },
+   "'http://10.0.0.5:7000/x?y=1#z'": {
+    "result": false
+   },
+   "'https://hub.example.org'": {
+    "result": false
+   },
+   "'inf'": {
+    "result": false
+   },
+   "'maybe'": {
+    "result": false
+   },
+   "'nan'": {
+    "result": false
+   },
+   "'nil'": {
+    "result": false
+   },
+   "'no'": {
+    "result": false
+   },
+   "'none'": {
+    "result": false
+   },
+   "'ntfy'": {
+    "result": false
+   },
+   "'off'": {
+    "result": false
+   },
+   "'on'": {
+    "result": true
+   },
+   "'phone-1'": {
+    "result": false
+   },
+   "'true'": {
+    "result": true
+   },
+   "'x,y'": {
+    "result": false
+   },
+   "'xxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxx'": {
+    "result": false
+   },
+   "'yes'": {
+    "result": true
+   },
+   "<unset>": {
+    "result": false
+   }
+  },
+  "FORK_CHECKLIST_ARCHIVE_MINUTES checklist_auto_archive.archive_minutes": {
+   "' '": {
+    "result": 10.0
+   },
+   "' 7 '": {
+    "result": 7.0
+   },
+   "' Convo '": {
+    "logs": [
+     "WARNING fork.hub.checklist_auto_archive: FORK_CHECKLIST_ARCHIVE_MINUTES='convo' is not a number; using 10.0"
+    ],
+    "result": 10.0
+   },
+   "' Off\\n'": {
+    "result": null
+   },
+   "' a , B ,, c '": {
+    "logs": [
+     "WARNING fork.hub.checklist_auto_archive: FORK_CHECKLIST_ARCHIVE_MINUTES='a , b ,, c' is not a number; using 10.0"
+    ],
+    "result": 10.0
+   },
+   "' yes '": {
+    "logs": [
+     "WARNING fork.hub.checklist_auto_archive: FORK_CHECKLIST_ARCHIVE_MINUTES='yes' is not a number; using 10.0"
+    ],
+    "result": 10.0
+   },
+   "''": {
+    "result": 10.0
+   },
+   "'+3'": {
+    "result": 3.0
+   },
+   "','": {
+    "logs": [
+     "WARNING fork.hub.checklist_auto_archive: FORK_CHECKLIST_ARCHIVE_MINUTES=',' is not a number; using 10.0"
+    ],
+    "result": 10.0
+   },
+   "'-1'": {
+    "result": null
+   },
+   "'0'": {
+    "result": null
+   },
+   "'0.5'": {
+    "result": 0.5
+   },
+   "'00'": {
+    "result": null
+   },
+   "'1'": {
+    "result": 1.0
+   },
+   "'10'": {
+    "result": 10.0
+   },
+   "'11'": {
+    "result": 11.0
+   },
+   "'1e3'": {
+    "result": 1000.0
+   },
+   "'2'": {
+    "result": 2.0
+   },
+   "'23'": {
+    "result": 23.0
+   },
+   "'24'": {
+    "result": 24.0
+   },
+   "'25'": {
+    "result": 25.0
+   },
+   "'3_0'": {
+    "result": 30.0
+   },
+   "'ALL'": {
+    "logs": [
+     "WARNING fork.hub.checklist_auto_archive: FORK_CHECKLIST_ARCHIVE_MINUTES='all' is not a number; using 10.0"
+    ],
+    "result": 10.0
+   },
+   "'Browser'": {
+    "logs": [
+     "WARNING fork.hub.checklist_auto_archive: FORK_CHECKLIST_ARCHIVE_MINUTES='browser' is not a number; using 10.0"
+    ],
+    "result": 10.0
+   },
+   "'CONVO'": {
+    "logs": [
+     "WARNING fork.hub.checklist_auto_archive: FORK_CHECKLIST_ARCHIVE_MINUTES='convo' is not a number; using 10.0"
+    ],
+    "result": 10.0
+   },
+   "'False'": {
+    "result": null
+   },
+   "'Groceries list,Work'": {
+    "logs": [
+     "WARNING fork.hub.checklist_auto_archive: FORK_CHECKLIST_ARCHIVE_MINUTES='groceries list,work' is not a number; using 10.0"
+    ],
+    "result": 10.0
+   },
+   "'HTTPS://Hub.Example.org/'": {
+    "logs": [
+     "WARNING fork.hub.checklist_auto_archive: FORK_CHECKLIST_ARCHIVE_MINUTES='https://hub.example.org/' is not a number; using 10.0"
+    ],
+    "result": 10.0
+   },
+   "'NO'": {
+    "result": null
+   },
+   "'None'": {
+    "result": null
+   },
+   "'ON'": {
+    "logs": [
+     "WARNING fork.hub.checklist_auto_archive: FORK_CHECKLIST_ARCHIVE_MINUTES='on' is not a number; using 10.0"
+    ],
+    "result": 10.0
+   },
+   "'On '": {
+    "logs": [
+     "WARNING fork.hub.checklist_auto_archive: FORK_CHECKLIST_ARCHIVE_MINUTES='on' is not a number; using 10.0"
+    ],
+    "result": 10.0
+   },
+   "'Shopping'": {
+    "logs": [
+     "WARNING fork.hub.checklist_auto_archive: FORK_CHECKLIST_ARCHIVE_MINUTES='shopping' is not a number; using 10.0"
+    ],
+    "result": 10.0
+   },
+   "'Stra\u00dfe'": {
+    "logs": [
+     "WARNING fork.hub.checklist_auto_archive: FORK_CHECKLIST_ARCHIVE_MINUTES='stra\u00dfe' is not a number; using 10.0"
+    ],
+    "result": 10.0
+   },
+   "'TRUE'": {
+    "logs": [
+     "WARNING fork.hub.checklist_auto_archive: FORK_CHECKLIST_ARCHIVE_MINUTES='true' is not a number; using 10.0"
+    ],
+    "result": 10.0
+   },
+   "'True'": {
+    "logs": [
+     "WARNING fork.hub.checklist_auto_archive: FORK_CHECKLIST_ARCHIVE_MINUTES='true' is not a number; using 10.0"
+    ],
+    "result": 10.0
+   },
+   "'Y'": {
+    "logs": [
+     "WARNING fork.hub.checklist_auto_archive: FORK_CHECKLIST_ARCHIVE_MINUTES='y' is not a number; using 10.0"
+    ],
+    "result": 10.0
+   },
+   "'\\n'": {
+    "result": 10.0
+   },
+   "'\\t'": {
+    "result": 10.0
+   },
+   "'a b'": {
+    "logs": [
+     "WARNING fork.hub.checklist_auto_archive: FORK_CHECKLIST_ARCHIVE_MINUTES='a b' is not a number; using 10.0"
+    ],
+    "result": 10.0
+   },
+   "'a.b'": {
+    "logs": [
+     "WARNING fork.hub.checklist_auto_archive: FORK_CHECKLIST_ARCHIVE_MINUTES='a.b' is not a number; using 10.0"
+    ],
+    "result": 10.0
+   },
+   "'abc'": {
+    "logs": [
+     "WARNING fork.hub.checklist_auto_archive: FORK_CHECKLIST_ARCHIVE_MINUTES='abc' is not a number; using 10.0"
+    ],
+    "result": 10.0
+   },
+   "'all'": {
+    "logs": [
+     "WARNING fork.hub.checklist_auto_archive: FORK_CHECKLIST_ARCHIVE_MINUTES='all' is not a number; using 10.0"
+    ],
+    "result": 10.0
+   },
+   "'auto'": {
+    "logs": [
+     "WARNING fork.hub.checklist_auto_archive: FORK_CHECKLIST_ARCHIVE_MINUTES='auto' is not a number; using 10.0"
+    ],
+    "result": 10.0
+   },
+   "'browser'": {
+    "logs": [
+     "WARNING fork.hub.checklist_auto_archive: FORK_CHECKLIST_ARCHIVE_MINUTES='browser' is not a number; using 10.0"
+    ],
+    "result": 10.0
+   },
+   "'convo'": {
+    "logs": [
+     "WARNING fork.hub.checklist_auto_archive: FORK_CHECKLIST_ARCHIVE_MINUTES='convo' is not a number; using 10.0"
+    ],
+    "result": 10.0
+   },
+   "'explicit'": {
+    "logs": [
+     "WARNING fork.hub.checklist_auto_archive: FORK_CHECKLIST_ARCHIVE_MINUTES='explicit' is not a number; using 10.0"
+    ],
+    "result": 10.0
+   },
+   "'false'": {
+    "result": null
+   },
+   "'ftp://x'": {
+    "logs": [
+     "WARNING fork.hub.checklist_auto_archive: FORK_CHECKLIST_ARCHIVE_MINUTES='ftp://x' is not a number; using 10.0"
+    ],
+    "result": 10.0
+   },
+   "'http://10.0.0.5:7000/x?y=1#z'": {
+    "logs": [
+     "WARNING fork.hub.checklist_auto_archive: FORK_CHECKLIST_ARCHIVE_MINUTES='http://10.0.0.5:7000/x?y=1#z' is not a number; using 10.0"
+    ],
+    "result": 10.0
+   },
+   "'https://hub.example.org'": {
+    "logs": [
+     "WARNING fork.hub.checklist_auto_archive: FORK_CHECKLIST_ARCHIVE_MINUTES='https://hub.example.org' is not a number; using 10.0"
+    ],
+    "result": 10.0
+   },
+   "'inf'": {
+    "result": Infinity
+   },
+   "'maybe'": {
+    "logs": [
+     "WARNING fork.hub.checklist_auto_archive: FORK_CHECKLIST_ARCHIVE_MINUTES='maybe' is not a number; using 10.0"
+    ],
+    "result": 10.0
+   },
+   "'nan'": {
+    "result": null
+   },
+   "'nil'": {
+    "logs": [
+     "WARNING fork.hub.checklist_auto_archive: FORK_CHECKLIST_ARCHIVE_MINUTES='nil' is not a number; using 10.0"
+    ],
+    "result": 10.0
+   },
+   "'no'": {
+    "result": null
+   },
+   "'none'": {
+    "result": null
+   },
+   "'ntfy'": {
+    "logs": [
+     "WARNING fork.hub.checklist_auto_archive: FORK_CHECKLIST_ARCHIVE_MINUTES='ntfy' is not a number; using 10.0"
+    ],
+    "result": 10.0
+   },
+   "'off'": {
+    "result": null
+   },
+   "'on'": {
+    "logs": [
+     "WARNING fork.hub.checklist_auto_archive: FORK_CHECKLIST_ARCHIVE_MINUTES='on' is not a number; using 10.0"
+    ],
+    "result": 10.0
+   },
+   "'phone-1'": {
+    "logs": [
+     "WARNING fork.hub.checklist_auto_archive: FORK_CHECKLIST_ARCHIVE_MINUTES='phone-1' is not a number; using 10.0"
+    ],
+    "result": 10.0
+   },
+   "'true'": {
+    "logs": [
+     "WARNING fork.hub.checklist_auto_archive: FORK_CHECKLIST_ARCHIVE_MINUTES='true' is not a number; using 10.0"
+    ],
+    "result": 10.0
+   },
+   "'x,y'": {
+    "logs": [
+     "WARNING fork.hub.checklist_auto_archive: FORK_CHECKLIST_ARCHIVE_MINUTES='x,y' is not a number; using 10.0"
+    ],
+    "result": 10.0
+   },
+   "'xxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxx'": {
+    "logs": [
+     "WARNING fork.hub.checklist_auto_archive: FORK_CHECKLIST_ARCHIVE_MINUTES='xxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxx' is not a number; using 10.0"
+    ],
+    "result": 10.0
+   },
+   "'yes'": {
+    "logs": [
+     "WARNING fork.hub.checklist_auto_archive: FORK_CHECKLIST_ARCHIVE_MINUTES='yes' is not a number; using 10.0"
+    ],
+    "result": 10.0
+   },
+   "<unset>": {
+    "result": 10.0
+   }
+  },
+  "INK_AUTO_SEND transcribe.auto_send_enabled": {
+   "' '": {
+    "result": false
+   },
+   "' 7 '": {
+    "result": false
+   },
+   "' Convo '": {
+    "result": false
+   },
+   "' Off\\n'": {
+    "result": false
+   },
+   "' a , B ,, c '": {
+    "result": false
+   },
+   "' yes '": {
+    "result": true
+   },
+   "''": {
+    "result": false
+   },
+   "'+3'": {
+    "result": false
+   },
+   "','": {
+    "result": false
+   },
+   "'-1'": {
+    "result": false
+   },
+   "'0'": {
+    "result": false
+   },
+   "'0.5'": {
+    "result": false
+   },
+   "'00'": {
+    "result": false
+   },
+   "'1'": {
+    "result": true
+   },
+   "'10'": {
+    "result": false
+   },
+   "'11'": {
+    "result": false
+   },
+   "'1e3'": {
+    "result": false
+   },
+   "'2'": {
+    "result": false
+   },
+   "'23'": {
+    "result": false
+   },
+   "'24'": {
+    "result": false
+   },
+   "'25'": {
+    "result": false
+   },
+   "'3_0'": {
+    "result": false
+   },
+   "'ALL'": {
+    "result": false
+   },
+   "'Browser'": {
+    "result": false
+   },
+   "'CONVO'": {
+    "result": false
+   },
+   "'False'": {
+    "result": false
+   },
+   "'Groceries list,Work'": {
+    "result": false
+   },
+   "'HTTPS://Hub.Example.org/'": {
+    "result": false
+   },
+   "'NO'": {
+    "result": false
+   },
+   "'None'": {
+    "result": false
+   },
+   "'ON'": {
+    "result": true
+   },
+   "'On '": {
+    "result": true
+   },
+   "'Shopping'": {
+    "result": false
+   },
+   "'Stra\u00dfe'": {
+    "result": false
+   },
+   "'TRUE'": {
+    "result": true
+   },
+   "'True'": {
+    "result": true
+   },
+   "'Y'": {
+    "result": false
+   },
+   "'\\n'": {
+    "result": false
+   },
+   "'\\t'": {
+    "result": false
+   },
+   "'a b'": {
+    "result": false
+   },
+   "'a.b'": {
+    "result": false
+   },
+   "'abc'": {
+    "result": false
+   },
+   "'all'": {
+    "result": false
+   },
+   "'auto'": {
+    "result": false
+   },
+   "'browser'": {
+    "result": false
+   },
+   "'convo'": {
+    "result": false
+   },
+   "'explicit'": {
+    "result": false
+   },
+   "'false'": {
+    "result": false
+   },
+   "'ftp://x'": {
+    "result": false
+   },
+   "'http://10.0.0.5:7000/x?y=1#z'": {
+    "result": false
+   },
+   "'https://hub.example.org'": {
+    "result": false
+   },
+   "'inf'": {
+    "result": false
+   },
+   "'maybe'": {
+    "result": false
+   },
+   "'nan'": {
+    "result": false
+   },
+   "'nil'": {
+    "result": false
+   },
+   "'no'": {
+    "result": false
+   },
+   "'none'": {
+    "result": false
+   },
+   "'ntfy'": {
+    "result": false
+   },
+   "'off'": {
+    "result": false
+   },
+   "'on'": {
+    "result": true
+   },
+   "'phone-1'": {
+    "result": false
+   },
+   "'true'": {
+    "result": true
+   },
+   "'x,y'": {
+    "result": false
+   },
+   "'xxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxx'": {
+    "result": false
+   },
+   "'yes'": {
+    "result": true
+   },
+   "<unset>": {
+    "result": false
+   }
+  },
+  "MODULE_ACTION_ITEMS_SERVER action_items.server_key": {
+   "' '": {
+    "result": ""
+   },
+   "' 7 '": {
+    "result": "7"
+   },
+   "' Convo '": {
+    "result": "convo"
+   },
+   "' Off\\n'": {
+    "result": "off"
+   },
+   "' a , B ,, c '": {
+    "result": "a , b ,, c"
+   },
+   "' yes '": {
+    "result": "yes"
+   },
+   "''": {
+    "result": "convo"
+   },
+   "'+3'": {
+    "result": "+3"
+   },
+   "','": {
+    "result": ","
+   },
+   "'-1'": {
+    "result": "-1"
+   },
+   "'0'": {
+    "result": "0"
+   },
+   "'0.5'": {
+    "result": "0.5"
+   },
+   "'00'": {
+    "result": "00"
+   },
+   "'1'": {
+    "result": "1"
+   },
+   "'10'": {
+    "result": "10"
+   },
+   "'11'": {
+    "result": "11"
+   },
+   "'1e3'": {
+    "result": "1e3"
+   },
+   "'2'": {
+    "result": "2"
+   },
+   "'23'": {
+    "result": "23"
+   },
+   "'24'": {
+    "result": "24"
+   },
+   "'25'": {
+    "result": "25"
+   },
+   "'3_0'": {
+    "result": "3_0"
+   },
+   "'ALL'": {
+    "result": "all"
+   },
+   "'Browser'": {
+    "result": "browser"
+   },
+   "'CONVO'": {
+    "result": "convo"
+   },
+   "'False'": {
+    "result": "false"
+   },
+   "'Groceries list,Work'": {
+    "result": "groceries list,work"
+   },
+   "'HTTPS://Hub.Example.org/'": {
+    "result": "https://hub.example.org/"
+   },
+   "'NO'": {
+    "result": "no"
+   },
+   "'None'": {
+    "result": "none"
+   },
+   "'ON'": {
+    "result": "on"
+   },
+   "'On '": {
+    "result": "on"
+   },
+   "'Shopping'": {
+    "result": "shopping"
+   },
+   "'Stra\u00dfe'": {
+    "result": "strasse"
+   },
+   "'TRUE'": {
+    "result": "true"
+   },
+   "'True'": {
+    "result": "true"
+   },
+   "'Y'": {
+    "result": "y"
+   },
+   "'\\n'": {
+    "result": ""
+   },
+   "'\\t'": {
+    "result": ""
+   },
+   "'a b'": {
+    "result": "a b"
+   },
+   "'a.b'": {
+    "result": "a.b"
+   },
+   "'abc'": {
+    "result": "abc"
+   },
+   "'all'": {
+    "result": "all"
+   },
+   "'auto'": {
+    "result": "auto"
+   },
+   "'browser'": {
+    "result": "browser"
+   },
+   "'convo'": {
+    "result": "convo"
+   },
+   "'explicit'": {
+    "result": "explicit"
+   },
+   "'false'": {
+    "result": "false"
+   },
+   "'ftp://x'": {
+    "result": "ftp://x"
+   },
+   "'http://10.0.0.5:7000/x?y=1#z'": {
+    "result": "http://10.0.0.5:7000/x?y=1#z"
+   },
+   "'https://hub.example.org'": {
+    "result": "https://hub.example.org"
+   },
+   "'inf'": {
+    "result": "inf"
+   },
+   "'maybe'": {
+    "result": "maybe"
+   },
+   "'nan'": {
+    "result": "nan"
+   },
+   "'nil'": {
+    "result": "nil"
+   },
+   "'no'": {
+    "result": "no"
+   },
+   "'none'": {
+    "result": "none"
+   },
+   "'ntfy'": {
+    "result": "ntfy"
+   },
+   "'off'": {
+    "result": "off"
+   },
+   "'on'": {
+    "result": "on"
+   },
+   "'phone-1'": {
+    "result": "phone-1"
+   },
+   "'true'": {
+    "result": "true"
+   },
+   "'x,y'": {
+    "result": "x,y"
+   },
+   "'xxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxx'": {
+    "result": "xxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxx"
+   },
+   "'yes'": {
+    "result": "yes"
+   },
+   "<unset>": {
+    "result": "convo"
+   }
+  },
+  "MODULE_DIGEST_HOUR action_items.digest_hour": {
+   "' '": {
+    "result": null
+   },
+   "' 7 '": {
+    "result": 7
+   },
+   "' Convo '": {
+    "result": 8
+   },
+   "' Off\\n'": {
+    "result": null
+   },
+   "' a , B ,, c '": {
+    "result": 8
+   },
+   "' yes '": {
+    "result": 8
+   },
+   "''": {
+    "result": 8
+   },
+   "'+3'": {
+    "result": 3
+   },
+   "','": {
+    "result": 8
+   },
+   "'-1'": {
+    "result": 0
+   },
+   "'0'": {
+    "result": 0
+   },
+   "'0.5'": {
+    "result": 8
+   },
+   "'00'": {
+    "result": 0
+   },
+   "'1'": {
+    "result": 1
+   },
+   "'10'": {
+    "result": 10
+   },
+   "'11'": {
+    "result": 11
+   },
+   "'1e3'": {
+    "result": 8
+   },
+   "'2'": {
+    "result": 2
+   },
+   "'23'": {
+    "result": 23
+   },
+   "'24'": {
+    "result": 23
+   },
+   "'25'": {
+    "result": 23
+   },
+   "'3_0'": {
+    "result": 23
+   },
+   "'ALL'": {
+    "result": 8
+   },
+   "'Browser'": {
+    "result": 8
+   },
+   "'CONVO'": {
+    "result": 8
+   },
+   "'False'": {
+    "result": 8
+   },
+   "'Groceries list,Work'": {
+    "result": 8
+   },
+   "'HTTPS://Hub.Example.org/'": {
+    "result": 8
+   },
+   "'NO'": {
+    "result": 8
+   },
+   "'None'": {
+    "result": null
+   },
+   "'ON'": {
+    "result": 8
+   },
+   "'On '": {
+    "result": 8
+   },
+   "'Shopping'": {
+    "result": 8
+   },
+   "'Stra\u00dfe'": {
+    "result": 8
+   },
+   "'TRUE'": {
+    "result": 8
+   },
+   "'True'": {
+    "result": 8
+   },
+   "'Y'": {
+    "result": 8
+   },
+   "'\\n'": {
+    "result": null
+   },
+   "'\\t'": {
+    "result": null
+   },
+   "'a b'": {
+    "result": 8
+   },
+   "'a.b'": {
+    "result": 8
+   },
+   "'abc'": {
+    "result": 8
+   },
+   "'all'": {
+    "result": 8
+   },
+   "'auto'": {
+    "result": 8
+   },
+   "'browser'": {
+    "result": 8
+   },
+   "'convo'": {
+    "result": 8
+   },
+   "'explicit'": {
+    "result": 8
+   },
+   "'false'": {
+    "result": 8
+   },
+   "'ftp://x'": {
+    "result": 8
+   },
+   "'http://10.0.0.5:7000/x?y=1#z'": {
+    "result": 8
+   },
+   "'https://hub.example.org'": {
+    "result": 8
+   },
+   "'inf'": {
+    "result": 8
+   },
+   "'maybe'": {
+    "result": 8
+   },
+   "'nan'": {
+    "result": 8
+   },
+   "'nil'": {
+    "result": 8
+   },
+   "'no'": {
+    "result": 8
+   },
+   "'none'": {
+    "result": null
+   },
+   "'ntfy'": {
+    "result": 8
+   },
+   "'off'": {
+    "result": null
+   },
+   "'on'": {
+    "result": 8
+   },
+   "'phone-1'": {
+    "result": 8
+   },
+   "'true'": {
+    "result": 8
+   },
+   "'x,y'": {
+    "result": 8
+   },
+   "'xxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxx'": {
+    "result": 8
+   },
+   "'yes'": {
+    "result": 8
+   },
+   "<unset>": {
+    "result": 8
+   }
+  },
+  "MODULE_FACTS_SYNC facts.enabled": {
+   "' '": {
+    "result": true
+   },
+   "' 7 '": {
+    "result": true
+   },
+   "' Convo '": {
+    "result": true
+   },
+   "' Off\\n'": {
+    "result": false
+   },
+   "' a , B ,, c '": {
+    "result": true
+   },
+   "' yes '": {
+    "result": true
+   },
+   "''": {
+    "result": true
+   },
+   "'+3'": {
+    "result": true
+   },
+   "','": {
+    "result": true
+   },
+   "'-1'": {
+    "result": true
+   },
+   "'0'": {
+    "result": false
+   },
+   "'0.5'": {
+    "result": true
+   },
+   "'00'": {
+    "result": true
+   },
+   "'1'": {
+    "result": true
+   },
+   "'10'": {
+    "result": true
+   },
+   "'11'": {
+    "result": true
+   },
+   "'1e3'": {
+    "result": true
+   },
+   "'2'": {
+    "result": true
+   },
+   "'23'": {
+    "result": true
+   },
+   "'24'": {
+    "result": true
+   },
+   "'25'": {
+    "result": true
+   },
+   "'3_0'": {
+    "result": true
+   },
+   "'ALL'": {
+    "result": true
+   },
+   "'Browser'": {
+    "result": true
+   },
+   "'CONVO'": {
+    "result": true
+   },
+   "'False'": {
+    "result": false
+   },
+   "'Groceries list,Work'": {
+    "result": true
+   },
+   "'HTTPS://Hub.Example.org/'": {
+    "result": true
+   },
+   "'NO'": {
+    "result": false
+   },
+   "'None'": {
+    "result": true
+   },
+   "'ON'": {
+    "result": true
+   },
+   "'On '": {
+    "result": true
+   },
+   "'Shopping'": {
+    "result": true
+   },
+   "'Stra\u00dfe'": {
+    "result": true
+   },
+   "'TRUE'": {
+    "result": true
+   },
+   "'True'": {
+    "result": true
+   },
+   "'Y'": {
+    "result": true
+   },
+   "'\\n'": {
+    "result": true
+   },
+   "'\\t'": {
+    "result": true
+   },
+   "'a b'": {
+    "result": true
+   },
+   "'a.b'": {
+    "result": true
+   },
+   "'abc'": {
+    "result": true
+   },
+   "'all'": {
+    "result": true
+   },
+   "'auto'": {
+    "result": true
+   },
+   "'browser'": {
+    "result": true
+   },
+   "'convo'": {
+    "result": true
+   },
+   "'explicit'": {
+    "result": true
+   },
+   "'false'": {
+    "result": false
+   },
+   "'ftp://x'": {
+    "result": true
+   },
+   "'http://10.0.0.5:7000/x?y=1#z'": {
+    "result": true
+   },
+   "'https://hub.example.org'": {
+    "result": true
+   },
+   "'inf'": {
+    "result": true
+   },
+   "'maybe'": {
+    "result": true
+   },
+   "'nan'": {
+    "result": true
+   },
+   "'nil'": {
+    "result": true
+   },
+   "'no'": {
+    "result": false
+   },
+   "'none'": {
+    "result": true
+   },
+   "'ntfy'": {
+    "result": true
+   },
+   "'off'": {
+    "result": false
+   },
+   "'on'": {
+    "result": true
+   },
+   "'phone-1'": {
+    "result": true
+   },
+   "'true'": {
+    "result": true
+   },
+   "'x,y'": {
+    "result": true
+   },
+   "'xxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxx'": {
+    "result": true
+   },
+   "'yes'": {
+    "result": true
+   },
+   "<unset>": {
+    "result": true
+   }
+  },
+  "MODULE_FILE_ITEMS action_items.file_mode": {
+   "' '": {
+    "result": "explicit"
+   },
+   "' 7 '": {
+    "result": "explicit"
+   },
+   "' Convo '": {
+    "result": "explicit"
+   },
+   "' Off\\n'": {
+    "result": "off"
+   },
+   "' a , B ,, c '": {
+    "result": "explicit"
+   },
+   "' yes '": {
+    "result": "explicit"
+   },
+   "''": {
+    "result": "explicit"
+   },
+   "'+3'": {
+    "result": "explicit"
+   },
+   "','": {
+    "result": "explicit"
+   },
+   "'-1'": {
+    "result": "explicit"
+   },
+   "'0'": {
+    "result": "off"
+   },
+   "'0.5'": {
+    "result": "explicit"
+   },
+   "'00'": {
+    "result": "explicit"
+   },
+   "'1'": {
+    "result": "explicit"
+   },
+   "'10'": {
+    "result": "explicit"
+   },
+   "'11'": {
+    "result": "explicit"
+   },
+   "'1e3'": {
+    "result": "explicit"
+   },
+   "'2'": {
+    "result": "explicit"
+   },
+   "'23'": {
+    "result": "explicit"
+   },
+   "'24'": {
+    "result": "explicit"
+   },
+   "'25'": {
+    "result": "explicit"
+   },
+   "'3_0'": {
+    "result": "explicit"
+   },
+   "'ALL'": {
+    "result": "auto"
+   },
+   "'Browser'": {
+    "result": "explicit"
+   },
+   "'CONVO'": {
+    "result": "explicit"
+   },
+   "'False'": {
+    "result": "off"
+   },
+   "'Groceries list,Work'": {
+    "result": "explicit"
+   },
+   "'HTTPS://Hub.Example.org/'": {
+    "result": "explicit"
+   },
+   "'NO'": {
+    "result": "off"
+   },
+   "'None'": {
+    "result": "explicit"
+   },
+   "'ON'": {
+    "result": "explicit"
+   },
+   "'On '": {
+    "result": "explicit"
+   },
+   "'Shopping'": {
+    "result": "explicit"
+   },
+   "'Stra\u00dfe'": {
+    "result": "explicit"
+   },
+   "'TRUE'": {
+    "result": "explicit"
+   },
+   "'True'": {
+    "result": "explicit"
+   },
+   "'Y'": {
+    "result": "explicit"
+   },
+   "'\\n'": {
+    "result": "explicit"
+   },
+   "'\\t'": {
+    "result": "explicit"
+   },
+   "'a b'": {
+    "result": "explicit"
+   },
+   "'a.b'": {
+    "result": "explicit"
+   },
+   "'abc'": {
+    "result": "explicit"
+   },
+   "'all'": {
+    "result": "auto"
+   },
+   "'auto'": {
+    "result": "auto"
+   },
+   "'browser'": {
+    "result": "explicit"
+   },
+   "'convo'": {
+    "result": "explicit"
+   },
+   "'explicit'": {
+    "result": "explicit"
+   },
+   "'false'": {
+    "result": "off"
+   },
+   "'ftp://x'": {
+    "result": "explicit"
+   },
+   "'http://10.0.0.5:7000/x?y=1#z'": {
+    "result": "explicit"
+   },
+   "'https://hub.example.org'": {
+    "result": "explicit"
+   },
+   "'inf'": {
+    "result": "explicit"
+   },
+   "'maybe'": {
+    "result": "explicit"
+   },
+   "'nan'": {
+    "result": "explicit"
+   },
+   "'nil'": {
+    "result": "explicit"
+   },
+   "'no'": {
+    "result": "off"
+   },
+   "'none'": {
+    "result": "explicit"
+   },
+   "'ntfy'": {
+    "result": "explicit"
+   },
+   "'off'": {
+    "result": "off"
+   },
+   "'on'": {
+    "result": "explicit"
+   },
+   "'phone-1'": {
+    "result": "explicit"
+   },
+   "'true'": {
+    "result": "explicit"
+   },
+   "'x,y'": {
+    "result": "explicit"
+   },
+   "'xxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxx'": {
+    "result": "explicit"
+   },
+   "'yes'": {
+    "result": "explicit"
+   },
+   "<unset>": {
+    "result": "explicit"
+   }
+  },
+  "MODULE_NOTIFY_CHANNEL action_items.notify_channel": {
+   "' '": {
+    "result": "ntfy"
+   },
+   "' 7 '": {
+    "result": "ntfy"
+   },
+   "' Convo '": {
+    "result": "ntfy"
+   },
+   "' Off\\n'": {
+    "result": "off"
+   },
+   "' a , B ,, c '": {
+    "result": "ntfy"
+   },
+   "' yes '": {
+    "result": "ntfy"
+   },
+   "''": {
+    "result": "ntfy"
+   },
+   "'+3'": {
+    "result": "ntfy"
+   },
+   "','": {
+    "result": "ntfy"
+   },
+   "'-1'": {
+    "result": "ntfy"
+   },
+   "'0'": {
+    "result": "ntfy"
+   },
+   "'0.5'": {
+    "result": "ntfy"
+   },
+   "'00'": {
+    "result": "ntfy"
+   },
+   "'1'": {
+    "result": "ntfy"
+   },
+   "'10'": {
+    "result": "ntfy"
+   },
+   "'11'": {
+    "result": "ntfy"
+   },
+   "'1e3'": {
+    "result": "ntfy"
+   },
+   "'2'": {
+    "result": "ntfy"
+   },
+   "'23'": {
+    "result": "ntfy"
+   },
+   "'24'": {
+    "result": "ntfy"
+   },
+   "'25'": {
+    "result": "ntfy"
+   },
+   "'3_0'": {
+    "result": "ntfy"
+   },
+   "'ALL'": {
+    "result": "ntfy"
+   },
+   "'Browser'": {
+    "result": "browser"
+   },
+   "'CONVO'": {
+    "result": "ntfy"
+   },
+   "'False'": {
+    "result": "ntfy"
+   },
+   "'Groceries list,Work'": {
+    "result": "ntfy"
+   },
+   "'HTTPS://Hub.Example.org/'": {
+    "result": "ntfy"
+   },
+   "'NO'": {
+    "result": "ntfy"
+   },
+   "'None'": {
+    "result": "ntfy"
+   },
+   "'ON'": {
+    "result": "ntfy"
+   },
+   "'On '": {
+    "result": "ntfy"
+   },
+   "'Shopping'": {
+    "result": "ntfy"
+   },
+   "'Stra\u00dfe'": {
+    "result": "ntfy"
+   },
+   "'TRUE'": {
+    "result": "ntfy"
+   },
+   "'True'": {
+    "result": "ntfy"
+   },
+   "'Y'": {
+    "result": "ntfy"
+   },
+   "'\\n'": {
+    "result": "ntfy"
+   },
+   "'\\t'": {
+    "result": "ntfy"
+   },
+   "'a b'": {
+    "result": "ntfy"
+   },
+   "'a.b'": {
+    "result": "ntfy"
+   },
+   "'abc'": {
+    "result": "ntfy"
+   },
+   "'all'": {
+    "result": "ntfy"
+   },
+   "'auto'": {
+    "result": "ntfy"
+   },
+   "'browser'": {
+    "result": "browser"
+   },
+   "'convo'": {
+    "result": "ntfy"
+   },
+   "'explicit'": {
+    "result": "ntfy"
+   },
+   "'false'": {
+    "result": "ntfy"
+   },
+   "'ftp://x'": {
+    "result": "ntfy"
+   },
+   "'http://10.0.0.5:7000/x?y=1#z'": {
+    "result": "ntfy"
+   },
+   "'https://hub.example.org'": {
+    "result": "ntfy"
+   },
+   "'inf'": {
+    "result": "ntfy"
+   },
+   "'maybe'": {
+    "result": "ntfy"
+   },
+   "'nan'": {
+    "result": "ntfy"
+   },
+   "'nil'": {
+    "result": "ntfy"
+   },
+   "'no'": {
+    "result": "ntfy"
+   },
+   "'none'": {
+    "result": "ntfy"
+   },
+   "'ntfy'": {
+    "result": "ntfy"
+   },
+   "'off'": {
+    "result": "off"
+   },
+   "'on'": {
+    "result": "ntfy"
+   },
+   "'phone-1'": {
+    "result": "ntfy"
+   },
+   "'true'": {
+    "result": "ntfy"
+   },
+   "'x,y'": {
+    "result": "ntfy"
+   },
+   "'xxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxx'": {
+    "result": "ntfy"
+   },
+   "'yes'": {
+    "result": "ntfy"
+   },
+   "<unset>": {
+    "result": "ntfy"
+   }
+  },
+  "ODYSSEUS_PERSONAL_READ_GRANTS personal_read_grants.enabled": {
+   "' '": {
+    "result": true
+   },
+   "' 7 '": {
+    "result": true
+   },
+   "' Convo '": {
+    "result": true
+   },
+   "' Off\\n'": {
+    "result": false
+   },
+   "' a , B ,, c '": {
+    "result": true
+   },
+   "' yes '": {
+    "result": true
+   },
+   "''": {
+    "result": true
+   },
+   "'+3'": {
+    "result": true
+   },
+   "','": {
+    "result": true
+   },
+   "'-1'": {
+    "result": true
+   },
+   "'0'": {
+    "result": false
+   },
+   "'0.5'": {
+    "result": true
+   },
+   "'00'": {
+    "result": true
+   },
+   "'1'": {
+    "result": true
+   },
+   "'10'": {
+    "result": true
+   },
+   "'11'": {
+    "result": true
+   },
+   "'1e3'": {
+    "result": true
+   },
+   "'2'": {
+    "result": true
+   },
+   "'23'": {
+    "result": true
+   },
+   "'24'": {
+    "result": true
+   },
+   "'25'": {
+    "result": true
+   },
+   "'3_0'": {
+    "result": true
+   },
+   "'ALL'": {
+    "result": true
+   },
+   "'Browser'": {
+    "result": true
+   },
+   "'CONVO'": {
+    "result": true
+   },
+   "'False'": {
+    "result": false
+   },
+   "'Groceries list,Work'": {
+    "result": true
+   },
+   "'HTTPS://Hub.Example.org/'": {
+    "result": true
+   },
+   "'NO'": {
+    "result": false
+   },
+   "'None'": {
+    "result": true
+   },
+   "'ON'": {
+    "result": true
+   },
+   "'On '": {
+    "result": true
+   },
+   "'Shopping'": {
+    "result": true
+   },
+   "'Stra\u00dfe'": {
+    "result": true
+   },
+   "'TRUE'": {
+    "result": true
+   },
+   "'True'": {
+    "result": true
+   },
+   "'Y'": {
+    "result": true
+   },
+   "'\\n'": {
+    "result": true
+   },
+   "'\\t'": {
+    "result": true
+   },
+   "'a b'": {
+    "result": true
+   },
+   "'a.b'": {
+    "result": true
+   },
+   "'abc'": {
+    "result": true
+   },
+   "'all'": {
+    "result": true
+   },
+   "'auto'": {
+    "result": true
+   },
+   "'browser'": {
+    "result": true
+   },
+   "'convo'": {
+    "result": true
+   },
+   "'explicit'": {
+    "result": true
+   },
+   "'false'": {
+    "result": false
+   },
+   "'ftp://x'": {
+    "result": true
+   },
+   "'http://10.0.0.5:7000/x?y=1#z'": {
+    "result": true
+   },
+   "'https://hub.example.org'": {
+    "result": true
+   },
+   "'inf'": {
+    "result": true
+   },
+   "'maybe'": {
+    "result": true
+   },
+   "'nan'": {
+    "result": true
+   },
+   "'nil'": {
+    "result": true
+   },
+   "'no'": {
+    "result": false
+   },
+   "'none'": {
+    "result": true
+   },
+   "'ntfy'": {
+    "result": true
+   },
+   "'off'": {
+    "result": false
+   },
+   "'on'": {
+    "result": true
+   },
+   "'phone-1'": {
+    "result": true
+   },
+   "'true'": {
+    "result": true
+   },
+   "'x,y'": {
+    "result": true
+   },
+   "'xxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxx'": {
+    "result": true
+   },
+   "'yes'": {
+    "result": true
+   },
+   "<unset>": {
+    "result": true
+   }
+  },
+  "ODYSSEUS_PERSONAL_STORE_ESCALATION personal_store_escalation.enabled": {
+   "' '": {
+    "result": true
+   },
+   "' 7 '": {
+    "result": true
+   },
+   "' Convo '": {
+    "result": true
+   },
+   "' Off\\n'": {
+    "result": false
+   },
+   "' a , B ,, c '": {
+    "result": true
+   },
+   "' yes '": {
+    "result": true
+   },
+   "''": {
+    "result": true
+   },
+   "'+3'": {
+    "result": true
+   },
+   "','": {
+    "result": true
+   },
+   "'-1'": {
+    "result": true
+   },
+   "'0'": {
+    "result": false
+   },
+   "'0.5'": {
+    "result": true
+   },
+   "'00'": {
+    "result": true
+   },
+   "'1'": {
+    "result": true
+   },
+   "'10'": {
+    "result": true
+   },
+   "'11'": {
+    "result": true
+   },
+   "'1e3'": {
+    "result": true
+   },
+   "'2'": {
+    "result": true
+   },
+   "'23'": {
+    "result": true
+   },
+   "'24'": {
+    "result": true
+   },
+   "'25'": {
+    "result": true
+   },
+   "'3_0'": {
+    "result": true
+   },
+   "'ALL'": {
+    "result": true
+   },
+   "'Browser'": {
+    "result": true
+   },
+   "'CONVO'": {
+    "result": true
+   },
+   "'False'": {
+    "result": false
+   },
+   "'Groceries list,Work'": {
+    "result": true
+   },
+   "'HTTPS://Hub.Example.org/'": {
+    "result": true
+   },
+   "'NO'": {
+    "result": false
+   },
+   "'None'": {
+    "result": true
+   },
+   "'ON'": {
+    "result": true
+   },
+   "'On '": {
+    "result": true
+   },
+   "'Shopping'": {
+    "result": true
+   },
+   "'Stra\u00dfe'": {
+    "result": true
+   },
+   "'TRUE'": {
+    "result": true
+   },
+   "'True'": {
+    "result": true
+   },
+   "'Y'": {
+    "result": true
+   },
+   "'\\n'": {
+    "result": true
+   },
+   "'\\t'": {
+    "result": true
+   },
+   "'a b'": {
+    "result": true
+   },
+   "'a.b'": {
+    "result": true
+   },
+   "'abc'": {
+    "result": true
+   },
+   "'all'": {
+    "result": true
+   },
+   "'auto'": {
+    "result": true
+   },
+   "'browser'": {
+    "result": true
+   },
+   "'convo'": {
+    "result": true
+   },
+   "'explicit'": {
+    "result": true
+   },
+   "'false'": {
+    "result": false
+   },
+   "'ftp://x'": {
+    "result": true
+   },
+   "'http://10.0.0.5:7000/x?y=1#z'": {
+    "result": true
+   },
+   "'https://hub.example.org'": {
+    "result": true
+   },
+   "'inf'": {
+    "result": true
+   },
+   "'maybe'": {
+    "result": true
+   },
+   "'nan'": {
+    "result": true
+   },
+   "'nil'": {
+    "result": true
+   },
+   "'no'": {
+    "result": false
+   },
+   "'none'": {
+    "result": true
+   },
+   "'ntfy'": {
+    "result": true
+   },
+   "'off'": {
+    "result": false
+   },
+   "'on'": {
+    "result": true
+   },
+   "'phone-1'": {
+    "result": true
+   },
+   "'true'": {
+    "result": true
+   },
+   "'x,y'": {
+    "result": true
+   },
+   "'xxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxx'": {
+    "result": true
+   },
+   "'yes'": {
+    "result": true
+   },
+   "<unset>": {
+    "result": true
+   }
+  },
+  "ODYSSEUS_TRUSTED_READONLY_MCP trust.trusted_readonly_server_keys": {
+   "' '": {
+    "result": []
+   },
+   "' 7 '": {
+    "result": [
+     "7"
+    ]
+   },
+   "' Convo '": {
+    "result": [
+     "convo"
+    ]
+   },
+   "' Off\\n'": {
+    "result": [
+     "off"
+    ]
+   },
+   "' a , B ,, c '": {
+    "result": [
+     "a",
+     "b",
+     "c"
+    ]
+   },
+   "' yes '": {
+    "result": [
+     "yes"
+    ]
+   },
+   "''": {
+    "result": []
+   },
+   "'+3'": {
+    "result": [
+     "+3"
+    ]
+   },
+   "','": {
+    "result": []
+   },
+   "'-1'": {
+    "result": [
+     "-1"
+    ]
+   },
+   "'0'": {
+    "result": [
+     "0"
+    ]
+   },
+   "'0.5'": {
+    "result": [
+     "0.5"
+    ]
+   },
+   "'00'": {
+    "result": [
+     "00"
+    ]
+   },
+   "'1'": {
+    "result": [
+     "1"
+    ]
+   },
+   "'10'": {
+    "result": [
+     "10"
+    ]
+   },
+   "'11'": {
+    "result": [
+     "11"
+    ]
+   },
+   "'1e3'": {
+    "result": [
+     "1e3"
+    ]
+   },
+   "'2'": {
+    "result": [
+     "2"
+    ]
+   },
+   "'23'": {
+    "result": [
+     "23"
+    ]
+   },
+   "'24'": {
+    "result": [
+     "24"
+    ]
+   },
+   "'25'": {
+    "result": [
+     "25"
+    ]
+   },
+   "'3_0'": {
+    "result": [
+     "3_0"
+    ]
+   },
+   "'ALL'": {
+    "result": [
+     "all"
+    ]
+   },
+   "'Browser'": {
+    "result": [
+     "browser"
+    ]
+   },
+   "'CONVO'": {
+    "result": [
+     "convo"
+    ]
+   },
+   "'False'": {
+    "result": [
+     "false"
+    ]
+   },
+   "'Groceries list,Work'": {
+    "result": [
+     "groceries list",
+     "work"
+    ]
+   },
+   "'HTTPS://Hub.Example.org/'": {
+    "result": [
+     "https://hub.example.org/"
+    ]
+   },
+   "'NO'": {
+    "result": [
+     "no"
+    ]
+   },
+   "'None'": {
+    "result": [
+     "none"
+    ]
+   },
+   "'ON'": {
+    "result": [
+     "on"
+    ]
+   },
+   "'On '": {
+    "result": [
+     "on"
+    ]
+   },
+   "'Shopping'": {
+    "result": [
+     "shopping"
+    ]
+   },
+   "'Stra\u00dfe'": {
+    "result": [
+     "strasse"
+    ]
+   },
+   "'TRUE'": {
+    "result": [
+     "true"
+    ]
+   },
+   "'True'": {
+    "result": [
+     "true"
+    ]
+   },
+   "'Y'": {
+    "result": [
+     "y"
+    ]
+   },
+   "'\\n'": {
+    "result": []
+   },
+   "'\\t'": {
+    "result": []
+   },
+   "'a b'": {
+    "result": [
+     "a b"
+    ]
+   },
+   "'a.b'": {
+    "result": [
+     "a.b"
+    ]
+   },
+   "'abc'": {
+    "result": [
+     "abc"
+    ]
+   },
+   "'all'": {
+    "result": [
+     "all"
+    ]
+   },
+   "'auto'": {
+    "result": [
+     "auto"
+    ]
+   },
+   "'browser'": {
+    "result": [
+     "browser"
+    ]
+   },
+   "'convo'": {
+    "result": [
+     "convo"
+    ]
+   },
+   "'explicit'": {
+    "result": [
+     "explicit"
+    ]
+   },
+   "'false'": {
+    "result": [
+     "false"
+    ]
+   },
+   "'ftp://x'": {
+    "result": [
+     "ftp://x"
+    ]
+   },
+   "'http://10.0.0.5:7000/x?y=1#z'": {
+    "result": [
+     "http://10.0.0.5:7000/x?y=1#z"
+    ]
+   },
+   "'https://hub.example.org'": {
+    "result": [
+     "https://hub.example.org"
+    ]
+   },
+   "'inf'": {
+    "result": [
+     "inf"
+    ]
+   },
+   "'maybe'": {
+    "result": [
+     "maybe"
+    ]
+   },
+   "'nan'": {
+    "result": [
+     "nan"
+    ]
+   },
+   "'nil'": {
+    "result": [
+     "nil"
+    ]
+   },
+   "'no'": {
+    "result": [
+     "no"
+    ]
+   },
+   "'none'": {
+    "result": [
+     "none"
+    ]
+   },
+   "'ntfy'": {
+    "result": [
+     "ntfy"
+    ]
+   },
+   "'off'": {
+    "result": [
+     "off"
+    ]
+   },
+   "'on'": {
+    "result": [
+     "on"
+    ]
+   },
+   "'phone-1'": {
+    "result": [
+     "phone-1"
+    ]
+   },
+   "'true'": {
+    "result": [
+     "true"
+    ]
+   },
+   "'x,y'": {
+    "result": [
+     "x",
+     "y"
+    ]
+   },
+   "'xxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxx'": {
+    "result": [
+     "xxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxx"
+    ]
+   },
+   "'yes'": {
+    "result": [
+     "yes"
+    ]
+   },
+   "<unset>": {
+    "result": []
+   }
+  },
+  "SOUND_MODULE_CALL_DEVICE call_recorder.device": {
+   "' '": {
+    "result": "computer"
+   },
+   "' 7 '": {
+    "result": "7"
+   },
+   "' Convo '": {
+    "result": "Convo"
+   },
+   "' Off\\n'": {
+    "result": "Off"
+   },
+   "' a , B ,, c '": {
+    "logs": [
+     "WARNING fork.athena.call_recorder: SOUND_MODULE_CALL_DEVICE is not a valid device name; using 'computer'"
+    ],
+    "result": "computer"
+   },
+   "' yes '": {
+    "result": "yes"
+   },
+   "''": {
+    "result": "computer"
+   },
+   "'+3'": {
+    "logs": [
+     "WARNING fork.athena.call_recorder: SOUND_MODULE_CALL_DEVICE is not a valid device name; using 'computer'"
+    ],
+    "result": "computer"
+   },
+   "','": {
+    "logs": [
+     "WARNING fork.athena.call_recorder: SOUND_MODULE_CALL_DEVICE is not a valid device name; using 'computer'"
+    ],
+    "result": "computer"
+   },
+   "'-1'": {
+    "result": "-1"
+   },
+   "'0'": {
+    "result": "0"
+   },
+   "'0.5'": {
+    "result": "0.5"
+   },
+   "'00'": {
+    "result": "00"
+   },
+   "'1'": {
+    "result": "1"
+   },
+   "'10'": {
+    "result": "10"
+   },
+   "'11'": {
+    "result": "11"
+   },
+   "'1e3'": {
+    "result": "1e3"
+   },
+   "'2'": {
+    "result": "2"
+   },
+   "'23'": {
+    "result": "23"
+   },
+   "'24'": {
+    "result": "24"
+   },
+   "'25'": {
+    "result": "25"
+   },
+   "'3_0'": {
+    "result": "3_0"
+   },
+   "'ALL'": {
+    "result": "ALL"
+   },
+   "'Browser'": {
+    "result": "Browser"
+   },
+   "'CONVO'": {
+    "result": "CONVO"
+   },
+   "'False'": {
+    "result": "False"
+   },
+   "'Groceries list,Work'": {
+    "logs": [
+     "WARNING fork.athena.call_recorder: SOUND_MODULE_CALL_DEVICE is not a valid device name; using 'computer'"
+    ],
+    "result": "computer"
+   },
+   "'HTTPS://Hub.Example.org/'": {
+    "logs": [
+     "WARNING fork.athena.call_recorder: SOUND_MODULE_CALL_DEVICE is not a valid device name; using 'computer'"
+    ],
+    "result": "computer"
+   },
+   "'NO'": {
+    "result": "NO"
+   },
+   "'None'": {
+    "result": "None"
+   },
+   "'ON'": {
+    "result": "ON"
+   },
+   "'On '": {
+    "result": "On"
+   },
+   "'Shopping'": {
+    "result": "Shopping"
+   },
+   "'Stra\u00dfe'": {
+    "logs": [
+     "WARNING fork.athena.call_recorder: SOUND_MODULE_CALL_DEVICE is not a valid device name; using 'computer'"
+    ],
+    "result": "computer"
+   },
+   "'TRUE'": {
+    "result": "TRUE"
+   },
+   "'True'": {
+    "result": "True"
+   },
+   "'Y'": {
+    "result": "Y"
+   },
+   "'\\n'": {
+    "result": "computer"
+   },
+   "'\\t'": {
+    "result": "computer"
+   },
+   "'a b'": {
+    "logs": [
+     "WARNING fork.athena.call_recorder: SOUND_MODULE_CALL_DEVICE is not a valid device name; using 'computer'"
+    ],
+    "result": "computer"
+   },
+   "'a.b'": {
+    "result": "a.b"
+   },
+   "'abc'": {
+    "result": "abc"
+   },
+   "'all'": {
+    "result": "all"
+   },
+   "'auto'": {
+    "result": "auto"
+   },
+   "'browser'": {
+    "result": "browser"
+   },
+   "'convo'": {
+    "result": "convo"
+   },
+   "'explicit'": {
+    "result": "explicit"
+   },
+   "'false'": {
+    "result": "false"
+   },
+   "'ftp://x'": {
+    "logs": [
+     "WARNING fork.athena.call_recorder: SOUND_MODULE_CALL_DEVICE is not a valid device name; using 'computer'"
+    ],
+    "result": "computer"
+   },
+   "'http://10.0.0.5:7000/x?y=1#z'": {
+    "logs": [
+     "WARNING fork.athena.call_recorder: SOUND_MODULE_CALL_DEVICE is not a valid device name; using 'computer'"
+    ],
+    "result": "computer"
+   },
+   "'https://hub.example.org'": {
+    "logs": [
+     "WARNING fork.athena.call_recorder: SOUND_MODULE_CALL_DEVICE is not a valid device name; using 'computer'"
+    ],
+    "result": "computer"
+   },
+   "'inf'": {
+    "result": "inf"
+   },
+   "'maybe'": {
+    "result": "maybe"
+   },
+   "'nan'": {
+    "result": "nan"
+   },
+   "'nil'": {
+    "result": "nil"
+   },
+   "'no'": {
+    "result": "no"
+   },
+   "'none'": {
+    "result": "none"
+   },
+   "'ntfy'": {
+    "result": "ntfy"
+   },
+   "'off'": {
+    "result": "off"
+   },
+   "'on'": {
+    "result": "on"
+   },
+   "'phone-1'": {
+    "result": "phone-1"
+   },
+   "'true'": {
+    "result": "true"
+   },
+   "'x,y'": {
+    "logs": [
+     "WARNING fork.athena.call_recorder: SOUND_MODULE_CALL_DEVICE is not a valid device name; using 'computer'"
+    ],
+    "result": "computer"
+   },
+   "'xxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxx'": {
+    "logs": [
+     "WARNING fork.athena.call_recorder: SOUND_MODULE_CALL_DEVICE is not a valid device name; using 'computer'"
+    ],
+    "result": "computer"
+   },
+   "'yes'": {
+    "result": "yes"
+   },
+   "<unset>": {
+    "result": "computer"
+   }
+  },
+  "SOUND_MODULE_SERVER athena_routes._caller": {
+   "' '": {
+    "result": "The Athena MCP server ('') is not connected."
+   },
+   "' 7 '": {
+    "result": "The Athena MCP server ('7') is not connected."
+   },
+   "' Convo '": {
+    "result": "The Athena MCP server ('Convo') is not connected."
+   },
+   "' Off\\n'": {
+    "result": "The Athena MCP server ('Off') is not connected."
+   },
+   "' a , B ,, c '": {
+    "result": "The Athena MCP server ('a , B ,, c') is not connected."
+   },
+   "' yes '": {
+    "result": "The Athena MCP server ('yes') is not connected."
+   },
+   "''": {
+    "result": "The Athena MCP server ('convo') is not connected."
+   },
+   "'+3'": {
+    "result": "The Athena MCP server ('+3') is not connected."
+   },
+   "','": {
+    "result": "The Athena MCP server (',') is not connected."
+   },
+   "'-1'": {
+    "result": "The Athena MCP server ('-1') is not connected."
+   },
+   "'0'": {
+    "result": "The Athena MCP server ('0') is not connected."
+   },
+   "'0.5'": {
+    "result": "The Athena MCP server ('0.5') is not connected."
+   },
+   "'00'": {
+    "result": "The Athena MCP server ('00') is not connected."
+   },
+   "'1'": {
+    "result": "The Athena MCP server ('1') is not connected."
+   },
+   "'10'": {
+    "result": "The Athena MCP server ('10') is not connected."
+   },
+   "'11'": {
+    "result": "The Athena MCP server ('11') is not connected."
+   },
+   "'1e3'": {
+    "result": "The Athena MCP server ('1e3') is not connected."
+   },
+   "'2'": {
+    "result": "The Athena MCP server ('2') is not connected."
+   },
+   "'23'": {
+    "result": "The Athena MCP server ('23') is not connected."
+   },
+   "'24'": {
+    "result": "The Athena MCP server ('24') is not connected."
+   },
+   "'25'": {
+    "result": "The Athena MCP server ('25') is not connected."
+   },
+   "'3_0'": {
+    "result": "The Athena MCP server ('3_0') is not connected."
+   },
+   "'ALL'": {
+    "result": "The Athena MCP server ('ALL') is not connected."
+   },
+   "'Browser'": {
+    "result": "The Athena MCP server ('Browser') is not connected."
+   },
+   "'CONVO'": {
+    "result": "The Athena MCP server ('CONVO') is not connected."
+   },
+   "'False'": {
+    "result": "The Athena MCP server ('False') is not connected."
+   },
+   "'Groceries list,Work'": {
+    "result": "The Athena MCP server ('Groceries list,Work') is not connected."
+   },
+   "'HTTPS://Hub.Example.org/'": {
+    "result": "The Athena MCP server ('HTTPS://Hub.Example.org/') is not connected."
+   },
+   "'NO'": {
+    "result": "The Athena MCP server ('NO') is not connected."
+   },
+   "'None'": {
+    "result": "The Athena MCP server ('None') is not connected."
+   },
+   "'ON'": {
+    "result": "The Athena MCP server ('ON') is not connected."
+   },
+   "'On '": {
+    "result": "The Athena MCP server ('On') is not connected."
+   },
+   "'Shopping'": {
+    "result": "The Athena MCP server ('Shopping') is not connected."
+   },
+   "'Stra\u00dfe'": {
+    "result": "The Athena MCP server ('Stra\u00dfe') is not connected."
+   },
+   "'TRUE'": {
+    "result": "The Athena MCP server ('TRUE') is not connected."
+   },
+   "'True'": {
+    "result": "The Athena MCP server ('True') is not connected."
+   },
+   "'Y'": {
+    "result": "The Athena MCP server ('Y') is not connected."
+   },
+   "'\\n'": {
+    "result": "The Athena MCP server ('') is not connected."
+   },
+   "'\\t'": {
+    "result": "The Athena MCP server ('') is not connected."
+   },
+   "'a b'": {
+    "result": "The Athena MCP server ('a b') is not connected."
+   },
+   "'a.b'": {
+    "result": "The Athena MCP server ('a.b') is not connected."
+   },
+   "'abc'": {
+    "result": "The Athena MCP server ('abc') is not connected."
+   },
+   "'all'": {
+    "result": "The Athena MCP server ('all') is not connected."
+   },
+   "'auto'": {
+    "result": "The Athena MCP server ('auto') is not connected."
+   },
+   "'browser'": {
+    "result": "The Athena MCP server ('browser') is not connected."
+   },
+   "'convo'": {
+    "result": "The Athena MCP server ('convo') is not connected."
+   },
+   "'explicit'": {
+    "result": "The Athena MCP server ('explicit') is not connected."
+   },
+   "'false'": {
+    "result": "The Athena MCP server ('false') is not connected."
+   },
+   "'ftp://x'": {
+    "result": "The Athena MCP server ('ftp://x') is not connected."
+   },
+   "'http://10.0.0.5:7000/x?y=1#z'": {
+    "result": "The Athena MCP server ('http://10.0.0.5:7000/x?y=1#z') is not connected."
+   },
+   "'https://hub.example.org'": {
+    "result": "The Athena MCP server ('https://hub.example.org') is not connected."
+   },
+   "'inf'": {
+    "result": "The Athena MCP server ('inf') is not connected."
+   },
+   "'maybe'": {
+    "result": "The Athena MCP server ('maybe') is not connected."
+   },
+   "'nan'": {
+    "result": "The Athena MCP server ('nan') is not connected."
+   },
+   "'nil'": {
+    "result": "The Athena MCP server ('nil') is not connected."
+   },
+   "'no'": {
+    "result": "The Athena MCP server ('no') is not connected."
+   },
+   "'none'": {
+    "result": "The Athena MCP server ('none') is not connected."
+   },
+   "'ntfy'": {
+    "result": "The Athena MCP server ('ntfy') is not connected."
+   },
+   "'off'": {
+    "result": "The Athena MCP server ('off') is not connected."
+   },
+   "'on'": {
+    "result": "The Athena MCP server ('on') is not connected."
+   },
+   "'phone-1'": {
+    "result": "The Athena MCP server ('phone-1') is not connected."
+   },
+   "'true'": {
+    "result": "The Athena MCP server ('true') is not connected."
+   },
+   "'x,y'": {
+    "result": "The Athena MCP server ('x,y') is not connected."
+   },
+   "'xxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxx'": {
+    "result": "The Athena MCP server ('xxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxx') is not connected."
+   },
+   "'yes'": {
+    "result": "The Athena MCP server ('yes') is not connected."
+   },
+   "<unset>": {
+    "result": "The Athena MCP server ('convo') is not connected."
+   }
+  },
+  "SOUND_MODULE_SERVER call_recorder.server_key": {
+   "' '": {
+    "result": ""
+   },
+   "' 7 '": {
+    "result": "7"
+   },
+   "' Convo '": {
+    "result": "Convo"
+   },
+   "' Off\\n'": {
+    "result": "Off"
+   },
+   "' a , B ,, c '": {
+    "result": "a , B ,, c"
+   },
+   "' yes '": {
+    "result": "yes"
+   },
+   "''": {
+    "result": "convo"
+   },
+   "'+3'": {
+    "result": "+3"
+   },
+   "','": {
+    "result": ","
+   },
+   "'-1'": {
+    "result": "-1"
+   },
+   "'0'": {
+    "result": "0"
+   },
+   "'0.5'": {
+    "result": "0.5"
+   },
+   "'00'": {
+    "result": "00"
+   },
+   "'1'": {
+    "result": "1"
+   },
+   "'10'": {
+    "result": "10"
+   },
+   "'11'": {
+    "result": "11"
+   },
+   "'1e3'": {
+    "result": "1e3"
+   },
+   "'2'": {
+    "result": "2"
+   },
+   "'23'": {
+    "result": "23"
+   },
+   "'24'": {
+    "result": "24"
+   },
+   "'25'": {
+    "result": "25"
+   },
+   "'3_0'": {
+    "result": "3_0"
+   },
+   "'ALL'": {
+    "result": "ALL"
+   },
+   "'Browser'": {
+    "result": "Browser"
+   },
+   "'CONVO'": {
+    "result": "CONVO"
+   },
+   "'False'": {
+    "result": "False"
+   },
+   "'Groceries list,Work'": {
+    "result": "Groceries list,Work"
+   },
+   "'HTTPS://Hub.Example.org/'": {
+    "result": "HTTPS://Hub.Example.org/"
+   },
+   "'NO'": {
+    "result": "NO"
+   },
+   "'None'": {
+    "result": "None"
+   },
+   "'ON'": {
+    "result": "ON"
+   },
+   "'On '": {
+    "result": "On"
+   },
+   "'Shopping'": {
+    "result": "Shopping"
+   },
+   "'Stra\u00dfe'": {
+    "result": "Stra\u00dfe"
+   },
+   "'TRUE'": {
+    "result": "TRUE"
+   },
+   "'True'": {
+    "result": "True"
+   },
+   "'Y'": {
+    "result": "Y"
+   },
+   "'\\n'": {
+    "result": ""
+   },
+   "'\\t'": {
+    "result": ""
+   },
+   "'a b'": {
+    "result": "a b"
+   },
+   "'a.b'": {
+    "result": "a.b"
+   },
+   "'abc'": {
+    "result": "abc"
+   },
+   "'all'": {
+    "result": "all"
+   },
+   "'auto'": {
+    "result": "auto"
+   },
+   "'browser'": {
+    "result": "browser"
+   },
+   "'convo'": {
+    "result": "convo"
+   },
+   "'explicit'": {
+    "result": "explicit"
+   },
+   "'false'": {
+    "result": "false"
+   },
+   "'ftp://x'": {
+    "result": "ftp://x"
+   },
+   "'http://10.0.0.5:7000/x?y=1#z'": {
+    "result": "http://10.0.0.5:7000/x?y=1#z"
+   },
+   "'https://hub.example.org'": {
+    "result": "https://hub.example.org"
+   },
+   "'inf'": {
+    "result": "inf"
+   },
+   "'maybe'": {
+    "result": "maybe"
+   },
+   "'nan'": {
+    "result": "nan"
+   },
+   "'nil'": {
+    "result": "nil"
+   },
+   "'no'": {
+    "result": "no"
+   },
+   "'none'": {
+    "result": "none"
+   },
+   "'ntfy'": {
+    "result": "ntfy"
+   },
+   "'off'": {
+    "result": "off"
+   },
+   "'on'": {
+    "result": "on"
+   },
+   "'phone-1'": {
+    "result": "phone-1"
+   },
+   "'true'": {
+    "result": "true"
+   },
+   "'x,y'": {
+    "result": "x,y"
+   },
+   "'xxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxx'": {
+    "result": "xxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxx"
+   },
+   "'yes'": {
+    "result": "yes"
+   },
+   "<unset>": {
+    "result": "convo"
+   }
+  },
+  "TODAY_INSIGHT_ENABLED today.enabled": {
+   "' '": {
+    "result": true
+   },
+   "' 7 '": {
+    "result": true
+   },
+   "' Convo '": {
+    "result": true
+   },
+   "' Off\\n'": {
+    "result": false
+   },
+   "' a , B ,, c '": {
+    "result": true
+   },
+   "' yes '": {
+    "result": true
+   },
+   "''": {
+    "result": true
+   },
+   "'+3'": {
+    "result": true
+   },
+   "','": {
+    "result": true
+   },
+   "'-1'": {
+    "result": true
+   },
+   "'0'": {
+    "result": false
+   },
+   "'0.5'": {
+    "result": true
+   },
+   "'00'": {
+    "result": true
+   },
+   "'1'": {
+    "result": true
+   },
+   "'10'": {
+    "result": true
+   },
+   "'11'": {
+    "result": true
+   },
+   "'1e3'": {
+    "result": true
+   },
+   "'2'": {
+    "result": true
+   },
+   "'23'": {
+    "result": true
+   },
+   "'24'": {
+    "result": true
+   },
+   "'25'": {
+    "result": true
+   },
+   "'3_0'": {
+    "result": true
+   },
+   "'ALL'": {
+    "result": true
+   },
+   "'Browser'": {
+    "result": true
+   },
+   "'CONVO'": {
+    "result": true
+   },
+   "'False'": {
+    "result": false
+   },
+   "'Groceries list,Work'": {
+    "result": true
+   },
+   "'HTTPS://Hub.Example.org/'": {
+    "result": true
+   },
+   "'NO'": {
+    "result": false
+   },
+   "'None'": {
+    "result": true
+   },
+   "'ON'": {
+    "result": true
+   },
+   "'On '": {
+    "result": true
+   },
+   "'Shopping'": {
+    "result": true
+   },
+   "'Stra\u00dfe'": {
+    "result": true
+   },
+   "'TRUE'": {
+    "result": true
+   },
+   "'True'": {
+    "result": true
+   },
+   "'Y'": {
+    "result": true
+   },
+   "'\\n'": {
+    "result": true
+   },
+   "'\\t'": {
+    "result": true
+   },
+   "'a b'": {
+    "result": true
+   },
+   "'a.b'": {
+    "result": true
+   },
+   "'abc'": {
+    "result": true
+   },
+   "'all'": {
+    "result": true
+   },
+   "'auto'": {
+    "result": true
+   },
+   "'browser'": {
+    "result": true
+   },
+   "'convo'": {
+    "result": true
+   },
+   "'explicit'": {
+    "result": true
+   },
+   "'false'": {
+    "result": false
+   },
+   "'ftp://x'": {
+    "result": true
+   },
+   "'http://10.0.0.5:7000/x?y=1#z'": {
+    "result": true
+   },
+   "'https://hub.example.org'": {
+    "result": true
+   },
+   "'inf'": {
+    "result": true
+   },
+   "'maybe'": {
+    "result": true
+   },
+   "'nan'": {
+    "result": true
+   },
+   "'nil'": {
+    "result": true
+   },
+   "'no'": {
+    "result": false
+   },
+   "'none'": {
+    "result": true
+   },
+   "'ntfy'": {
+    "result": true
+   },
+   "'off'": {
+    "result": false
+   },
+   "'on'": {
+    "result": true
+   },
+   "'phone-1'": {
+    "result": true
+   },
+   "'true'": {
+    "result": true
+   },
+   "'x,y'": {
+    "result": true
+   },
+   "'xxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxx'": {
+    "result": true
+   },
+   "'yes'": {
+    "result": true
+   },
+   "<unset>": {
+    "result": true
+   }
+  },
+  "TODAY_INSIGHT_PUSH push.enabled": {
+   "' '": {
+    "result": false
+   },
+   "' 7 '": {
+    "result": false
+   },
+   "' Convo '": {
+    "result": false
+   },
+   "' Off\\n'": {
+    "result": false
+   },
+   "' a , B ,, c '": {
+    "result": false
+   },
+   "' yes '": {
+    "result": true
+   },
+   "''": {
+    "result": false
+   },
+   "'+3'": {
+    "result": false
+   },
+   "','": {
+    "result": false
+   },
+   "'-1'": {
+    "result": false
+   },
+   "'0'": {
+    "result": false
+   },
+   "'0.5'": {
+    "result": false
+   },
+   "'00'": {
+    "result": false
+   },
+   "'1'": {
+    "result": true
+   },
+   "'10'": {
+    "result": false
+   },
+   "'11'": {
+    "result": false
+   },
+   "'1e3'": {
+    "result": false
+   },
+   "'2'": {
+    "result": false
+   },
+   "'23'": {
+    "result": false
+   },
+   "'24'": {
+    "result": false
+   },
+   "'25'": {
+    "result": false
+   },
+   "'3_0'": {
+    "result": false
+   },
+   "'ALL'": {
+    "result": false
+   },
+   "'Browser'": {
+    "result": false
+   },
+   "'CONVO'": {
+    "result": false
+   },
+   "'False'": {
+    "result": false
+   },
+   "'Groceries list,Work'": {
+    "result": false
+   },
+   "'HTTPS://Hub.Example.org/'": {
+    "result": false
+   },
+   "'NO'": {
+    "result": false
+   },
+   "'None'": {
+    "result": false
+   },
+   "'ON'": {
+    "result": true
+   },
+   "'On '": {
+    "result": true
+   },
+   "'Shopping'": {
+    "result": false
+   },
+   "'Stra\u00dfe'": {
+    "result": false
+   },
+   "'TRUE'": {
+    "result": true
+   },
+   "'True'": {
+    "result": true
+   },
+   "'Y'": {
+    "result": false
+   },
+   "'\\n'": {
+    "result": false
+   },
+   "'\\t'": {
+    "result": false
+   },
+   "'a b'": {
+    "result": false
+   },
+   "'a.b'": {
+    "result": false
+   },
+   "'abc'": {
+    "result": false
+   },
+   "'all'": {
+    "result": false
+   },
+   "'auto'": {
+    "result": false
+   },
+   "'browser'": {
+    "result": false
+   },
+   "'convo'": {
+    "result": false
+   },
+   "'explicit'": {
+    "result": false
+   },
+   "'false'": {
+    "result": false
+   },
+   "'ftp://x'": {
+    "result": false
+   },
+   "'http://10.0.0.5:7000/x?y=1#z'": {
+    "result": false
+   },
+   "'https://hub.example.org'": {
+    "result": false
+   },
+   "'inf'": {
+    "result": false
+   },
+   "'maybe'": {
+    "result": false
+   },
+   "'nan'": {
+    "result": false
+   },
+   "'nil'": {
+    "result": false
+   },
+   "'no'": {
+    "result": false
+   },
+   "'none'": {
+    "result": false
+   },
+   "'ntfy'": {
+    "result": false
+   },
+   "'off'": {
+    "result": false
+   },
+   "'on'": {
+    "result": true
+   },
+   "'phone-1'": {
+    "result": false
+   },
+   "'true'": {
+    "result": true
+   },
+   "'x,y'": {
+    "result": false
+   },
+   "'xxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxx'": {
+    "result": false
+   },
+   "'yes'": {
+    "result": true
+   },
+   "<unset>": {
+    "result": false
+   }
+  },
+  "TODAY_INSIGHT_SKIP_LISTS today.skip_lists": {
+   "' '": {
+    "result": []
+   },
+   "' 7 '": {
+    "result": [
+     "7"
+    ]
+   },
+   "' Convo '": {
+    "result": [
+     "convo"
+    ]
+   },
+   "' Off\\n'": {
+    "result": [
+     "off"
+    ]
+   },
+   "' a , B ,, c '": {
+    "result": [
+     "a",
+     "b",
+     "c"
+    ]
+   },
+   "' yes '": {
+    "result": [
+     "yes"
+    ]
+   },
+   "''": {
+    "result": []
+   },
+   "'+3'": {
+    "result": [
+     "+3"
+    ]
+   },
+   "','": {
+    "result": []
+   },
+   "'-1'": {
+    "result": [
+     "-1"
+    ]
+   },
+   "'0'": {
+    "result": [
+     "0"
+    ]
+   },
+   "'0.5'": {
+    "result": [
+     "0.5"
+    ]
+   },
+   "'00'": {
+    "result": [
+     "00"
+    ]
+   },
+   "'1'": {
+    "result": [
+     "1"
+    ]
+   },
+   "'10'": {
+    "result": [
+     "10"
+    ]
+   },
+   "'11'": {
+    "result": [
+     "11"
+    ]
+   },
+   "'1e3'": {
+    "result": [
+     "1e3"
+    ]
+   },
+   "'2'": {
+    "result": [
+     "2"
+    ]
+   },
+   "'23'": {
+    "result": [
+     "23"
+    ]
+   },
+   "'24'": {
+    "result": [
+     "24"
+    ]
+   },
+   "'25'": {
+    "result": [
+     "25"
+    ]
+   },
+   "'3_0'": {
+    "result": [
+     "3_0"
+    ]
+   },
+   "'ALL'": {
+    "result": [
+     "all"
+    ]
+   },
+   "'Browser'": {
+    "result": [
+     "browser"
+    ]
+   },
+   "'CONVO'": {
+    "result": [
+     "convo"
+    ]
+   },
+   "'False'": {
+    "result": [
+     "false"
+    ]
+   },
+   "'Groceries list,Work'": {
+    "result": [
+     "groceries",
+     "work"
+    ]
+   },
+   "'HTTPS://Hub.Example.org/'": {
+    "result": [
+     "https://hub.example.org/"
+    ]
+   },
+   "'NO'": {
+    "result": [
+     "no"
+    ]
+   },
+   "'None'": {
+    "result": [
+     "none"
+    ]
+   },
+   "'ON'": {
+    "result": [
+     "on"
+    ]
+   },
+   "'On '": {
+    "result": [
+     "on"
+    ]
+   },
+   "'Shopping'": {
+    "result": [
+     "shopping"
+    ]
+   },
+   "'Stra\u00dfe'": {
+    "result": [
+     "stra\u00dfe"
+    ]
+   },
+   "'TRUE'": {
+    "result": [
+     "true"
+    ]
+   },
+   "'True'": {
+    "result": [
+     "true"
+    ]
+   },
+   "'Y'": {
+    "result": [
+     "y"
+    ]
+   },
+   "'\\n'": {
+    "result": []
+   },
+   "'\\t'": {
+    "result": []
+   },
+   "'a b'": {
+    "result": [
+     "a b"
+    ]
+   },
+   "'a.b'": {
+    "result": [
+     "a.b"
+    ]
+   },
+   "'abc'": {
+    "result": [
+     "abc"
+    ]
+   },
+   "'all'": {
+    "result": [
+     "all"
+    ]
+   },
+   "'auto'": {
+    "result": [
+     "auto"
+    ]
+   },
+   "'browser'": {
+    "result": [
+     "browser"
+    ]
+   },
+   "'convo'": {
+    "result": [
+     "convo"
+    ]
+   },
+   "'explicit'": {
+    "result": [
+     "explicit"
+    ]
+   },
+   "'false'": {
+    "result": [
+     "false"
+    ]
+   },
+   "'ftp://x'": {
+    "result": [
+     "ftp://x"
+    ]
+   },
+   "'http://10.0.0.5:7000/x?y=1#z'": {
+    "result": [
+     "http://10.0.0.5:7000/x?y=1#z"
+    ]
+   },
+   "'https://hub.example.org'": {
+    "result": [
+     "https://hub.example.org"
+    ]
+   },
+   "'inf'": {
+    "result": [
+     "inf"
+    ]
+   },
+   "'maybe'": {
+    "result": [
+     "maybe"
+    ]
+   },
+   "'nan'": {
+    "result": [
+     "nan"
+    ]
+   },
+   "'nil'": {
+    "result": [
+     "nil"
+    ]
+   },
+   "'no'": {
+    "result": [
+     "no"
+    ]
+   },
+   "'none'": {
+    "result": [
+     "none"
+    ]
+   },
+   "'ntfy'": {
+    "result": [
+     "ntfy"
+    ]
+   },
+   "'off'": {
+    "result": [
+     "off"
+    ]
+   },
+   "'on'": {
+    "result": [
+     "on"
+    ]
+   },
+   "'phone-1'": {
+    "result": [
+     "phone-1"
+    ]
+   },
+   "'true'": {
+    "result": [
+     "true"
+    ]
+   },
+   "'x,y'": {
+    "result": [
+     "x",
+     "y"
+    ]
+   },
+   "'xxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxx'": {
+    "result": [
+     "xxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxx"
+    ]
+   },
+   "'yes'": {
+    "result": [
+     "yes"
+    ]
+   },
+   "<unset>": {
+    "result": [
+     "groceries",
+     "grocery",
+     "shopping"
+    ]
+   }
+  }
+ }
+}

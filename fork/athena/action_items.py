@@ -71,9 +71,7 @@ from __future__ import annotations
 import asyncio
 import json
 import logging
-import os
 import re
-import threading
 import uuid
 from dataclasses import dataclass
 from datetime import date as Date
@@ -81,6 +79,8 @@ from datetime import datetime, timedelta, timezone, tzinfo
 from pathlib import Path
 from typing import Any, Awaitable, Callable
 from zoneinfo import ZoneInfo
+
+from fork.common import settings
 
 logger = logging.getLogger(__name__)
 
@@ -148,59 +148,38 @@ def parse_action_items(result: str) -> list[ActionItem]:
 
 
 # ----------------------------------------------------------------------- settings
-def _env(name: str, default: str) -> str:
-    """``MODULE_<name>``, else the former ``BARVIS_<name>``, else ``default``."""
-    return (os.environ.get(f"MODULE_{name}") or os.environ.get(f"BARVIS_{name}")
-            or default).strip()
-
-
+# Read from the one settings table (``MODULE_<name>``, else the former ``BARVIS_<name>``).
 def server_key() -> str:
-    return _env("ACTION_ITEMS_SERVER", "convo").casefold()
+    return settings.athena_server()
 
 
 def notify_channel() -> str:
-    value = _env("NOTIFY_CHANNEL", "ntfy").lower()
-    return value if value in {"ntfy", "browser", "off"} else "ntfy"
+    return settings.notify_channel()
 
 
 def digest_hour() -> int | None:
-    value = _env("DIGEST_HOUR", "8").lower()
-    if value in {"off", "none", ""}:
-        return None
-    try:
-        return max(0, min(23, int(value)))
-    except ValueError:
-        return 8
+    return settings.digest_hour()
 
 
 # -------------------------------------------------------------------------- state
 def _state_path(owner: str) -> Path:
-    from src.constants import DATA_DIR
+    from fork.common.state import owner_file
 
-    slug = "".join(c if (c.isalnum() or c in "-_.@") else "_" for c in (owner or "default"))
-    return Path(DATA_DIR) / f"barvis_action_items_{slug}.json"
+    return owner_file("barvis_action_items", owner)
 
 
 def load_state(owner: str) -> dict[str, Any]:
-    try:
-        state = json.loads(_state_path(owner).read_text(encoding="utf-8"))
-    except (OSError, ValueError):
-        state = {}
+    from fork.common.state import read_json
+
+    state = read_json(_state_path(owner), {})
     state.setdefault("items", {})
     return state
 
 
 def save_state(owner: str, state: dict[str, Any]) -> None:
-    path = _state_path(owner)
-    path.parent.mkdir(parents=True, exist_ok=True)
-    # Unique per process and thread: two writers never share a temp file.
-    tmp = path.with_name(f".{path.name}.{os.getpid()}.{threading.get_ident()}.tmp")
-    try:
-        tmp.write_text(json.dumps(state, indent=1, sort_keys=True), encoding="utf-8")
-        os.replace(tmp, path)
-    except BaseException:
-        tmp.unlink(missing_ok=True)
-        raise
+    from fork.common import state as files
+
+    files.write_json(_state_path(owner), state)
 
 
 # -------------------------------------------------------------------------- MCP
@@ -329,10 +308,7 @@ _COMMAND = re.compile(
 
 def file_mode() -> str:
     """``MODULE_FILE_ITEMS``: ``explicit`` (default), ``auto`` (``all``) or ``off``."""
-    value = _env("FILE_ITEMS", "explicit").lower()
-    if value in {"off", "no", "false", "0"}:
-        return "off"
-    return "auto" if value in {"auto", "all"} else "explicit"
+    return settings.file_items()
 
 
 def is_explicit(item: dict) -> bool:

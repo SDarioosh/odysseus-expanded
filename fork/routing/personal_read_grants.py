@@ -17,7 +17,6 @@ Hook: ``routes/chat_routes.py``, after the request authority is created.
 
 from __future__ import annotations
 
-import os
 from dataclasses import replace
 
 # The read actions come from src/tool_capabilities.py, the single source of
@@ -35,8 +34,9 @@ PERSONAL_STORE_TOOLS = (
 
 
 def enabled() -> bool:
-    return os.environ.get("ODYSSEUS_PERSONAL_READ_GRANTS", "1").strip().lower() not in {
-        "0", "false", "no", "off"}
+    from fork.common import settings
+
+    return settings.personal_read_grants()
 
 
 def with_personal_store_reads(authority):

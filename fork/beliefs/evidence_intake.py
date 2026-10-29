@@ -50,7 +50,6 @@ from __future__ import annotations
 import hashlib
 import json
 import logging
-import os
 import re
 import sqlite3
 import threading
@@ -218,21 +217,15 @@ class Settings:
     stale_days: int = 180
 
 
-def _env_int(name: str, default: int) -> int:
-    try:
-        value = int((os.environ.get(name) or "").strip() or default)
-    except ValueError:
-        value = default
-    return max(1, value)
-
-
 def settings() -> Settings:
     """The confirmation and decay thresholds from the environment."""
+    from fork.common import settings as env
+
     return Settings(
-        confirm_sources=_env_int("BELIEF_CONFIRM_SOURCES", 2),
-        confirm_times=_env_int("BELIEF_CONFIRM_TIMES", 3),
-        confirm_days=_env_int("BELIEF_CONFIRM_DAYS", 2),
-        stale_days=_env_int("BELIEF_STALE_DAYS", 180),
+        confirm_sources=env.belief_confirm_sources(),
+        confirm_times=env.belief_confirm_times(),
+        confirm_days=env.belief_confirm_days(),
+        stale_days=env.belief_stale_days(),
     )
 
 

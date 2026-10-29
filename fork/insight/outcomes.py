@@ -16,9 +16,7 @@ Docs: docs/fork/today-insight.md#outcome-log.
 
 from __future__ import annotations
 
-import json
 import logging
-import os
 import re
 import threading
 from datetime import date as Date
@@ -81,10 +79,9 @@ def blank(day: str) -> dict:
 
 
 def load(owner: str | None, day: str) -> dict | None:
-    try:
-        data = json.loads(outcome_path(owner, day).read_text(encoding="utf-8"))
-    except (OSError, ValueError):
-        return None
+    from fork.common.state import read_json
+
+    data = read_json(outcome_path(owner, day))
     if not isinstance(data, dict):
         return None
     if not isinstance(data.get("items"), dict):
@@ -93,16 +90,9 @@ def load(owner: str | None, day: str) -> dict | None:
 
 
 def save(owner: str | None, data: dict) -> None:
-    path = outcome_path(owner, data["date"])
-    path.parent.mkdir(parents=True, exist_ok=True)
-    # Unique per process and thread: two writers never share a temp file.
-    tmp = path.with_name(f".{path.name}.{os.getpid()}.{threading.get_ident()}.tmp")
-    try:
-        tmp.write_text(json.dumps(data, indent=1, ensure_ascii=False), encoding="utf-8")
-        os.replace(tmp, path)
-    except BaseException:
-        tmp.unlink(missing_ok=True)
-        raise
+    from fork.common.state import write_json
+
+    write_json(outcome_path(owner, data["date"]), data, sort_keys=False, ensure_ascii=False)
 
 
 # ------------------------------------------------------------------------ helpers

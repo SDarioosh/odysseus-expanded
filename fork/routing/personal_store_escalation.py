@@ -33,7 +33,6 @@ route already hands a message without a slash command to
 
 from __future__ import annotations
 
-import os
 import re
 from typing import Any
 
@@ -55,8 +54,9 @@ _NO_TOOLS = re.compile(
 
 
 def enabled() -> bool:
-    return os.environ.get("ODYSSEUS_PERSONAL_STORE_ESCALATION", "1").strip().lower() not in {
-        "0", "false", "no", "off"}
+    from fork.common import settings
+
+    return settings.personal_store_escalation()
 
 
 def personal_store_families(message: Any, history: Any = ()) -> frozenset[str]:
