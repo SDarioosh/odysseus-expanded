@@ -1,0 +1,11 @@
+usage: module_slash_eval.py [-h] [--skill SKILL] [--bakeoff BAKEOFF]
+                            [--log LOG] [--extra]
+
+Fork: run a module's bakeoff with every question sent as a slash command.
+
+options:
+  -h, --help         show this help message and exit
+  --skill SKILL      slash skill to prefix, e.g. sound or context
+  --bakeoff BAKEOFF  path to bakeoff.py (default: eval/bakeoff.py)
+  --log LOG          Odysseus log, for approvals and tools_sent
+  --extra            add the person + date question (22)

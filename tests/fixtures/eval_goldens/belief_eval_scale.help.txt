@@ -1,0 +1,21 @@
+usage: belief_eval_scale.py [-h] [--size {large,medium,small}] [--seed SEED]
+                            [--data-dir DATA_DIR] [--keep] [--owner OWNER]
+                            [--min-top5 MIN_TOP5] [--out OUT]
+
+Fork: the belief ledger at scale (personal-context plan stage 2.5, "Measure").
+
+options:
+  -h, --help            show this help message and exit
+  --size {large,medium,small}
+                        small (30 subjects, 300 beliefs), medium (300, 3000;
+                        default), large (1000, 10000)
+  --seed SEED           corpus seed (default 7)
+  --data-dir DATA_DIR   where to seed beliefs.db and memory.json (default: a
+                        temp dir)
+  --keep                keep the temp dir (an explicit --data-dir is always
+                        kept)
+  --owner OWNER         owner to seed (default 'scale-owner')
+  --min-top5 MIN_TOP5   pass threshold for top-5 recall when retrieval runs
+                        (default 0.9)
+  --out OUT             results JSON (default
+                        data/eval/belief_eval_scale.<size>.json, gitignored)

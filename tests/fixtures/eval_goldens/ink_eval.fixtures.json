@@ -1,0 +1,129 @@
+{
+  "mode": "reread",
+  "models": [
+    "fixture-fake"
+  ],
+  "pairs": 4,
+  "scored": 3,
+  "failed": 1,
+  "skipped": {
+    "not_reviewed": 1,
+    "no_ink": 0,
+    "stale": 1,
+    "empty_text": 1,
+    "auto": 1,
+    "photo": 1,
+    "no_stored_machine": 0
+  },
+  "default": {
+    "cer": 0.07627118644067797,
+    "page_cer": {
+      "median": 0.02857142857142857,
+      "p90": 0.17391304347826086
+    },
+    "char_edits": 9,
+    "ref_chars": 118,
+    "wer": 0.125,
+    "page_wer": {
+      "median": 0.14285714285714285,
+      "p90": 0.2222222222222222
+    },
+    "word_edits": 3,
+    "ref_words": 24,
+    "exact": 1,
+    "exact_share": 0.3333333333333333
+  },
+  "loose": {
+    "cer": 0.059322033898305086,
+    "page_cer": {
+      "median": 0.02857142857142857,
+      "p90": 0.13043478260869565
+    },
+    "char_edits": 7,
+    "ref_chars": 118,
+    "wer": 0.08333333333333333,
+    "page_wer": {
+      "median": 0.1111111111111111,
+      "p90": 0.14285714285714285
+    },
+    "word_edits": 2,
+    "ref_words": 24,
+    "exact": 1,
+    "exact_share": 0.3333333333333333
+  },
+  "unreadable": {
+    "pages": 1,
+    "marks": 1
+  },
+  "auto_send": {
+    "pages": 2,
+    "share_of_scored": 0.6666666666666666,
+    "cer": 0.013888888888888888,
+    "wer": 0.06666666666666667,
+    "exact": 1,
+    "exact_share": 0.5
+  },
+  "seconds": "<t>",
+  "pages": [
+    {
+      "owner": "eval-writer",
+      "note_id": "00000000-0000-0000-0000-000012340000",
+      "page_id": "fx0",
+      "index": 0,
+      "model": "fixture-fake",
+      "error": null,
+      "seconds": "<t>",
+      "ref_chars": 37,
+      "ref_words": 8,
+      "cer": 0.0,
+      "wer": 0.0,
+      "cer_loose": 0.0,
+      "wer_loose": 0.0,
+      "unreadable": 0,
+      "exact": true
+    },
+    {
+      "owner": "eval-writer",
+      "note_id": "00000000-0000-0000-0000-000012340001",
+      "page_id": "fx1",
+      "index": 0,
+      "model": "fixture-fake",
+      "error": null,
+      "seconds": "<t>",
+      "ref_chars": 35,
+      "ref_words": 7,
+      "cer": 0.02857142857142857,
+      "wer": 0.14285714285714285,
+      "cer_loose": 0.02857142857142857,
+      "wer_loose": 0.14285714285714285,
+      "unreadable": 0,
+      "exact": false
+    },
+    {
+      "owner": "eval-writer",
+      "note_id": "00000000-0000-0000-0000-000012340002",
+      "page_id": "fx2",
+      "index": 0,
+      "model": "fixture-fake",
+      "error": null,
+      "seconds": "<t>",
+      "ref_chars": 46,
+      "ref_words": 9,
+      "cer": 0.17391304347826086,
+      "wer": 0.2222222222222222,
+      "cer_loose": 0.13043478260869565,
+      "wer_loose": 0.1111111111111111,
+      "unreadable": 1,
+      "exact": false
+    },
+    {
+      "owner": "eval-writer",
+      "note_id": "00000000-0000-0000-0000-000012340003",
+      "page_id": "fx3",
+      "index": 0,
+      "model": "fixture-fake",
+      "error": "RuntimeError",
+      "seconds": "<t>"
+    }
+  ]
+}

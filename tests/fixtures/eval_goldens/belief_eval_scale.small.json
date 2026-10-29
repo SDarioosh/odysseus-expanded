@@ -1,0 +1,237 @@
+{
+  "size": "small",
+  "seed": 7,
+  "owner": "scale-owner",
+  "data_dir": "<tmp>",
+  "corpus": {
+    "digest": "f3491ecbc85f7a1a",
+    "subjects": 31,
+    "beliefs": 300,
+    "queries": 60,
+    "aliases": 5,
+    "fates": {
+      "source": 126,
+      "owner": 6,
+      "once": 87,
+      "two_sources": 24,
+      "rejected": 11,
+      "corrected": 10,
+      "rule": 13,
+      "gone": 8,
+      "aged": 15
+    }
+  },
+  "ledger": {
+    "beliefs": 300,
+    "tentative": 87,
+    "confirmed": 179,
+    "stale": 23,
+    "rejected": 11,
+    "evidence": 337,
+    "subjects": 31,
+    "db_bytes": "<size>",
+    "first_pass": {
+      "gone": 8,
+      "stale_on_reconcile": 8,
+      "stale_by_decay": 15,
+      "memories_added": 174
+    }
+  },
+  "timings": {
+    "submit_new": {
+      "items": 293,
+      "ms": "<t>",
+      "ms_per_1000": "<t>",
+      "chunks_ms": "<t>"
+    },
+    "submit_notes": {
+      "items": 44,
+      "ms": "<t>",
+      "ms_per_1000": "<t>",
+      "chunks_ms": "<t>"
+    },
+    "owner_actions": {
+      "count": 27,
+      "ms_mean": "<t>",
+      "ms_p95": "<t>",
+      "by_kind": {
+        "corrected": 10,
+        "rejected": 11,
+        "owner": 6
+      }
+    },
+    "submit_unchanged": {
+      "items": 285,
+      "ms": "<t>",
+      "ms_per_1000": "<t>",
+      "chunks_ms": "<t>"
+    },
+    "sync_people": {
+      "ms": "<t>"
+    },
+    "reconcile_source": {
+      "ms": "<t>"
+    },
+    "apply_decay": {
+      "ms": "<t>"
+    },
+    "sync_memory_first": {
+      "ms": "<t>"
+    },
+    "reconcile_unchanged": {
+      "ms": "<t>"
+    },
+    "apply_decay_unchanged": {
+      "ms": "<t>"
+    },
+    "sync_memory_settle": {
+      "ms": "<t>"
+    },
+    "sync_memory_second": {
+      "ms": "<t>"
+    },
+    "list_beliefs_all": {
+      "ms": "<t>"
+    },
+    "list_beliefs_confirmed": {
+      "ms": "<t>"
+    },
+    "list_beliefs_page": {
+      "ms": "<t>"
+    },
+    "list_beliefs_subject": {
+      "ms": "<t>"
+    },
+    "stats": {
+      "ms": "<t>"
+    },
+    "list_subjects": {
+      "ms": "<t>"
+    }
+  },
+  "memory": {
+    "entries": 179,
+    "bytes": 130892
+  },
+  "structure": {
+    "candidates": 179,
+    "structured": 179,
+    "other": 10,
+    "as_planned": 179,
+    "waiting": 0,
+    "failed": 0,
+    "batches": 36,
+    "ms": "<t>",
+    "ms_per_batch": "<t>",
+    "hourly_runs_to_finish": 5
+  },
+  "retrieval": {
+    "status": "ran",
+    "min_top5": 0.9,
+    "lanes": {
+      "default": {
+        "queries": 60,
+        "top1": 0.983,
+        "top5": 1.0,
+        "top5_by_kind": {
+          "alias": 1.0,
+          "attribute": 1.0,
+          "name": 1.0,
+          "owner": 1.0
+        },
+        "p50_ms": "<t>",
+        "p95_ms": "<t>",
+        "leaks": 0,
+        "misses": [],
+        "semantic": false
+      },
+      "keyword": {
+        "queries": 60,
+        "top1": 0.983,
+        "top5": 1.0,
+        "top5_by_kind": {
+          "alias": 1.0,
+          "attribute": 1.0,
+          "name": 1.0,
+          "owner": 1.0
+        },
+        "p50_ms": "<t>",
+        "p95_ms": "<t>",
+        "leaks": 0,
+        "misses": [],
+        "semantic": false,
+        "forced_by": [
+          "embedder"
+        ]
+      }
+    }
+  },
+  "checks": [
+    {
+      "name": "second sync_memory writes nothing",
+      "expected": "0/0/0",
+      "actual": "0/0/0",
+      "ok": true
+    },
+    {
+      "name": "second sync_memory: memory.json byte-identical",
+      "expected": "True",
+      "actual": "True",
+      "ok": true
+    },
+    {
+      "name": "every belief ends in its planned status",
+      "expected": "0 wrong",
+      "actual": "0 wrong",
+      "ok": true
+    },
+    {
+      "name": "one belief per planned item",
+      "expected": "300",
+      "actual": "300",
+      "ok": true
+    },
+    {
+      "name": "subjects (owner + people + projects + things)",
+      "expected": "31",
+      "actual": "31",
+      "ok": true
+    },
+    {
+      "name": "projects inferred from their names",
+      "expected": "4",
+      "actual": "4",
+      "ok": true
+    },
+    {
+      "name": "one memory per confirmed belief",
+      "expected": "179",
+      "actual": "179",
+      "ok": true
+    },
+    {
+      "name": "structure: every confirmed belief structured",
+      "expected": "179",
+      "actual": "179",
+      "ok": true
+    },
+    {
+      "name": "structure: attribute and value as planned",
+      "expected": "179",
+      "actual": "179",
+      "ok": true
+    },
+    {
+      "name": "retrieval: top-5 recall >= 0.9",
+      "expected": "True",
+      "actual": "True",
+      "ok": true
+    },
+    {
+      "name": "retrieval: no hit that isn't a confirmed belief",
+      "expected": "0",
+      "actual": "0",
+      "ok": true
+    }
+  ]
+}

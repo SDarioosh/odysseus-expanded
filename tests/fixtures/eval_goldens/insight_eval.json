@@ -1,0 +1,1349 @@
+{
+ "score": 53,
+ "total": 53,
+ "cases": {
+  "rule_order": true,
+  "weights": true,
+  "tiers": true,
+  "min_shown": true,
+  "t5_table": true,
+  "t5_day": true,
+  "owner_marks": true,
+  "reset": true
+ },
+ "checks": [
+  {
+   "case": "rule_order",
+   "step": "order",
+   "expected": [
+    "todo:note-errands:0",
+    "todo:note-home:0",
+    "todo:note-home:1",
+    "todo:note-party:0",
+    "event:ev-dentist",
+    "todo:note-garden:0",
+    "todo:note-garden:1",
+    "event:ev-market",
+    "todo:note-work:0",
+    "todo:note-work:2",
+    "todo:note-ideas:0",
+    "todo:note-reading:0",
+    "todo:note-photos:0",
+    "todo:note-kickoff:0"
+   ],
+   "actual": [
+    "todo:note-errands:0",
+    "todo:note-home:0",
+    "todo:note-home:1",
+    "todo:note-party:0",
+    "event:ev-dentist",
+    "todo:note-garden:0",
+    "todo:note-garden:1",
+    "event:ev-market",
+    "todo:note-work:0",
+    "todo:note-work:2",
+    "todo:note-ideas:0",
+    "todo:note-reading:0",
+    "todo:note-photos:0",
+    "todo:note-kickoff:0"
+   ],
+   "ok": true
+  },
+  {
+   "case": "rule_order",
+   "step": "tiers",
+   "expected": [
+    0,
+    0,
+    0,
+    0,
+    0,
+    1,
+    1,
+    1,
+    1,
+    1,
+    2,
+    3,
+    3,
+    4
+   ],
+   "actual": [
+    0,
+    0,
+    0,
+    0,
+    0,
+    1,
+    1,
+    1,
+    1,
+    1,
+    2,
+    3,
+    3,
+    4
+   ],
+   "ok": true
+  },
+  {
+   "case": "rule_order",
+   "step": "tiers never go back",
+   "expected": [
+    0,
+    0,
+    0,
+    0,
+    0,
+    1,
+    1,
+    1,
+    1,
+    1,
+    2,
+    3,
+    3,
+    4
+   ],
+   "actual": [
+    0,
+    0,
+    0,
+    0,
+    0,
+    1,
+    1,
+    1,
+    1,
+    1,
+    2,
+    3,
+    3,
+    4
+   ],
+   "ok": true
+  },
+  {
+   "case": "rule_order",
+   "step": "overdue oldest first",
+   "expected": [
+    "2026-10-19",
+    "2026-10-21",
+    "2026-10-21"
+   ],
+   "actual": [
+    "2026-10-19",
+    "2026-10-21",
+    "2026-10-21"
+   ],
+   "ok": true
+  },
+  {
+   "case": "rule_order",
+   "step": "left out (undated shopping list, done items)",
+   "expected": [],
+   "actual": [],
+   "ok": true
+  },
+  {
+   "case": "rule_order",
+   "step": "every weight 0",
+   "expected": [
+    0,
+    0,
+    0,
+    0,
+    0,
+    0,
+    0,
+    0,
+    0,
+    0,
+    0,
+    0,
+    0,
+    0
+   ],
+   "actual": [
+    0,
+    0,
+    0,
+    0,
+    0,
+    0,
+    0,
+    0,
+    0,
+    0,
+    0,
+    0,
+    0,
+    0
+   ],
+   "ok": true
+  },
+  {
+   "case": "rule_order",
+   "step": "cap 4",
+   "expected": [
+    "todo:note-errands:0",
+    "todo:note-home:0",
+    "todo:note-home:1",
+    "todo:note-party:0"
+   ],
+   "actual": [
+    "todo:note-errands:0",
+    "todo:note-home:0",
+    "todo:note-home:1",
+    "todo:note-party:0"
+   ],
+   "ok": true
+  },
+  {
+   "case": "weights",
+   "step": "days final before today's first run",
+   "expected": 27,
+   "actual": 27,
+   "ok": true
+  },
+  {
+   "case": "weights",
+   "step": "days final after it (yesterday finalized)",
+   "expected": 28,
+   "actual": 28,
+   "ok": true
+  },
+  {
+   "case": "weights",
+   "step": "keys learnt",
+   "expected": [
+    "list:note-errands",
+    "list:note-garden",
+    "list:note-home",
+    "list:note-reading",
+    "list:note-work",
+    "note_type:checklist"
+   ],
+   "actual": [
+    "list:note-errands",
+    "list:note-garden",
+    "list:note-home",
+    "list:note-reading",
+    "list:note-work",
+    "note_type:checklist"
+   ],
+   "ok": true
+  },
+  {
+   "case": "weights",
+   "step": "list:note-work",
+   "expected": {
+    "weight": 3,
+    "shown": 28,
+    "done": 28,
+    "promoted": 0,
+    "dismissed": 0,
+    "moved": 0,
+    "ignored": 0
+   },
+   "actual": {
+    "weight": 3,
+    "shown": 28,
+    "done": 28,
+    "promoted": 0,
+    "dismissed": 0,
+    "moved": 0,
+    "ignored": 0
+   },
+   "ok": true
+  },
+  {
+   "case": "weights",
+   "step": "list:note-home",
+   "expected": {
+    "weight": -3,
+    "shown": 28,
+    "done": 0,
+    "promoted": 0,
+    "dismissed": 28,
+    "moved": 0,
+    "ignored": 0
+   },
+   "actual": {
+    "weight": -3,
+    "shown": 28,
+    "done": 0,
+    "promoted": 0,
+    "dismissed": 28,
+    "moved": 0,
+    "ignored": 0
+   },
+   "ok": true
+  },
+  {
+   "case": "weights",
+   "step": "list:note-garden",
+   "expected": {
+    "weight": 1,
+    "shown": 28,
+    "done": 14,
+    "promoted": 0,
+    "dismissed": 0,
+    "moved": 0,
+    "ignored": 14
+   },
+   "actual": {
+    "weight": 1,
+    "shown": 28,
+    "done": 14,
+    "promoted": 0,
+    "dismissed": 0,
+    "moved": 0,
+    "ignored": 14
+   },
+   "ok": true
+  },
+  {
+   "case": "weights",
+   "step": "list:note-errands",
+   "expected": {
+    "weight": 0,
+    "shown": 5,
+    "done": 5,
+    "promoted": 0,
+    "dismissed": 0,
+    "moved": 0,
+    "ignored": 0
+   },
+   "actual": {
+    "weight": 0,
+    "shown": 5,
+    "done": 5,
+    "promoted": 0,
+    "dismissed": 0,
+    "moved": 0,
+    "ignored": 0
+   },
+   "ok": true
+  },
+  {
+   "case": "weights",
+   "step": "list:note-reading",
+   "expected": {
+    "weight": -1,
+    "shown": 7,
+    "done": 0,
+    "promoted": 0,
+    "dismissed": 0,
+    "moved": 0,
+    "ignored": 7
+   },
+   "actual": {
+    "weight": -1,
+    "shown": 7,
+    "done": 0,
+    "promoted": 0,
+    "dismissed": 0,
+    "moved": 0,
+    "ignored": 7
+   },
+   "ok": true
+  },
+  {
+   "case": "weights",
+   "step": "note_type:checklist",
+   "expected": {
+    "weight": 0,
+    "shown": 96,
+    "done": 47,
+    "promoted": 0,
+    "dismissed": 28,
+    "moved": 0,
+    "ignored": 21
+   },
+   "actual": {
+    "weight": 0,
+    "shown": 96,
+    "done": 47,
+    "promoted": 0,
+    "dismissed": 28,
+    "moved": 0,
+    "ignored": 21
+   },
+   "ok": true
+  },
+  {
+   "case": "weights",
+   "step": "to-do base",
+   "expected": -0.2031,
+   "actual": -0.2031,
+   "ok": true
+  },
+  {
+   "case": "weights",
+   "step": "stable during the day",
+   "expected": {
+    "list:note-errands": {
+     "weight": 0,
+     "shown": 5,
+     "done": 5,
+     "promoted": 0,
+     "dismissed": 0,
+     "moved": 0,
+     "ignored": 0,
+     "reset_at": null
+    },
+    "list:note-garden": {
+     "weight": 1,
+     "shown": 28,
+     "done": 14,
+     "promoted": 0,
+     "dismissed": 0,
+     "moved": 0,
+     "ignored": 14,
+     "reset_at": null
+    },
+    "list:note-home": {
+     "weight": -3,
+     "shown": 28,
+     "done": 0,
+     "promoted": 0,
+     "dismissed": 28,
+     "moved": 0,
+     "ignored": 0,
+     "reset_at": null
+    },
+    "list:note-reading": {
+     "weight": -1,
+     "shown": 7,
+     "done": 0,
+     "promoted": 0,
+     "dismissed": 0,
+     "moved": 0,
+     "ignored": 7,
+     "reset_at": null
+    },
+    "list:note-work": {
+     "weight": 3,
+     "shown": 28,
+     "done": 28,
+     "promoted": 0,
+     "dismissed": 0,
+     "moved": 0,
+     "ignored": 0,
+     "reset_at": null
+    },
+    "note_type:checklist": {
+     "weight": 0,
+     "shown": 96,
+     "done": 47,
+     "promoted": 0,
+     "dismissed": 28,
+     "moved": 0,
+     "ignored": 21,
+     "reset_at": null
+    }
+   },
+   "actual": {
+    "list:note-errands": {
+     "dismissed": 0,
+     "done": 5,
+     "ignored": 0,
+     "moved": 0,
+     "promoted": 0,
+     "reset_at": null,
+     "shown": 5,
+     "weight": 0
+    },
+    "list:note-garden": {
+     "dismissed": 0,
+     "done": 14,
+     "ignored": 14,
+     "moved": 0,
+     "promoted": 0,
+     "reset_at": null,
+     "shown": 28,
+     "weight": 1
+    },
+    "list:note-home": {
+     "dismissed": 28,
+     "done": 0,
+     "ignored": 0,
+     "moved": 0,
+     "promoted": 0,
+     "reset_at": null,
+     "shown": 28,
+     "weight": -3
+    },
+    "list:note-reading": {
+     "dismissed": 0,
+     "done": 0,
+     "ignored": 7,
+     "moved": 0,
+     "promoted": 0,
+     "reset_at": null,
+     "shown": 7,
+     "weight": -1
+    },
+    "list:note-work": {
+     "dismissed": 0,
+     "done": 28,
+     "ignored": 0,
+     "moved": 0,
+     "promoted": 0,
+     "reset_at": null,
+     "shown": 28,
+     "weight": 3
+    },
+    "note_type:checklist": {
+     "dismissed": 28,
+     "done": 47,
+     "ignored": 21,
+     "moved": 0,
+     "promoted": 0,
+     "reset_at": null,
+     "shown": 96,
+     "weight": 0
+    }
+   },
+   "ok": true
+  },
+  {
+   "case": "tiers",
+   "step": "weighted order",
+   "expected": [
+    "todo:note-errands:0",
+    "todo:note-party:0",
+    "event:ev-dentist",
+    "todo:note-home:0",
+    "todo:note-home:1",
+    "todo:note-work:0",
+    "todo:note-work:2",
+    "todo:note-garden:0",
+    "todo:note-garden:1",
+    "event:ev-market",
+    "todo:note-ideas:0",
+    "todo:note-photos:0",
+    "todo:note-reading:0",
+    "todo:note-kickoff:0"
+   ],
+   "actual": [
+    "todo:note-errands:0",
+    "todo:note-party:0",
+    "event:ev-dentist",
+    "todo:note-home:0",
+    "todo:note-home:1",
+    "todo:note-work:0",
+    "todo:note-work:2",
+    "todo:note-garden:0",
+    "todo:note-garden:1",
+    "event:ev-market",
+    "todo:note-ideas:0",
+    "todo:note-photos:0",
+    "todo:note-reading:0",
+    "todo:note-kickoff:0"
+   ],
+   "ok": true
+  },
+  {
+   "case": "tiers",
+   "step": "same tiers as the rule order",
+   "expected": [
+    0,
+    0,
+    0,
+    0,
+    0,
+    1,
+    1,
+    1,
+    1,
+    1,
+    2,
+    3,
+    3,
+    4
+   ],
+   "actual": [
+    0,
+    0,
+    0,
+    0,
+    0,
+    1,
+    1,
+    1,
+    1,
+    1,
+    2,
+    3,
+    3,
+    4
+   ],
+   "ok": true
+  },
+  {
+   "case": "tiers",
+   "step": "same items as the rule order",
+   "expected": [
+    "event:ev-dentist",
+    "event:ev-market",
+    "todo:note-errands:0",
+    "todo:note-garden:0",
+    "todo:note-garden:1",
+    "todo:note-home:0",
+    "todo:note-home:1",
+    "todo:note-ideas:0",
+    "todo:note-kickoff:0",
+    "todo:note-party:0",
+    "todo:note-photos:0",
+    "todo:note-reading:0",
+    "todo:note-work:0",
+    "todo:note-work:2"
+   ],
+   "actual": [
+    "event:ev-dentist",
+    "event:ev-market",
+    "todo:note-errands:0",
+    "todo:note-garden:0",
+    "todo:note-garden:1",
+    "todo:note-home:0",
+    "todo:note-home:1",
+    "todo:note-ideas:0",
+    "todo:note-kickoff:0",
+    "todo:note-party:0",
+    "todo:note-photos:0",
+    "todo:note-reading:0",
+    "todo:note-work:0",
+    "todo:note-work:2"
+   ],
+   "ok": true
+  },
+  {
+   "case": "tiers",
+   "step": "dismissed list's overdue item before favoured list's due-soon item",
+   "expected": [
+    -3,
+    3,
+    true
+   ],
+   "actual": [
+    -3,
+    3,
+    true
+   ],
+   "ok": true
+  },
+  {
+   "case": "tiers",
+   "step": "cap keeps every overdue and due-today item",
+   "expected": [
+    "event:ev-dentist",
+    "todo:note-errands:0",
+    "todo:note-home:0",
+    "todo:note-home:1",
+    "todo:note-party:0"
+   ],
+   "actual": [
+    "event:ev-dentist",
+    "todo:note-errands:0",
+    "todo:note-home:0",
+    "todo:note-home:1",
+    "todo:note-party:0"
+   ],
+   "ok": true
+  },
+  {
+   "case": "min_shown",
+   "step": "list:note-errands shown 5 < 6",
+   "expected": {
+    "shown": 5,
+    "weight": 0
+   },
+   "actual": {
+    "shown": 5,
+    "weight": 0
+   },
+   "ok": true
+  },
+  {
+   "case": "min_shown",
+   "step": "list:note-errands shown 6",
+   "expected": {
+    "shown": 6,
+    "weight": 3
+   },
+   "actual": {
+    "shown": 6,
+    "weight": 3
+   },
+   "ok": true
+  },
+  {
+   "case": "t5_table",
+   "step": "weights",
+   "expected": {
+    "list:note-home": -3,
+    "list:note-work": 3,
+    "list:note-garden": 1,
+    "list:note-reading": -1
+   },
+   "actual": {
+    "list:note-home": -3,
+    "list:note-work": 3,
+    "list:note-garden": 1,
+    "list:note-reading": -1
+   },
+   "ok": true
+  },
+  {
+   "case": "t5_table",
+   "step": "fixture's feed block",
+   "expected": {
+    "version": 1,
+    "date": "2026-10-22",
+    "weights": {
+     "list:note-home": -3,
+     "list:note-work": 3,
+     "list:note-garden": 1,
+     "list:note-reading": -1
+    }
+   },
+   "actual": {
+    "version": 1,
+    "date": "2026-10-22",
+    "weights": {
+     "list:note-home": -3,
+     "list:note-work": 3,
+     "list:note-garden": 1,
+     "list:note-reading": -1
+    }
+   },
+   "ok": true
+  },
+  {
+   "case": "t5_table",
+   "step": "same as the hub's candidate weights",
+   "expected": {
+    "todo:note-home:0": -3,
+    "todo:note-home:1": -3,
+    "todo:note-work:0": 3,
+    "todo:note-work:2": 3,
+    "todo:note-garden:0": 1,
+    "todo:note-garden:1": 1,
+    "todo:note-reading:0": -1
+   },
+   "actual": {
+    "todo:note-home:0": -3,
+    "todo:note-home:1": -3,
+    "todo:note-work:0": 3,
+    "todo:note-work:2": 3,
+    "todo:note-garden:0": 1,
+    "todo:note-garden:1": 1,
+    "todo:note-reading:0": -1
+   },
+   "ok": true
+  },
+  {
+   "case": "owner_marks",
+   "step": "dismissed",
+   "expected": [
+    "todo:note-party:0"
+   ],
+   "actual": [
+    "todo:note-party:0"
+   ],
+   "ok": true
+  },
+  {
+   "case": "owner_marks",
+   "step": "promoted",
+   "expected": [
+    "todo:note-garden:0"
+   ],
+   "actual": [
+    "todo:note-garden:0"
+   ],
+   "ok": true
+  },
+  {
+   "case": "owner_marks",
+   "step": "not today leaves today's candidates",
+   "expected": [
+    "todo:note-errands:0",
+    "event:ev-dentist",
+    "todo:note-home:0",
+    "todo:note-home:1",
+    "todo:note-work:0",
+    "todo:note-work:2",
+    "todo:note-garden:0",
+    "todo:note-garden:1",
+    "event:ev-market",
+    "todo:note-ideas:0",
+    "todo:note-photos:0",
+    "todo:note-reading:0",
+    "todo:note-kickoff:0"
+   ],
+   "actual": [
+    "todo:note-errands:0",
+    "event:ev-dentist",
+    "todo:note-home:0",
+    "todo:note-home:1",
+    "todo:note-work:0",
+    "todo:note-work:2",
+    "todo:note-garden:0",
+    "todo:note-garden:1",
+    "event:ev-market",
+    "todo:note-ideas:0",
+    "todo:note-photos:0",
+    "todo:note-reading:0",
+    "todo:note-kickoff:0"
+   ],
+   "ok": true
+  },
+  {
+   "case": "owner_marks",
+   "step": "↑ first leads Do first",
+   "expected": [
+    "todo:note-garden:0",
+    "todo:note-errands:0",
+    "event:ev-dentist"
+   ],
+   "actual": [
+    "todo:note-garden:0",
+    "todo:note-errands:0",
+    "event:ev-dentist"
+   ],
+   "ok": true
+  },
+  {
+   "case": "owner_marks",
+   "step": "coming up after",
+   "expected": [
+    "todo:note-work:0",
+    "event:ev-market"
+   ],
+   "actual": [
+    "todo:note-work:0",
+    "event:ev-market"
+   ],
+   "ok": true
+  },
+  {
+   "case": "owner_marks",
+   "step": "weights unchanged by today's marks",
+   "expected": {
+    "list:note-errands": {
+     "weight": 0,
+     "shown": 5,
+     "done": 5,
+     "promoted": 0,
+     "dismissed": 0,
+     "moved": 0,
+     "ignored": 0,
+     "reset_at": null
+    },
+    "list:note-garden": {
+     "weight": 1,
+     "shown": 28,
+     "done": 14,
+     "promoted": 0,
+     "dismissed": 0,
+     "moved": 0,
+     "ignored": 14,
+     "reset_at": null
+    },
+    "list:note-home": {
+     "weight": -3,
+     "shown": 28,
+     "done": 0,
+     "promoted": 0,
+     "dismissed": 28,
+     "moved": 0,
+     "ignored": 0,
+     "reset_at": null
+    },
+    "list:note-reading": {
+     "weight": -1,
+     "shown": 7,
+     "done": 0,
+     "promoted": 0,
+     "dismissed": 0,
+     "moved": 0,
+     "ignored": 7,
+     "reset_at": null
+    },
+    "list:note-work": {
+     "weight": 3,
+     "shown": 28,
+     "done": 28,
+     "promoted": 0,
+     "dismissed": 0,
+     "moved": 0,
+     "ignored": 0,
+     "reset_at": null
+    },
+    "note_type:checklist": {
+     "weight": 0,
+     "shown": 96,
+     "done": 47,
+     "promoted": 0,
+     "dismissed": 28,
+     "moved": 0,
+     "ignored": 21,
+     "reset_at": null
+    }
+   },
+   "actual": {
+    "list:note-errands": {
+     "dismissed": 0,
+     "done": 5,
+     "ignored": 0,
+     "moved": 0,
+     "promoted": 0,
+     "reset_at": null,
+     "shown": 5,
+     "weight": 0
+    },
+    "list:note-garden": {
+     "dismissed": 0,
+     "done": 14,
+     "ignored": 14,
+     "moved": 0,
+     "promoted": 0,
+     "reset_at": null,
+     "shown": 28,
+     "weight": 1
+    },
+    "list:note-home": {
+     "dismissed": 28,
+     "done": 0,
+     "ignored": 0,
+     "moved": 0,
+     "promoted": 0,
+     "reset_at": null,
+     "shown": 28,
+     "weight": -3
+    },
+    "list:note-reading": {
+     "dismissed": 0,
+     "done": 0,
+     "ignored": 7,
+     "moved": 0,
+     "promoted": 0,
+     "reset_at": null,
+     "shown": 7,
+     "weight": -1
+    },
+    "list:note-work": {
+     "dismissed": 0,
+     "done": 28,
+     "ignored": 0,
+     "moved": 0,
+     "promoted": 0,
+     "reset_at": null,
+     "shown": 28,
+     "weight": 3
+    },
+    "note_type:checklist": {
+     "dismissed": 28,
+     "done": 47,
+     "ignored": 21,
+     "moved": 0,
+     "promoted": 0,
+     "reset_at": null,
+     "shown": 96,
+     "weight": 0
+    }
+   },
+   "ok": true
+  },
+  {
+   "case": "reset",
+   "step": "list:note-work weight",
+   "expected": 0,
+   "actual": 0,
+   "ok": true
+  },
+  {
+   "case": "reset",
+   "step": "list:note-work reset day",
+   "expected": "2026-10-22",
+   "actual": "2026-10-22",
+   "ok": true
+  },
+  {
+   "case": "reset",
+   "step": "list:note-work still 0 on the next read",
+   "expected": 0,
+   "actual": 0,
+   "ok": true
+  },
+  {
+   "case": "reset",
+   "step": "due-soon tier back to the rule order",
+   "expected": [
+    "todo:note-garden:0",
+    "todo:note-garden:1",
+    "event:ev-market",
+    "todo:note-work:0",
+    "todo:note-work:2"
+   ],
+   "actual": [
+    "todo:note-garden:0",
+    "todo:note-garden:1",
+    "event:ev-market",
+    "todo:note-work:0",
+    "todo:note-work:2"
+   ],
+   "ok": true
+  },
+  {
+   "case": "reset",
+   "step": "all weights 0 after reset all",
+   "expected": {},
+   "actual": {},
+   "ok": true
+  },
+  {
+   "case": "reset",
+   "step": "order is the rule order",
+   "expected": [
+    "todo:note-errands:0",
+    "todo:note-home:0",
+    "todo:note-home:1",
+    "todo:note-party:0",
+    "event:ev-dentist",
+    "todo:note-garden:0",
+    "todo:note-garden:1",
+    "event:ev-market",
+    "todo:note-work:0",
+    "todo:note-work:2",
+    "todo:note-ideas:0",
+    "todo:note-reading:0",
+    "todo:note-photos:0",
+    "todo:note-kickoff:0"
+   ],
+   "actual": [
+    "todo:note-errands:0",
+    "todo:note-home:0",
+    "todo:note-home:1",
+    "todo:note-party:0",
+    "event:ev-dentist",
+    "todo:note-garden:0",
+    "todo:note-garden:1",
+    "event:ev-market",
+    "todo:note-work:0",
+    "todo:note-work:2",
+    "todo:note-ideas:0",
+    "todo:note-reading:0",
+    "todo:note-photos:0",
+    "todo:note-kickoff:0"
+   ],
+   "ok": true
+  },
+  {
+   "case": "reset",
+   "step": "T5 table empty",
+   "expected": {},
+   "actual": {},
+   "ok": true
+  },
+  {
+   "case": "t5_day",
+   "step": "candidate weight per note = the T5 table",
+   "expected": {
+    "list:n-mom": 6,
+    "list:n-shop": 6,
+    "list:n-car": -3,
+    "list:n-garden": 3,
+    "list:n-gift": 2,
+    "list:n-learn": 2,
+    "list:n-party": -2,
+    "list:n-house": -1,
+    "list:n-trip": 1
+   },
+   "actual": {
+    "list:n-house": -1,
+    "list:n-garden": 3,
+    "list:n-shop": 6,
+    "list:n-gift": 2,
+    "list:n-car": -3,
+    "list:n-party": -2,
+    "list:n-trip": 1,
+    "list:n-learn": 2,
+    "list:n-mom": 6
+   },
+   "ok": true
+  },
+  {
+   "case": "t5_day",
+   "step": "t5_table of those weights = the feed's weights",
+   "expected": {
+    "version": 1,
+    "date": "2026-10-20",
+    "weights": {
+     "list:n-mom": 6,
+     "list:n-shop": 6,
+     "list:n-car": -3,
+     "list:n-garden": 3,
+     "list:n-gift": 2,
+     "list:n-learn": 2,
+     "list:n-party": -2,
+     "list:n-house": -1,
+     "list:n-trip": 1
+    }
+   },
+   "actual": {
+    "version": 1,
+    "date": "2026-10-20",
+    "weights": {
+     "list:n-mom": 6,
+     "list:n-shop": 6,
+     "list:n-car": -3,
+     "list:n-garden": 3,
+     "list:n-gift": 2,
+     "list:n-learn": 2,
+     "list:n-party": -2,
+     "list:n-house": -1,
+     "list:n-trip": 1
+    }
+   },
+   "ok": true
+  },
+  {
+   "case": "t5_day",
+   "step": "without weights: do_first to-dos",
+   "expected": [
+    "Find the 2025 receipts",
+    "Order the book for Lena",
+    "Book the car service",
+    "Pay the electricity bill"
+   ],
+   "actual": [
+    "Find the 2025 receipts",
+    "Order the book for Lena",
+    "Book the car service",
+    "Pay the electricity bill"
+   ],
+   "ok": true
+  },
+  {
+   "case": "t5_day",
+   "step": "without weights: coming_up to-dos",
+   "expected": [
+    "Buy balloons",
+    "Pack the tent"
+   ],
+   "actual": [
+    "Buy balloons",
+    "Pack the tent"
+   ],
+   "ok": true
+  },
+  {
+   "case": "t5_day",
+   "step": "without weights: also to-dos",
+   "expected": [
+    "Fix the garden gate",
+    "Clean the gutters",
+    "Plant the tulip bulbs",
+    "Return the library book",
+    "Practise twenty minutes"
+   ],
+   "actual": [
+    "Fix the garden gate",
+    "Clean the gutters",
+    "Plant the tulip bulbs",
+    "Return the library book",
+    "Practise twenty minutes"
+   ],
+   "ok": true
+  },
+  {
+   "case": "t5_day",
+   "step": "without weights: T5 rules re-implemented",
+   "expected": {
+    "do_first": [
+     "Find the 2025 receipts",
+     "Order the book for Lena",
+     "Book the car service",
+     "Pay the electricity bill"
+    ],
+    "coming_up": [
+     "Buy balloons",
+     "Pack the tent"
+    ],
+    "also": [
+     "Fix the garden gate",
+     "Clean the gutters",
+     "Plant the tulip bulbs",
+     "Return the library book",
+     "Practise twenty minutes"
+    ]
+   },
+   "actual": {
+    "do_first": [
+     "Find the 2025 receipts",
+     "Order the book for Lena",
+     "Book the car service",
+     "Pay the electricity bill"
+    ],
+    "coming_up": [
+     "Buy balloons",
+     "Pack the tent"
+    ],
+    "also": [
+     "Fix the garden gate",
+     "Clean the gutters",
+     "Plant the tulip bulbs",
+     "Return the library book",
+     "Practise twenty minutes"
+    ]
+   },
+   "ok": true
+  },
+  {
+   "case": "t5_day",
+   "step": "without weights: events in the same sections",
+   "expected": {
+    "do_first": [
+     "Team stand-up"
+    ],
+    "coming_up": [
+     "Dentist check-up",
+     "Yoga class"
+    ],
+    "also": []
+   },
+   "actual": {
+    "do_first": [
+     "Team stand-up"
+    ],
+    "coming_up": [
+     "Dentist check-up",
+     "Yoga class"
+    ],
+    "also": []
+   },
+   "ok": true
+  },
+  {
+   "case": "t5_day",
+   "step": "with weights: do_first to-dos",
+   "expected": [
+    "Order the book for Lena",
+    "Find the 2025 receipts",
+    "Pay the electricity bill",
+    "Book the car service"
+   ],
+   "actual": [
+    "Order the book for Lena",
+    "Find the 2025 receipts",
+    "Pay the electricity bill",
+    "Book the car service"
+   ],
+   "ok": true
+  },
+  {
+   "case": "t5_day",
+   "step": "with weights: coming_up to-dos",
+   "expected": [
+    "Pack the tent",
+    "Buy balloons"
+   ],
+   "actual": [
+    "Pack the tent",
+    "Buy balloons"
+   ],
+   "ok": true
+  },
+  {
+   "case": "t5_day",
+   "step": "with weights: also to-dos",
+   "expected": [
+    "Plant the tulip bulbs",
+    "Fix the garden gate",
+    "Clean the gutters",
+    "Practise twenty minutes",
+    "Return the library book"
+   ],
+   "actual": [
+    "Plant the tulip bulbs",
+    "Fix the garden gate",
+    "Clean the gutters",
+    "Practise twenty minutes",
+    "Return the library book"
+   ],
+   "ok": true
+  },
+  {
+   "case": "t5_day",
+   "step": "with weights: T5 rules re-implemented",
+   "expected": {
+    "do_first": [
+     "Order the book for Lena",
+     "Find the 2025 receipts",
+     "Pay the electricity bill",
+     "Book the car service"
+    ],
+    "coming_up": [
+     "Pack the tent",
+     "Buy balloons"
+    ],
+    "also": [
+     "Plant the tulip bulbs",
+     "Fix the garden gate",
+     "Clean the gutters",
+     "Practise twenty minutes",
+     "Return the library book"
+    ]
+   },
+   "actual": {
+    "do_first": [
+     "Order the book for Lena",
+     "Find the 2025 receipts",
+     "Pay the electricity bill",
+     "Book the car service"
+    ],
+    "coming_up": [
+     "Pack the tent",
+     "Buy balloons"
+    ],
+    "also": [
+     "Plant the tulip bulbs",
+     "Fix the garden gate",
+     "Clean the gutters",
+     "Practise twenty minutes",
+     "Return the library book"
+    ]
+   },
+   "ok": true
+  },
+  {
+   "case": "t5_day",
+   "step": "with weights: events in the same sections",
+   "expected": {
+    "do_first": [
+     "Team stand-up"
+    ],
+    "coming_up": [
+     "Dentist check-up",
+     "Yoga class"
+    ],
+    "also": []
+   },
+   "actual": {
+    "do_first": [
+     "Team stand-up"
+    ],
+    "coming_up": [
+     "Dentist check-up",
+     "Yoga class"
+    ],
+    "also": []
+   },
+   "ok": true
+  }
+ ]
+}
