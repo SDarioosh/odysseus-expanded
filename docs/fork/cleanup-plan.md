@@ -26,15 +26,17 @@ the hub lanes and the rules that are specific to this repo.
 | 3 | 3K | Beliefs and Meetings use the `mountX` pattern; `forkPageView.js` goes | 3J |
 | 3 | 3L | `scripts/eval_common.py` for the four evals | Gate 2 |
 | 4 | 4D | Page `/modules/athena` (old URL redirects), `/api/modules/athena/*`, relay routes `/api/codex/athena/*` and scopes `athena:*` beside the old ones | Gate 3 |
+| 4 | 4F | Stored names: notes' `odysseus-sound` label, belief and memory source, and the server name `convo` → `athena` (approvals, tool toggles, trusted-server setting, `/athena` skill, action-items state). Code reads both first; then `scripts/athena_names_migrate.py` (`--dry-run`, `--apply` with backup, `--rollback`). Filed calendar event IDs frozen | 4D, 3G |
 | 4 | 4C | Split `evidence_intake.py`, `module_action_items.py`, `today_insight.py`; AGENTS.md lists the package; CI reports upstream drift | Gate 3 |
 
 ## Rules specific to the hub
 
 - **Renaming to Athena** runs inside this cleanup (Athena's plan, "Renaming to Athena";
-  steps in Athena's `docs/athena-rename-plan.md`). Old names keep working beside new ones,
-  and the names in that plan's "What stays" table never change: the MCP server name
-  `convo`, the stored `"odysseus-sound"` values, the `barvis` branch, and the
-  `barvis_*` action ids and state files.
+  steps in Athena's `docs/athena-rename-plan.md`). Old names keep working beside new ones.
+  The stored `"odysseus-sound"` values and the MCP server name `convo` change only in lane
+  4F, the one data migration (backup, dry run, rollback, test instance first); until then
+  no lane changes them. The IDs of calendar events already filed never change (4F freezes
+  their input), and neither does the `barvis` branch.
 
 - **Fork rules first** ([AGENTS.md](../../AGENTS.md#fork-rules-merge-friendly)): each lane
   adds new files and changes upstream files only with small, marked hooks, recorded in
