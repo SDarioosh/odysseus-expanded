@@ -253,6 +253,7 @@ is an old path of a module that moved into `fork/`; it only aliases the new modu
 - `tests/fixtures/athena_contract/list_people_after_merge.json`
 - `tests/fork/conftest.py`
 - `tests/fork/fakes.py`
+- `tests/fork/fork_dom_golden.json`
 - `tests/fork/test_agent_thinking_switch.py`
 - `tests/fork/test_athena_contract_fixtures.py`
 - `tests/fork/test_auto_mode.py`
@@ -273,6 +274,7 @@ is an old path of a module that moved into `fork/`; it only aliases the new modu
 - `tests/fork/test_evidence_intake.py`
 - `tests/fork/test_fork_atomic_writes.py`
 - `tests/fork/test_fork_deploy.py`
+- `tests/fork/test_fork_dom.py`
 - `tests/fork/test_fork_inventory.py`
 - `tests/fork/test_fork_module_windows.py`
 - `tests/fork/test_fork_override_env.py`
@@ -332,6 +334,7 @@ is an old path of a module that moved into `fork/`; it only aliases the new modu
 - `tests/fork/test_web_read_recovery.py`
 - `tests/fork/test_web_turn_scope.py`
 - `tests/fork/test_whisper_vocabulary_routes.py`
+- `tests/helpers/fork_dom_cases.mjs`
 - `tests/helpers/ink_notebooks_e2e.mjs`
 - `tests/helpers/ink_perf.mjs`
 - `tests/helpers/ink_pointer_e2e.mjs`
