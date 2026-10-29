@@ -82,7 +82,9 @@ def _is_module_server(manager: Any, server_id: str) -> bool:
         keys.add(server_key())
     except Exception:  # noqa: BLE001
         pass
-    conn = (getattr(manager, "_connections", {}) or {}).get(server_id) or {}
+    from fork.upstream import mcp_connections
+
+    conn = mcp_connections(manager).get(server_id) or {}
     name = str(conn.get("name") or "").strip().casefold()
     return str(server_id).casefold() in keys or bool(name and name in keys)
 

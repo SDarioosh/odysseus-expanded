@@ -107,8 +107,9 @@ def test_admin_only(monkeypatch):
 
 
 def test_hooks_are_in_place():
-    app_py = (ROOT / "app.py").read_text()
-    assert "setup_summary_model_routes" in app_py
+    from fork.routes import ROUTERS
+
+    assert ("fork.athena.summary_model_routes", "setup_summary_model_routes") in ROUTERS
     html = (ROOT / "static/index.html").read_text()
     assert '<script type="module" src="/static/js/forkBackgroundModels.js"></script>' in html
     js = (ROOT / "static/js/forkBackgroundModels.js").read_text()

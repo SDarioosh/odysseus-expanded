@@ -432,7 +432,9 @@ def as_dicts(rows: list[Any]) -> list[dict]:
 def server_id(manager: Any, key: str) -> str | None:
     """Id of the connected MCP server called ``key`` (name or id)."""
     key = key.casefold()
-    for sid, conn in (getattr(manager, "_connections", {}) or {}).items():
+    from fork.upstream import mcp_connections
+
+    for sid, conn in mcp_connections(manager).items():
         conn = conn or {}
         if conn.get("status") != "connected":
             continue

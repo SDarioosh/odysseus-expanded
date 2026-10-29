@@ -109,7 +109,9 @@ def test_admin_only(monkeypatch):
 
 
 def test_hooks_are_in_place():
-    assert "setup_whisper_vocabulary_routes" in (ROOT / "app.py").read_text()
+    from fork.routes import ROUTERS
+
+    assert ("fork.athena.whisper_vocabulary_routes", "setup_whisper_vocabulary_routes") in ROUTERS
     html = (ROOT / "static/index.html").read_text()
     assert '<script type="module" src="/static/js/forkWhisperVocabulary.js"></script>' in html
     js = (ROOT / "static/js/forkWhisperVocabulary.js").read_text()

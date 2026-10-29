@@ -80,11 +80,12 @@ def _endpoint_routes(owner: str | None) -> list[Route]:
     from src.endpoint_resolver import (
         SessionLocal,
         ModelEndpoint,
-        _endpoint_enabled_models,
         build_chat_url,
         build_headers,
         resolve_endpoint_runtime,
     )
+
+    from fork.upstream import endpoint_enabled_models
 
     local: list[Route] = []
     remote: list[Route] = []
@@ -105,7 +106,7 @@ def _endpoint_routes(owner: str | None) -> list[Route]:
             url = build_chat_url(base)
             headers = build_headers(api_key, base)
             bucket = local if _is_local(url) else remote
-            for model in _endpoint_enabled_models(ep):
+            for model in endpoint_enabled_models(ep):
                 bucket.append((url, model, headers))
     except Exception as exc:
         logger.debug("vision auto-detect: could not list endpoints: %s", exc)

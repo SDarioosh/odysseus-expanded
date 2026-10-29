@@ -58,8 +58,12 @@ Merge, don't rebase: `barvis` is shared history.
   move most.
 - `src/tool_capabilities.py`: hook in `ToolRunSecurityContext`.
 - `src/mcp_manager.py`: one line in `_connect_http` that keeps tool `annotations`.
-- `src/task_scheduler.py`: the `register_housekeeping` hooks after `HOUSEKEEPING_DEFAULTS`
-  and the built-in task authority hook in `_execute_action`.
+- `src/task_scheduler.py`: the `fork.tasks` hook at the end of the file (seeded tasks,
+  silent and model-backed actions; the table is `fork/tasks.py`), the Send Athena hooks in
+  `_check_due_tasks` and the built-in task authority hook in `_execute_action`.
+- Upstream private names (`_`-prefixed) the fork reads are all in `fork/upstream.py`;
+  `tests/fork/test_fork_upstream.py` names any that a sync renamed or dropped. Fix the
+  function there, not its callers.
 - `static/index.html`: the fork's script tags at the end of the body (the sidebar entries
   are added by `static/js/forkModuleWindows.js`).
 

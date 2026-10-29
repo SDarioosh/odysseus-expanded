@@ -168,16 +168,7 @@ to be offered) upstream, "with discussion" a change upstream may want in another
 |---|---|---|---|---|
 | `app.py` | after the logging handlers | `fork/hub/log_redact.py` | log formatters write token query values as `***` | yes |
 | `app.py` | `AUTH_EXEMPT_EXACT` | `fork/athena/relay_routes.py` | `/api/pair/redeem` needs no session (rate limited) | no |
-| `app.py` | routers, after the MCP routes | `fork/athena/routes.py` | Athena page and its routes | no |
-| `app.py` | routers | `fork/routes/today_insight_routes.py` | Today page, votes, token route | no |
-| `app.py` | routers | `fork/routes/belief_search_routes.py` | belief search, mounted before the review page's `/api/beliefs/{id}` | no |
-| `app.py` | routers | `fork/routes/beliefs_routes.py` | belief review page and routes | no |
-| `app.py` | routers | `fork/athena/relay_routes.py` | phone relay and pairing | no |
-| `app.py` | routers | `fork/athena/summary_model_routes.py` | summary model setting | no |
-| `app.py` | routers | `fork/athena/whisper_vocabulary_routes.py` | transcription vocabulary setting | no |
-| `app.py` | routers | `fork/athena/voice_enroll_routes.py` | Enroll My Voice setting | no |
-| `app.py` | routers | `fork/routes/auto_mode_routes.py` | auto mode default | no |
-| `app.py` | routers | `fork/routes/ink_routes.py` | handwritten notes | no |
+| `app.py` | routers, after the MCP routes | `fork/routes/__init__.py` (`mount`, table `ROUTERS`) | the fork's ten routers in one call, in order: Athena page, Today, belief search (before the review page's `/api/beliefs/{id}`), belief review, phone relay and pairing, summary model, transcription vocabulary, Enroll My Voice, auto mode default, handwritten notes | no |
 | `app.py` | `_startup_event` | `fork/hub/checklist_auto_archive.py` | start the checklist archiver | with discussion |
 | `.github/workflows/ci.yml` | byte-compile step | none | compile `fork/` too | no |
 | `frontend/src/features/notes/application/workflows.js` | `_fetchNotes` | none (a filter; Write is `static/js/forkInk.js`) | handwritten notes left out of the Notes window | no |
@@ -221,12 +212,7 @@ to be offered) upstream, "with discussion" a change upstream may want in another
 | `src/agent_runtime/effect_adapters.py` | `classify` | `fork/mcp/trust.py` | a trusted read-only call is an admitted read | yes |
 | `src/agent_tools/__init__.py` | `TOOL_HANDLERS` | `fork/routing/auto_mode.py` | `calculate` handler | no |
 | `src/builtin_actions.py` | `action_consolidate_memory` | `fork/beliefs/consolidation.py` | Memory Tidy skips sourced memories | no |
-| `src/builtin_actions.py` | action registry, end of file | `fork/athena/action_items.py` | "Module Action Items" task | no |
-| `src/builtin_actions.py` | action registry | `fork/athena/facts.py` | "Module Facts" task | no |
-| `src/builtin_actions.py` | action registry | `fork/insight/today.py` | "Today Insight" task | no |
-| `src/builtin_actions.py` | action registry | `fork/beliefs/notes_evidence.py` | "Notes Evidence" task | no |
-| `src/builtin_actions.py` | action registry | `fork/beliefs/structure.py` | "Belief Structure" task | no |
-| `src/builtin_actions.py` | action registry | `fork/athena/meeting_auto_join.py` | `meeting_auto_join` action | no |
+| `src/builtin_actions.py` | action registry, end of file | `fork/tasks.py` (`register_actions`, table `TASKS`) | the fork's actions: Module Action Items, Module Facts, Today Insight, Notes Evidence, Belief Structure, `meeting_auto_join` | no |
 | `src/caldav_sync.py` | `sync_caldav`, after the pull | `fork/athena/meeting_auto_join.py` | Send Athena tasks follow moved or deleted events | no |
 | `src/chat_processor.py` | `ChatProcessor.build_context_preface`, memory context | `fork/insight/today.py` | Today and beliefs block on plan questions | no |
 | `src/document_processor.py` | `_resolve_vl_model` | `fork/hub/vision_auto_detect.py` | auto-detect the owner's vision models | yes |
@@ -236,18 +222,9 @@ to be offered) upstream, "with discussion" a change upstream may want in another
 | `src/mcp_manager.py` | `hold_owned_connection` | `fork/mcp/stdio_owner.py` | stdio connections already have an owner task | yes |
 | `src/mcp_manager.py` | `call_tool`, the call | `fork/mcp/session_recovery.py` | deadline for module calls | yes |
 | `src/mcp_manager.py` | `call_tool`, the error branch | `fork/mcp/session_recovery.py` | reconnect a lost HTTP/SSE session and retry once | yes |
-| `src/task_scheduler.py` | `HOUSEKEEPING_DEFAULTS` | `fork/athena/action_items.py` | seed the task | no |
-| `src/task_scheduler.py` | `HOUSEKEEPING_DEFAULTS` | `fork/athena/facts.py` | seed the task | no |
-| `src/task_scheduler.py` | `HOUSEKEEPING_DEFAULTS` | `fork/insight/today.py` | seed the task | no |
-| `src/task_scheduler.py` | `HOUSEKEEPING_DEFAULTS` | `fork/beliefs/notes_evidence.py` | seed the task | no |
-| `src/task_scheduler.py` | `HOUSEKEEPING_DEFAULTS` | `fork/beliefs/structure.py` | seed the task | no |
 | `src/task_scheduler.py` | `_check_due_tasks` (two places) | `fork/athena/meeting_auto_join.py` | Send Athena joins are not deferred and skip the model slot | no |
 | `src/task_scheduler.py` | `_execute_action` | `fork/hub/builtin_task_authority.py` | re-seal a built-in task's broken authority, else say why | yes |
-| `src/task_scheduler.py` | `_SILENT_ACTIONS`, end of file | `fork/athena/action_items.py` | `barvis_sync_action_items` posts nothing to chat | no |
-| `src/task_scheduler.py` | `_SILENT_ACTIONS` | `fork/athena/facts.py` | `module_sync_facts` posts nothing to chat | no |
-| `src/task_scheduler.py` | `_SILENT_ACTIONS`, `_MODEL_BACKED_ACTIONS` | `fork/insight/today.py` | `today_insight` silent, queued for the model | no |
-| `src/task_scheduler.py` | `_SILENT_ACTIONS`, `_MODEL_BACKED_ACTIONS` | `fork/beliefs/notes_evidence.py` | `notes_evidence` silent, queued for the model | no |
-| `src/task_scheduler.py` | `_SILENT_ACTIONS`, `_MODEL_BACKED_ACTIONS` | `fork/beliefs/structure.py` | `belief_structure` silent, queued for the model | no |
+| `src/task_scheduler.py` | end of file | `fork/tasks.py` (`register_scheduler`, table `TASKS`) | seed the fork's housekeeping tasks (`HOUSEKEEPING_DEFAULTS`); `barvis_sync_action_items`, `module_sync_facts` post nothing to chat; `today_insight`, `notes_evidence`, `belief_structure` post nothing and queue for the model (`_SILENT_ACTIONS`, `_MODEL_BACKED_ACTIONS`) | no |
 | `src/tool_capabilities.py` | capability registry (`_register`) | `fork/routing/auto_mode.py` | `calculate` is a public read | no |
 | `src/tool_capabilities.py` | `ToolRunSecurityContext.observe_messages` | `fork/routing/auto_mode.py` | note URLs the owner wrote | no |
 | `src/tool_capabilities.py` | `ToolRunSecurityContext.decision_for` | `fork/mcp/trust.py` | trusted read-only tools pass the gate | yes |
@@ -296,7 +273,10 @@ The fork's Python code lives in the `fork/` package, apart from upstream's `src/
 `routes/`: `fork/mcp/` (MCP client fixes), `fork/routing/` (what a turn is offered and
 granted), `fork/athena/` (the Athena module in the hub, its routes included),
 `fork/beliefs/`, `fork/insight/`, `fork/ink/`, `fork/hub/` (fixes to upstream's own
-features), `fork/routes/` (the other route files) and `fork/common/` (shared helpers).
+features), `fork/routes/` (the other route files; `fork.routes.mount` includes all the
+fork's routers) and `fork/common/` (shared helpers). `fork/tasks.py` is the table of the
+fork's scheduled tasks; `fork/upstream.py` is the one place that reads upstream's private
+`_` names (`tests/fork/test_fork_upstream.py` fails when one is gone upstream).
 The old paths (`src/mcp_trust.py`, `routes/sound_module_routes.py`, …) are shims that
 alias the new modules; `docs/fork/files.md` marks each one, and
 `tests/fork/test_fork_package_shims.py` checks them. New code imports `fork.*`.
