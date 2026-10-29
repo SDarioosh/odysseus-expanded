@@ -161,9 +161,13 @@ Hooks in upstream files are listed in [FORK.md](../../FORK.md).
 
 ## tests/
 
+- `tests/fixtures/athena_contract/README.md`
 - `tests/fixtures/athena_contract/list_action_items.json`
+- `tests/fixtures/athena_contract/list_action_items_status_all.json`
 - `tests/fixtures/athena_contract/list_facts.json`
+- `tests/fixtures/athena_contract/list_facts_confirmed.json`
 - `tests/fixtures/athena_contract/list_people.json`
+- `tests/fixtures/athena_contract/list_people_after_merge.json`
 - `tests/helpers/ink_notebooks_e2e.mjs`
 - `tests/helpers/ink_perf.mjs`
 - `tests/helpers/ink_pointer_e2e.mjs`
