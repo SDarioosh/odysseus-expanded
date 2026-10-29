@@ -326,7 +326,7 @@ These are real bugs, not sandbox quirks. 1–3 and 5 are bugs in Odysseus or the
    were not affected (they hold their connection in their own task). Fixed by opening
    every stdio connection in a long-lived owner task (`src/mcp_stdio_owner.py`, FORK.md).
    Reproduced and checked under uvicorn with a one-tool FastMCP server; regression test
-   `tests/test_mcp_stdio_owner.py`. Upstream issue to file.
+   `tests/fork/test_mcp_stdio_owner.py`. Upstream issue to file.
 3. **Empty answers:** some Odysseus replies are empty after tool calls (question 16 in the
    HTTP run). That matches the "Done." replies in the server eval.
 4. **Athena: failed summaries are never retried.** If llama-server is down when a

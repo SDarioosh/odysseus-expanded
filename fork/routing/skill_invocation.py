@@ -52,7 +52,7 @@ from fork.routing.skill_mcp_toolsets import expand_toolsets
 logger = logging.getLogger(__name__)
 
 # Must match the message built by invoke_skill in routes/skills_routes.py
-# (tests/test_skill_mcp_toolsets.py checks that the route still builds it).
+# (tests/fork/test_skill_mcp_toolsets.py checks that the route still builds it).
 INVOKE_PREFIX = (
     "Apply the skill below to my request, following its Procedure / Pitfalls / Verification.\n\n"
     "--- BEGIN SKILL ---\n"

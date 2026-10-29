@@ -159,7 +159,7 @@ the link goes to its details (what it does, its files, whether it can go upstrea
 ## Hooks into upstream files
 
 Every change to an upstream file, one row per hook, built from the code
-(`git grep -n "Fork:"` and `tests/test_fork_inventory.py`, which fails when a hunk in an
+(`git grep -n "Fork:"` and `tests/fork/test_fork_inventory.py`, which fails when a hunk in an
 upstream file has no `Fork:` marker). Upstreamable: "yes" marks a general fix offered (or
 to be offered) upstream, "with discussion" a change upstream may want in another form,
 "no" a fork-only hook. When you add a hook, add its row here.
@@ -214,7 +214,7 @@ to be offered) upstream, "with discussion" a change upstream may want in another
 | `src/agent_loop.py` | `stream_agent_loop`, run security setup | `fork/routing/auto_mode.py` | bind the chat's Auto/Ask choice to the run | no |
 | `src/agent_loop.py` | `stream_agent_loop`, skill matching | `fork/routing/skill_mcp_toolsets.py` | MCP entries in `requires_toolsets` | yes |
 | `src/agent_loop.py` | `stream_agent_loop`, exact-approval continuation (two places) | `fork/routing/web_read_recovery.py` | a failed approved web read continues the turn | yes |
-| `src/agent_loop.py` | `stream_agent_loop`, `_active_route_state` | none (`tests/test_agent_thinking_switch.py`) | keep the turn's `thinking_mode` | yes |
+| `src/agent_loop.py` | `stream_agent_loop`, `_active_route_state` | none (`tests/fork/test_agent_thinking_switch.py`) | keep the turn's `thinking_mode` | yes |
 | `src/agent_loop.py` | `stream_agent_loop`, `manage_skills view` | `fork/routing/skill_mcp_toolsets.py` | expand `mcp:` entries | yes |
 | `src/agent_loop.py` | `stream_agent_loop`, end-of-loop empty-final recovery | `fork/mcp/trust.py` | answer an empty reply after module tools | yes |
 | `src/agent_runtime/authority.py` | `create_request_authority` | `fork/mcp/trust.py` | grant trusted read-only MCP tools | yes |
@@ -291,8 +291,8 @@ to be offered) upstream, "with discussion" a change upstream may want in another
 
 Every file the fork adds (code, tests, scripts, docs) is listed in
 [docs/fork/files.md](docs/fork/files.md). It is generated and kept complete by
-`tests/test_fork_inventory.py`; regenerate it with
-`UPDATE_FORK_FILES=1 python -m pytest -q tests/test_fork_inventory.py` after adding,
+`tests/fork/test_fork_inventory.py`; regenerate it with
+`UPDATE_FORK_FILES=1 python -m pytest -q tests/fork/test_fork_inventory.py` after adding,
 moving or deleting a fork file.
 
 The fork's Python code lives in the `fork/` package, apart from upstream's `src/` and
@@ -302,7 +302,7 @@ granted), `fork/athena/` (the Athena module in the hub, its routes included),
 features), `fork/routes/` (the other route files) and `fork/common/` (shared helpers).
 The old paths (`src/mcp_trust.py`, `routes/sound_module_routes.py`, …) are shims that
 alias the new modules; `docs/fork/files.md` marks each one, and
-`tests/test_fork_package_shims.py` checks them. New code imports `fork.*`.
+`tests/fork/test_fork_package_shims.py` checks them. New code imports `fork.*`.
 
 ## Setup
 

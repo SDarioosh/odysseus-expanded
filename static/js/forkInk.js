@@ -115,7 +115,7 @@ const HIGHLIGHT_ALPHA = 0.35;
 
 // ------------------------------------------------------------------ input router
 // Pure logic, no DOM: decides what each pointer event does. Exported for tests
-// (tests/test_ink_palm_rejection.py feeds it synthetic events).
+// (tests/fork/test_ink_palm_rejection.py feeds it synthetic events).
 //
 // handlers: drawStart(e, {eraser}), drawMove(e), drawEnd(e), drawSwitch(e, {eraser})
 // (the barrel button was pressed or released mid-stroke), gesture(from, to) (touch

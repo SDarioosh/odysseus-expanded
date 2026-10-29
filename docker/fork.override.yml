@@ -18,7 +18,7 @@ services:
       - INK_AUTO_SEND=${INK_AUTO_SEND:-}
       # The fork's other settings, read from .env next to docker-compose.yml. Unset in
       # .env means the code's default; an empty value means the same for each of these
-      # (tests/test_fork_override_env.py lists every setting the fork's code reads).
+      # (tests/fork/test_fork_override_env.py lists every setting the fork's code reads).
       # Athena: which MCP server (fork/athena/action_items.py, fork/athena/call_recorder.py), its
       # to-dos, notes and facts (docs/fork/modules/odysseus-sound.md). BARVIS_* are the
       # former names, still read when the new one is unset.

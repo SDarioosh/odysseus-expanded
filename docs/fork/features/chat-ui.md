@@ -34,6 +34,6 @@ Upstreamable: yes
 
 **A run that ended while the page was away shows its answer.** Runs keep going on the server when the phone sleeps; when the page came back after the run had ended, re-attaching got 404 and the chat showed "Connection lost. The existing run could not be resumed." over a saved answer. Now, once `/api/chat/stream_status` confirms nothing is streaming, the chat reloads from the server, and says so when the run saved no answer. Offline or still streaming keeps upstream's message.
 
-Files: `static/js/forkResumeFallback.js` (new); hook in `static/js/chat.js` (`_tryAutoRecover`); test `tests/test_fork_resume_fallback.py` (new)
+Files: `static/js/forkResumeFallback.js` (new); hook in `static/js/chat.js` (`_tryAutoRecover`); test `tests/fork/test_fork_resume_fallback.py` (new)
 
 Upstreamable: yes

@@ -68,7 +68,7 @@ names, `~/.config/barvis/` and `~/barvis-backups` still work ([below](#moving-fr
 
 The fork's own settings go as `KEY=value` lines in `~/models/odysseus/.env`, next to
 `docker-compose.yml`. Only variables a compose file lists reach the container, and
-`docker/fork.override.yml` lists them all (`tests/test_fork_override_env.py` keeps it
+`docker/fork.override.yml` lists them all (`tests/fork/test_fork_override_env.py` keeps it
 complete); a setting left out of `.env` keeps the code's default:
 
 - Athena: `MODULE_ACTION_ITEMS_SERVER`, `MODULE_NOTIFY_CHANNEL`, `MODULE_DIGEST_HOUR`,

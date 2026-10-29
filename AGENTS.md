@@ -64,7 +64,7 @@ Odysseus is large (~478k lines of Python) and fast-moving. Start from these file
 Fork code so far: the fork's Python code is in the `fork/` package; every file the fork
 adds (code, tests, scripts, docs) is listed in
 [docs/fork/files.md](docs/fork/files.md), generated and kept complete by
-`tests/test_fork_inventory.py`; the hooks into upstream files and the fork's features are
+`tests/fork/test_fork_inventory.py`; the hooks into upstream files and the fork's features are
 listed in [FORK.md](FORK.md).
 
 ## Fork rules (merge-friendly)
@@ -91,7 +91,7 @@ merge conflict.
 - Record every new hook in the "Hooks into upstream files" table in [FORK.md](FORK.md),
   and every new feature in its "Fork features" list (details in its doc under `docs/fork/`).
   After adding, moving or deleting a fork file, regenerate `docs/fork/files.md`
-  (`UPDATE_FORK_FILES=1 python -m pytest -q tests/test_fork_inventory.py`).
+  (`UPDATE_FORK_FILES=1 python -m pytest -q tests/fork/test_fork_inventory.py`).
 
 ## Boundaries: hub and modules
 
@@ -156,7 +156,7 @@ the two PRs to each other.
 Upstream's full suite is slow and not clean. Run the focused tests for what you touched:
 
 ```bash
-python -m pytest -q tests/test_mcp_trust.py tests/test_request_authority.py tests/test_tool_policy.py
+python -m pytest -q tests/fork/test_mcp_trust.py tests/test_request_authority.py tests/test_tool_policy.py
 python -m py_compile app.py routes/*.py src/*.py
 node --check static/js/<file-you-changed>.js
 ```
