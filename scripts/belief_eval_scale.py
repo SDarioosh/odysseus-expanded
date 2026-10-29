@@ -41,13 +41,11 @@ import asyncio
 import hashlib
 import json
 import math
-import os
 import random
 import re
-import shutil
 import statistics
 import sys
-import tempfile
+import tempfile  # noqa: F401  (tests patch tempfile.mkdtemp as belief_eval_scale.tempfile)
 import time
 from collections.abc import Callable, Iterator
 from contextlib import contextmanager
@@ -59,16 +57,17 @@ REPO = Path(__file__).resolve().parents[1]
 if str(REPO) not in sys.path:
     sys.path.insert(0, str(REPO))
 
+from scripts import eval_common
+from scripts.eval_common import MODULE, NOTES, Check
+
 OWNER = "scale-owner"
 OWNER_NAME = "Robin Vale"
-MODULE, NOTES = "odysseus-sound", "notes"
 SEED = 7
 NOW = datetime(2026, 10, 21, 9, 0, tzinfo=timezone.utc)
 RECENT = (date(2026, 5, 1), date(2026, 10, 20))  # sightings that stay current
 OLD = (date(2026, 1, 5), date(2026, 3, 31))      # more than 180 days before NOW
 CHUNK = 1000                                      # items per submit call
-SETTINGS_ENV = ("BELIEF_CONFIRM_SOURCES", "BELIEF_CONFIRM_TIMES", "BELIEF_CONFIRM_DAYS",
-                "BELIEF_STALE_DAYS")
+SETTINGS_ENV = eval_common.BELIEF_SETTINGS_ENV
 DEFAULT_OUT = REPO / "data" / "eval"  # gitignored (data/)
 
 
@@ -472,7 +471,7 @@ def make_items(size: Size, subjects: list[Subject], rng: random.Random) -> list[
 
 
 def module_link(fact_id: int) -> str:
-    return f"http://127.0.0.1:8090/view/c{fact_id}?sig=scale#t={fact_id % 97}"
+    return eval_common.module_link(fact_id, "scale")
 
 
 def note_link(note_id: str) -> str:
@@ -627,15 +626,9 @@ async def fake_llm(messages: list[dict]) -> str:
 
 
 # ---------------------------------------------------------------------- measuring
-@dataclass
-class Check:
-    name: str
-    expected: str
-    actual: str
-
-    @property
-    def ok(self) -> bool:
-        return self.expected == self.actual
+def named_check(name: str, expected: str, actual: str) -> Check:
+    """A check of this eval, named by its step (one case, "scale")."""
+    return Check("scale", name, expected, actual)
 
 
 class SetupError(RuntimeError):
@@ -771,9 +764,9 @@ def seed_and_measure(corpus: Corpus, owner: str, checks: list[Check]) -> dict:
     before = memory_path.read_bytes()
     with timer("sync_memory_second"):
         second = ledger.sync_memory(owner, now=NOW)
-    checks.append(Check("second sync_memory writes nothing", "0/0/0",
+    checks.append(named_check("second sync_memory writes nothing", "0/0/0",
                         f"{second['added']}/{second['updated']}/{second['removed']}"))
-    checks.append(Check("second sync_memory: memory.json byte-identical", "True",
+    checks.append(named_check("second sync_memory: memory.json byte-identical", "True",
                         str(memory_path.read_bytes() == before)))
 
     with timer("list_beliefs_all"):
@@ -792,17 +785,17 @@ def seed_and_measure(corpus: Corpus, owner: str, checks: list[Check]) -> dict:
 
     status_of = {b["id"]: b["status"] for b in everything}
     wrong = [i.idx for i in corpus.items if status_of.get(ids[i.idx]) != i.expected_status]
-    checks.append(Check("every belief ends in its planned status", "0 wrong",
+    checks.append(named_check("every belief ends in its planned status", "0 wrong",
                         f"{len(wrong)} wrong"))
-    checks.append(Check("one belief per planned item", str(len(corpus.items)),
+    checks.append(named_check("one belief per planned item", str(len(corpus.items)),
                         str(len(set(ids.values()) - {None}))))
-    checks.append(Check("subjects (owner + people + projects + things)",
+    checks.append(named_check("subjects (owner + people + projects + things)",
                         str(corpus.size.subjects + 1), str(len(subjects))))
-    checks.append(Check("projects inferred from their names", str(corpus.size.projects),
+    checks.append(named_check("projects inferred from their names", str(corpus.size.projects),
                         str(sum(s["kind"] == "project" for s in subjects))))
     memories = [m for m in json.loads(memory_path.read_text(encoding="utf-8"))
                 if (m.get("owner") or "") == owner and "belief_id" in m]
-    checks.append(Check("one memory per confirmed belief", str(len(confirmed)),
+    checks.append(named_check("one memory per confirmed belief", str(len(confirmed)),
                         str(len(memories))))
 
     for key in ("sync_people", "reconcile_source", "apply_decay", "sync_memory_first",
@@ -853,9 +846,9 @@ def measure_structure(corpus: Corpus, owner: str, ids: dict[int, int | None],
             continue
         t = BY_KEY[item.template]
         planned += (b["attribute"] == t.attribute and b["value"] == item.shown_value)
-    checks.append(Check("structure: every confirmed belief structured", str(todo),
+    checks.append(named_check("structure: every confirmed belief structured", str(todo),
                         str(result["structured"])))
-    checks.append(Check("structure: attribute and value as planned", str(todo), str(planned)))
+    checks.append(named_check("structure: attribute and value as planned", str(todo), str(planned)))
     runs = math.ceil(todo / belief_structure.MAX_PER_RUN) if todo else 0
     return {"candidates": todo, "structured": result["structured"], "other": result["other"],
             "as_planned": planned, "waiting": result["waiting"], "failed": result["failed"],
@@ -978,9 +971,9 @@ def measure_retrieval(corpus: Corpus, owner: str, ids: dict[int, int | None],
         lanes["keyword"] = run_queries(module.search_beliefs, owner, corpus, ids, confirmed)
         lanes["keyword"]["semantic"] = semantic_used(module, owner, corpus)
     lanes["keyword"]["forced_by"] = changed or ["nothing: no embedding hook found"]
-    checks.append(Check(f"retrieval: top-5 recall >= {min_top5}", "True",
+    checks.append(named_check(f"retrieval: top-5 recall >= {min_top5}", "True",
                         str(lanes["default"]["top5"] >= min_top5)))
-    checks.append(Check("retrieval: no hit that isn't a confirmed belief", "0",
+    checks.append(named_check("retrieval: no hit that isn't a confirmed belief", "0",
                         str(lanes["default"]["leaks"] + lanes["keyword"]["leaks"])))
     return {"status": "ran", "min_top5": min_top5, "lanes": lanes}
 
@@ -990,24 +983,16 @@ def run_scale(data_dir: str | Path, size: str = "medium", owner: str = OWNER,
               seed: int = SEED, min_top5: float = 0.9) -> tuple[dict, list[Check]]:
     """Build the corpus, seed it into ``data_dir`` and measure. DATA_DIR and the BELIEF_*
     settings are set for the run (defaults) and restored afterwards."""
-    from src import constants
-
     cfg = SIZES[size]
     corpus = build_corpus(cfg, seed)
     data_dir = Path(data_dir)
     data_dir.mkdir(parents=True, exist_ok=True)
-    saved_dir = constants.DATA_DIR
-    saved_env = {k: os.environ.pop(k) for k in SETTINGS_ENV if k in os.environ}
-    constants.DATA_DIR = str(data_dir)
     checks: list[Check] = []
-    try:
+    with eval_common.use_data_dir(data_dir, SETTINGS_ENV):
         results = seed_and_measure(corpus, owner, checks)
         ids = results.pop("_ids")
         results["structure"] = measure_structure(corpus, owner, ids, checks)
         results["retrieval"] = measure_retrieval(corpus, owner, ids, min_top5, checks)
-    finally:
-        constants.DATA_DIR = saved_dir
-        os.environ.update(saved_env)
     planned: dict[str, int] = {}
     for item in corpus.items:
         planned[item.fate] = planned.get(item.fate, 0) + 1
@@ -1095,13 +1080,7 @@ def report(results: dict, checks: list[Check], out=None) -> int:
         used = {True: "yes", False: "no (no local lane loaded: same as keyword)",
                 None: "unknown"}[r["lanes"]["default"]["semantic"]]
         row("default lane used embeddings", used)
-    print("\nchecks", file=out)
-    for chk in checks:
-        print(f"  {'ok  ' if chk.ok else 'FAIL'} {chk.name}"
-              + ("" if chk.ok else f" (expected {chk.expected}, got {chk.actual})"), file=out)
-    failed = sum(not chk.ok for chk in checks)
-    print(f"\nchecks: {len(checks) - failed}/{len(checks)}", file=out)
-    return failed
+    return eval_common.check_list(checks, out)
 
 
 def main(argv: list[str] | None = None) -> int:
@@ -1122,8 +1101,7 @@ def main(argv: list[str] | None = None) -> int:
                          "gitignored)")
     args = ap.parse_args(argv)
     temp = args.data_dir is None
-    data_dir = Path(tempfile.mkdtemp(prefix="belief-scale-")) if temp else args.data_dir
-    try:
+    with eval_common.temp_data_dir(args.data_dir, "belief-scale-", keep=args.keep) as data_dir:
         try:
             results, checks = run_scale(data_dir, args.size, args.owner, args.seed,
                                         args.min_top5)
@@ -1131,9 +1109,6 @@ def main(argv: list[str] | None = None) -> int:
             print(f"belief_eval_scale: {e}", file=sys.stderr)
             return 2
         failed = report(results, checks)
-    finally:
-        if temp and not args.keep:
-            shutil.rmtree(data_dir, ignore_errors=True)
     out = args.out or DEFAULT_OUT / f"belief_eval_scale.{args.size}.json"
     out.parent.mkdir(parents=True, exist_ok=True)
     out.write_text(json.dumps(results, indent=2) + "\n", encoding="utf-8")
