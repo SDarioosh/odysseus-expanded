@@ -67,7 +67,8 @@ from typing import Any
 
 from fork.beliefs import consolidation
 from fork.beliefs import evidence_intake as ledger
-from fork.athena.action_items import (
+from fork.athena import client as athena
+from fork.athena.action_items import (  # noqa: F401 -- mcp_caller, module_server_id: old names
     CallTool,
     mcp_caller,
     module_server_id,
@@ -337,17 +338,15 @@ def summary(stats: dict[str, int]) -> str:
 async def action_sync_facts(owner: str, **kwargs) -> tuple[str, bool]:
     """Built-in task entry point (see ``register_builtin_action``)."""
     from src.builtin_actions import TaskNoop
-    from src.tool_utils import get_mcp_manager
 
     await sweep_handwritten()
     if not enabled():
         raise TaskNoop("MODULE_FACTS_SYNC is off")
-    manager = get_mcp_manager()
-    server_id = module_server_id(manager) if manager is not None else None
-    if server_id is None:
+    call = athena.ATHENA.caller()
+    if call is None:
         raise TaskNoop(f"module MCP server {server_key()!r} is not connected")
     try:
-        stats = await sync(owner, mcp_caller(manager, server_id))
+        stats = await sync(owner, call)
     except RuntimeError as e:  # a failed tool call, or MemoryStoreUnreadable
         return f"Facts sync failed: {e}", False
     if stats is None:
@@ -397,16 +396,12 @@ async def propagate_forget(owner: str | None, belief: dict | Iterable[dict],
     if not ids:
         return stats
     if call is None:
-        from src.tool_utils import get_mcp_manager
-
-        manager = get_mcp_manager()
-        server_id = module_server_id(manager) if manager is not None else None
-        if server_id is None:
+        call = athena.ATHENA.caller()
+        if call is None:
             logger.info("module MCP server %r is not connected; %d fact(s) not retired",
                         server_key(), len(ids))
             stats["unsupported"] = len(ids)
             return stats
-        call = mcp_caller(manager, server_id)
     for n, fact_id in enumerate(ids):
         try:
             await call("retire_fact", {"fact_id": fact_id, "reason": FORGET_REASON})
