@@ -49,7 +49,7 @@ async function poll(id) {
   showExpiry();
   let data;
   try {
-    data = await api(`/api/modules/sound/pair/${encodeURIComponent(id)}`);
+    data = await api(`/api/modules/athena/pair/${encodeURIComponent(id)}`);
   } catch (e) {
     return; // try again on the next tick
   }
@@ -72,7 +72,7 @@ async function create() {
   const url = ui.url.value.trim();
   ui.create.disabled = true;
   try {
-    const data = await api('/api/modules/sound/pair', {
+    const data = await api('/api/modules/athena/pair', {
       method: 'POST',
       headers: { 'Content-Type': 'application/json' },
       body: JSON.stringify({ url }),

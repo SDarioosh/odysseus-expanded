@@ -11,7 +11,7 @@ dispatcher on the ntfy channel:
 Odysseus never opens the module's database and keeps no copy of the items: the only state
 is which item ids and days were already pushed (``<DATA_DIR>/barvis_action_items_*.json``;
 the file name is kept from the fork's former name so existing state carries over).
-The live list (tick done / dismiss) is on the Athena page, ``/modules/sound``.
+The live list (tick done / dismiss) is on the Athena page, ``/modules/athena``.
 
 Settings (environment; the former ``BARVIS_*`` names are still read as a fallback):
 
@@ -34,7 +34,7 @@ voice notes into Odysseus itself: events into the default calendar (``do_manage_
 idempotent uid, 30-minute reminder when timed), tasks and reminders into to-dos
 (``do_manage_notes``, checklist note, due at the stated time or at ``MODULE_DIGEST_HOUR``).
 One push per pass lists what went where; items from ordinary conversations are only
-suggestions on ``/modules/sound`` (``file_item``) and are not pushed. Status then follows
+suggestions on ``/modules/athena`` (``file_item``) and are not pushed. Status then follows
 both ways (to-do ticked/archived or event over -> done, event deleted -> dismissed; module
 done/dismissed -> to-do ticked, module dismissed -> event deleted), each change once.
 The state file then also holds ``filed`` (item id -> where it went) and ``file_since``.
@@ -50,7 +50,7 @@ one line (its short ``title``) on the to-do list "Voice notes" (made if missing)
 to-do of its own; the named-list rules above apply. A dated task or a reminder keeps a
 to-do of its own, titled with the short ``title`` (the module's, else the start of the
 text), its one checklist line the full text. ``unfile_auto_todos`` (route
-``POST /api/modules/sound/unfile-todos``, script ``scripts/unfile_voice_note_todos.py``)
+``POST /api/modules/athena/unfile-todos``, script ``scripts/unfile_voice_note_todos.py``)
 removes the single undated to-dos filed per non-explicit voice-note item before this
 (never a dated to-do or a reminder; entries record ``filed_mode``). A "Voice notes" list
 emptied by Undo or a move is archived (``_archive_if_empty``).

@@ -137,20 +137,20 @@ def test_meetings_page_and_window_mount_one_view():
     assert "mountMeetings(document.querySelector('.bs-wrap'));" in page
     meetings = (_JS / "forkMeetings.js").read_text()
     assert "const SCRIPTS = ['./callRecorder.js', './meetingBot.js'];" in meetings
-    assert 'href="/modules/sound" data-conversations' in meetings
+    assert 'href="/modules/athena" data-conversations' in meetings
     assert "data-in-app hidden" in meetings
     for script in ("callRecorder.js", "meetingBot.js"):
         src = (_JS / script).read_text()
         for el_id in re.findall(r"\$\('#([a-z0-9-]+)'\)", src):
             assert f'id="{el_id}"' in meetings, (script, el_id)
     windows = (_JS / "forkModuleWindows.js").read_text()
-    assert "href: '/modules/sound/record'" in windows
+    assert "href: '/modules/athena/record'" in windows
     assert "mountMeetings(body, { inApp: true, openConversations: () => open(WINDOWS.sound) });" in windows
     assert "addSidebarEntry(WINDOWS.meetings, WINDOWS.sound.sidebarBtn);" in windows
     # Recording moved out of the Conversations window's toolbar.
     sound = (_JS / "soundModule.js").read_text()
     assert "'Record a call'" not in sound
-    assert "ctx.embedded ? null : el('a', { className: 'bs-btn', href: '/modules/sound/record' }" in sound
+    assert "ctx.embedded ? null : el('a', { className: 'bs-btn', href: '/modules/athena/record' }" in sound
 
 
 def test_athena_group_holds_the_module_entries():
@@ -191,7 +191,7 @@ def test_the_sidebar_entries_come_from_the_windows_script():
     at = [windows.index(line) for line in adds]
     assert at == sorted(at) and at[-1] < windows.index("buildAthenaMenu([")
     # the entries with a standalone page are links to it (a modified click opens it)
-    for href in ("/modules/sound", "/modules/sound/record", "/today", "/beliefs"):
+    for href in ("/modules/athena", "/modules/athena/record", "/today", "/beliefs"):
         assert f"href: '{href}'," in windows
     assert "Fork: Athena conversations page" not in index
 

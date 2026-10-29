@@ -158,5 +158,5 @@ def test_js_file_name_and_url():
                          text=True, check=True).stdout
     assert json.loads(out) == [
         "Café plans.md", "x y.html", "Athena record.md", "Athena record.md",
-        "/api/modules/sound/conversations/c%201/export?format=html&include=summary%2Ctranscript",
+        "/api/modules/athena/conversations/c%201/export?format=html&include=summary%2Ctranscript",
     ]

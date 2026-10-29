@@ -65,7 +65,7 @@ function postOutcome(ref, outcome, extra = {}) {
 async function setLoopStatus(ref, status) {
   const id = /^loop:(\d+)$/.exec(ref || '');
   if (!id) throw new Error('not an open loop');
-  const res = await postJSON(`/api/modules/sound/action-items/${id[1]}`, { status });
+  const res = await postJSON(`/api/modules/athena/action-items/${id[1]}`, { status });
   if (!res.ok) throw new Error(res.message || 'the module said no');
 }
 

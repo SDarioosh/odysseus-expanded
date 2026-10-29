@@ -131,7 +131,7 @@ async function pump() {
       form.append('codec', p.codec);
       let res;
       try {
-        res = await post('/api/modules/sound/record/chunk', form);
+        res = await post('/api/modules/athena/record/chunk', form);
       } catch (e) {
         res = { status: 0, data: {} };
       }
@@ -310,7 +310,7 @@ async function finish() {
   if (sentIn.has(sessionId)) {
     // Process now rather than after the module's idle timeout.
     try {
-      const res = await post(`/api/modules/sound/record/${encodeURIComponent(sessionId)}/end`, null);
+      const res = await post(`/api/modules/athena/record/${encodeURIComponent(sessionId)}/end`, null);
       if (res.status !== 200) lastError = `Sent, but couldn't end the session (${res.data.detail ||
         `HTTP ${res.status}`}); Athena ends it by itself after a few minutes.`;
     } catch (e) {
@@ -335,7 +335,7 @@ async function init() {
     }
   });
   try {
-    const res = await fetch('/api/modules/sound/record/config', { credentials: 'same-origin' });
+    const res = await fetch('/api/modules/athena/record/config', { credentials: 'same-origin' });
     if (res.status === 401) {
       window.location.href = '/login';
       return;

@@ -646,6 +646,6 @@ def test_not_a_task_dismisses_the_module_item():
     }
     console.log(JSON.stringify({ posted, errors }));
     """)
-    assert got["posted"] == [["/api/modules/sound/action-items/7", {"status": "dismissed"}],
-                             ["/api/modules/sound/action-items/9", {"status": "dismissed"}]]
+    assert got["posted"] == [["/api/modules/athena/action-items/7", {"status": "dismissed"}],
+                             ["/api/modules/athena/action-items/9", {"status": "dismissed"}]]
     assert got["errors"] == ["No action item #9.", "not an open loop"]

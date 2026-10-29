@@ -12,8 +12,8 @@ import { launch, REPO } from './ink_view_harness.mjs';
 
 const ORIGIN = 'http://localhost:7999';
 const PAGES = {
-  '/today': 'today.html', '/beliefs': 'beliefs.html', '/modules/sound/record': 'call-recorder.html',
-  '/modules/sound/pair': 'phone-pairing.html', '/modules/sound': 'sound-module.html',
+  '/today': 'today.html', '/beliefs': 'beliefs.html', '/modules/athena/record': 'call-recorder.html',
+  '/modules/athena/pair': 'phone-pairing.html', '/modules/athena': 'sound-module.html',
 };
 const LIGHT = { name: 'light', colors: { bg: '#f3f5f7', fg: '#26313a', panel: '#ffffff', border: '#cbd3da', red: '#b34d5c' } };
 
@@ -60,9 +60,9 @@ const API = {
   '/api/beliefs': { beliefs: BELIEFS, stats: STATS },
   '/api/beliefs/subjects': { subjects: SUBJECTS, stats: STATS },
   '/api/beliefs/contacts': { contacts: [{ id: 'k9', name: 'Sam Rivera' }] },
-  '/api/modules/sound/record/config': { configured: true },
-  '/api/modules/sound/meetings/current': { meeting: null },
-  '/api/modules/sound/zoom-signin': { configured: true, signed_in: false, missing: [] },
+  '/api/modules/athena/record/config': { configured: true },
+  '/api/modules/athena/meetings/current': { meeting: null },
+  '/api/modules/athena/zoom-signin': { configured: true, signed_in: false, missing: [] },
   '/api/insight/today': { date: '2026-10-29', headline: 'A quiet day.', items: [] },
 };
 

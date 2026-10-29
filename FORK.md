@@ -85,12 +85,12 @@ the link goes to its details (what it does, its files, whether it can go upstrea
 ### Athena (module) in the hub
 
 - [Voice notes into calendar and to-dos; action items on the phone](docs/fork/modules/athena.md#voice-notes-into-calendar-and-to-dos-action-items-on-the-phone): the "Module Action Items" task files voice-note items into calendar, to-dos and notes, and pushes via ntfy.
-- [Athena page: conversations and "who is this?"](docs/fork/modules/athena.md#athena-page-conversations-and-who-is-this): `/modules/sound`: Records, Action items and Who is this?, with a transcript reader.
+- [Athena page: conversations and "who is this?"](docs/fork/modules/athena.md#athena-page-conversations-and-who-is-this): `/modules/athena`: Records, Action items and Who is this?, with a transcript reader.
 - [Share a record as a file](docs/fork/modules/athena.md#share-a-record-as-a-file): the Records reader's Share button exports a record as Markdown or HTML.
-- [Record a call](docs/fork/modules/athena.md#record-a-call): `/modules/sound/record` records a call in a Chromium browser and uploads it to Athena.
+- [Record a call](docs/fork/modules/athena.md#record-a-call): `/modules/athena/record` records a call in a Chromium browser and uploads it to Athena.
 - [Send Athena to a Zoom meeting](docs/fork/modules/athena.md#send-athena-to-a-zoom-meeting): the Meetings page sends Athena's Zoom bot into a meeting and signs it in to Zoom.
 - [Send Athena to calendar meetings](docs/fork/modules/athena.md#send-athena-to-calendar-meetings): a Send Athena toggle on calendar events with a Zoom link.
-- [Phone relay through Odysseus, paired by QR](docs/fork/modules/athena.md#phone-relay-through-odysseus-paired-by-qr): `/modules/sound/pair` pairs Athena's Android relay by QR code; relay routes under `/api/codex/sound/*`.
+- [Phone relay through Odysseus, paired by QR](docs/fork/modules/athena.md#phone-relay-through-odysseus-paired-by-qr): `/modules/athena/pair` pairs Athena's Android relay by QR code; relay routes under `/api/codex/athena/*`. The old `sound` URLs and scopes keep working ([old URLs and scopes](docs/fork/modules/athena.md#old-urls-and-scopes)).
 - [Background & summary model setting](docs/fork/modules/athena.md#background--summary-model-setting): Settings → AI Defaults: the hub's background-task model and Athena's summary model.
 - [Transcription vocabulary setting](docs/fork/modules/athena.md#transcription-vocabulary-setting): Settings → AI Defaults: words Athena's whisper is nudged toward.
 - [Enroll My Voice](docs/fork/modules/athena.md#enroll-my-voice): Settings → AI Defaults: enroll the next watch recording as the owner's voice.
@@ -175,7 +175,8 @@ to be offered) upstream, "with discussion" a change upstream may want in another
 | `frontend/src/features/notes/application/workflows.js` | `_fetchNotes` | none (a filter; Write is `static/js/forkInk.js`) | handwritten notes left out of the Notes window | no |
 | `static/js/features/notes/application/workflows.js` | `_fetchNotes` (published copy of the above) | none | same filter | no |
 | `routes/api_token_routes.py` | `ALLOWED_SCOPES` | `fork/routes/today_insight_routes.py` | scope `insight:read` | no |
-| `routes/api_token_routes.py` | `ALLOWED_SCOPES` | `fork/athena/relay_routes.py` | scopes `sound:ingest`, `sound:read`, `sound:write` | no |
+| `routes/api_token_routes.py` | `ALLOWED_SCOPES` | `fork/athena/relay_routes.py` | scopes `sound:ingest`, `sound:read`, `sound:write` (old names, kept) | no |
+| `routes/api_token_routes.py` | `ALLOWED_SCOPES` | `fork/athena/urls.py` | scopes `athena:ingest`, `athena:read`, `athena:write` | no |
 | `routes/calendar_routes.py` | `update_event`, before the success return | `fork/athena/meeting_auto_join.py` | Send Athena tasks follow the event | no |
 | `routes/calendar_routes.py` | `delete_event`, one occurrence | `fork/athena/meeting_auto_join.py` | same | no |
 | `routes/calendar_routes.py` | `delete_event`, whole event | `fork/athena/meeting_auto_join.py` | same | no |
@@ -241,7 +242,7 @@ to be offered) upstream, "with discussion" a change upstream may want in another
 | `static/index.html` | script tags | `static/js/forkPhonePairing.js` | Pair a phone card | no |
 | `static/index.html` | script tags | `static/js/forkAutoMode.js` | Auto/Ask button and its default | no |
 | `static/js/admin.js` | `_TOKEN_SCOPES` | `fork/routes/today_insight_routes.py` | `insight:read` in the token scope list | no |
-| `static/js/admin.js` | `_TOKEN_SCOPES` | `fork/athena/relay_routes.py` | `sound:*` in the token scope list | no |
+| `static/js/admin.js` | `_TOKEN_SCOPES` | `fork/athena/urls.py` | `athena:*` in the token scope list, and `sound:*` marked "(old name)" | no |
 | `static/js/calendar.js` | `_showEventForm` | `static/js/forkMeetingAutoJoin.js` | Send Athena toggle (lazy import) | no |
 | `static/js/chat.js` | `_tryAutoRecover` | `static/js/forkResumeFallback.js` | reload a run that ended while away | yes |
 | `static/js/keyboard-shortcuts.js` | imports | `static/js/forkModuleShortcuts.js` | import the fork's shortcut tables | no |

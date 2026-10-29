@@ -1,7 +1,7 @@
 // Fork: the Athena Records (conversations) and Meetings views and the Today view as Odysseus windows.
 // Loaded by one hook in static/index.html (its script tag). Adds the five sidebar entries
 // (Records, Meetings, Today, Write, Wisdom, in that order after upstream's Notes entry);
-// those with a standalone page (/modules/sound, /modules/sound/record, /today, /beliefs)
+// those with a standalone page (/modules/athena, /modules/athena/record, /today, /beliefs)
 // are plain links to it, which still works on its own; here a normal click opens the view
 // in a tool window instead, so the chat and other windows stay put.
 // The windows use upstream's window machinery: dragging, resizing and snapping
@@ -45,7 +45,7 @@ const WINDOWS = {
     title: 'Records',
     sidebarBtn: 'tool-sound-module-btn',
     railBtn: 'rail-sound-module',
-    href: '/modules/sound',
+    href: '/modules/athena',
     icon: FORK_SHORTCUT_ICONS.open_conversations,
     async mount(body, win) {
       const { mountSoundModule } = await import('./soundModule.js');
@@ -62,7 +62,7 @@ const WINDOWS = {
     title: 'Meetings',
     sidebarBtn: 'tool-meetings-btn',
     railBtn: 'rail-meetings',
-    href: '/modules/sound/record',
+    href: '/modules/athena/record',
     icon: FORK_SHORTCUT_ICONS.open_meetings,
     async mount(body) {
       const { mountMeetings } = await import('./forkMeetings.js');

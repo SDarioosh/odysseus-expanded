@@ -190,8 +190,8 @@
 .fm-modal-body { flex: 1 1 auto; min-height: 0; overflow-y: auto; overflow-x: hidden; padding: 0 4px 8px;
                  overscroll-behavior: contain; }
 
-/* ---- the standalone pages (html.fm-page: /modules/sound, /modules/sound/record,
-   /modules/sound/pair, /today, /beliefs) */
+/* ---- the standalone pages (html.fm-page: /modules/athena, /modules/athena/record,
+   /modules/athena/pair, /today, /beliefs) */
 html.fm-page, html.fm-page body { height: auto; overflow: visible; overscroll-behavior: auto; }
 html.fm-page body { background: var(--bg); color: var(--fg); margin: 0; display: block; min-height: 100vh; }
 .fm-page-wrap { max-width: 860px; margin: 0 auto; padding: 12px 16px 24px; }

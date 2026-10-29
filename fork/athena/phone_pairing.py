@@ -1,6 +1,6 @@
 """Fork: pair a phone relay with Odysseus by QR code (routes/sound_relay_routes.py).
 
-The admin opens **Pair a phone** (Settings → Integrations, ``/modules/sound/pair``) and gets a QR code holding a
+The admin opens **Pair a phone** (Settings → Integrations, ``/modules/athena/pair``) and gets a QR code holding a
 link ``odysseus-pair:v1?url=<Odysseus URL>&code=<pairing code>``. The phone relay scans it
 and redeems the code at ``POST /api/pair/redeem``; only then is an API token created,
 named "Phone relay <date>", owned by the admin who made the code, with the relay's scopes
@@ -37,7 +37,10 @@ SCHEME = "odysseus-pair"
 # What the relay calls (Athena android-relay: HttpUploader, PdaHttp): uploads and
 # the T5's module reads and writes through Odysseus, the calendar (the T5 adds and
 # deletes events), checklists (the T5 ticks items) and the Today insight.
-RELAY_SCOPES = ["sound:ingest", "sound:read", "sound:write", "calendar:read",
+# Athena's scopes and their old names both: a phone on an older relay version calls the
+# old routes, which accept either (fork/athena/urls.py).
+RELAY_SCOPES = ["athena:ingest", "athena:read", "athena:write",
+                "sound:ingest", "sound:read", "sound:write", "calendar:read",
                 "calendar:write", "todos:read", "todos:write", "insight:read"]
 TOKEN_NAME = "Phone relay"
 MAX_PENDING = 20  # open codes at once; older ones are dropped

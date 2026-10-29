@@ -12,12 +12,12 @@
 
 import { $ } from './forkDom.js';
 
-const API = '/api/modules/sound/meetings';
+const API = '/api/modules/athena/meetings';
 const POLL_JOINING_MS = 3000; // starting / waiting room: show the change soon
 const POLL_RECORDING_MS = 6000; // recording, or waiting for the host to allow it
 const POLL_ERROR_MAX_MS = 30000;
 const WRITE_HEADERS = { 'Content-Type': 'application/json', 'X-Odysseus-Recorder': '1' };
-const SIGNIN_API = '/api/modules/sound/zoom-signin';
+const SIGNIN_API = '/api/modules/athena/zoom-signin';
 const SIGNED_IN = 'Athena is signed in to Zoom.';
 const JOIN_SIGNIN = "Athena's Zoom sign-in is missing or expired. Sign in to Zoom, then press Join again.";
 // Answers that the meeting box already explains (no module, no token, unreachable).

@@ -1,50 +1,53 @@
 """Fork: the Athena page (conversations and "who is this?" cards).
 
-``GET /modules/sound`` serves ``static/sound-module.html`` (the former ``/barvis/sound``
-redirects there); its script calls:
+``GET /modules/athena`` serves ``static/sound-module.html`` (``/modules/sound`` and the
+former ``/barvis/sound`` redirect there, as ``/modules/sound/record`` does to
+``/modules/athena/record``); its script calls the routes below. Each ``/api/modules/athena/*``
+route is also served at its old path ``/api/modules/sound/*`` by the same handler
+(``fork/athena/urls.py``); the handlers below are declared at the old path:
 
-* ``GET  /api/modules/sound/conversations``  (query, person, since, until, kind, limit)
-* ``GET  /api/modules/sound/conversations/{id}``  one conversation (``get_conversation``)
-* ``GET  /api/modules/sound/conversations/{id}/transcript``  (start_seconds; 200 lines a page)
-* ``GET  /api/modules/sound/conversations/{id}/export``  (format md|html, include): the
+* ``GET  /api/modules/athena/conversations``  (query, person, since, until, kind, limit)
+* ``GET  /api/modules/athena/conversations/{id}``  one conversation (``get_conversation``)
+* ``GET  /api/modules/athena/conversations/{id}/transcript``  (start_seconds; 200 lines a page)
+* ``GET  /api/modules/athena/conversations/{id}/export``  (format md|html, include): the
   record as a file to share, from the module's relay route (``src/record_share.py``)
-* ``POST /api/modules/sound/lines/{line_id}``  {name}: ``reassign_line``
-* ``POST /api/modules/sound/rename-speaker``   {old_name, new_name}:
+* ``POST /api/modules/athena/lines/{line_id}``  {name}: ``reassign_line``
+* ``POST /api/modules/athena/rename-speaker``   {old_name, new_name}:
   ``rename_speaker_everywhere`` (a merge when new_name exists; the page confirms first)
-* ``GET  /api/modules/sound/unnamed``        (limit)
-* ``POST /api/modules/sound/name-speaker``   {conversation_id, speaker_label, name}
-* ``GET  /api/modules/sound/action-items``   (status), with where each item was filed
-* ``POST /api/modules/sound/action-items/{id}`` {status}
-* ``POST /api/modules/sound/action-items/{id}/file`` {target: calendar|todo|note}: Add
+* ``GET  /api/modules/athena/unnamed``        (limit)
+* ``POST /api/modules/athena/name-speaker``   {conversation_id, speaker_label, name}
+* ``GET  /api/modules/athena/action-items``   (status), with where each item was filed
+* ``POST /api/modules/athena/action-items/{id}`` {status}
+* ``POST /api/modules/athena/action-items/{id}/file`` {target: calendar|todo|note}: Add
   to calendar / to-dos / notes (a suggestion, or a note whose filing failed)
-* ``POST /api/modules/sound/action-items/{id}/move`` {kind, due_date?, due_time?,
+* ``POST /api/modules/athena/action-items/{id}/move`` {kind, due_date?, due_time?,
   list_name?}: Move to calendar / to-dos / a to-do list, Change time
-* ``GET  /api/modules/sound/todo-lists``: the owner's to-do list titles (the list picker)
-* ``POST /api/modules/sound/action-items/{id}/undo``: remove the Odysseus entry, dismiss
-* ``POST /api/modules/sound/unfile-todos`` {apply?, ids?, all?}: the one-off clean-up of to-dos
+* ``GET  /api/modules/athena/todo-lists``: the owner's to-do list titles (the list picker)
+* ``POST /api/modules/athena/action-items/{id}/undo``: remove the Odysseus entry, dismiss
+* ``POST /api/modules/athena/unfile-todos`` {apply?, ids?, all?}: the one-off clean-up of to-dos
   filed one per voice-note item (``unfile_auto_todos``; a dry run unless ``apply``;
   ``scripts/unfile_voice_note_todos.py`` calls it)
 
-``GET /modules/sound/record`` serves ``static/call-recorder.html`` (the Meetings page, whose
+``GET /modules/athena/record`` serves ``static/call-recorder.html`` (the Meetings page, whose
 cards the Meetings window also shows: ``static/js/forkMeetings.js``); its script calls
-``GET /api/modules/sound/record/config``, ``POST /api/modules/sound/record/chunk``
-(multipart: audio, session_id, sequence, timestamp, codec) and ``POST /api/modules/sound/record/{session_id}/end``. Those forward to the upload routes
+``GET /api/modules/athena/record/config``, ``POST /api/modules/athena/record/chunk``
+(multipart: audio, session_id, sequence, timestamp, codec) and ``POST /api/modules/athena/record/{session_id}/end``. Those forward to the upload routes
 of the module's MCP HTTP server (the connected ``convo`` server's URL and token), not its
 MCP tools (``src/call_recorder.py``).
 
 The same page's "Send Athena to a meeting" box (``static/js/meetingBot.js``) calls
-``GET /api/modules/sound/meetings/current`` (the meeting the bot is in now, or null),
-``POST /api/modules/sound/meetings`` {link, passcode?, title?} (join),
-``GET /api/modules/sound/meetings/{id}`` (state) and ``DELETE /api/modules/sound/meetings/{id}``
+``GET /api/modules/athena/meetings/current`` (the meeting the bot is in now, or null),
+``POST /api/modules/athena/meetings`` {link, passcode?, title?} (join),
+``GET /api/modules/athena/meetings/{id}`` (state) and ``DELETE /api/modules/athena/meetings/{id}``
 (leave). They check the link and forward to the meeting routes of the module's MCP HTTP
 server (``src/meeting_bot.py``); the writes need the ``X-Odysseus-Recorder`` header too.
-Its Zoom sign-in line calls ``GET /api/modules/sound/zoom-signin`` (signed in or not),
-``POST /api/modules/sound/zoom-signin/start`` (Zoom's authorize address, opened in a new
-tab) and ``POST /api/modules/sound/zoom-signin/finish`` {pasted} (the address Zoom opened),
+Its Zoom sign-in line calls ``GET /api/modules/athena/zoom-signin`` (signed in or not),
+``POST /api/modules/athena/zoom-signin/start`` (Zoom's authorize address, opened in a new
+tab) and ``POST /api/modules/athena/zoom-signin/finish`` {pasted} (the address Zoom opened),
 forwarded the same way; the two writes need the header too.
 
 The calendar's event form (``static/js/forkMeetingAutoJoin.js``) reads and sets an event's
-**Send Athena** toggle with ``GET``/``PUT /api/modules/sound/auto-join`` (``uid``; ``{uid, on}``,
+**Send Athena** toggle with ``GET``/``PUT /api/modules/athena/auto-join`` (``uid``; ``{uid, on}``,
 the write with the same header); ``src/meeting_auto_join.py`` keeps the toggle in the hub
 and the event's one-shot task in the TaskScheduler.
 
@@ -86,7 +89,7 @@ from core.middleware import require_admin
 from fork.athena import call_recorder as recorder
 from fork.athena import meeting_bot as meetings
 from fork.athena import record_share as share
-from fork.athena import view
+from fork.athena import urls, view
 from src.auth_helpers import effective_user
 
 logger = logging.getLogger(__name__)
@@ -219,11 +222,15 @@ async def _filing_call(what: str, coro) -> Any:
 def setup_sound_module_routes() -> APIRouter:
     router = APIRouter()
 
-    @router.get("/barvis/sound", include_in_schema=False)
-    async def former_page() -> RedirectResponse:
-        return RedirectResponse("/modules/sound", status_code=301)
+    @router.get(urls.FORMER_PAGE, include_in_schema=False)
+    async def former_page(request: Request) -> RedirectResponse:
+        return urls.redirect(request, urls.PAGE)
 
-    @router.get("/modules/sound")
+    @router.get(urls.OLD_PAGE, include_in_schema=False)
+    async def old_page(request: Request) -> RedirectResponse:
+        return urls.redirect(request, urls.PAGE)
+
+    @router.get(urls.PAGE)
     async def page(request: Request):
         from src.app_helpers import serve_html_with_nonce
         from src.constants import BASE_DIR
@@ -406,7 +413,11 @@ def setup_sound_module_routes() -> APIRouter:
         return {"ok": message.startswith("Action item"), "message": message}
 
     # ------------------------------------------------ Meetings: record a call (src/call_recorder.py)
-    @router.get("/modules/sound/record")
+    @router.get(urls.OLD_PAGE + "/record", include_in_schema=False)
+    async def old_record_page(request: Request) -> RedirectResponse:
+        return urls.redirect(request, urls.PAGE + "/record")
+
+    @router.get(urls.PAGE + "/record")
     async def record_page(request: Request):
         from src.app_helpers import serve_html_with_nonce
         from src.constants import BASE_DIR
@@ -555,6 +566,7 @@ def setup_sound_module_routes() -> APIRouter:
         except ValueError as exc:
             raise HTTPException(400, str(exc)) from None
 
+    urls.add_aliases(router, urls.OLD_API, urls.API)  # the same routes at /api/modules/athena
     return router
 
 
