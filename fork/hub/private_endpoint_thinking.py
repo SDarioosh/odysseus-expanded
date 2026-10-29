@@ -20,10 +20,9 @@ from urllib.parse import urlparse
 
 
 def is_private_host(url: str) -> bool:
-    from src.model_context import _LOCAL_HOSTS, _in_tailscale_range, _is_private_ip_literal
+    from fork.upstream import is_local_or_private_host
     try:
         host = (urlparse(url or "").hostname or "").lower()
     except ValueError:
         return False
-    return bool(host) and (
-        host in _LOCAL_HOSTS or _is_private_ip_literal(host) or _in_tailscale_range(host))
+    return bool(host) and is_local_or_private_host(host)

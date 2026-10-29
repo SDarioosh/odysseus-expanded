@@ -32,7 +32,6 @@ import hashlib
 import logging
 import math
 import re
-import sys
 from array import array
 from collections.abc import Iterable, Sequence
 from datetime import datetime, timezone
@@ -154,11 +153,12 @@ def embedder() -> Embedder | None:
     ``embedding_lanes.build_embedding_lanes``) loaded it: its first healthy, local lane
     (the configured endpoint, else FastEmbed). None when the hub has no healthy index
     (then semantic scoring is skipped)."""
-    ai = sys.modules.get("src.ai_interaction")
-    store = getattr(ai, "_memory_vector", None) if ai is not None else None
+    from fork.upstream import memory_vector, vector_lanes
+
+    store = memory_vector()
     if store is None or not getattr(store, "healthy", False):
         return None
-    for lane in getattr(store, "_lanes", None) or []:
+    for lane in vector_lanes(store):
         if getattr(lane, "healthy", False) and _local_lane(lane):
             return _LaneEmbedder(lane)
     return None

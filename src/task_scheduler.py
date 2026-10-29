@@ -284,22 +284,6 @@ HOUSEKEEPING_DEFAULTS = {
     "audit_skills":          {"name": "Skills Audit",             "trigger_type": "schedule", "schedule": "daily", "scheduled_time": "02:00", "cron_expression": None, "legacy_names": ["Audit Skills"]},
 }
 
-# Fork: seed the module action-item sync task (fork/athena/action_items.py)
-from fork.athena.action_items import register_housekeeping as _fork_housekeeping  # noqa: E402
-_fork_housekeeping(HOUSEKEEPING_DEFAULTS)
-# Fork: seed the module facts -> memory task (fork/athena/facts.py)
-from fork.athena.facts import register_housekeeping as _fork_facts_housekeeping  # noqa: E402
-_fork_facts_housekeeping(HOUSEKEEPING_DEFAULTS)
-# Fork: seed the Today insight task (fork/insight/today.py)
-from fork.insight.today import register_housekeeping as _fork_today_housekeeping  # noqa: E402
-_fork_today_housekeeping(HOUSEKEEPING_DEFAULTS)
-# Fork: seed the Notes Evidence task (fork/beliefs/notes_evidence.py)
-from fork.beliefs.notes_evidence import register_housekeeping as _fork_notes_housekeeping  # noqa: E402
-_fork_notes_housekeeping(HOUSEKEEPING_DEFAULTS)
-# Fork: seed the Belief Structure task (fork/beliefs/structure.py)
-from fork.beliefs.structure import register_housekeeping as _fork_structure_housekeeping  # noqa: E402
-_fork_structure_housekeeping(HOUSEKEEPING_DEFAULTS)
-
 RETIRED_HOUSEKEEPING_ACTIONS = frozenset({
     "tidy_calendar",
     "tidy_email_inbox",
@@ -2911,16 +2895,6 @@ class TaskScheduler:
             db.close()
 
 
-# Fork: the action-item sync posts nothing to the assistant chat (fork/athena/action_items.py)
-TaskScheduler._SILENT_ACTIONS = TaskScheduler._SILENT_ACTIONS | {"barvis_sync_action_items"}
-# Fork: the facts sync posts nothing to the assistant chat (fork/athena/facts.py)
-TaskScheduler._SILENT_ACTIONS = TaskScheduler._SILENT_ACTIONS | {"module_sync_facts"}
-# Fork: the Today insight posts nothing to chat and queues for the model (fork/insight/today.py)
-TaskScheduler._SILENT_ACTIONS = TaskScheduler._SILENT_ACTIONS | {"today_insight"}
-TaskScheduler._MODEL_BACKED_ACTIONS = TaskScheduler._MODEL_BACKED_ACTIONS | {"today_insight"}
-# Fork: notes evidence posts nothing to chat and queues for the model (fork/beliefs/notes_evidence.py)
-TaskScheduler._SILENT_ACTIONS = TaskScheduler._SILENT_ACTIONS | {"notes_evidence"}
-TaskScheduler._MODEL_BACKED_ACTIONS = TaskScheduler._MODEL_BACKED_ACTIONS | {"notes_evidence"}
-# Fork: belief structure posts nothing to chat and queues for the model (fork/beliefs/structure.py)
-TaskScheduler._SILENT_ACTIONS = TaskScheduler._SILENT_ACTIONS | {"belief_structure"}
-TaskScheduler._MODEL_BACKED_ACTIONS = TaskScheduler._MODEL_BACKED_ACTIONS | {"belief_structure"}
+# Fork: the fork's scheduled tasks: seeded, silent, model-backed (fork/tasks.py)
+from fork.tasks import register_scheduler as _fork_register_scheduler  # noqa: E402
+_fork_register_scheduler(HOUSEKEEPING_DEFAULTS, TaskScheduler)

@@ -62,8 +62,10 @@ def test_a_string_patch_on_the_old_path_reaches_the_new_module(monkeypatch) -> N
 
 
 def test_app_mounts_the_fork_routers_from_the_package() -> None:
+    from fork.routes import ROUTERS
+
     app = (REPO / "app.py").read_text(encoding="utf-8")
-    hooks = re.findall(r"^from (\S+) import setup_\w+_routes  # noqa: E402$", app, re.MULTILINE)
-    fork_hooks = [h for h in hooks if h.startswith("fork.")]
-    assert len(fork_hooks) == 10
-    assert not [h for h in hooks if h in SHIMS], "app.py imports a fork router by its old path"
+    assert "from fork.routes import mount as _fork_mount_routes  # noqa: E402" in app
+    hooks = [module for module, _ in ROUTERS]
+    assert len(hooks) == 10 and all(h.startswith("fork.") for h in hooks)
+    assert not [h for h in hooks if h in SHIMS], "a fork router is mounted by its old path"

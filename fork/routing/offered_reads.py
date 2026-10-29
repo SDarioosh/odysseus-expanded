@@ -35,10 +35,10 @@ OFFERED_READ_TOOLS = frozenset({
 
 
 def read_actions(tool: str) -> frozenset[str]:
-    from src.tool_capabilities import _PRIVATE_ACTION_READS
+    from fork.upstream import private_action_reads
     if tool not in OFFERED_READ_TOOLS:
         return frozenset()
-    return frozenset(_PRIVATE_ACTION_READS.get(tool, ()))
+    return frozenset(private_action_reads().get(tool, ()))
 
 
 def _merged_grant(grant, reads):

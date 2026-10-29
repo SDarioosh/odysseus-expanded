@@ -286,9 +286,9 @@ def setup_insight_weights_routes() -> APIRouter:
 
     @router.get("/api/codex/insight/weights")
     async def token_weights(request: Request) -> dict[str, Any]:
-        from routes.codex_routes import _scope_owner
+        from fork.upstream import scope_owner
 
-        owner = _scope_owner(request, INSIGHT_READ_SCOPES)
+        owner = scope_owner(request, INSIGHT_READ_SCOPES)
         return iw.t5_table(owner, _today(owner))
 
     return router

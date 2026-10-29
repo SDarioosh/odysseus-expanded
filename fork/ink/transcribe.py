@@ -450,10 +450,10 @@ def resolve_model(owner: str | None) -> list[tuple[str, str, dict]]:
         raise NoModel("Vision is turned off: turn it on in Settings, Vision.")
     configured = str(get_user_setting("vision_model", who, "") or "").strip()
     if configured:
-        from src.ai_interaction import _resolve_model
+        from fork.upstream import resolve_model
 
         try:
-            found = [_resolve_model(configured, owner=owner)]
+            found = [resolve_model(configured, owner=owner)]
         except Exception:
             raise NoModel(f"The vision model '{configured}' is not available on any "
                           "configured endpoint.") from None
@@ -491,9 +491,9 @@ def resolve_model(owner: str | None) -> list[tuple[str, str, dict]]:
 def _chat_busy() -> bool:
     """A chat or agent run is generating (upstream's own check, src/interactive_gate.py)."""
     try:
-        from src import interactive_gate
+        from fork.upstream import chat_stream_active
 
-        return bool(getattr(interactive_gate, "_has_active_chat_stream", lambda: False)())
+        return chat_stream_active()
     except Exception:
         return False
 

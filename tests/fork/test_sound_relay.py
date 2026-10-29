@@ -99,7 +99,10 @@ def test_new_scopes_are_allowed_and_listed():
 def test_hooks_are_in_app():
     app_py = (ROOT / "app.py").read_text()
     assert 'AUTH_EXEMPT_EXACT.add("/api/pair/redeem")' in app_py
-    assert "app.include_router(setup_sound_relay_routes())" in app_py
+    from fork.routes import ROUTERS
+
+    assert "_fork_mount_routes(app)" in app_py
+    assert ("fork.athena.relay_routes", "setup_sound_relay_routes") in ROUTERS
 
 
 # ----------------------------------------------------------------------- relay

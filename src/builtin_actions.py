@@ -3691,21 +3691,6 @@ BUILTIN_ACTION_INFO = {
     "check_email_urgency": "Scan unread emails hourly, tag urgent/reply-soon/newsletter/marketing/spam, and send a reminder when a new email needs a fast reply.",
 }
 
-# Fork: module action items -> ntfy (fork/athena/action_items.py)
-from fork.athena.action_items import register_builtin_action as _fork_register  # noqa: E402
-_fork_register(BUILTIN_ACTIONS, BUILTIN_ACTION_INFO)
-# Fork: Athena facts -> Odysseus memory (fork/athena/facts.py)
-from fork.athena.facts import register_builtin_action as _fork_register_facts  # noqa: E402
-_fork_register_facts(BUILTIN_ACTIONS, BUILTIN_ACTION_INFO)
-# Fork: daily Today insight (fork/insight/today.py)
-from fork.insight.today import register_builtin_action as _fork_today_register  # noqa: E402
-_fork_today_register(BUILTIN_ACTIONS, BUILTIN_ACTION_INFO)
-# Fork: owner's notes -> belief ledger (fork/beliefs/notes_evidence.py)
-from fork.beliefs.notes_evidence import register_builtin_action as _fork_notes_register  # noqa: E402
-_fork_notes_register(BUILTIN_ACTIONS, BUILTIN_ACTION_INFO)
-# Fork: structure for confirmed beliefs (fork/beliefs/structure.py)
-from fork.beliefs.structure import register_builtin_action as _fork_structure_register  # noqa: E402
-_fork_structure_register(BUILTIN_ACTIONS, BUILTIN_ACTION_INFO)
-# Fork: Send Athena to toggled calendar meetings (fork/athena/meeting_auto_join.py)
-from fork.athena.meeting_auto_join import register_builtin_action as _fork_auto_join_register  # noqa: E402
-_fork_auto_join_register(BUILTIN_ACTIONS, BUILTIN_ACTION_INFO)
+# Fork: the fork's scheduled tasks, one table (fork/tasks.py)
+from fork.tasks import register_actions as _fork_register_actions  # noqa: E402
+_fork_register_actions(BUILTIN_ACTIONS, BUILTIN_ACTION_INFO)

@@ -138,9 +138,9 @@ def _statuses(status: str | None) -> Any:
 async def owner_contacts(owner: str) -> list[dict]:
     """The owner's Odysseus contacts as ``{"id", "name"}``, by name: the contacts routes'
     own listing (local book or CardDAV, owner-scoped the same way)."""
-    from routes.contacts.contacts_routes import _fetch_contacts
+    from fork.upstream import fetch_contacts
 
-    rows = await asyncio.to_thread(_fetch_contacts, owner=owner or None)
+    rows = await asyncio.to_thread(fetch_contacts, owner=owner or None)
     out = [{"id": str(c.get("uid") or ""), "name": str(c.get("name") or "").strip()}
            for c in rows or [] if c.get("uid")]
     return sorted(out, key=lambda c: (c["name"].lower(), c["id"]))

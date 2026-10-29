@@ -25,6 +25,8 @@ from __future__ import annotations
 import logging
 from collections.abc import Iterable
 
+from fork.upstream import mcp_connections, mcp_tools
+
 logger = logging.getLogger(__name__)
 
 MCP_TOOLSET_PREFIX = "mcp:"
@@ -46,8 +48,8 @@ def _manager():
 
 def _disabled_map() -> dict:
     try:
-        from src.agent_loop import _load_mcp_disabled_map
-        return _load_mcp_disabled_map() or {}
+        from fork.upstream import load_mcp_disabled_map
+        return load_mcp_disabled_map() or {}
     except Exception:
         logger.debug("MCP disabled map unavailable", exc_info=True)
         return {}
@@ -59,9 +61,9 @@ def enabled_mcp_tools(manager=None, disabled_map: dict | None = None) -> dict[st
     if manager is None:
         return {}
     disabled_map = _disabled_map() if disabled_map is None else disabled_map
-    connections = getattr(manager, "_connections", {}) or {}
+    connections = mcp_connections(manager)
     out: dict[str, set[str]] = {}
-    for server_id, tools in (getattr(manager, "_tools", {}) or {}).items():
+    for server_id, tools in mcp_tools(manager).items():
         if (connections.get(server_id) or {}).get("status") != "connected":
             continue
         disabled = set((disabled_map or {}).get(server_id) or ())
@@ -77,7 +79,7 @@ def enabled_mcp_tools(manager=None, disabled_map: dict | None = None) -> dict[st
 
 def _server_keys(manager, server_ids: Iterable[str]) -> dict[str, set[str]]:
     """casefolded server id or name -> server ids."""
-    connections = getattr(manager, "_connections", {}) or {}
+    connections = mcp_connections(manager)
     keys: dict[str, set[str]] = {}
     for server_id in server_ids:
         name = str((connections.get(server_id) or {}).get("name") or "").strip()
@@ -151,7 +153,7 @@ def with_mcp_toolsets(available: Iterable[str], manager=None) -> set[str]:
     except Exception:
         logger.debug("MCP toolset availability skipped", exc_info=True)
         return out
-    connections = getattr(manager, "_connections", {}) or {}
+    connections = mcp_connections(manager)
     for server_id, names in enabled.items():
         out |= names
         name = str((connections.get(server_id) or {}).get("name") or "").strip()

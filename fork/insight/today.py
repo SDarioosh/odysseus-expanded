@@ -106,7 +106,7 @@ def owner_timezone(owner: str | None) -> tzinfo:
     name = None
     try:
         from core.database import CrewMember, ScheduledTask, SessionLocal
-        from src.task_scheduler import _resolve_task_timezone
+        from fork.upstream import resolve_task_timezone as _resolve_task_timezone
 
         db = SessionLocal()
         try:
@@ -428,8 +428,8 @@ def _load_events(owner: str | None, now_local: datetime) -> list[dict]:
     """The owner's event occurrences around the window, expanded by the calendar route's
     own ``_expand_rrule`` (recurring series whose first date is long past included)."""
     from core.database import CalendarCal, CalendarEvent, SessionLocal
-    from routes.calendar_routes import _expand_rrule
-    from src.task_scheduler import _checkin_calendar_events
+    from fork.upstream import checkin_calendar_events as _checkin_calendar_events
+    from fork.upstream import expand_rrule as _expand_rrule
 
     midnight = datetime.combine(now_local.date(), time.min)
     # naive bounds wide enough for both naive-local and UTC-stored rows; filtered later
