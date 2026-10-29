@@ -1097,3 +1097,73 @@ timings vary by machine, counts don't):
 with the per-chunk times, memory, structure, retrieval per lane with misses, the checks)
 go to `--out`, by default `data/eval/belief_eval_scale.<size>.json` (under `data/`,
 gitignored).
+
+## Feature summaries
+
+Each section below was a row of the "Changes from upstream" table in
+[FORK.md](../../FORK.md) until 2026-10-29, moved here word for word; FORK.md now lists the
+features and the hooks into upstream files.
+
+### Athena facts in Odysseus memory, through the belief ledger
+
+**Athena facts in Odysseus memory, through the belief ledger.** A built-in task "Module Facts" (hourly, posts nothing to chat) reads all the module's current facts (`list_facts` `format=json`; plus `confirmed=true` once when rows lack the `confirmed` flag) through its MCP server and submits each as evidence to the belief ledger (`DATA_DIR/beliefs.db`, sqlite, one file for all owners): beliefs are tentative, confirmed (by the module's own flag, ≥ `BELIEF_CONFIRM_SOURCES` sources, or ≥ `BELIEF_CONFIRM_TIMES` sightings on ≥ `BELIEF_CONFIRM_DAYS` days), stale (no source reports it any more, not seen for `BELIEF_STALE_DAYS`, or past `valid_until`) or rejected; the owner's confirm/correct/reject/restore always win. Only confirmed beliefs are mirrored into memory, one memory per belief for its owner (text `<fact> (source: <link>)`, `belief_id`, `source`, `link`, subject, dates; module-sourced ones keep `module_fact_id`), updated in place (memory id and uses kept), removed when no longer confirmed; Phase 0 copies are adopted, not duplicated; idempotent, so a copy Memory Tidy deleted comes back. `propagate_forget` calls the module's `retire_fact` for a forgotten belief (an older module without it is tolerated). Strict memory reads (`load_all_for_update`), the owner's own memories and other owners' entries untouched. `MODULE_FACTS_SYNC=off` stops it; a text-only module is a no-op. Never touches the module's database. [docs/fork/beliefs.md](beliefs.md)
+
+Files: `src/evidence_intake.py`, `src/module_facts.py` (new), hooks in `src/builtin_actions.py` (action registry) and `src/task_scheduler.py` (housekeeping default, silent action); tests `tests/test_evidence_intake.py`, `tests/test_module_facts.py` (new)
+
+Upstreamable: no
+
+### The owner's notes as belief evidence (off by default)
+
+**The owner's notes as belief evidence (off by default).** A built-in task "Notes Evidence" (daily 03:00, posts nothing to chat, queued as model-backed) reads the owner's unarchived plain notes (type `note`; not notes labelled `odysseus-sound` or `handwritten` (their text goes to Athena), calendar reminders or notes under 40 characters), sends each changed note (per-note hash in `DATA_DIR/notes_evidence_<owner>.json`) to the local model once (background, thinking off, the note as data) for up to 8 durable facts as JSON, and submits them to the belief ledger as source `notes`, id `<note id>:<index>`, link `/#open=notes&note=<id>`, never source-confirmed: a fact also said in a conversation confirms by the two-source rule, the rest waits for the owner. Facts a note no longer states, and those of notes no longer read, are marked gone. `EVIDENCE_NOTES=on` enables it. [docs/fork/beliefs.md](beliefs.md#notes-12)
+
+Files: `src/notes_evidence.py` (new), hooks in `src/builtin_actions.py` (action registry) and `src/task_scheduler.py` (housekeeping default; silent and model-backed action); test `tests/test_notes_evidence.py` (new)
+
+Upstreamable: no
+
+### Subjects, contacts, structure and projects in the belief ledger
+
+**Subjects, contacts, structure and projects in the belief ledger.** Every belief belongs to a subject (`subjects` in `DATA_DIR/beliefs.db`: the owner, a person, a project or a thing; existing ledgers are migrated once, losslessly). A module's stable person id (`list_people` `format=json`, read once per Module Facts pass, text or a missing tool tolerated; a fact's `person_id`) maps to one subject, so a fact lands on the same person whatever name the module uses; otherwise names and aliases match case-insensitively. Subjects can be renamed (old name kept as alias), merged, given a kind and linked to an Odysseus contact (`beliefs_for_contact`); memory entries carry `subject_id`, `subject_kind` and `contact_id` (text unchanged). A built-in task "Belief Structure" (hourly at :15, posts nothing to chat, queued as model-backed; `BELIEF_STRUCTURE=off` stops it) gives up to 40 confirmed beliefs per run an `attribute` from a fixed vocabulary, a `value` and `valid_from`, 5 per local-model call (`BELIEF_STRUCTURE_BATCH`; background, thinking off, the beliefs as numbered data with the dates they were said); an item whose value doesn't fit its belief's text is rejected, a date is kept only when the text backs it, and a past end date never expires a belief; a correction re-structures. A subject becomes a `project` when the owner says so, or (if not a person) by its name or a `project_status`/`deadline` belief; `subject_summary` gives one paragraph per subject. [docs/fork/beliefs.md](beliefs.md#subjects-and-contacts-21)
+
+Files: `src/evidence_intake.py`, `src/module_facts.py` (fork files), `src/belief_structure.py` (new), hooks in `src/builtin_actions.py` (action registry) and `src/task_scheduler.py` (housekeeping default; silent and model-backed action); tests `tests/test_subjects.py`, `tests/test_belief_structure.py` (new)
+
+Upstreamable: no
+
+### Upstream's memory tidy leaves sourced memories alone; the ledger merges its own near-duplicates (personal context 4.1)
+
+**Upstream's memory tidy leaves sourced memories alone; the ledger merges its own near-duplicates (personal context 4.1).** Upstream's Memory Tidy task (`consolidate_memory`, run after every 5 new memories, so the belief mirror set it off) and its memory audit (the Tidy button, and the automatic audit after chat extraction) tidied memories by text alone: they could merge a memory mirrored from the belief ledger into an unrelated one, rewrite it without its `(source: …)` link, or delete it, and the next sync put it back with a new id. Both now skip entries with a `belief_id` (or a Phase 0 `module_fact_id` from Athena) and write them back unchanged; the owner's own memories are tidied as before. Instead, the Module Facts and Notes Evidence jobs merge near-duplicate beliefs of their own source only (same subject and category; words differ only in filler or plural/third-person forms; no different negation, number or structured value; never owner-decided beliefs, never across sources): the evidence moves with its source ids and links, the kept belief keeps its memory id, event `merged`. `BELIEF_CONSOLIDATE=off` skips the merge. [docs/fork/beliefs.md](beliefs.md#consolidation-41)
+
+Files: `src/belief_consolidation.py` (new); hooks in `src/builtin_actions.py` (`action_consolidate_memory`) and `services/memory/memory_extractor.py` (`audit_memories`); fork files `src/evidence_intake.py` (event kind `merged`), `src/module_facts.py`, `src/notes_evidence.py`; test `tests/test_belief_consolidation.py` (new)
+
+Upstreamable: no
+
+### A forget that is complete, and an export (personal context 4.2)
+
+**A forget that is complete, and an export (personal context 4.2).** Forget on `/beliefs` now erases for good, after a confirmation and with no restore: Athena's `erase_fact` (MCP 0.10.0) redacts the transcript line that said the fact in every conversation that said it and has its local model rewrite the notes and digests without it (an older module gets `retire_fact`; the facts job retries every hour); the ledger clears the belief's words and keeps only hashed matching keys, so the claim said again joins the erased belief without its words; memory entries with exactly its words and stored Today insights that point at or quote it are cleaned. A belief forgotten before gets an Erase button. **Download** on `/beliefs` returns the owner's ledger (beliefs, evidence with links, events, subjects) and memories as one JSON file. Chats and the owner's notes are not touched (the answer lists the notes). [docs/fork/beliefs.md](beliefs.md#complete-forget-42)
+
+Files: `src/belief_forget.py`, `src/belief_export.py` (new); fork files `src/evidence_intake.py` (`erase`, `erased_key`, `export_rows`, event kind `erased`), `src/module_facts.py` (retry at the end of a pass), `routes/beliefs_routes.py`, `static/beliefs.html`, `static/js/beliefs.js`, `scripts/belief_eval.py` (case `erased`); tests `tests/test_belief_forget.py` (new), `tests/test_beliefs_routes.py`; no upstream file changed
+
+Upstreamable: no
+
+### Move a belief to the person it is about
+
+**Move a belief to the person it is about.** A line someone else said, heard as the owner's voice, filed their fact under the owner, and Edit only changed the words. **Move** on a `/beliefs` card files the belief under another person (picked, or a new name), confirmed by the owner, and by default has Athena give the source line to that person (`get_transcript` finds the line at the link's second, `reassign_line` moves it when the old subject said it; the module re-summarizes). A fact the module then re-attributes stays with the moved belief. [docs/fork/beliefs.md](beliefs.md#move-to-another-person)
+
+Files: `src/belief_move.py` (new); fork files `src/evidence_intake.py` (`move`, event kind `moved`, re-attributed evidence stays in `_attach`), `routes/beliefs_routes.py` (`POST /api/beliefs/{id}/move`), `static/js/beliefs.js`; test `tests/test_belief_move.py` (new); no upstream file changed
+
+Upstreamable: no
+
+### One ranker over the belief ledger
+
+**One ranker over the belief ledger.** `search_beliefs` ranks an owner's beliefs for a query by subject named (name, alias, unique first name; "I/me/my" for the owner), attribute words (a small synonym map: allergic → allergy, lives → lives_in …), similarity through the hub's own local embedding lane (the memory index's FastEmbed or a local configured endpoint; never a remote API; vectors cached in `belief_vectors` in `beliefs.db`, at most 200 embedded per call) and keyword overlap as the fallback; deterministic ties. The Today insight puts the beliefs ranked for the day's candidates first in its memory input (old selection when the ledger has nothing). Chat adds a ≤ 1200-character "What I know (confirmed)" block with links, as untrusted context, through the existing memory-context hook, when a message asks what the hub knows about a known subject or an attribute of one (`wants_beliefs`; never on slash turns or questions about what was said, so module questions keep reaching their tools). `GET /api/beliefs/search?q=&k=&status=` (admin session) serves the review page. [docs/fork/beliefs.md](beliefs.md#retrieval-23)
+
+Files: `src/belief_search.py`, `routes/belief_search_routes.py` (new); `src/today_insight.py` (`select_memory`, `context_block`); hooks in `app.py` (router, mounted before the review page's), `src/chat_processor.py` (the Today hook's context label, one line: "saved insight: today and beliefs"); test `tests/test_belief_search.py` (new), `tests/test_today_insight.py`
+
+Upstreamable: no
+
+### Belief review page
+
+**Belief review page.** `/beliefs` ("What I know about you", sidebar: Wisdom (was Beliefs), under Today) lists the belief ledger by status (Tentative / Confirmed / Stale / Rejected tabs with counts) and subject, each belief with how it was confirmed, first and last seen ("not heard since" when stale) and its sources with their links. Confirm, Edit (correct), Forget and Restore call the ledger's owner actions; Forget rejects the belief here first, then retires the Athena facts behind it with the module's `retire_fact` and reports `{"retired", "failed", "unsupported"}` (a module that is down never blocks the forget; "No fact #N." counts as retired). Sync now runs the facts job for the owner (`POST /api/beliefs/run`, 60 s budget). A By subject view renames, merges, sets the kind of and links subjects to the owner's contacts (`/api/beliefs/subjects…`, `/api/beliefs/contacts`), and opens a subject to its summary and beliefs by attribute; an attribute filter and a search box (ranked search when installed, else a text match). Admin session only, scoped to the owner. [docs/fork/beliefs.md](beliefs.md#review-page-13)
+
+Files: `routes/beliefs_routes.py`, `static/beliefs.html`, `static/js/beliefs.js` (new); hooks in `app.py` (router), `static/index.html` (sidebar link); test `tests/test_beliefs_routes.py` (new)
+
+Upstreamable: no

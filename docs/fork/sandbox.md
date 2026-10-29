@@ -195,7 +195,7 @@ work at 32k), and `--trim` keeps the setup that answers recording questions.
 
 ### Slash skills, 2026-10-18
 
-`/sound` and `/context` (SDarioosh/Barvis#9). Same stack and seed, one Odysseus instance,
+`/sound` and `/context` (SDarioosh/odysseus-expanded#9). Same stack and seed, one Odysseus instance,
 questions 1, 4, 16 plus a person + relative date question (21: "What did Maria ask me
 to do on Friday?", answer in the 2026-10-16 `maria-oct` conversation). C, D and E ran
 with every tool on and "Auto"; only the message changed. D and E were sent through
@@ -271,7 +271,7 @@ sent through Odysseus (`--trim`, "Regular tools"), against a fictional 60-line m
 added to the seed for this test (the demo conversations are 4–7 lines). Before:
 Athena `main`; after: one time per line, 100 lines a page, and "give the link and
 a short summary" in the result, tool description and `INSTRUCTIONS`
-(SDarioosh/barvis-sound, branch `claude/sharp-sagan-yfcl39`). Token counts from the
+(SDarioosh/Athena, branch `claude/sharp-sagan-yfcl39`). Token counts from the
 llama-server log. This sandbox ran at ~3 tokens/s generation, ~25 tokens/s prompt.
 
 | | tool calls | final answer | `get_transcript` result | time |

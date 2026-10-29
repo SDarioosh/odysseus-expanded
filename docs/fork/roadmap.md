@@ -3,38 +3,42 @@
 fork-specific status. Upstream's own plans are in [../../ROADMAP.md](../../ROADMAP.md);
 don't edit that file.
 
-_Last updated: 2026-10-22_
+_Last updated: 2026-10-29_
 
 ## Status
 
+One line per item; what each feature does is in [FORK.md](../../FORK.md#fork-features) and
+the linked docs. PR numbers are in this repo. The detailed rows (PRs, sandbox scores,
+branches) are kept in [status-history.md](status-history.md).
+
 | # | Item | Status | Where |
 |---|---|---|---|
-| 1 | Trusted read-only MCP servers, trusted reads not external effects, web-intent routing fix, tool trimming | merged (SDarioosh/Barvis#1) | [../../FORK.md](../../FORK.md) |
-| 2 | Agent and module docs | merged (SDarioosh/Barvis#2) | `AGENTS.md`, `docs/fork/` |
-| 3 | Athena eval ≥ 15/20 | 9/20 (right fact 18/20, link cited 9/20) | [modules/odysseus-sound.md](modules/odysseus-sound.md#eval-and-current-score) |
-| 4 | Sandbox stack (whole system on CPU in the cloud sandbox) | working; baseline raw 1/3, Odysseus 1/3 | [sandbox.md](sandbox.md) |
-| 5 | HTTP MCP servers keep tool annotations (no approvals for trusted reads over HTTP) | merged (SDarioosh/Barvis#5); sandbox 2/3 → 2/3, approvals 2 → 0 | [sandbox.md](sandbox.md#http-annotation-fix-finding-1-2026-10-18) |
-| 6 | Production: the fork replaces the owner's upstream Odysseus on port 7000 with all Odysseus features; deploy/rollback script; `modules_setup.py` no longer trims tools by default | merged (SDarioosh/Barvis#8); production switched 2026-10-18 | [deploy.md](deploy.md) |
-| 7 | `/sound` and `/context`: slash-invoked skills offer module tools for one message (MCP entries in `requires_toolsets`, skill tools pinned on the invoked turn, managed skills from `modules_setup.py`) | merged (SDarioosh/Barvis#9); sandbox, every tool on + Auto: plain 0/4, `/sound` 4/4, `/context` 1/4 ([sandbox.md](sandbox.md#slash-skills-2026-10-18)) | [deploy.md](deploy.md#features-and-modules) |
-| 8 | Several tools in a row: a turn may read every personal store it offers (calendar, tasks, notes, memory, documents, skills), so a calendar lookup after a tasks lookup is no longer refused; writes unchanged | merged (SDarioosh/Barvis#16) | [../../FORK.md](../../FORK.md) |
-| 9 | Action items and digest on the phone (roadmap 3–4): built-in task "Module Action Items" pushes new items, items due today and the daily digest via ntfy; items stay live in Athena (owner's decision, 2026-10-19) | merged (SDarioosh/Barvis#17), ships paused | [../../FORK.md](../../FORK.md), `src/module_action_items.py` |
-| 10 | Athena page `/modules/sound`: live action items (done/dismiss), conversations list and "who is this?" cards for unnamed speakers (roadmap 3, 5) | merged (SDarioosh/Barvis#19); Athena's `list_unnamed_speakers` merged (SDarioosh/barvis-sound#24) | [../../FORK.md](../../FORK.md) |
-| 11 | Stdio MCP servers added over the API keep working after that request (sandbox finding 2): each stdio connection has its own owner task | PR SDarioosh/Barvis#20 | [../../FORK.md](../../FORK.md), `src/mcp_stdio_owner.py` |
-| 12 | One-command deploy: `fork_deploy.sh deploy` runs each module's deploy command first (Athena: update, install, background services that survive reboot), works from any directory | PR SDarioosh/Barvis#21; Athena side SDarioosh/barvis-sound#30 | [deploy.md](deploy.md#update-production), [modules.md](modules.md#deploying-a-module) |
-| 13 | Conversations page v2: transcript reader, click-to-fix speakers (`reassign_line`, `name_speaker`, `rename_speaker_everywhere`), Ask in chat (`/?ask=` prefills a new chat with `/athena …`, was `/sound` before 2026-10-27) | PR (this branch) | [../../FORK.md](../../FORK.md) |
-| 14 | Voice notes into calendar and to-dos: module items get a kind (event / task / reminder) and a time; voice-note items are filed automatically into the Odysseus calendar and to-dos (one push, undo/move on `/modules/sound`), conversation items are suggestions; status syncs both ways (owner's decision 2026-10-20, replaces "no copies") | PR (this branch); module side PR in SDarioosh/barvis-sound | [modules/odysseus-sound.md](modules/odysseus-sound.md#action-items-in-odysseus) |
-| 15 | Named to-do lists for voice-note items: "add milk to my shopping list" adds a line to that Odysseus to-do list (made if missing) instead of a to-do of its own; status syncs per line; Add to a list / Change list on `/modules/sound` | PR (this branch); module side PR in SDarioosh/barvis-sound | [modules/odysseus-sound.md](modules/odysseus-sound.md#action-items-in-odysseus) |
-| 16 | Today insight and facts in memory (personal context, Phase 0): built-in tasks "Today Insight" (every 15 min; code buckets to-dos and events, skips shopping lists without a date, hashes inputs, local model only when they change; refs validated) and "Module Facts" (hourly; Athena's confirmed facts reconciled into memory with provenance); `/today` page with tickable to-dos and 👍/👎; chat answers "what should I do first?" from the stored insight; `GET /api/codex/insight/today` with scope `insight:read` for the phone and T5 | PR (this branch); module side on the same branch in SDarioosh/barvis-sound (MCP 0.4.0) | [personal-context.md](personal-context.md), [today-insight.md](today-insight.md), [modules/odysseus-sound.md](modules/odysseus-sound.md#facts-in-odysseus-memory) |
-| 16 | Notes from voice notes: "create a note …" becomes an Odysseus note (titled by the module); "add to my hardware notes …" adds a line to the "Hardware notes" note (made if missing); explicit commands only; Undo / Add to notes on `/modules/sound` | PR (this branch); module side PR in SDarioosh/barvis-sound | [modules/odysseus-sound.md](modules/odysseus-sound.md#action-items-in-odysseus) |
-| 17 | Conversations and Today as Odysseus windows (drag, snap, minimize, phone sheet), on the icon rail, in `/open` and Settings → Shortcuts; module transcript links in chat open the Conversations reader at that moment; one stylesheet in the built-in windows' style; the standalone pages stay | PR (this branch) | [../../FORK.md](../../FORK.md), [modules/odysseus-sound.md](modules/odysseus-sound.md#conversations-window) |
-| 18 | Personal context Phase 1: belief ledger (`beliefs.db`: evidence from every source, tentative → confirmed by source / rule / owner, stale after 180 days or a past `valid_until`, rejected), only confirmed beliefs mirrored into memory with their links; `/beliefs` review page (confirm, edit, forget propagating `retire_fact` to the module, restore, sync now); notes as a second source ("Notes Evidence", off by default); owner facts from different sources share one belief; deterministic belief eval 18/18 | PR (this branch); module side on the same branch in SDarioosh/barvis-sound (`retire_fact`, MCP 0.5.0) | [beliefs.md](beliefs.md), [personal-context.md](personal-context.md#phase-1-one-intake-a-review-page-and-forgetting) |
-| 19 | Personal context Phase 2: stable people ids from the module (MCP 0.6.0) linked to subjects and Odysseus contacts; beliefs get attribute/value/validity from a model-backed "Belief Structure" task over a fixed vocabulary; projects as first-class subjects; one ranker over the ledger (subject, attribute, local embeddings, keyword) used by the Today insight, chat and the review page; review page subjects view (kind, rename, link contact, merge, attribute chips, search); belief eval at scale (10k beliefs; after two ledger performance fixes it found: intake flat at ~126 ms per 1000, top-5 1.00, 0 leaks). Also, on the owner's request: voice-note items are filed only when explicit (`MODULE_FILE_ITEMS=explicit`), undated tasks share one "Voice notes" list, intentions become decisions in the ledger (module), clean-up script for the notes already created | local branch `p2`, PR after Phase 1 merges; module side on the module's `p2` | [beliefs.md](beliefs.md#subjects-and-contacts-21), [personal-context.md](personal-context.md#phase-2-connected-and-structured) |
-| 20 | Record a call: `/modules/sound/record` records a Zoom, Meet or Teams call in a Chromium browser (tab audio everywhere; the desktop app via system audio on Windows and macOS 14.2+ with Chrome 141+) plus the microphone, and sends 30 s WebM/Opus pieces through Odysseus to Athena, which transcribes and summarizes it like any conversation. No settings: uploads go through the `convo` MCP server's upload routes (module MCP 0.8.0) | code from the `claude/youthful-franklin-jsp4sg` branch (left out of the merged SDarioosh/odysseus-expanded#51), in the pairing PR | [modules/odysseus-sound.md](modules/odysseus-sound.md#recording-calls-from-the-computer), [deploy.md](deploy.md#call-recording-and-phone-pairing) |
-| 21 | Pair a phone: one QR code on `/modules/sound/pair` sets up Athena's Android relay (single-use code, token made on redeem with only the relay's scopes); the relay uploads and syncs the T5 through Odysseus (`/api/codex/sound/*`, scopes `sound:ingest`, `sound:read`, `sound:write`) | PR (this branch); module side in SDarioosh/odysseus-sound (same branch name); **needs a real phone** | [modules/odysseus-sound.md](modules/odysseus-sound.md#pairing-a-phone) |
-| 22 | Personal context Phase 3, learning from outcomes: per-day outcome log next to each Today insight (done, moved, ↑ first, not today, ignored; ids and counts only; ticks from any surface observed by the 15-min pass); inspectable integer rule weights per note type, list, event type and importance learned from it (0 until a key was shown 6 times in 28 days; never across the overdue/due/undated tiers; "How Today ranks" and "Why first?" on `/today`, Reset); the T5's offline order follows the same table (`GET /api/codex/insight/weights`, feed `weights`); one optional ntfy push a day (`TODAY_INSIGHT_PUSH`, off); routines from the calendar as beliefs to confirm (attribute `routine`); open loops (module `with`, MCP 0.9.0) and this week's plans as candidates; weekly trends and `scripts/insight_eval.py` | branch `claude/nifty-ride-q9texu`; module side on the same branch in SDarioosh/barvis-sound | [today-insight.md](today-insight.md#learning-from-outcomes-phase-3), [personal-context.md](personal-context.md#phase-3-learning-from-outcomes) |
-| 23 | Personal context 4.1, provenance-aware consolidation: upstream's Memory Tidy and memory audit no longer see, rewrite or delete memories mirrored from the belief ledger (or Phase 0 module copies); the Module Facts and Notes Evidence jobs merge near-duplicate beliefs within their own source only (evidence keeps its source ids and links, the kept belief keeps its memory id, owner-decided beliefs never merged) | PR (this branch) | [beliefs.md](beliefs.md#consolidation-41), [personal-context.md](personal-context.md#phase-4-keep-it-healthy-ongoing-from-phase-1) |
-| 24 | Personal context 4.2, retention and export: Forget on `/beliefs` erases for good across hub and module (Athena `erase_fact`, MCP 0.10.0: transcript line redacted, notes and digests rewritten locally, later repeats erased; ledger keeps hashed keys only; memory copies and stored Today insights cleaned; older module: `retire_fact`, retried hourly; Erase for beliefs forgotten before); Download on `/beliefs` (ledger + memories as one JSON file); module: opt-in `CONVO_TRANSCRIPT_RETENTION_DAYS` (off by default) | PR (this branch); module side in SDarioosh/odysseus-sound (`erase_fact`, retention) | [beliefs.md](beliefs.md#complete-forget-42), [personal-context.md](personal-context.md#phase-4-keep-it-healthy-ongoing-from-phase-1) |
-| 25 | Better beliefs: Athena (MCP 0.11.0) keeps fewer, better facts (thinking aloud and requests to others left out, a second model call scores each fact, at most 3 per conversation) and sends each fact's `kind`, transcript line and conversation; the hub labels facts by kind instead of guessing "preference" from words like "wants", shows the line on each card, and groups the Tentative tab by conversation with "Dismiss all" | PR (this branch); module side on the same branch in SDarioosh/Athena | [beliefs.md](beliefs.md#the-athena-facts-job) |
+| 1 | Trusted read-only MCP servers, trusted reads, web-intent routing | merged (#1) | [mcp-servers.md](features/mcp-servers.md), [tool-routing.md](features/tool-routing.md#web-intent-routing) |
+| 2 | Agent and module docs | merged (#2) | `AGENTS.md`, `docs/fork/` |
+| 3 | Athena eval ≥ 15/20 | 9/20 | [modules/athena.md](modules/athena.md#eval-and-current-score) |
+| 4 | Sandbox stack (whole system on CPU) | working | [sandbox.md](sandbox.md) |
+| 5 | HTTP MCP servers keep tool annotations | merged (#5) | [mcp-servers.md](features/mcp-servers.md#http-mcp-servers-keep-tool-annotations) |
+| 6 | Production on the fork, deploy and rollback | merged (#8), live since 2026-10-18 | [deploy.md](deploy.md) |
+| 7 | `/athena` (was `/sound`) and `/context` slash skills | merged (#9) | [tool-routing.md](features/tool-routing.md#slash-invoked-skills-bring-their-tools) |
+| 8 | Several tools in a row | merged (#16) | [tool-routing.md](features/tool-routing.md#several-tools-in-a-row) |
+| 9 | Action items and digest on the phone (ntfy) | merged (#17) | [modules/athena.md](modules/athena.md#voice-notes-into-calendar-and-to-dos-action-items-on-the-phone) |
+| 10 | Athena page `/modules/sound` | merged (#19) | [modules/athena.md](modules/athena.md#athena-page-conversations-and-who-is-this) |
+| 11 | Stdio MCP servers keep working | in `barvis` (#20) | [mcp-servers.md](features/mcp-servers.md#stdio-mcp-servers-keep-working-after-the-request-that-added-them) |
+| 12 | One-command deploy with modules | in `barvis` (#21) | [deploy.md](deploy.md#update-production) |
+| 13 | Conversations page v2: reader, speaker fixes, Ask in chat | in `barvis` | [modules/athena.md](modules/athena.md#athena-page-conversations-and-who-is-this) |
+| 14 | Voice notes into calendar and to-dos | in `barvis` | [modules/athena.md](modules/athena.md#action-items-in-odysseus) |
+| 15 | Named to-do lists for voice-note items | in `barvis` | [modules/athena.md](modules/athena.md#action-items-in-odysseus) |
+| 16 | Today insight and facts in memory (personal context Phase 0) | in `barvis` | [today-insight.md](today-insight.md), [beliefs.md](beliefs.md#athena-facts-in-odysseus-memory-through-the-belief-ledger) |
+| 16 | Notes from voice notes | in `barvis` | [modules/athena.md](modules/athena.md#action-items-in-odysseus) |
+| 17 | Records and Today as Odysseus windows | in `barvis` | [windows.md](features/windows.md) |
+| 18 | Personal context Phase 1: belief ledger and review page | in `barvis` | [beliefs.md](beliefs.md) |
+| 19 | Personal context Phase 2: subjects, structure, projects, ranker | in `barvis` | [beliefs.md](beliefs.md#subjects-and-contacts-21) |
+| 20 | Record a call | in `barvis` | [modules/athena.md](modules/athena.md#record-a-call) |
+| 21 | Pair a phone | in `barvis`; needs a real phone | [modules/athena.md](modules/athena.md#phone-relay-through-odysseus-paired-by-qr) |
+| 22 | Personal context Phase 3: learning from outcomes | in `barvis` | [today-insight.md](today-insight.md#learning-from-outcomes-phase-3) |
+| 23 | Personal context 4.1: provenance-aware consolidation | in `barvis` | [beliefs.md](beliefs.md#consolidation-41) |
+| 24 | Personal context 4.2: complete forget and export | in `barvis` | [beliefs.md](beliefs.md#complete-forget-42) |
+| 25 | Better beliefs (fact kinds, source lines) | in `barvis` | [beliefs.md](beliefs.md#the-athena-facts-job) |
 
 ## Next
 
@@ -43,7 +47,7 @@ _Last updated: 2026-10-22_
   Athena client, shared helpers, fewer upstream hooks. Five phases in lanes for subagents
   with an overseer. Planned, not started.
 
-0. **Module tools without a slash command** (PR SDarioosh/Barvis#24). A plain question
+0. **Module tools without a slash command** (PR SDarioosh/odysseus-expanded#24). A plain question
    with a module cue (conversation words, a person the module knows) runs in agent mode
    and is offered the trusted modules' read tools, through the existing slash-skill
    hooks (no upstream lines). Sandbox setup C: 0/4 → 5/5 agent, 4/5 chat
@@ -55,7 +59,7 @@ _Last updated: 2026-10-22_
    annotation bug (item 5) are drafted in their PRs, for the owner to file.
 2. **Citations to ≥ 15/20.** In the 2026-10-20 sandbox runs every passing answer cited
    its link; links are kept by the module (cite rule at the end of list results, "search
-   before saying I don't know" in `INSTRUCTIONS`, SDarioosh/barvis-sound#40). A fork-side
+   before saying I don't know" in `INSTRUCTIONS`, SDarioosh/Athena#40). A fork-side
    "Sources:" footer was tried and dropped (it failed a "nothing found" answer). Next:
    the owner's full 20-question run on the server.
 3. **Action items, filed** (status items 9, 14). Decided 2026-10-19: no copies, a live
@@ -76,7 +80,7 @@ _Last updated: 2026-10-22_
    dated, linked hits. Contract first (modules adopt the argument names), then a
    fork-side aggregator.
 8. **Upstream:** offer the general fixes from PR #1 and the skill MCP toolsets from
-   SDarioosh/Barvis#9 upstream
+   SDarioosh/odysseus-expanded#9 upstream
    ([upstream-sync.md](upstream-sync.md#sending-fixes-upstream)); weekly syncs.
 
 9. **Handwritten notes** (H1 to H6 built; next: the owner's H5 numbers decide whether

@@ -7,8 +7,9 @@ this repository. Read this file completely before changing anything.
 
 - Our fork of [Odysseus](https://github.com/odysseus-dev/odysseus), a self-hosted AI
   workspace (chat, agents, MCP, documents, email, notes, tasks, calendar). License
-  AGPL-3.0. It was called Barvis until 2026-10-19; the repo URL (`SDarioosh/Barvis`) and
-  the `barvis` branch keep that name.
+  AGPL-3.0. It was called Barvis until 2026-10-19. The repo is now
+  `SDarioosh/odysseus-expanded` (the old URL `SDarioosh/Barvis` redirects); the `barvis`
+  branch keeps its name.
 - Odysseus is the **hub** of a personal, fully local AI system: the one chat and agent
   interface the owner uses from an Android phone and a Mac over Tailscale. The fork
   keeps the Odysseus name and adds capabilities through modules.
@@ -18,7 +19,7 @@ this repository. Read this file completely before changing anything.
   them.
 - First module: [Athena](https://github.com/SDarioosh/Athena) (formerly
   odysseus-sound; recorded conversations: transcripts, summaries, action items, facts).
-  Details: [docs/fork/modules/odysseus-sound.md](docs/fork/modules/odysseus-sound.md).
+  Details: [docs/fork/modules/athena.md](docs/fork/modules/athena.md).
   The rename is wording only. Code and stored values keep the old names: the MCP server
   `convo`, `/modules/sound` routes, `sound:*` token scopes, and the
   string `"odysseus-sound"` used as the belief source, the label on filed notes, the
@@ -60,34 +61,10 @@ Odysseus is large (~478k lines of Python) and fast-moving. Start from these file
 | Tests | `tests/` (see `tests/README.md`, `tests/KNOWN_FAILURES.md`) |
 | Upstream's own rules | `CONTRIBUTING.md`, `SECURITY.md`, `THREAT_MODEL.md` |
 
-Fork code so far: `src/mcp_trust.py`, `src/mcp_stdio_owner.py`, `src/mcp_session_recovery.py`, `src/skill_mcp_toolsets.py`,
-`src/skill_invocation.py`, `src/offered_reads.py`, `src/module_action_items.py`,
-`src/sound_module_view.py`, `src/web_turn_scope.py`, `src/chat_mode_scope.py`, `src/module_turn_scope.py`, `src/auto_mode.py`,
-`src/web_read_recovery.py`, `src/checklist_auto_archive.py`, `src/builtin_task_authority.py`, `src/module_facts.py`, `src/evidence_intake.py`, `src/belief_consolidation.py`, `src/belief_forget.py`, `src/belief_move.py`, `src/belief_export.py`, `src/today_insight.py`, `src/vision_auto_detect.py`, `src/log_redact.py`,
-`src/call_recorder.py`, `src/record_share.py`, `src/meeting_bot.py`, `src/meeting_auto_join.py`, `src/phone_pairing.py`, `routes/sound_relay_routes.py`,
-`src/notes_evidence.py`, `src/belief_structure.py`, `src/belief_search.py`, `src/ink_notes.py`, `src/ink_transcribe.py`, `src/ink_athena.py`, `src/ink_notebooks.py`, `routes/ink_routes.py`,
-`src/insight_outcomes.py`, `src/insight_weights.py`, `src/insight_push.py`, `src/insight_routines.py`,
-`src/insight_inputs.py`, `src/insight_trends.py`, `routes/insight_outcome_routes.py`,
-`routes/insight_weights_routes.py`, `routes/insight_trends_routes.py`,
-`routes/sound_module_routes.py`, `routes/today_insight_routes.py`, `routes/summary_model_routes.py`, `routes/whisper_vocabulary_routes.py`, `routes/voice_enroll_routes.py`, `routes/auto_mode_routes.py`, `routes/beliefs_routes.py`, `routes/belief_search_routes.py`, `static/sound-module.html`,
-`static/today.html`, `static/js/today.js`, `static/js/todayWeights.js`, `static/js/todayTrends.js`, `static/beliefs.html`, `static/js/beliefs.js`,
-`static/call-recorder.html`, `static/js/callRecorder.js`, `static/js/meetingBot.js`, `static/js/forkMeetingAutoJoin.js`, `static/phone-pairing.html`, `static/js/phonePairing.js`,
-`static/js/soundModule.js`, `static/js/forkShareRecord.js`, `static/js/forkMeetings.js`, `static/js/forkChatAsk.js`, `static/js/forkEntityHash.js`,
-`static/js/forkModuleWindows.js`, `static/js/forkAthenaMenu.js`, `static/js/forkPageView.js`, `static/js/forkBeliefsWindow.js`, `static/js/forkModuleShortcuts.js`, `static/js/forkInk.js`, `static/js/forkInkLinks.js`, `static/css/fork-ink.css`, `static/js/forkBackgroundModels.js`, `static/js/forkWhisperVocabulary.js`, `static/js/forkVoiceEnroll.js`, `static/js/forkPhonePairing.js`, `static/js/forkAutoMode.js`, `static/js/forkResumeFallback.js`, `static/css/fork-modules.css`,
-`scripts/modules_setup.py`, `scripts/belief_eval.py`, `scripts/belief_eval_scale.py`, `scripts/unfile_voice_note_todos.py`,
-`scripts/module_slash_eval.py`, `scripts/insight_eval.py`, `scripts/ink_eval.py`, `scripts/fork_deploy.sh`, `docker/fork.override.yml`,
-their tests (`tests/test_mcp_trust.py`,
-`tests/test_mcp_http_annotations.py`, `tests/test_mcp_stdio_owner.py`, `tests/test_mcp_session_recovery.py`, `tests/test_agent_thinking_switch.py`, `tests/test_modules_setup.py`,
-`tests/test_skill_mcp_toolsets.py`, `tests/test_offered_reads.py`,
-`tests/test_module_action_items.py`, `tests/test_sound_module_view.py`, `tests/test_web_turn_scope.py`, `tests/test_chat_mode_scope.py`,
-`tests/test_module_turn_scope.py`, `tests/test_calendar_reminder_wall_time.py`,
-`tests/test_checklist_auto_archive.py`, `tests/test_builtin_task_authority.py`, `tests/test_module_facts.py`, `tests/test_evidence_intake.py`,
-`tests/test_today_insight.py`, `tests/test_beliefs_routes.py`, `tests/test_notes_evidence.py`,
-`tests/test_belief_eval.py`, `tests/test_subjects.py`, `tests/test_belief_structure.py`, `tests/test_belief_search.py`, `tests/test_belief_eval_scale.py`, `tests/test_ledger_perf.py`, `tests/test_fork_module_windows.py`,
-`tests/test_call_recorder.py`, `tests/test_record_share.py`, `tests/test_meeting_bot.py`, `tests/test_meeting_bot_js.py`, `tests/test_meeting_auto_join.py`, `tests/test_sound_relay.py`, `tests/test_insight_outcomes.py`,
-`tests/test_insight_weights.py`, `tests/test_insight_push.py`, `tests/test_insight_routines.py`,
-`tests/test_insight_inputs.py`, `tests/test_insight_eval.py`, `tests/test_summary_model_routes.py`, `tests/test_whisper_vocabulary_routes.py`, `tests/test_voice_enroll_routes.py`,
-`tests/test_belief_consolidation.py`, `tests/test_module_fact_kinds.py`, `tests/test_belief_forget.py`, `tests/test_belief_move.py`, `tests/test_auto_mode.py`, `tests/test_web_read_recovery.py`, `tests/test_fork_resume_fallback.py`, `tests/test_ink_notes.py`, `tests/test_ink_routes.py`, `tests/test_ink_upstream_contract.py`, `tests/test_ink_palm_rejection.py`, `tests/test_ink_perf.py`, `tests/test_ink_transcribe.py`, `tests/test_ink_athena.py`, `tests/test_ink_eval.py`, `tests/test_ink_auto_send.py`, `tests/test_ink_photos.py`, `tests/test_ink_phone_layout.py`, `tests/test_ink_notebooks.py`, `tests/test_ink_notes_hidden.py`, `tests/test_vision_auto_detect.py`, `tests/test_log_redact.py`), and the hooks listed in [FORK.md](FORK.md).
+Fork code so far: every file the fork adds (code, tests, scripts, docs) is listed in
+[docs/fork/files.md](docs/fork/files.md), generated and kept complete by
+`tests/test_fork_inventory.py`; the hooks into upstream files and the fork's features are
+listed in [FORK.md](FORK.md).
 
 ## Fork rules (merge-friendly)
 
@@ -108,7 +85,10 @@ merge conflict.
   `internal_api_base()` instead of hardcoded URLs, Conventional Commits, its visual style).
 - A general fix (not fork-specific) is written so it could go upstream, and is offered
   upstream. How: [docs/fork/upstream-sync.md](docs/fork/upstream-sync.md).
-- Record every new hook in the "Changes from upstream" table in [FORK.md](FORK.md).
+- Record every new hook in the "Hooks into upstream files" table in [FORK.md](FORK.md),
+  and every new feature in its "Fork features" list (details in its doc under `docs/fork/`).
+  After adding, moving or deleting a fork file, regenerate `docs/fork/files.md`
+  (`UPDATE_FORK_FILES=1 python -m pytest -q tests/test_fork_inventory.py`).
 
 ## Boundaries: hub and modules
 
