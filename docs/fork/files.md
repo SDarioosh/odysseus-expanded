@@ -117,6 +117,11 @@ is an old path of a module that moved into `fork/`; it only aliases the new modu
 - `fork/insight/push.py`
 - `fork/insight/routines.py`
 - `fork/insight/today.py`
+- `fork/insight/today_candidates.py`
+- `fork/insight/today_context.py`
+- `fork/insight/today_gather.py`
+- `fork/insight/today_prompt.py`
+- `fork/insight/today_store.py`
 - `fork/insight/trends.py`
 - `fork/insight/weights.py`
 - `fork/mcp/__init__.py`

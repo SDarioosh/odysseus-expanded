@@ -168,7 +168,7 @@ TODAY_INSIGHT = _setting(
 SKIP_LISTS = _setting(
     "TODAY_INSIGHT_SKIP_LISTS", "Shopping,Groceries,Grocery", "comma-separated list titles",
     "Lists left out of the insight unless the note has a due date; empty: none.",
-    used_in=("fork/insight/today.py",), empty_is_unset=False, passed=PASS_BARE)
+    used_in=("fork/insight/today_candidates.py",), empty_is_unset=False, passed=PASS_BARE)
 INSIGHT_PUSH = _setting(
     "TODAY_INSIGHT_PUSH", "off", "on/off",
     "Push the daily insight to the phone.", used_in=("fork/insight/push.py",))

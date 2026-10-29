@@ -32,7 +32,7 @@ that are off by default are on for `1`, `true`, `yes` or `on` (any case).
 | `BELIEF_STRUCTURE_BATCH` | - | integer 1-10 | `5` | Beliefs per model call when structuring; clamped to 1-10. | `fork/beliefs/structure.py` |
 | `EVIDENCE_NOTES` | - | on/off | `off` | Read facts from the owner's notes into the belief ledger. | `fork/beliefs/notes_evidence.py` |
 | `TODAY_INSIGHT_ENABLED` | - | on/off | `on` | Write the daily insight. | `fork/insight/today.py` |
-| `TODAY_INSIGHT_SKIP_LISTS` | - | comma-separated list titles | `Shopping,Groceries,Grocery` | Lists left out of the insight unless the note has a due date; empty: none. An empty value is a value of its own. | `fork/insight/today.py` |
+| `TODAY_INSIGHT_SKIP_LISTS` | - | comma-separated list titles | `Shopping,Groceries,Grocery` | Lists left out of the insight unless the note has a due date; empty: none. An empty value is a value of its own. | `fork/insight/today_candidates.py` |
 | `TODAY_INSIGHT_PUSH` | - | on/off | `off` | Push the daily insight to the phone. | `fork/insight/push.py` |
 | `ODYSSEUS_PERSONAL_READ_GRANTS` | - | on/off | `1` | Grant read-only access to the owner's personal stores on every turn. | `fork/routing/personal_read_grants.py` |
 | `ODYSSEUS_PERSONAL_STORE_ESCALATION` | - | on/off | `1` | Run chat-mode lookups in the owner's personal stores in agent mode. | `fork/routing/personal_store_escalation.py` |
