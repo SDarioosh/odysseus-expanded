@@ -148,6 +148,7 @@ is an old path of a module that moved into `fork/`; it only aliases the new modu
 
 - `scripts/belief_eval.py`
 - `scripts/belief_eval_scale.py`
+- `scripts/eval_common.py`
 - `scripts/fixtures/insight_eval_day.json`
 - `scripts/fixtures/t5_weights_day.json`
 - `scripts/fork_deploy.sh`
@@ -283,6 +284,7 @@ is an old path of a module that moved into `fork/`; it only aliases the new modu
 - `tests/fork/test_chat_mode_scope.py`
 - `tests/fork/test_checklist_auto_archive.py`
 - `tests/fork/test_codex_todos_json.py`
+- `tests/fork/test_eval_common.py`
 - `tests/fork/test_eval_goldens.py`
 - `tests/fork/test_evidence_intake.py`
 - `tests/fork/test_fork_atomic_writes.py`
