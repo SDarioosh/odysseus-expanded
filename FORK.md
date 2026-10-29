@@ -151,6 +151,7 @@ the link goes to its details (what it does, its files, whether it can go upstrea
 
 - [Test isolation: a fresh `core.middleware` no longer leaks](docs/fork/features/logs-and-tests.md#test-isolation-a-fresh-coremiddleware-no-longer-leaks): an upstream test no longer leaves a fresh `core.middleware` in `sys.modules`.
 - [No tokens in the logs](docs/fork/features/logs-and-tests.md#no-tokens-in-the-logs): log output writes `access_token` and similar query values as `***`.
+- [Upstream drift report](docs/fork/upstream-sync.md#how-far-behind): CI reports how many commits `barvis` is behind upstream `dev` and which hooked upstream files upstream changed (report only).
 
 ### Deployment
 

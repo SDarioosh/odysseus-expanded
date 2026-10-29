@@ -22,6 +22,10 @@ is an old path of a module that moved into `fork/`; it only aliases the new modu
 
 - `.agents/rules/antigravity.md`
 
+## .github/
+
+- `.github/workflows/fork-upstream-drift.yml`
+
 ## docker/
 
 - `docker/fork.override.yml`
@@ -181,6 +185,7 @@ is an old path of a module that moved into `fork/`; it only aliases the new modu
 - `scripts/module_slash_eval.py`
 - `scripts/modules_setup.py`
 - `scripts/unfile_voice_note_todos.py`
+- `scripts/upstream_drift.py`
 
 ## src/
 
@@ -397,6 +402,7 @@ is an old path of a module that moved into `fork/`; it only aliases the new modu
 - `tests/fork/test_today_insight.py`
 - `tests/fork/test_turn_policy.py`
 - `tests/fork/test_turn_policy_characterization.py`
+- `tests/fork/test_upstream_drift.py`
 - `tests/fork/test_vision_auto_detect.py`
 - `tests/fork/test_voice_enroll_routes.py`
 - `tests/fork/test_web_read_recovery.py`
