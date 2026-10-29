@@ -735,21 +735,9 @@ def build_messages(inputs: dict) -> list[dict]:
 
 def parse_answer(raw: str | None) -> dict | None:
     """The model's JSON object, or None when it isn't one with a headline."""
-    text = raw or ""
-    try:
-        from src.text_helpers import strip_think
+    from fork.common.llm import json_object
 
-        text = strip_think(text, prose=False, prompt_echo=False)
-    except Exception:  # noqa: BLE001
-        text = re.sub(r"<think>.*?</think>", "", text, flags=re.S)
-    text = re.sub(r"^```(?:json)?\s*|\s*```$", "", text.strip(), flags=re.M).strip()
-    start, end = text.find("{"), text.rfind("}")
-    if start == -1 or end <= start:
-        return None
-    try:
-        data = json.loads(text[start:end + 1])
-    except ValueError:
-        return None
+    data = json_object(raw)
     if not isinstance(data, dict) or not str(data.get("headline") or "").strip():
         return None
     return data
@@ -851,44 +839,30 @@ async def default_llm(owner: str | None, *, wait_quiet: bool = True) -> Llm:
     """The background-task model chain. ``wait_quiet=False`` (the page's Refresh, which the
     owner is waiting for) skips the wait for chat to go quiet: the refresh request itself
     counts as interactive activity, so it would wait for itself."""
-    from src.interactive_gate import wait_for_interactive_quiet
-    from src.llm_core import llm_call_async_with_fallback
-    from src.task_endpoint import resolve_task_candidates
+    from fork.common.llm import background_model
 
-    candidates = resolve_task_candidates(owner=owner or None)
-    if not candidates:
-        raise RuntimeError("no model endpoint configured")
-
-    async def call(messages: list[dict]) -> str:
-        if wait_quiet:
-            await wait_for_interactive_quiet("today insight")
-        return await llm_call_async_with_fallback(
-            candidates, messages=messages, temperature=0.2, max_tokens=1200, timeout=180,
-            thinking_mode="off", workload="background" if wait_quiet else "foreground")
-
-    return call
+    return await background_model(owner, "today insight", temperature=0.2, max_tokens=1200,
+                                  timeout=180, wait_quiet=wait_quiet)
 
 
 async def ask_model(llm: Llm, inputs: dict) -> dict | None:
     """The validated answer; one retry on unusable JSON; None when both fail."""
-    messages = build_messages(inputs)
-    for attempt in range(2):
-        raw = await llm(messages)
+    from fork.common.llm import ask_with_retry
+
+    def check(raw):
         answer = parse_answer(raw)
-        if answer is not None:
-            checked = validate(answer, inputs["candidates"], inputs.get("extra"))
-            if any(checked[s] for s in SECTIONS) or not (inputs["candidates"]
-                                                         or inputs.get("extra")):
-                return checked
-            problem, fix = ("named no candidate", "Use the labels from CANDIDATES (T1, E1, …) "
-                            "as refs and reply with the JSON object only.")
-        else:
-            problem, fix = ("was not usable JSON", "That was not valid JSON in the required "
-                            "shape. Reply with the JSON object only.")
-        logger.warning("today insight: model answer %d %s", attempt + 1, problem)
-        messages = [*messages, {"role": "assistant", "content": str(raw or "")[:2000]},
-                    {"role": "user", "content": fix}]
-    return None
+        if answer is None:
+            return None, ("was not usable JSON", "That was not valid JSON in the required "
+                          "shape. Reply with the JSON object only.")
+        checked = validate(answer, inputs["candidates"], inputs.get("extra"))
+        if any(checked[s] for s in SECTIONS) or not (inputs["candidates"]
+                                                     or inputs.get("extra")):
+            return checked, None
+        return None, ("named no candidate", "Use the labels from CANDIDATES (T1, E1, …) "
+                      "as refs and reply with the JSON object only.")
+
+    return await ask_with_retry(llm, build_messages(inputs), check, label="today insight",
+                                log=logger)
 
 
 # ------------------------------------------------------------------------ storage

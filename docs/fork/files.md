@@ -84,6 +84,7 @@ is an old path of a module that moved into `fork/`; it only aliases the new modu
 - `fork/beliefs/search.py`
 - `fork/beliefs/structure.py`
 - `fork/common/__init__.py`
+- `fork/common/llm.py`
 - `fork/common/settings.py`
 - `fork/common/state.py`
 - `fork/hub/__init__.py`
@@ -279,6 +280,7 @@ is an old path of a module that moved into `fork/`; it only aliases the new modu
 - `tests/fork/test_codex_todos_json.py`
 - `tests/fork/test_evidence_intake.py`
 - `tests/fork/test_fork_atomic_writes.py`
+- `tests/fork/test_fork_common_llm.py`
 - `tests/fork/test_fork_common_state.py`
 - `tests/fork/test_fork_deploy.py`
 - `tests/fork/test_fork_inventory.py`

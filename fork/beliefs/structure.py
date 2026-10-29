@@ -268,21 +268,9 @@ def parse_items(raw: str | None, batch: list[dict]) -> dict[int, dict] | None:
     """The model's items by belief id, mapped back from their number ``n`` (1..len(batch))
     and validated (see the module doc); an item that doesn't fit its belief has
     ``rejected: True``. None when the answer isn't a JSON object with an ``items`` list."""
-    text = raw or ""
-    try:
-        from src.text_helpers import strip_think
+    from fork.common.llm import json_object
 
-        text = strip_think(text, prose=False, prompt_echo=False)
-    except Exception:  # noqa: BLE001
-        text = re.sub(r"<think>.*?</think>", "", text, flags=re.DOTALL)
-    text = re.sub(r"^```(?:json)?\s*|\s*```$", "", text.strip(), flags=re.MULTILINE).strip()
-    start, end = text.find("{"), text.rfind("}")
-    if start == -1 or end <= start:
-        return None
-    try:
-        data = json.loads(text[start:end + 1])
-    except ValueError:
-        return None
+    data = json_object(raw)
     if not isinstance(data, dict) or not isinstance(data.get("items"), list):
         return None
     out: dict[int, dict] = {}
@@ -313,37 +301,24 @@ def parse_items(raw: str | None, batch: list[dict]) -> dict[int, dict] | None:
 
 async def ask(llm: Llm, batch: list[dict]) -> dict[int, dict] | None:
     """The batch's items; one retry on unusable JSON; None when both answers fail."""
-    messages = build_messages(batch)
-    for attempt in range(2):
-        raw = await llm(messages)
+    from fork.common.llm import ask_with_retry
+
+    def check(raw):
         items = parse_items(raw, batch)
-        if items is not None:
-            return items
-        logger.warning("belief structure: model answer %d was not usable JSON", attempt + 1)
-        messages = [*messages, {"role": "assistant", "content": str(raw or "")[:2000]},
-                    {"role": "user", "content": RETRY_MESSAGE}]
-    return None
+        return (items, None) if items is not None else (
+            None, ("was not usable JSON", RETRY_MESSAGE))
+
+    return await ask_with_retry(llm, build_messages(batch), check, label="belief structure",
+                                log=logger)
 
 
 async def default_llm(owner: str | None) -> Llm:
     """The background-task model chain; waits for chat to go quiet before each call. The
     answer budget follows the batch size."""
-    from src.interactive_gate import wait_for_interactive_quiet
-    from src.llm_core import llm_call_async_with_fallback
-    from src.task_endpoint import resolve_task_candidates
+    from fork.common.llm import background_model
 
-    candidates = resolve_task_candidates(owner=owner or None)
-    if not candidates:
-        raise RuntimeError("no model endpoint configured")
-    budget = max_tokens(batch_size())
-
-    async def call(messages: list[dict]) -> str:
-        await wait_for_interactive_quiet("belief structure")
-        return await llm_call_async_with_fallback(
-            candidates, messages=messages, temperature=0.1, max_tokens=budget, timeout=180,
-            thinking_mode="off", workload="background")
-
-    return call
+    return await background_model(owner, "belief structure", temperature=0.1,
+                                  max_tokens=max_tokens(batch_size()), timeout=180)
 
 
 # ---------------------------------------------------------------------------- run
