@@ -63,20 +63,22 @@ Gate for everything after it. More sources before this only add noise.
 
 Done when: Athena ≥ 15/20 on the server; the cross-source eval has a recorded baseline.
 
-## Step 2: athena-messages
+## Step 2: text messages in Athena
 
-The owner's text messages (iMessage first) as a new module. Full plan:
-[athena-messages.md](athena-messages.md). In short: the Mac's Messages app, signed into
-the same Apple ID, holds the history; a collector on the Mac sends new messages over
-Tailscale to the module on the server, which groups them into threads, summarizes them
-with the local model, and serves read-only MCP tools. Its facts and promises join the
-belief ledger as a second source.
+**Built** (2026-10-30, Athena MCP 0.21.0). The owner's iMessages go into Athena itself,
+not a separate module: an always-on 2012 MacBook Pro signed into the owner's Apple ID runs
+Athena's messages relay, which reads the Messages app's database read-only and uploads to
+Athena. Each thread of a chat is an Athena conversation, so search, facts, people, the
+belief ledger and the Today insight cover texts with no hub change. Design:
+[Athena docs/messages.md](https://github.com/SDarioosh/Athena/blob/main/docs/messages.md);
+hub notes: [modules/athena.md](modules/athena.md#text-messages).
 
-Done when: its eval passes on the server (≥ 8/10) and the facts source is on.
+Done when: the owner's MacBook runs it, and a few text questions pass through Odysseus on
+the server.
 
 ## Step 3: people pages and briefings
 
-The hub already has subjects (one per person, linked to a contact) with the beliefs about
+Full plan: [people-context.md](people-context.md). The hub already has subjects (one per person, linked to a contact) with the beliefs about
 them ([beliefs.md](beliefs.md#subjects-and-contacts-21)). Build on that:
 
 - **A page per person** in the hub: who they are (confirmed beliefs), the last few times
@@ -114,7 +116,7 @@ check that it can run without the cloud.
 | Photos | [Immich](https://immich.app) with its local models (faces, search) | "Photos from the dinner with Mia" |
 | Browser history | The Mac browsers' own SQLite history, read like `chat.db` | "That article I read about BLE last week" |
 | Health and sleep | [Gadgetbridge](https://gadgetbridge.org) for the Amazfit watch (no Zepp cloud) | "How did I sleep before the trip?" (check T-Rex 3 Pro support first) |
-| WhatsApp, Signal | Later sources of `athena-messages` | Same as iMessage |
+| WhatsApp, Signal | Later sources of Athena's messages (the upload already takes `source`) | Same as iMessage |
 
 ## Later: in the moment
 

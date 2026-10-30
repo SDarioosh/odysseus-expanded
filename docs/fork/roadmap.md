@@ -107,7 +107,8 @@ The phased plan for taking in the owner's data, confirming beliefs and using the
 
 What to build next to match the commercial personal-context assistants (shared search,
 text messages, people pages and briefings, screen, more sources), in order:
-[context-growth.md](context-growth.md).
+[context-growth.md](context-growth.md). Text messages are built in Athena (2026-10-30);
+the cross-medium view of each contact is planned in [people-context.md](people-context.md).
 
 Proposed (not decided): move the belief ledger and the Today insight into their own module, `odysseus-context`, so upstream syncs can't break them and a future front end only needs new pages: [context-module.md](context-module.md).
 
@@ -120,8 +121,6 @@ No repos exist yet. Each would follow [modules.md](modules.md). The order of wor
   on the owner's Mac, behind our own MCP server; wanted by the owner, after personal
   context Phase 1. Design and privacy rules:
   [personal-context-prior-art.md](personal-context-prior-art.md#future-module-athena-screen-screenpipe).
-- `athena-messages`: the owner's text messages (iMessage first), read from the Mac's
-  Messages app; plan: [athena-messages.md](athena-messages.md).
 - `athena-<name>`: _to be decided by the owner._
 
 ## Open questions for the owner
