@@ -39,7 +39,7 @@ that date. Check them again before adopting anything: these projects change quic
 | [Letta](https://github.com/letta-ai/letta) (formerly MemGPT) | Apache-2.0 | A whole agent runtime whose agents edit their own memory | Nothing: Odysseus is already the runtime | **Skip** |
 | [LongMemEval](https://github.com/xiaowu0162/LongMemEval) | not stated in the README; check before copying data | The standard long-term memory benchmark: 500 questions over long chat histories | 1.6 and 2.5 eval design | **Borrow the question categories** |
 | [Khoj](https://github.com/khoj-ai/khoj) | AGPL-3.0 | Personal AI over your notes and documents, local models | Reference for 1.2 (notes and documents as sources) | **Reference only** |
-| [Screenpipe](https://github.com/screenpipe/screenpipe) | Screenpipe Commercial License (source-available; free for personal use) | Records screen (accessibility tree, OCR fallback) and audio, local Whisper, SQLite + FTS5, REST API on `localhost:3030`, own MCP server | A future module, `odysseus-screen` | **Planned module (owner wants it)**; see [below](#future-module-odysseus-screen-screenpipe) |
+| [Screenpipe](https://github.com/screenpipe/screenpipe) | Screenpipe Commercial License (source-available; free for personal use) | Records screen (accessibility tree, OCR fallback) and audio, local Whisper, SQLite + FTS5, REST API on `localhost:3030`, own MCP server | A future module, `athena-screen` | **Planned module (owner wants it)**; see [below](#future-module-athena-screen-screenpipe) |
 
 Honcho (Plastic Labs) is in the Hermes memory catalog our module docs mention, but wasn't
 checked for this file. Look at it before Phase 3 (it models the user from conversation).
@@ -174,9 +174,9 @@ start of Phase 2, run one spike before writing the structured store:
   upstream code changes beyond a listed hook. If it fails, we build 2.2 and 2.3 ourselves
   with the designs above.
 
-## Future module: odysseus-screen (Screenpipe)
+## Future module: athena-screen (Screenpipe)
 
-The owner wants this. It is a new module in its own repo (`odysseus-screen`), built per
+The owner wants this. It is a new module in its own repo (`athena-screen`), built per
 [modules.md](modules.md) ("Checklist: adding a new module"). It comes after Phase 1, so
 its evidence lands on the review page instead of straight in memory.
 

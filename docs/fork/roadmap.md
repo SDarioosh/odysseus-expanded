@@ -105,17 +105,23 @@ branches) are kept in [status-history.md](status-history.md).
 
 The phased plan for taking in the owner's data, confirming beliefs and using them (Today insight first) is in [personal-context.md](personal-context.md).
 
+What to build next to match the commercial personal-context assistants (shared search,
+text messages, people pages and briefings, screen, more sources), in order:
+[context-growth.md](context-growth.md). Text messages are built in Athena (2026-10-30);
+the cross-medium view of each contact is planned in [people-context.md](people-context.md).
+
 Proposed (not decided): move the belief ledger and the Today insight into their own module, `odysseus-context`, so upstream syncs can't break them and a future front end only needs new pages: [context-module.md](context-module.md).
 
 ## Future modules (placeholders)
 
-No repos exist yet. Each would follow [modules.md](modules.md).
+No repos exist yet. Each would follow [modules.md](modules.md). The order of work is in
+[context-growth.md](context-growth.md).
 
-- `odysseus-screen`: screen history from [Screenpipe](https://github.com/screenpipe/screenpipe)
+- `athena-screen`: screen history from [Screenpipe](https://github.com/screenpipe/screenpipe)
   on the owner's Mac, behind our own MCP server; wanted by the owner, after personal
   context Phase 1. Design and privacy rules:
-  [personal-context-prior-art.md](personal-context-prior-art.md#future-module-odysseus-screen-screenpipe).
-- `odysseus-<name>`: _to be decided by the owner._
+  [personal-context-prior-art.md](personal-context-prior-art.md#future-module-athena-screen-screenpipe).
+- `athena-<name>`: _to be decided by the owner._
 
 ## Open questions for the owner
 

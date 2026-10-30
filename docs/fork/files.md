@@ -35,6 +35,7 @@ is an old path of a module that moved into `fork/`; it only aliases the new modu
 - `docs/fork/architecture.md`
 - `docs/fork/beliefs.md`
 - `docs/fork/cleanup-plan.md`
+- `docs/fork/context-growth.md`
 - `docs/fork/context-module.md`
 - `docs/fork/deploy.md`
 - `docs/fork/features/chat-ui.md`
@@ -51,6 +52,7 @@ is an old path of a module that moved into `fork/`; it only aliases the new modu
 - `docs/fork/modules.md`
 - `docs/fork/modules/athena.md`
 - `docs/fork/modules/odysseus-sound.md`
+- `docs/fork/people-context.md`
 - `docs/fork/personal-context-prior-art.md`
 - `docs/fork/personal-context.md`
 - `docs/fork/qc-ink-h2-2026-10-26.md`
