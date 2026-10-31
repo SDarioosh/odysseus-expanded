@@ -3,8 +3,10 @@
 The set is decided here, never re-picked per message: the groups named by
 ``FORK_BRAIN_TOOL_GROUPS``, in :data:`GROUPS` order, each tool in its listed order. The
 schemas come from upstream's ``src/tool_schemas.py`` (``FUNCTION_TOOL_SCHEMAS``), from the
-MCP manager for Athena's tools (server ``convo``, or ``athena``: ``fork/athena/client.py``)
-and from :data:`SEARCH_BELIEFS_SCHEMA` for the fork's own ``search_beliefs``.
+MCP manager for Athena's tools (server ``convo``, or ``athena``: ``fork/athena/client.py``),
+from :data:`SEARCH_BELIEFS_SCHEMA` for the fork's own ``search_beliefs`` and from
+``fork/brain/documents.py`` for the documents group (the fork's ``search_documents``, and
+upstream's two document tools with shorter descriptions).
 
 The first resolved set of a chat is kept for that chat (:func:`for_chat`), so every
 message of a chat is offered the same tools in the same order; a slash skill
@@ -27,6 +29,9 @@ import threading
 from collections import OrderedDict
 from typing import Any
 
+from fork.brain.documents import SEARCH_DOCUMENTS
+from fork.brain.documents import TOOLS as DOCUMENT_TOOLS
+
 logger = logging.getLogger(__name__)
 
 SEARCH_BELIEFS = "search_beliefs"
@@ -42,6 +47,7 @@ GROUPS: dict[str, tuple[str, ...]] = {
     # reminders and checklists are notes (manage_notes).
     "workspace": ("manage_calendar", "manage_notes", "resolve_contact", "manage_contact",
                   "manage_memory"),
+    "documents": DOCUMENT_TOOLS,
     "beliefs": (SEARCH_BELIEFS,),
     "chats": ("search_chats",),
     "email": ("list_email_accounts", "list_emails", "search_emails", "read_email",
@@ -55,10 +61,14 @@ ATHENA_GROUP = "athena"
 READ_TOOLS = frozenset({
     "web_search", "web_fetch", "get_weather", "resolve_contact", "search_chats",
     "list_email_accounts", "list_emails", "search_emails", "read_email", SEARCH_BELIEFS,
+    SEARCH_DOCUMENTS,
 })
 ACTION_TOOLS = frozenset({
     "manage_calendar", "manage_tasks", "manage_notes", "manage_contact", "manage_memory",
+    "manage_documents",
 })
+# The fork's own tools: run in fork code (fork/brain/tools.py), not upstream's runner.
+FORK_TOOLS = frozenset({SEARCH_BELIEFS, SEARCH_DOCUMENTS})
 
 NEVER = frozenset({
     "bash", "host_shell", "python", "read_file", "write_file", "edit_file", "apply_patch",
@@ -139,6 +149,16 @@ def _builtin_schemas() -> dict[str, dict]:
     return {s["function"]["name"]: s for s in FUNCTION_TOOL_SCHEMAS}
 
 
+def _schema(name: str, builtin: dict[str, dict]) -> dict | None:
+    """The schema offered for a built-in or fork tool of a group."""
+    if name == SEARCH_BELIEFS:
+        return SEARCH_BELIEFS_SCHEMA
+    if name in DOCUMENT_TOOLS:
+        from fork.brain.documents import schema
+        return schema(name, builtin)
+    return builtin.get(name)
+
+
 def resolve(*, owner: Any, disabled: set[str] | frozenset[str] = frozenset(),
             groups: tuple[str, ...] | None = None, manager: Any = None) -> tuple[dict, ...]:
     """The tool schemas for ``owner``, in the fixed order (see the module doc)."""
@@ -168,10 +188,9 @@ def resolve(*, owner: Any, disabled: set[str] | frozenset[str] = frozenset(),
         for name in GROUPS[group]:
             if name in NEVER or name in blocked:
                 continue
-            if name == SEARCH_BELIEFS:
-                out.append(SEARCH_BELIEFS_SCHEMA)
-            elif name in builtin:
-                out.append(builtin[name])
+            schema = _schema(name, builtin)
+            if schema is not None:
+                out.append(schema)
     return tuple(out)
 
 

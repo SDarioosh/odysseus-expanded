@@ -188,9 +188,8 @@ async def test_the_hook_takes_only_its_own_approvals(monkeypatch):
 
 @pytest.mark.parametrize("form", [{"active_doc_id": "doc-1"},
                                   {"selected_note_ids": '["note-1"]'},
-                                  {"active_email_uid": "42"},
-                                  {"use_rag": "true"}])
-async def test_turns_with_open_documents_notes_email_or_rag_stay_upstreams(monkeypatch, spy, form):
+                                  {"active_email_uid": "42"}])
+async def test_turns_with_open_documents_notes_or_email_stay_upstreams(monkeypatch, spy, form):
     monkeypatch.setenv("FORK_BRAIN", "on")
     monkeypatch.setattr(brain_turn, "_start_turn", lambda *a, **k: (_ for _ in ()).throw(
         AssertionError("brain took an upstream turn")))
@@ -214,6 +213,29 @@ async def test_turns_with_open_documents_notes_email_or_rag_stay_upstreams(monke
     except Exception:  # noqa: BLE001
         pass
     assert spy and spy[0][1] is None and spy[0][0]["upstream_turn"] is True
+
+
+@pytest.mark.parametrize("use_rag", ["true", "false"])
+async def test_the_documents_toggle_reaches_the_brain(monkeypatch, spy, use_rag):
+    """With search_documents in the brain's set, document RAG asked for is no reason to
+    hand the turn to upstream; the toggle goes to the brain (off: no library search)."""
+    monkeypatch.setenv("FORK_BRAIN", "on")
+    started = {}
+
+    def fake_start(request, **kw):
+        started.update(kw)
+        return "turn"
+
+    async def fake_run(turn):
+        yield "data: [DONE]\n\n"
+
+    monkeypatch.setattr(brain_turn, "_start_turn", fake_start)
+    monkeypatch.setattr(brain_turn, "_run_new_turn", fake_run)
+    endpoint = _chat_stream_endpoint(monkeypatch, "chat", {})
+    await _body(await endpoint(_Request("chat", use_rag=use_rag)))
+    kwargs, result = spy[0]
+    assert result is not None and kwargs["upstream_turn"] is False
+    assert started["use_rag"] == use_rag
 
 
 async def test_the_hook_passes_memory_consent_and_the_outside_content_flag(monkeypatch, spy):

@@ -111,7 +111,7 @@ def test_upstream_search_pipeline_keeps_the_fake_results(searx, monkeypatch, tmp
 def test_question_and_seed_files_are_valid():
     questions, seed = be.load_questions(), be.load_seed()
     assert be.validate(questions, seed, set(fake.Web.load().pages)) == []
-    assert 20 <= len(questions) <= 25
+    assert 20 <= len(questions) <= 30
     assert {q["kind"] for q in questions} == set(be.KINDS)
 
 
@@ -179,6 +179,21 @@ def test_privacy_fails_on_a_private_term_in_any_query():
     assert be.leaked_terms(["orlando weather"], ["Orla"]) == []
 
 
+def test_documents_need_the_source_the_tool_and_the_editor():
+    read = {"id": "d", "kind": "documents", "expect": [["garlic"]], "source": ["Allotment plan"]}
+    assert be.score(read, "Garlic (from Allotment plan 2026).", ["manage_documents"], [], [])["pass"]
+    assert be.score(read, "Garlic.", [], [], [])["failed"] == ["source"]
+    create = {"id": "d", "kind": "documents", "tool": ["create_document"], "editor": True}
+    assert be.score(create, "Done.", ["create_document"], [], [], editor=True)["pass"]
+    assert be.score(create, "Done.", ["create_document"], [], [])["failed"] == ["no_editor"]
+    assert be.score(create, "Here it is: ...", [], [], [], editor=False)["failed"] == [
+        "no_tool", "no_editor"]
+    private = {"id": "d", "kind": "documents", "search": True}
+    assert be.score(private, "ok", [], [], ["Plot 17B"])["failed"] == ["no_search"]
+    leak = be.score(private, "ok", ["web_search"], ["slugs Plot 17B"], ["Plot 17B"])
+    assert leak["failed"] == ["private_term_in_query"]
+
+
 def test_first_text_like_chat_js():
     ft = be.FirstText(start=0.0)
     for now, ev in [(0.5, {"type": "turn_mode"}), (1.0, {"delta": "hm", "thinking": True}),
@@ -215,12 +230,17 @@ def test_seed_is_owner_scoped_and_idempotent():
         again = be.seed(client, seed, TODAY)
         assert again["events_kept"] == 3 and again["contacts_kept"] == 2
         assert again["notes_kept"] == 1 and again["events_created"] == 0
+        assert (first["documents_created"], again["documents_kept"]) == (1, 1)
+        assert first["library_unavailable"] == 2  # the throwaway hub has no library
         with client.session_factory() as db:
             events = db.query(cdb.CalendarEvent).all()
             owners = {e.calendar.owner for e in events}
             starts = sorted(e.dtstart.isoformat() for e in events)
             notes = db.query(cdb.Note).all()
         assert owners == {be.EVAL_OWNER} and {n.owner for n in notes} == {be.EVAL_OWNER}
+        with client.session_factory() as db:
+            docs = [(d.title, d.owner) for d in db.query(cdb.Document).all()]
+        assert docs == [("Allotment plan 2026", be.EVAL_OWNER)]
         assert starts[0] == "2026-11-01T15:00:00"
         contacts = client.get("/api/contacts/list").json()["contacts"]
         assert sorted(c["name"] for c in contacts) == ["Orla Penhallow", "Tobiah Quenby"]
