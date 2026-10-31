@@ -65,7 +65,7 @@ async def _body(response) -> str:
 
 @pytest.mark.parametrize("mode", ["chat", "agent"])
 async def test_off_the_hook_is_inert(monkeypatch, spy, no_brain_turns, mode):
-    monkeypatch.delenv("FORK_BRAIN", raising=False)
+    monkeypatch.setenv("FORK_BRAIN", "off")
     captured = {}
     endpoint = _chat_stream_endpoint(monkeypatch, mode, captured)
     response = await endpoint(_Request(mode))
@@ -77,11 +77,22 @@ async def test_off_the_hook_is_inert(monkeypatch, spy, no_brain_turns, mode):
     assert [result for _, result in spy] == [None]
 
 
-@pytest.mark.parametrize("value", ["", "off", "0", "false", "no"])
+@pytest.mark.parametrize("value", ["off", "0", "false", "no", "OFF"])
 async def test_off_values_never_reach_the_brain(monkeypatch, no_brain_turns, value):
     monkeypatch.setenv("FORK_BRAIN", value)
     assert await brain_turn.brain_response(object(), sess=None, session_id="s", message="hi",
                                            owner="alice") is None
+
+
+@pytest.mark.parametrize("value", [None, "", "on", "yes"])
+def test_the_brain_is_on_unless_switched_off(monkeypatch, value):
+    from fork.brain import settings as brain_settings
+
+    if value is None:
+        monkeypatch.delenv("FORK_BRAIN", raising=False)
+    else:
+        monkeypatch.setenv("FORK_BRAIN", value)
+    assert brain_settings.enabled() is True
 
 
 async def test_on_a_normal_turn_gets_the_brains_stream(monkeypatch, spy):

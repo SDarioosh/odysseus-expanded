@@ -121,7 +121,7 @@ async def test_the_hook_sweeps_in_a_worker_thread_even_with_the_brain_off(data_d
 
     from fork.brain import turn as brain_turn
 
-    monkeypatch.delenv("FORK_BRAIN", raising=False)
+    monkeypatch.setenv("FORK_BRAIN", "off")
     monkeypatch.setattr(history, "_last_sweep", None)
     history.save_turn("chat-gone", "m2", [{"role": "tool", "content": "a"}])
     threads = []

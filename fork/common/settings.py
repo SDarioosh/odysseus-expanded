@@ -192,8 +192,9 @@ CHECKLIST_ARCHIVE_MINUTES = _setting(
     used_in=("fork/hub/checklist_auto_archive.py",))
 # The brain (docs/fork/brain.md)
 BRAIN = _setting(
-    "FORK_BRAIN", "off", "on/off",
-    "The brain, the fork's own agent loop, answers every chat turn of every chat.",
+    "FORK_BRAIN", "on", "on/off",
+    "The brain, the fork's own agent loop, answers every chat turn of every chat; off "
+    "(0, false, no, off) gives the turns back to upstream's agent.",
     used_in=("fork/brain/settings.py",))
 BRAIN_MAX_ROUNDS = _setting(
     "FORK_BRAIN_MAX_ROUNDS", "8", "integer 1-20",
@@ -336,7 +337,7 @@ def trusted_readonly_mcp() -> frozenset[str]:
 
 
 def brain() -> bool:
-    return flag(BRAIN.value(), False)
+    return flag(BRAIN.value(), True)
 
 
 def brain_max_rounds() -> int:

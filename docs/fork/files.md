@@ -17,6 +17,7 @@ is an old path of a module that moved into `fork/`; it only aliases the new modu
 - `AGENTS.md`
 - `CLAUDE.md`
 - `FORK.md`
+- `conftest.py`
 
 ## .agents/
 

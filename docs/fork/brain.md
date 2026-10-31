@@ -6,7 +6,7 @@ Status: design only (2026-10-31). No code yet. Owner decisions so far are under
 ## Summary
 
 Odysseus chat gets a new agent loop of the fork's own, `fork/brain/`, that answers every
-chat turn when the `FORK_BRAIN` setting is on. It is a general personal assistant:
+chat turn unless the `FORK_BRAIN` setting is off. It is a general personal assistant:
 everyday questions, web search, and the owner's own data (Athena, calendar, tasks, notes,
 contacts, memory, beliefs). It is not for coding; the owner keeps Hermes Agent for that.
 
@@ -264,12 +264,15 @@ Fork settings are environment variables in the table of `fork/common/settings.py
 
 | Variable | Unset means | Meaning |
 |---|---|---|
-| `FORK_BRAIN` | `off` | The brain answers every chat turn of every chat (one global switch, no per-chat choice) |
+| `FORK_BRAIN` | `on` | The brain answers every chat turn of every chat (one global switch, no per-chat choice); `off` gives the turns back to upstream's agent |
 | `FORK_BRAIN_MAX_ROUNDS` | `8` | Tool rounds per turn |
 | `FORK_BRAIN_TOOL_GROUPS` | `web,athena,workspace,beliefs,chats,email` | Groups in the tool set |
 
-Merging the brain changes nothing at runtime until the owner turns `FORK_BRAIN` on, on
-the test instance first.
+The brain is the default (owner's decision, 2026-10-31): an instance answers with it unless
+its environment sets `FORK_BRAIN=off`, which gives every turn back to upstream's agent
+unchanged. The test suite runs with `FORK_BRAIN=off` by default (the root `conftest.py`),
+because upstream's tests and the fork's characterization tests check upstream's chat path;
+the brain's own tests switch it on.
 
 ### Background jobs
 
@@ -364,7 +367,7 @@ and widens `upstream_turn`; `fork/upstream.py` gains `configured_endpoint_kind` 
 
 Qwen3-4B on 4 CPUs, `seed_demo.py`, one config at a time, llama-server and Odysseus
 restarted cold for each, `ODYSSEUS_FIRST_TOKEN_TIMEOUT=0` for all. Small-model numbers
-compare only with other sandbox runs. A = this fork without the brain (`FORK_BRAIN` unset),
+compare only with other sandbox runs. A = this fork without the brain (`FORK_BRAIN` off),
 B = the brain, R = the bakeoff's raw loop. Hermes couldn't be installed in the sandbox; it
 is in the Server verification instead.
 
@@ -469,7 +472,8 @@ owner turns the setting on.
    handling.
 4. **Web and privacy.** Query guard, sources, fallback check; the general eval's web and
    mixed questions. This PR carries the Server verification section.
-5. **After the owner has used it for a while:** default on, remove the patches listed under
+5. **After the owner has used it for a while:** (the default is already on, by the owner's
+   decision) remove the patches listed under
    [Upstream impact](#upstream-impact), then decide about scheduled tasks.
 
 Each PR runs the focused tests from AGENTS.md, the new `tests/fork/test_brain_*.py`,
@@ -498,7 +502,7 @@ Targets only the isolated test instance on `127.0.0.1:7010`. It never touches pr
 (Docker, port 7000).
 
 1. Restart the test instance on the PR's branch with
-   `~/.hermes/cache/scratch/barvis-run.sh`, with `FORK_BRAIN=on`.
+   `~/.hermes/cache/scratch/barvis-run.sh` (the brain is on by default).
 2. Run the Athena bakeoff against it (`--frontend odysseus`, all 20 questions) and paste the
    score and the first-text and total times. Expected: ≥ 15/20, and first text well under
    the current fork's.
@@ -510,7 +514,7 @@ Targets only the isolated test instance on `127.0.0.1:7010`. It never touches pr
 4. In chat on the phone: a general question, a web question, a personal question, a mixed
    one, a follow-up, and one write (add a task) with its approval. Check that the answer
    starts appearing at once and that the web answer links its sources.
-5. Restart without `FORK_BRAIN` and check chat works as before.
+5. Restart with `FORK_BRAIN=off` and check chat works as before (upstream's agent).
 
 Deploy is left to the owner: `scripts/fork_deploy.sh deploy`, after the PR is merged and
 verified on the test instance.
@@ -536,9 +540,10 @@ verified on the test instance.
 - **2026-10-31:** the [SQLite memory plan](memory-sqlite.md) is on hold; Athena's facts reach
   chat through the belief ledger instead.
 - **2026-10-31:** email reading is in the default tool set; sending and drafting ask.
-- **2026-10-31:** one global `FORK_BRAIN` switch, no per-chat choice. It stays off by
-  default in code until the owner has verified the brain on the test instance (phase 5
-  flips it).
+- **2026-10-31:** one global `FORK_BRAIN` switch, no per-chat choice.
+- **2026-10-31:** the brain is the default (`FORK_BRAIN` on unless set to off), ahead of
+  phase 5; the patches listed under [Upstream impact](#upstream-impact) stay until the owner
+  has used it for a while.
 - **2026-10-31:** deep research only through `/research`.
 - **2026-10-31:** a pending approval waits 10 minutes.
 
