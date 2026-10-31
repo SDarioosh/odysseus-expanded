@@ -309,6 +309,9 @@ Two evals, both run in the sandbox ([sandbox.md](sandbox.md)) with fictional dat
    - mixed: personal data plus web ("is it going to rain during my 3 pm meeting?");
    - follow-ups in the same chat ("and the second result?").
 
+   Upstream's `web_fetch` refuses loopback addresses (`src/outbound_fetch.py`), so the
+   saved pages' key facts are also in the search snippets.
+
    Web results are recorded: a small fake SearXNG (`scripts/brain_fake_searxng.py`,
    pointed to by `SEARXNG_INSTANCE`) serves saved results whose links point at saved pages
    on the same local server, so every run sees the same web and scores compare. No live web
@@ -365,7 +368,11 @@ Targets only the isolated test instance on `127.0.0.1:7010`. It never touches pr
 2. Run the Athena bakeoff against it (`--frontend odysseus`, all 20 questions) and paste the
    score and the first-text and total times. Expected: ≥ 15/20, and first text well under
    the current fork's.
-3. Run `scripts/brain_eval.py` against it with live SearXNG, and paste the table.
+3. Run `scripts/brain_eval.py --seed` against it with the fake SearXNG
+   (`scripts/brain_fake_searxng.py`, the test instance started with
+   `SEARXNG_INSTANCE` pointing at it): its web facts are fictional and its privacy check
+   reads the fake's query log, so it can't run against the live web. Paste the table. Then
+   ask two or three real web questions in chat against live SearXNG and check the sources.
 4. In chat on the phone: a general question, a web question, a personal question, a mixed
    one, a follow-up, and one write (add a task) with its approval. Check that the answer
    starts appearing at once and that the web answer links its sources.

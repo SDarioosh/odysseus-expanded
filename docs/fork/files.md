@@ -181,6 +181,8 @@ is an old path of a module that moved into `fork/`; it only aliases the new modu
 - `scripts/athena_names_migrate.py`
 - `scripts/belief_eval.py`
 - `scripts/belief_eval_scale.py`
+- `scripts/brain_eval.py`
+- `scripts/brain_fake_searxng.py`
 - `scripts/eval_common.py`
 - `scripts/fixtures/insight_eval_day.json`
 - `scripts/fixtures/t5_weights_day.json`
@@ -286,6 +288,16 @@ is an old path of a module that moved into `fork/`; it only aliases the new modu
 - `tests/fixtures/athena_contract/list_facts_confirmed.json`
 - `tests/fixtures/athena_contract/list_people.json`
 - `tests/fixtures/athena_contract/list_people_after_merge.json`
+- `tests/fixtures/brain_eval/pages/lanternfall-festival.html`
+- `tests/fixtures/brain_eval/pages/marrowbys-bicycle-workshop.html`
+- `tests/fixtures/brain_eval/pages/no-results.html`
+- `tests/fixtures/brain_eval/pages/quillfeather-7-3.html`
+- `tests/fixtures/brain_eval/pages/spokewright-cycles.html`
+- `tests/fixtures/brain_eval/pages/tamsk-ferry.html`
+- `tests/fixtures/brain_eval/pages/velmora-weather.html`
+- `tests/fixtures/brain_eval/questions.json`
+- `tests/fixtures/brain_eval/results.json`
+- `tests/fixtures/brain_eval/seed.json`
 - `tests/fixtures/eval_goldens/belief_eval.help.txt`
 - `tests/fixtures/eval_goldens/belief_eval.txt`
 - `tests/fixtures/eval_goldens/belief_eval_scale.help.txt`
@@ -330,6 +342,7 @@ is an old path of a module that moved into `fork/`; it only aliases the new modu
 - `tests/fork/test_belief_search.py`
 - `tests/fork/test_belief_structure.py`
 - `tests/fork/test_beliefs_routes.py`
+- `tests/fork/test_brain_eval_harness.py`
 - `tests/fork/test_brain_query_guard.py`
 - `tests/fork/test_builtin_task_authority.py`
 - `tests/fork/test_calendar_reminder_wall_time.py`
