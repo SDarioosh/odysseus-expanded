@@ -153,6 +153,7 @@ the link goes to its details (what it does, its files, whether it can go upstrea
 
 - [The brain](docs/fork/brain.md): by default (`FORK_BRAIN=off` turns it off), a small fork-owned agent loop answers chat turns as a general assistant: a stable prompt, a fixed tool set (web, Athena, calendar, notes, contacts, memory, documents, beliefs, chats, email), answers streamed as written, tool calls through upstream's runner and approvals, follow-ups that keep tool results (`data/brain.db`). On by default.
 - [Documents in the brain](docs/fork/brain.md#documents-2026-10-31): the brain finds and reads the owner's stored editor documents, creates new ones in the editor (after approval) and searches their personal document library (`search_documents`, owner-scoped, untrusted, only where upstream lets the user read documents).
+- [Invented actions](docs/fork/brain.md#invented-actions-2026-10-31): when a brain answer claims a change ("I've added it to your calendar", "Done.") that no successful write of the turn made, one short note follows the streamed answer and is saved with it (`fork/brain/claims.py`; no buffering, no model call).
 - [Web query guard](docs/fork/brain.md#web-search): the brain's web searches leave out the owner's contact names, upcoming event titles, emails, phone numbers and street addresses.
 - [General eval](docs/fork/brain.md#evaluation): `scripts/brain_eval.py` with a fake SearXNG of fictional pages (`scripts/brain_fake_searxng.py`): knowledge, web, mixed, follow-up, privacy and documents questions, with time to first text.
 
