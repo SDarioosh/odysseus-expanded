@@ -13,7 +13,7 @@ this repository. Read this file completely before changing anything.
 - Odysseus is the **hub** of a personal, fully local AI system: the one chat and agent
   interface the owner uses from an Android phone and a Mac over Tailscale. The fork
   keeps the Odysseus name and adds capabilities through modules.
-- **Modules** are separate programs in separate repos (`odysseus-<name>`, or a name of
+- **Modules** are separate programs in separate repos (`athena-<name>`, or a name of
   their own: the first one's repo is `SDarioosh/Athena`, formerly `barvis-sound`). Each
   owns its data and exposes it through its own MCP server. Odysseus is only a client of
   them.

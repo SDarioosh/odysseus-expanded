@@ -11,8 +11,8 @@ Registered modules:
 
 ## Repo and ownership
 
-- One module = one repo, named `odysseus-<name>` or a name of its own (the first,
-  Athena, is `SDarioosh/Athena`, formerly `barvis-sound`; GitHub redirects the old URL).
+- One module = one repo, named `athena-<name>` (e.g. `athena-screen`) or a name of its
+  own (the first, Athena, is `SDarioosh/Athena`, formerly `barvis-sound`; GitHub redirects the old URL).
 - The module is a separate program. It owns its storage (database, files, models) and is
   the only thing that writes to it.
 - Odysseus never reads or writes the module's storage directly. It uses the module's MCP
@@ -259,7 +259,7 @@ like tools: adding one is non-breaking, renaming or removing one is breaking.
 
 ## Checklist: adding a new module
 
-- [ ] Repo `odysseus-<name>` with `AGENTS.md` ("This is an Odysseus module" section linking
+- [ ] Repo `athena-<name>` with `AGENTS.md` ("This is an Odysseus module" section linking
       here), `CLAUDE.md` (`@AGENTS.md`), `README.md`, `PROGRESS.md`.
 - [ ] Owns its storage; nothing else writes to it.
 - [ ] Local-only data path; no cloud APIs, no telemetry.

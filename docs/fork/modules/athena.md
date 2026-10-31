@@ -96,6 +96,7 @@ Source: `server/athena/mcp_server.py` (`build_mcp`).
     a relay route and not a tool.
   - For "who was in the X meeting", call `search_conversations` with the topic words and
     answer from its participants.
+- Text messages (MCP 0.21.0, additive): see [Text messages](#text-messages).
 - `list_unnamed_speakers` lists voices nobody has named yet ("Speaker N") with a few
   quotes, links and the closest known voice; for "who is this?" questions and cards.
 - Dates are `YYYY-MM-DD` in `CONVO_TIMEZONE`.
@@ -949,6 +950,29 @@ is a candidate (`loop:<id>`); an older module without `with` gives no loops. Det
 link, and 2 replies that were just "Done." because the model returned empty text after
 its tool calls. Full analysis: Athena
 [docs/frontend-decision.md](https://github.com/SDarioosh/Athena/blob/main/docs/frontend-decision.md).
+
+## Text messages
+
+The owner's iMessages are in Athena (MCP 0.21.0): a relay on the owner's always-on Mac
+uploads them to Athena (`POST /v1/ingest/messages`, or the relay route `POST
+/ingest/messages` with the MCP token), and each thread of a chat is a conversation.
+Design and setup: [Athena docs/messages.md](https://github.com/SDarioosh/Athena/blob/main/docs/messages.md).
+What the hub sees:
+
+- Results mark a thread `(Text messages with <name>)` or `(Group text: <name>)`; a thread
+  without a summary is titled `Texts with <name>`. `search_conversations(kind="text")`
+  lists only threads, `in_person` leaves them out. `get_transcript` lines of a thread show
+  when each message was sent.
+- JSON fact and action-item rows from texts have `source: "text"` (treat unknown values as
+  null, as before). The Module Facts job files them like any other fact: they count toward
+  confirmation like recordings.
+- `list_people(format="json")` rows have `handles` (`[{source, handle}]`), the phone
+  numbers and emails a person texts from. The people plan uses them to link subjects to
+  contacts ([people-context.md](../people-context.md#identity-which-subject-is-which-contact));
+  today's `sync_people` ignores the field.
+- The REST conversation rows have `thread: {source, chat, name, group, people}` or null.
+- Nothing in the hub has to change. The module's instructions tell the model how to find
+  texts; a preset that lists Athena's kinds can add `text`.
 
 ## Known gaps
 
