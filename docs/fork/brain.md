@@ -117,6 +117,7 @@ New files, all in a new fork area `fork/brain/` (added to FORK.md's list of area
 | `fork/brain/prompt.py` | The stable system prompt and the end-of-prompt context message |
 | `fork/brain/toolset.py` | The fixed tool set (names, groups, read-only or write) |
 | `fork/brain/tools.py` | Runs a tool call through upstream's tool runner with a request authority |
+| `fork/brain/documents.py` | The documents group: `search_documents`, `create_document`'s line format and editor events (added 2026-10-31, [Documents](#documents-2026-10-31)) |
 | `fork/brain/history.py` | Stores each turn's tool calls and results so follow-ups can see them |
 | `fork/brain/query_guard.py` | Removes private details from outgoing web search queries |
 | `fork/brain/settings.py` | Reads `FORK_BRAIN`, `FORK_BRAIN_MAX_ROUNDS`, `FORK_BRAIN_TOOL_GROUPS` (rows in `fork/common/settings.py`) |
@@ -153,6 +154,7 @@ about 20 tools and ≤ 6k tokens of schemas (measured in the first PR).
 | Athena | `search_conversations`, `search_transcripts`, `get_conversation`, `get_transcript`, `list_action_items`, `list_facts`, `get_daily_digest`, `list_people` | read |
 | Athena | `update_action_item` | write |
 | Workspace | `manage_calendar`, `manage_tasks`, `manage_notes`, `resolve_contact`, `manage_contact`, `manage_memory` | read actions run directly, write actions ask |
+| Documents | `manage_documents` (stored editor documents), `create_document`, `search_documents` (new fork tool over the personal library) | list, read and search run directly; create, delete and tidy ask |
 | Beliefs | `search_beliefs` (new fork tool over `fork/beliefs/search.py`) | read |
 | Chats | `search_chats` | read |
 | Email | `list_email_accounts`, `list_emails`, `search_emails`, `read_email` | read |
@@ -266,7 +268,7 @@ Fork settings are environment variables in the table of `fork/common/settings.py
 |---|---|---|
 | `FORK_BRAIN` | `on` | The brain answers every chat turn of every chat (one global switch, no per-chat choice); `off` gives the turns back to upstream's agent |
 | `FORK_BRAIN_MAX_ROUNDS` | `8` | Tool rounds per turn |
-| `FORK_BRAIN_TOOL_GROUPS` | `web,athena,workspace,beliefs,chats,email` | Groups in the tool set |
+| `FORK_BRAIN_TOOL_GROUPS` | `web,athena,workspace,documents,beliefs,chats,email` | Groups in the tool set |
 
 The brain is the default (owner's decision, 2026-10-31): an instance answers with it unless
 its environment sets `FORK_BRAIN=off`, which gives every turn back to upstream's agent
@@ -356,7 +358,8 @@ test that failed before the fix:
   that was shown, and tool-call markup never reaches the window; SQLite runs off the event
   loop.
 - **More turns left to upstream:** an open document, selected notes, an open email, and
-  `use_rag=true`.
+  `use_rag=true` (since [Documents](#documents-2026-10-31) the brain takes `use_rag=true`
+  turns again).
 - **One worker.** Paused turns live in memory; the fork runs one uvicorn worker (the
   Dockerfile and compose set none), so that's safe.
 
@@ -396,6 +399,48 @@ A second adversarial pass (`tests/fork/test_brain_hardening.py`) found and fixed
 Left as it is: memories and beliefs recalled into the context message don't arm the
 approval gate (a `search_beliefs` call does). Arming there would ask before private reads
 on most personal questions in Ask mode, and every write and unknown fetch asks anyway.
+
+### Documents (2026-10-31)
+
+A `documents` group, in the default `FORK_BRAIN_TOOL_GROUPS` (`fork/brain/documents.py`;
+tests `tests/fork/test_brain_documents.py`):
+
+- **`manage_documents`** (upstream's): `list` and `read` of the owner's stored editor
+  documents run without asking (upstream's `_PRIVATE_ACTION_READS`); `delete` and `tidy`
+  ask. A `delete` without a `document_id` is refused before it asks: upstream's tool
+  would delete the most recent document, which the card can't name.
+- **`create_document`** (upstream's): asks, and upstream's approval card works for it
+  (tested through the real `execute_tool_block`: the approved document is the chat
+  owner's). The model's JSON arguments run in upstream's line format (title, language,
+  content), as upstream's agent passes native calls on, so the card shows what is
+  created; before this the title was the raw JSON and the body empty. After it ran the
+  window gets upstream's events in upstream's order (`doc_stream_open`,
+  `doc_stream_delta`, `doc_update`, then `tool_output` with the `document_*` fields),
+  so the document opens in the editor; the model reads a line naming it and its id
+  (upstream's result has no text).
+- **`search_documents`** (the fork's, like `search_beliefs`): upstream's
+  `rag_manager.search(query, k, owner=owner)` (the app's `personal_docs_manager`, where
+  upstream's chat RAG finds it), hits of this owner only (checked again after the store's
+  own filter), at or above upstream's `RAG_SIMILARITY_THRESHOLD` (0.35), 5 by default,
+  at most 8, each passage cut to 1,200 characters. A result with hits is outside content:
+  it arms the run and its exchange is replayed untrusted. Offered only when a
+  `rag_manager` exists, the chat's documents toggle isn't off (`use_rag=false`), and
+  upstream would let this user and credential use `manage_documents`: not for users
+  without `can_use_documents`, non-admin users, API tokens or when the admin disabled
+  it. That is stricter than upstream's chat RAG, which injects passages for any user;
+  before this group the brain gave no one library passages, so nobody loses any.
+- **`use_rag`.** The hook no longer hands `use_rag=true` turns to upstream: the brain
+  has the library as a tool, and the web UI never sends `true` anyway (it sends `false`
+  when the toggle is off, nothing otherwise), so only API clients sent it. The toggle now
+  reaches the brain: off, `search_documents` is left out of that turn. The hook passes
+  `use_rag=use_rag` (same line, no new hook).
+- **Prompt.** When to use documents (stored documents and the library) rather than the
+  conversation tools or notes; name the document's title or filename next to each fact;
+  long writing goes into `create_document`, with one sentence in the chat.
+- **Schema budget.** Built-in schemas: 18 tools, ~5.4k tokens before; 21 tools, ~6.0k
+  after (+~606: `manage_documents` ~223, `create_document` ~246, mostly upstream's
+  language list, `search_documents` ~134). The two upstream tools keep upstream's
+  parameters with shorter descriptions.
 
 ## Sandbox results (2026-10-31)
 
@@ -445,6 +490,34 @@ server is expected to do better on both.
 
 **Regression:** the full suite on the branch fails the same 72 tests as clean `barvis`,
 none new.
+
+**Documents** (2026-10-31, `scripts/brain_eval.py --kinds documents`, same model and
+machine, ChromaDB 1.5.9 and upstream's fastembed embeddings, Odysseus restarted cold per
+config; A = `FORK_BRAIN=off`, B = the brain with the documents group):
+
+| Question | A | B |
+|---|---|---|
+| d1 find and read a stored document | fail (read it, wrong answer), 610 s | pass, 351 s |
+| d2 search the library | pass (upstream's RAG injection), 47 s | pass (`search_documents`), 76 s |
+| d3 search the library | fail (no tool), 149 s | fail (no tool), 40 s |
+| d4 create a document (approval auto-answered) | pass, 195 s | pass, opened in the editor, 193 s |
+| d5 document + web search, privacy | pass, 879 s | pass, 135 s |
+| **pass** | **3/5** | **4/5** |
+| median first text | 194.6 s | 58.0 s |
+| median total | 195.2 s | 134.8 s |
+| wall time | 1880 s | 794 s |
+
+No private term of the seeded document reached a search query in either run. d3 fails
+the 4B model's known way: "I don't have access to your manual" without calling a tool.
+Naming documents in the prompt's list of the owner's data (one more run) didn't fix d3
+and scored 3/5 (d2 then picked `manage_documents` instead of the library), so that line
+was not kept. The first text of d1 and d4 is late because the first prompt after a
+start (system prompt and ~6k tokens of schemas) is read from scratch at ~35 tokens/s.
+
+Regression, the general eval's knowledge and privacy kinds with the brain on, clean
+`barvis` against this branch (same day, restarted cold): 5/8 both (knowledge 5/5 without
+a search, median first text 8.7 s and 5.0 s; privacy 0/3 both, the 4B model doesn't call
+`web_search` there, as before). No private term reached a query in either.
 
 ## Upstream impact
 
@@ -525,6 +598,8 @@ Sandbox tests, no models (fake LLM, fake MCP manager from `tests/fork/fakes.py`)
   owner's data is never returned (`test_memory_owner_isolation.py` style);
 - writes ask, and an approved write resumes the loop without a second model call for the
   same round;
+- an approved `create_document` creates the owner's document through the real runner and
+  opens it in the editor; library searches are owner-isolated and untrusted;
 - a non-local endpoint is refused;
 - the query guard removes fictional contact names, emails, phones and event titles;
 - follow-ups see the earlier turn's tool results; deleting a chat deletes them;

@@ -103,6 +103,7 @@ is an old path of a module that moved into `fork/`; it only aliases the new modu
 - `fork/beliefs/search.py`
 - `fork/beliefs/structure.py`
 - `fork/brain/__init__.py`
+- `fork/brain/documents.py`
 - `fork/brain/history.py`
 - `fork/brain/prompt.py`
 - `fork/brain/query_guard.py`
@@ -351,6 +352,7 @@ is an old path of a module that moved into `fork/`; it only aliases the new modu
 - `tests/fork/test_belief_search.py`
 - `tests/fork/test_belief_structure.py`
 - `tests/fork/test_beliefs_routes.py`
+- `tests/fork/test_brain_documents.py`
 - `tests/fork/test_brain_eval_harness.py`
 - `tests/fork/test_brain_forget.py`
 - `tests/fork/test_brain_hardening.py`
