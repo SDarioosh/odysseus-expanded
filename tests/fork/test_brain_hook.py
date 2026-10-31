@@ -179,11 +179,26 @@ async def test_the_hook_takes_only_its_own_approvals(monkeypatch):
     assert brain_turn.takes_turn(message="hi", upstream_turn=False)
     assert not brain_turn.takes_turn(message="hi", upstream_turn=True)
     assert not brain_turn.takes_turn(message="   ", upstream_turn=False)
-    assert not brain_turn.takes_turn(message="hi", upstream_turn=False, attachments=["a1"])
-    assert brain_turn.takes_turn(message="hi", upstream_turn=False, attachments="[]")
     assert await brain_turn.brain_response(object(), sess=None, session_id="s", message="",
                                            owner="alice", approval_id="unknown",
                                            exact_approval=object()) is None
+
+
+@pytest.mark.parametrize("attachments", ['["0123456789abcdef0123456789abcdef.png"]',
+                                         '["0123456789abcdef0123456789abcdef.txt"]'])
+async def test_attachments_the_brain_cant_read_stay_upstreams(monkeypatch, spy, attachments):
+    """Through the real route: an attachment id that doesn't resolve to a text file of
+    the owner (here: no upload in the index) leaves the turn to upstream, which ran.
+    Readable text and PDF attachments: tests/fork/test_brain_attachments.py."""
+    monkeypatch.setenv("FORK_BRAIN", "on")
+    monkeypatch.setattr(brain_turn, "_start_turn", lambda *a, **k: (_ for _ in ()).throw(
+        AssertionError("brain took an upstream turn")))
+    captured = {}
+    endpoint = _chat_stream_endpoint(monkeypatch, "chat", captured)
+    await _body(await endpoint(_Request("chat", attachments=attachments)))
+    kwargs, result = spy[0]
+    assert result is None and kwargs["attachments"] and kwargs["upstream_turn"] is False
+    assert "chat" in captured  # upstream's chat path answered
 
 
 async def test_turns_with_an_open_document_stay_upstreams(monkeypatch, spy):

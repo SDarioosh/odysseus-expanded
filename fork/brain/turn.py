@@ -5,15 +5,21 @@ Hook: ``chat_stream`` (``routes/chat_routes.py``) calls :func:`brain_response` o
 session, owner and message are resolved, the chat privileges enforced, a tool approval
 consumed (upstream's own checks) and the research decision made. It returns None, and the
 route goes on as upstream wrote it, when ``FORK_BRAIN`` is off, for ``/research`` and
-other turns the brain doesn't take (compare, plan mode, incognito, attachments, image
-chats, workspace or native-client turns, an open document, internal tool requests, users
-without the agent privilege), and for an approval that isn't one of the brain's. Selected
-notes and an open email are the brain's: the route passes the notes it loaded and the
-email's uid, folder and account, and they go into the turn's context message
+other turns the brain doesn't take (compare, plan mode, incognito, image chats,
+workspace or native-client turns, an open document, internal tool requests, users
+without the agent privilege, and attachments other than files upstream reads as text: an
+image, audio, an id the owner check refuses, a file whose text can't be read;
+``fork/brain/attachments.py``), and for an approval that isn't one of the brain's.
+Selected notes and an open email are the brain's: the route passes the notes it loaded
+and the email's uid, folder and account, and they go into the turn's context message
 (``fork/brain/selection.py``). Otherwise it returns the brain's streaming response,
 detached like upstream's (``src/agent_runs.py``), with the
 same headers. The hook also runs ``history.py``'s sweep on the first request after a
 start and then hourly, in a worker thread, whether the brain is on or not.
+
+Attachments: text, PDF and office files are read before the owner's message is saved
+(``attachments.read``, a worker thread); their text follows the message in the prompt
+and in the saved message, with upstream's ``attachment_meta``, and arms the run.
 
 Per turn (:func:`_drive`):
 
@@ -69,6 +75,7 @@ from types import SimpleNamespace
 from typing import Any, AsyncGenerator
 from urllib.parse import urlparse
 
+from fork.brain import attachments as brain_attachments
 from fork.brain import claims as brain_claims
 from fork.brain import documents as brain_documents
 from fork.brain import history as brain_history
@@ -108,21 +115,10 @@ def _sse(payload: Any) -> str:
     return f"data: {json.dumps(payload, ensure_ascii=False)}\n\n"
 
 
-def _attachments(value: Any) -> bool:
-    if not value:
-        return False
-    if isinstance(value, str):
-        try:
-            value = json.loads(value)
-        except ValueError:
-            return bool(value.strip())
-    return bool(value)
-
-
-def takes_turn(*, message: Any, upstream_turn: bool, attachments: Any = None,
-               request: Any = None) -> bool:
-    """True when the brain answers this (non-approval) turn."""
-    if upstream_turn or _attachments(attachments):
+def takes_turn(*, message: Any, upstream_turn: bool, request: Any = None) -> bool:
+    """True when the brain may answer this (non-approval) turn. Its attachments, if any,
+    are checked next (:func:`brain_response`: all must be files the brain reads)."""
+    if upstream_turn:
         return False
     if not isinstance(message, str) or not message.strip():
         return False
@@ -176,8 +172,10 @@ async def brain_response(request: Any, *, sess: Any, session_id: str, message: A
     ``approval_id``: set when this request continues a consumed tool approval;
     ``exact_approval`` is then upstream's consumed grant. ``upstream_turn``: the route
     already knows the turn is upstream's (research, compare, plan mode, incognito, a
-    workspace or native client, an image chat, an open document). ``services``: the
-    route's ``(session_manager, chat_handler,
+    workspace or native client, an image chat, an open document). ``attachments``: the
+    turn's upload ids; the brain takes the turn only when every one is a text, PDF or
+    office file of the chat's owner that it can read (``fork/brain/attachments.py``),
+    else upstream does. ``services``: the route's ``(session_manager, chat_handler,
     memory_manager, memory_vector, webhook_manager, skills_manager)``.
     ``external_untrusted_context_seen``: the route's flag that this turn follows outside
     content (a retired approval card's taint); it arms the run. ``no_memory``: the
@@ -204,17 +202,22 @@ async def brain_response(request: Any, *, sess: Any, session_id: str, message: A
         paused.deps = deps if services else paused.deps
         return _response(session_id, _resume(paused, exact_approval))
     expire_pending()
-    if not takes_turn(message=message, upstream_turn=upstream_turn,
-                      attachments=attachments, request=request):
+    if not takes_turn(message=message, upstream_turn=upstream_turn, request=request):
         return None
     if not agent_permitted(request, owner):
         return None
+    attached = None
+    if brain_attachments.attachment_ids(attachments):
+        attached = await brain_attachments.read(sess, deps.chat_handler, attachments)
+        if attached is None:
+            return None  # an image, another owner's id, an unreadable file: upstream's
     drop_pending_for_chat(owner=owner, session_id=session_id)
     turn = _start_turn(request, sess=sess, session_id=session_id, message=message,
                        owner=owner, preset_id=preset_id, deps=deps,
                        external_seen=bool(external_untrusted_context_seen),
                        no_memory=bool(no_memory), use_rag=use_rag,
-                       selected_notes=selected_notes, active_email=active_email)
+                       selected_notes=selected_notes, active_email=active_email,
+                       attached=attached)
     return _response(session_id, _run_new_turn(turn))
 
 
@@ -289,6 +292,7 @@ class _Turn:
     paused_message_id: str | None = None
     timer: Any = None
     prep: dict | None = None  # what _prepare() still needs; None once prepared
+    attachments: tuple = ()  # upstream's attachment_meta of the owner's message
 
 
 _PENDING: dict[str, _Turn] = {}
@@ -429,18 +433,22 @@ def _user_prefs(owner: Any) -> dict:
 
 
 def _save_user_message(turn_sess: Any, deps: _Deps, request: Any, session_id: str,
-                       message: str) -> None:
-    """The owner's message, saved the way upstream's chat turns save it."""
+                       message: str, attached: Any = None) -> None:
+    """The owner's message, saved the way upstream's chat turns save it: with the
+    attachments' text after it and their ``attachment_meta`` when it has any."""
     from routes.chat_helpers import add_user_message, fire_message_event
 
-    pre = SimpleNamespace(attachment_meta=None, user_content=message,
-                          text_for_context=message)
+    content = attached.content(message) if attached else message
+    meta = [dict(m) for m in attached.meta] if attached else None
+    pre = SimpleNamespace(attachment_meta=meta, user_content=content,
+                          text_for_context=content)
     handler = deps.chat_handler
     if handler is not None and hasattr(handler, "update_session_name_if_needed"):
         add_user_message(turn_sess, handler, pre, interaction_mode="agent")
     else:
         from core.models import ChatMessage
-        turn_sess.add_message(ChatMessage("user", message, metadata={"interaction_mode": "agent"}))
+        metadata = {"interaction_mode": "agent", **({"attachments": meta} if meta else {})}
+        turn_sess.add_message(ChatMessage("user", content, metadata=metadata))
     try:
         fire_message_event(request, deps.webhook_manager, session_id, turn_sess, message)
     except Exception:  # noqa: BLE001
@@ -450,13 +458,15 @@ def _save_user_message(turn_sess: Any, deps: _Deps, request: Any, session_id: st
 def _start_turn(request: Any, *, sess: Any, session_id: str, message: str, owner: Any,
                 preset_id: Any, deps: _Deps, external_seen: bool = False,
                 no_memory: bool = False, use_rag: Any = None,
-                selected_notes: Any = None, active_email: Any = None) -> _Turn:
+                selected_notes: Any = None, active_email: Any = None,
+                attached: Any = None) -> _Turn:
     """Save the owner's message and set the turn up; the tool set, the history and the
     authority are built by :func:`_prepare` when the stream starts, so a failure there
-    ends the turn with an answer instead of an HTTP error."""
+    ends the turn with an answer instead of an HTTP error. ``attached``: the turn's
+    attachments, already read (``attachments.read``)."""
     preset = _preset(deps.chat_handler, preset_id)
     rows = list(getattr(sess, "history", None) or ())
-    _save_user_message(sess, deps, request, session_id, message)
+    _save_user_message(sess, deps, request, session_id, message, attached)
     temperature = getattr(sess, "temperature_override", None)
     if temperature is None:
         temperature = preset.temperature
@@ -468,11 +478,13 @@ def _start_turn(request: Any, *, sess: Any, session_id: str, message: str, owner
         headers=dict(getattr(sess, "headers", None) or {}),
         temperature=temperature, max_tokens=max_tokens,
         character_name=preset.character_name,
+        attachments=tuple(attached.meta) if attached else (),
         prep={"request": request, "rows": rows, "preset_text": preset.system_prompt,
               "external_seen": external_seen, "no_memory": no_memory,
               "use_rag": str(use_rag).strip().lower() != "false",
               "selected_notes": str(selected_notes or ""),
-              "active_email": dict(active_email) if isinstance(active_email, dict) else None})
+              "active_email": dict(active_email) if isinstance(active_email, dict) else None,
+              "attached": attached})
 
 
 def _replay(rows: list, stored: dict[str, dict]) -> tuple[dict[str, list[dict]], bool, list[str]]:
@@ -511,17 +523,24 @@ async def _prepare(turn: _Turn) -> None:
         stored, summary = {}, None
     exchanges, tainted, hits = _replay(rows, stored)
     hist = brain_prompt.history_messages(rows, exchanges, summary=summary)
+    attached = prep.get("attached")
+    # a file's text stays in the prompt while its message is replayed: outside content
+    files_seen = bool(attached) or brain_attachments.in_history(rows, summary)
     consent = brain_prompt.memory_enabled(turn.sess, _user_prefs(owner),
                                           no_memory=prep["no_memory"])
     recalled = await asyncio.to_thread(brain_prompt.recalled_items, owner, message,
                                        turn.deps.memory_manager, enabled=consent)
-    messages = brain_prompt.build_messages(preset_text=prep["preset_text"], history=hist,
-                                           recalled=recalled, message=message)
+    messages = brain_prompt.build_messages(
+        preset_text=prep["preset_text"], history=hist, recalled=recalled,
+        message=attached.content(message) if attached else message)
     run = brain_tools.build_run(
         request_text=message, owner=owner, session_id=turn.session_id, history=rows,
         offered=tuple(toolset.names(schemas)), disabled=disabled, delegated=delegated,
-        prompt_messages=messages, external_seen=bool(prep["external_seen"] or tainted),
+        prompt_messages=messages,
+        external_seen=bool(prep["external_seen"] or tainted or files_seen),
         chat_search_hits=hits, rag=rag)
+    if attached:
+        brain_tools.distrust(run, brain_attachments.SOURCE)
     selected = [brain_selection.notes_item(prep.get("selected_notes")),
                 await brain_selection.email_text(run, prep.get("active_email"))]
     selected = [item for item in selected if item]
@@ -532,7 +551,7 @@ async def _prepare(turn: _Turn) -> None:
         run.security.observe_messages([messages[-2]])
         for item in selected:
             if isinstance(item, tuple):
-                brain_tools._distrust(run, item[0])
+                brain_tools.distrust(run, item[0])
         run.external_seen = bool(run.security.external_untrusted_context_seen)
     if run.policy.block_all_tool_calls:
         schemas = ()
@@ -1076,6 +1095,8 @@ async def _run_new_turn(turn: _Turn) -> AsyncGenerator[str, None]:
                 async for chunk in _fail(turn):
                     yield chunk
                 return
+        if turn.attachments:  # upstream's event: the chips of the owner's message
+            yield _sse({"type": "attachments", "data": [dict(m) for m in turn.attachments]})
         async for chunk in _drive(turn):
             yield chunk
     async for chunk in _guarded(turn, go()):

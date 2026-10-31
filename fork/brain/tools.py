@@ -38,7 +38,7 @@ What the brain adds is which calls run without asking and which ask:
 The tools upstream doesn't have run here, owner-scoped: ``search_beliefs``
 (``fork/beliefs/search.py``) and ``search_documents`` (the owner's document library,
 ``fork/brain/documents.py``). A result of theirs with content is outside content: it arms
-the run like an untrusted result of upstream's runner (:func:`_distrust`). A
+the run like an untrusted result of upstream's runner (:func:`distrust`). A
 ``create_document`` call runs in upstream's line format and its result names the new
 document for the model (``documents.py``). Before ``web_search`` runs, its query passes
 through
@@ -354,7 +354,7 @@ async def _search_beliefs(run: ToolRun, content: str) -> tuple[str, dict]:
                                                        "untrusted_content": True}
 
 
-def _distrust(run: ToolRun, source: str) -> None:
+def distrust(run: ToolRun, source: str) -> None:
     """A fork tool returned outside content: the run is armed, as upstream's runner arms
     it for an untrusted result, and this turn's exchange is replayed untrusted."""
     run.tainted = True
@@ -432,7 +432,7 @@ async def execute(run: ToolRun, name: str, content: str, *, exact_approval: Any 
         else:
             desc, result = await brain_documents.search(run.owner, run.rag, content)
         if result.pop("untrusted_content", False):
-            _distrust(run, name)
+            distrust(run, name)
         return content, desc, result
     if name in ("web_search", "get_weather"):
         guard = _guarded_web_search if name == "web_search" else _guarded_weather
