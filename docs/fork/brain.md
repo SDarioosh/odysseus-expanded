@@ -360,6 +360,55 @@ The `chat_stream` hook now also passes `external_untrusted_context_seen` and `no
 and widens `upstream_turn`; `fork/upstream.py` gains `configured_endpoint_kind` and
 `normalize_endpoint_base`.
 
+## Sandbox results (2026-10-31)
+
+Qwen3-4B on 4 CPUs, `seed_demo.py`, one config at a time, llama-server and Odysseus
+restarted cold for each, `ODYSSEUS_FIRST_TOKEN_TIMEOUT=0` for all. Small-model numbers
+compare only with other sandbox runs. A = this fork without the brain (`FORK_BRAIN` unset),
+B = the brain, R = the bakeoff's raw loop. Hermes couldn't be installed in the sandbox; it
+is in the Server verification instead.
+
+**Athena bakeoff**, questions 1 4 6 9 13 16 17 21 (`modules_setup.py --trim`):
+
+| Config | Passed | Median first text | Median total | All 8 |
+|---|---|---|---|---|
+| A, current fork | 2/8 | 175.3 s | 175.4 s | 2031 s |
+| B, brain, first prompt | 3/8 | 4.8 s | 87.1 s | 626 s |
+| B, brain, final prompt | **6/8** | **5.4 s** | 103.3 s | 963 s |
+| R, raw loop | 3/8 | 1.8 s | 78.8 s | 803 s |
+
+Q4 depends on the date (the seeded appointment is past) and Q9 isn't comparable with R
+(it fixes "today" at 2026-10-18).
+
+**General eval** (`scripts/brain_eval.py`, 23 questions, `--untrim`):
+
+| Kind | A | B, first prompt | B, final prompt |
+|---|---|---|---|
+| knowledge (no search) | 5/5 | 5/5 | 5/5 |
+| web | 0/5 | 1/5 | 2/5 |
+| mixed | 0/5 | 0/5 | 0/5 |
+| follow-up | 1/5 | 0/5 | 2/5 |
+| privacy | 1/3 | 0/3 | 1/3 |
+| **all** | **7/23** | **6/23** | **10/23** |
+| median first text | 119.8 s | 8.8 s | 9.2 s |
+| wall time | 5053 s | 1931 s | 2570 s |
+
+No seeded private term reached a search query in any run (fake SearXNG query logs).
+
+**Prompt cache** (llama-server log, bakeoff): A sent prompts of median 6,697 tokens and
+evaluated 33.7k tokens in all (1,112 s of prompt processing); the brain sent median 4,088
+and evaluated 8.8k (236 s); both reuse ~95 % per request.
+
+**What the 4B model still gets wrong:** it often answers "I don't have that information"
+without calling a tool, and once invented a voice note. The final prompt (search the
+owner's tools and the web before saying there's nothing; personal details only from tool
+results; recalled notes are hints) took the bakeoff from 3/8 to 6/8. Mixed questions
+(calendar + web) are still 0/5: the model doesn't chain the two. The real model on the
+server is expected to do better on both.
+
+**Regression:** the full suite on the branch fails the same 72 tests as clean `barvis`,
+none new.
+
 ## Upstream impact
 
 - **New upstream hooks:** two: 5 lines in `chat_stream` (already a listed hot spot) and 3
