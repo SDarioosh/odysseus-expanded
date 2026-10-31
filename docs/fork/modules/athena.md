@@ -495,7 +495,7 @@ launcher API is in Athena's
   the app must be published on the Zoom Marketplace (unlisted is enough). Notetakers such as
   Read.ai get in because their apps are published. Similar refusals:
   `outside_users_blocked`, `blocked_by_account_admin`, `zoom_signin_required`. Setup:
-  Athena's `server/README.md`, "Publishing the Zoom app".
+  Athena's `docs/api/meetings.md`, "Publishing the Zoom app".
 - **Recording permission.** In the meeting the bot asks Zoom for recording permission once
   and then waits (`waiting_permission`, active); if the host declines (reason `denied`) it
   stays in the meeting in case they allow it later.
