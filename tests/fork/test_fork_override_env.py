@@ -40,8 +40,8 @@ NOT_PASSED = {
     # scripts/brain_eval.py, run on the host against an Odysseus instance: where it is
     # and how it logs in, the chat mode, preset and approval answer it sends, and the
     # (fake) SearXNG it points the instance at.
-    "ODYSSEUS_URL", "ODYSSEUS_API_TOKEN", "ODYSSEUS_PASSWORD", "ODYSSEUS_PASSWORD_FILE",
-    "ODYSSEUS_MODE", "ODYSSEUS_PRESET", "ODYSSEUS_APPROVAL", "BRAIN_EVAL_SEARXNG",
+    "ODYSSEUS_URL", "ODYSSEUS_API_TOKEN", "BRAIN_EVAL_PASSWORD", "BRAIN_EVAL_PASSWORD_FILE",
+    "BRAIN_EVAL_MODE", "BRAIN_EVAL_PRESET", "BRAIN_EVAL_APPROVAL", "BRAIN_EVAL_SEARXNG",
 }
 
 

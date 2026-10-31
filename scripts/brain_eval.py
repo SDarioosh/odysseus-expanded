@@ -20,8 +20,8 @@ queries come from the fake SearXNG (``scripts/brain_fake_searxng.py``, its
 
 Each question gets a fresh chat over ``/api/chat_stream``, like ``run_odysseus`` in
 Athena's ``server/eval/bakeoff.py``: login from ``ODYSSEUS_URL``, ``ODYSSEUS_USER``,
-``ODYSSEUS_PASSWORD`` / ``ODYSSEUS_PASSWORD_FILE`` or ``ODYSSEUS_API_TOKEN``; tool
-approvals are answered like a click on "Allow for this task" (``ODYSSEUS_APPROVAL``).
+``BRAIN_EVAL_PASSWORD`` / ``BRAIN_EVAL_PASSWORD_FILE`` or ``ODYSSEUS_API_TOKEN``; tool
+approvals are answered like a click on "Allow for this task" (``BRAIN_EVAL_APPROVAL``).
 Per question it records pass, the failed checks, tools called, the search queries,
 ``first_text_s`` (seconds to the first answer text the user would see: a non-thinking
 ``delta`` or a ``final_response`` with content, as ``static/js/chat.js`` shows it) and
@@ -29,7 +29,7 @@ Per question it records pass, the failed checks, tools called, the search querie
 replaces the file, ``--only``/``--kinds`` append to it.
 
     python scripts/brain_fake_searxng.py --port 8890 &
-    ODYSSEUS_URL=http://127.0.0.1:7010 ODYSSEUS_PASSWORD_FILE=... \\
+    ODYSSEUS_URL=http://127.0.0.1:7010 BRAIN_EVAL_PASSWORD_FILE=... \\
         python scripts/brain_eval.py --seed --label baseline
     python scripts/brain_eval.py --dry-run     # no Odysseus, no model
 
@@ -228,12 +228,12 @@ def odysseus_client(url: str | None = None) -> httpx.Client:
     headers = {"Authorization": f"Bearer {token}"} if token else {}
     c = httpx.Client(base_url=url, headers=headers, timeout=60)
     if not token:
-        pw = os.environ.get("ODYSSEUS_PASSWORD")
+        pw = os.environ.get("BRAIN_EVAL_PASSWORD")
         if not pw:
-            pw_file = os.environ.get("ODYSSEUS_PASSWORD_FILE")
+            pw_file = os.environ.get("BRAIN_EVAL_PASSWORD_FILE")
             if not pw_file:
-                raise SystemExit("set ODYSSEUS_API_TOKEN, ODYSSEUS_PASSWORD or "
-                                 "ODYSSEUS_PASSWORD_FILE")
+                raise SystemExit("set ODYSSEUS_API_TOKEN, BRAIN_EVAL_PASSWORD or "
+                                 "BRAIN_EVAL_PASSWORD_FILE")
             pw = Path(pw_file).read_text().strip()
         r = c.post("/api/auth/login", json={"username": os.environ.get("ODYSSEUS_USER", "admin"),
                                             "password": pw, "remember": True})
@@ -302,7 +302,7 @@ class Chat:
                 break
             approvals += 1
             form = {**self.base, "message": "", "tool_approval_id": pending,
-                    "tool_approval_decision": os.environ.get("ODYSSEUS_APPROVAL",
+                    "tool_approval_decision": os.environ.get("BRAIN_EVAL_APPROVAL",
                                                              "approve_task")}
         msgs = self.client.get(f"/api/session/{self.sid}/export",
                                params={"fmt": "json"}).json()["messages"]
@@ -569,8 +569,8 @@ def main(argv: list[str] | None = None) -> int:
                     help="check inputs, fake web and seeding; no Odysseus, no model")
     ap.add_argument("--searxng", default=os.environ.get("BRAIN_EVAL_SEARXNG", DEFAULT_SEARXNG),
                     help="the fake SearXNG (its query log)")
-    ap.add_argument("--mode", default=os.environ.get("ODYSSEUS_MODE", "agent"))
-    ap.add_argument("--preset", default=os.environ.get("ODYSSEUS_PRESET", ""))
+    ap.add_argument("--mode", default=os.environ.get("BRAIN_EVAL_MODE", "agent"))
+    ap.add_argument("--preset", default=os.environ.get("BRAIN_EVAL_PRESET", ""))
     ap.add_argument("--questions", type=Path, default=QUESTIONS_FILE)
     ap.add_argument("--seed-file", type=Path, default=SEED_FILE)
     ap.add_argument("--out-dir", type=Path, default=OUT_DIR)
