@@ -101,7 +101,14 @@ is an old path of a module that moved into `fork/`; it only aliases the new modu
 - `fork/beliefs/notes_evidence.py`
 - `fork/beliefs/search.py`
 - `fork/beliefs/structure.py`
+- `fork/brain/__init__.py`
+- `fork/brain/history.py`
+- `fork/brain/prompt.py`
 - `fork/brain/query_guard.py`
+- `fork/brain/settings.py`
+- `fork/brain/tools.py`
+- `fork/brain/toolset.py`
+- `fork/brain/turn.py`
 - `fork/common/__init__.py`
 - `fork/common/athena_names.py`
 - `fork/common/llm.py`
@@ -311,6 +318,7 @@ is an old path of a module that moved into `fork/`; it only aliases the new modu
 - `tests/fixtures/eval_goldens/insight_eval.json`
 - `tests/fixtures/eval_goldens/insight_eval.txt`
 - `tests/fixtures/eval_goldens/module_slash_eval.help.txt`
+- `tests/fork/brain_fakes.py`
 - `tests/fork/conftest.py`
 - `tests/fork/fakes.py`
 - `tests/fork/fixtures/action_items_characterization.json`
@@ -343,7 +351,12 @@ is an old path of a module that moved into `fork/`; it only aliases the new modu
 - `tests/fork/test_belief_structure.py`
 - `tests/fork/test_beliefs_routes.py`
 - `tests/fork/test_brain_eval_harness.py`
+- `tests/fork/test_brain_history.py`
+- `tests/fork/test_brain_hook.py`
 - `tests/fork/test_brain_query_guard.py`
+- `tests/fork/test_brain_tools.py`
+- `tests/fork/test_brain_toolset.py`
+- `tests/fork/test_brain_turn.py`
 - `tests/fork/test_builtin_task_authority.py`
 - `tests/fork/test_calendar_reminder_wall_time.py`
 - `tests/fork/test_call_recorder.py`

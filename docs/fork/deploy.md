@@ -80,6 +80,8 @@ complete); a setting left out of `.env` keeps the code's default:
 - today insight: `TODAY_INSIGHT_ENABLED`, `TODAY_INSIGHT_PUSH`, `TODAY_INSIGHT_SKIP_LISTS`;
 - agent turns: `ODYSSEUS_PERSONAL_READ_GRANTS`, `ODYSSEUS_PERSONAL_STORE_ESCALATION`,
   `FORK_CHECKLIST_ARCHIVE_MINUTES`;
+- the brain: `FORK_BRAIN` (off unless `.env` turns it on), `FORK_BRAIN_MAX_ROUNDS`,
+  `FORK_BRAIN_TOOL_GROUPS` ([brain.md](brain.md#settings));
 - handwritten notes: `INK_AUTO_SEND`, and `APP_PUBLIC_URL` (link base when Settings has no
   public URL; upstream's MCP OAuth redirect reads it too).
 

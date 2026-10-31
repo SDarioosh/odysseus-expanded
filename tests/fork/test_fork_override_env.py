@@ -34,8 +34,14 @@ SETTINGS_FILE = "fork/common/settings.py"  # reads the names of its table, not s
 
 # Read in fork code but deliberately not passed by the override.
 NOT_PASSED = {
-    # scripts/belief_eval.py --chat: the eval's login user, run on the host.
+    # scripts/belief_eval.py --chat and scripts/brain_eval.py: the eval's login user, run
+    # on the host.
     "ODYSSEUS_USER",
+    # scripts/brain_eval.py, run on the host against an Odysseus instance: where it is
+    # and how it logs in, the chat mode, preset and approval answer it sends, and the
+    # (fake) SearXNG it points the instance at.
+    "ODYSSEUS_URL", "ODYSSEUS_API_TOKEN", "ODYSSEUS_PASSWORD", "ODYSSEUS_PASSWORD_FILE",
+    "ODYSSEUS_MODE", "ODYSSEUS_PRESET", "ODYSSEUS_APPROVAL", "BRAIN_EVAL_SEARXNG",
 }
 
 
@@ -209,6 +215,7 @@ def test_empty_value_means_unset_for_every_dollar_default_setting(monkeypatch):
         personal_store_escalation,
         today_insight,
     )
+    from fork.brain import settings as brain_settings
 
     mai = module_action_items
     readers = {
@@ -233,6 +240,9 @@ def test_empty_value_means_unset_for_every_dollar_default_setting(monkeypatch):
         "ODYSSEUS_PERSONAL_STORE_ESCALATION": personal_store_escalation.enabled,
         "FORK_CHECKLIST_ARCHIVE_MINUTES": checklist_auto_archive.archive_minutes,
         "INK_AUTO_SEND": ink_transcribe.auto_send_enabled,
+        "FORK_BRAIN": brain_settings.enabled,
+        "FORK_BRAIN_MAX_ROUNDS": brain_settings.max_rounds,
+        "FORK_BRAIN_TOOL_GROUPS": brain_settings.tool_groups,
     }
     # Former names: read only when the new name is unset or empty.
     legacy = {f"BARVIS_{n.removeprefix('MODULE_')}": n for n in readers if n.startswith("MODULE_")}

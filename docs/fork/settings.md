@@ -38,5 +38,8 @@ that are off by default are on for `1`, `true`, `yes` or `on` (any case).
 | `ODYSSEUS_PERSONAL_STORE_ESCALATION` | - | on/off | `1` | Run chat-mode lookups in the owner's personal stores in agent mode. | `fork/routing/personal_store_escalation.py` |
 | `ODYSSEUS_TRUSTED_READONLY_MCP` | - | comma-separated server names or ids | (empty) | MCP servers whose readOnlyHint tools run without approval. Production sets `convo` in the override. | `fork/mcp/trust.py` |
 | `FORK_CHECKLIST_ARCHIVE_MINUTES` | - | minutes or off | (empty) | Minutes a finished checklist waits before it is archived (default 10); 0, off, no, false or none: never. | `fork/hub/checklist_auto_archive.py` |
+| `FORK_BRAIN` | - | on/off | `off` | The brain, the fork's own agent loop, answers every chat turn of every chat. | `fork/brain/settings.py` |
+| `FORK_BRAIN_MAX_ROUNDS` | - | integer 1-20 | `8` | Tool rounds per brain turn before one last round without tools; clamped to 1-20. | `fork/brain/settings.py` |
+| `FORK_BRAIN_TOOL_GROUPS` | - | comma-separated groups | `web,athena,workspace,beliefs,chats,email` | Tool groups the brain offers (web, athena, workspace, beliefs, chats, email, images); unknown names are ignored. | `fork/brain/settings.py` |
 | `INK_AUTO_SEND` | - | on/off | (empty) | Send pages the model read without [?] to Athena without review. | `fork/ink/transcribe.py` |
 | `APP_PUBLIC_URL` | - | URL | (empty) | The hub's address for links in notes sent to Athena when Settings has no Public URL (upstream's MCP OAuth redirect reads it too). | `fork/ink/athena.py` |

@@ -56,6 +56,9 @@ services:
       - ODYSSEUS_PERSONAL_READ_GRANTS=${ODYSSEUS_PERSONAL_READ_GRANTS:-}
       - ODYSSEUS_PERSONAL_STORE_ESCALATION=${ODYSSEUS_PERSONAL_STORE_ESCALATION:-}
       - FORK_CHECKLIST_ARCHIVE_MINUTES=${FORK_CHECKLIST_ARCHIVE_MINUTES:-}
+      - FORK_BRAIN=${FORK_BRAIN:-}
+      - FORK_BRAIN_MAX_ROUNDS=${FORK_BRAIN_MAX_ROUNDS:-}
+      - FORK_BRAIN_TOOL_GROUPS=${FORK_BRAIN_TOOL_GROUPS:-}
       # Links in handwritten notes sent to Athena (fork/ink/athena.py) when Settings has
       # no public URL; upstream's MCP OAuth redirect (src/mcp_oauth.py) reads it too.
       - APP_PUBLIC_URL=${APP_PUBLIC_URL:-}

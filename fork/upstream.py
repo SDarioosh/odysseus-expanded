@@ -140,6 +140,15 @@ def fetch_contacts(*args: Any, **kwargs: Any) -> Any:
     return _fetch_contacts(*args, **kwargs)
 
 
+# ------------------------------------------------------------------------ the brain
+def chat_active_streams() -> dict:
+    """``routes.chat_routes._active_streams``: ``{session_id: stream record}`` of the chat
+    turns streaming now (background extraction waits while its chat is in it)."""
+    from routes.chat_routes import _active_streams
+
+    return _active_streams
+
+
 # name -> (upstream module, private attribute) for every function above that imports one
 PRIVATE_NAMES: dict[str, tuple[str, str]] = {
     "load_mcp_disabled_map": ("src.agent_loop", "_load_mcp_disabled_map"),
@@ -157,4 +166,5 @@ PRIVATE_NAMES: dict[str, tuple[str, str]] = {
     "checkin_calendar_events": ("src.task_scheduler", "_checkin_calendar_events"),
     "resolve_task_timezone": ("src.task_scheduler", "_resolve_task_timezone"),
     "fetch_contacts": ("routes.contacts.contacts_routes", "_fetch_contacts"),
+    "chat_active_streams": ("routes.chat_routes", "_active_streams"),
 }

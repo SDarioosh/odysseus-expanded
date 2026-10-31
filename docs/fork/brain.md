@@ -276,10 +276,46 @@ llama-server. They can delay the next answer. The first PRs measure this; if it 
 the brain asks them to wait while a turn is running (a fork hook in
 `routes/chat_helpers.py`, only if needed).
 
+## As built (phases 2 and 3, 2026-10-31)
+
+Where the code differs from the design above:
+
+- **Hook position.** Upstream classifies the turn's intent before it loads the session, so
+  the hook sits later than planned: in `chat_stream` after the session is loaded and
+  owner-checked, after `_enforce_chat_privileges` and `resolve_session_auth`, after
+  upstream consumes an approval reply and after the research decision. Everything before
+  it is classification and upstream's own checks, which the brain reuses.
+- **Turns left to upstream:** research, compare, plan, incognito, attachments, image
+  chats, workspace or path turns, native and TUI clients, and approval replies that aren't
+  the brain's.
+- **Approvals.** Upstream consumes the reply before the hook, so "Deny" shows upstream's
+  resolved card and the brain drops its paused turn; after a restart upstream answers
+  "approval expired" (409). Every write asks on its own; "allow for this chat" covers
+  reads only. In Ask mode upstream's gate still asks before a private read that follows
+  web content (calendar after `web_search`); Auto mode lets it through. The brain keeps
+  that gate.
+- **`search_beliefs`** runs in fork code (`fork/beliefs/search.py`, owner-scoped), not
+  through `execute_tool_block`, which can't dispatch a tool it doesn't know. Every other
+  call goes through `execute_tool_block`.
+- **Thinking off** is a second marked hook in `src/llm_core.py`
+  (`_apply_local_qwen_thinking_mode` → `apply_brain_thinking`), active only on the brain's
+  own requests.
+- **Deleted chats.** No hook: at most once an hour a brain turn drops `brain.db` rows of
+  chats that are gone; rows of deleted messages go when the chat is next read.
+- **The chat's web button has no effect** on brain turns; web search is in the tool set
+  unless `web` is removed from `FORK_BRAIN_TOOL_GROUPS`.
+- **`manage_tasks` is not in the set:** it is upstream's scheduled-tasks tool; the owner's
+  to-dos and checklists are notes (`manage_notes`). Built-in schemas: 18 tools, ~5.4k
+  tokens, plus Athena's.
+- **First token after 60 s.** `stream_llm` retries a silent local stream once (before
+  anything reaches the brain, so nothing runs twice); a second timeout ends the turn. On a
+  slow CPU set `ODYSSEUS_FIRST_TOKEN_TIMEOUT=0`.
+
 ## Upstream impact
 
-- **New upstream hook:** one, in `chat_stream`, already a listed hot spot. Possibly a second
-  in `routes/chat_helpers.py` for background jobs (above).
+- **New upstream hooks:** two: 5 lines in `chat_stream` (already a listed hot spot) and 3
+  lines in `src/llm_core.py` `_apply_local_qwen_thinking_mode`. Possibly a third in
+  `routes/chat_helpers.py` for background jobs (above).
 - **No changes** to `src/agent_loop.py`, `src/agent_runtime/`, `src/tool_execution.py` or
   the tool schemas. The brain calls them; it doesn't edit them.
 - **What the brain depends on upstream for:** `execute_tool_block`,

@@ -74,6 +74,7 @@ Merge, don't rebase: `barvis` is shared history.
 - `services/memory/skills.py`: managed-skill check in `index_for`.
 - `routes/skills_routes.py` (no hook): `tests/fork/test_skill_mcp_toolsets.py` fails if the
   invoke message format changes; update `INVOKE_PREFIX` in `src/skill_invocation.py`.
+- `routes/chat_routes.py` and `src/llm_core.py`: the brain's hooks (`fork/brain/turn.py`): `brain_response` in `chat_stream`, `apply_brain_thinking` in `_apply_local_qwen_thinking_mode`.
 - `src/agent_runtime/`: hooks in `authority.py` (`create_request_authority`) and
   `effect_adapters.py` (`classify`). Upstream is refactoring the agent runtime, so these
   move most.
