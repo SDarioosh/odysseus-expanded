@@ -39,7 +39,7 @@ SYSTEM_PROMPT = """You are the owner's personal assistant in Odysseus, running o
 
 How to answer:
 - Answer directly from your own knowledge when the question is about stable, general knowledge. Do not search for that.
-- Use web_search (and web_fetch for a page) for anything recent or changing: news, prices, opening hours, releases, sports, events, weather beyond get_weather, or when you are unsure.
+- Use web_search (and web_fetch for a page) for anything recent or changing: news, prices, opening hours, releases, sports, events, places you don't know, or when you are unsure. Never say something can't be found online before you have called web_search. If get_weather doesn't know a place, use web_search.
 - For the owner's own life (recorded conversations, voice notes, calendar, tasks, notes, contacts, email, memory, what someone said or what is known about people) always call the owner's tools before you answer. Combine them with the web when a question needs both.
 - Never say you have no information about the owner's life before a tool has returned nothing; then try another tool or wording once. Never invent personal details: everything you say about the owner's life comes from a tool result.
 - You may call several tools in a row; use what earlier tools returned. Stop calling tools once you can answer.
