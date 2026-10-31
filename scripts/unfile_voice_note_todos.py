@@ -4,17 +4,17 @@
 Before ``MODULE_FILE_ITEMS=explicit`` and the "Voice notes" list, the Module Action Items
 task filed every voice-note item as a to-do of its own, titled with the whole sentence,
 also items that were no task ("Stop prioritizing side projects ..."). This lists those
-to-dos: label ``odysseus-sound``, one checklist line, no due date and no reminder, filed
-from a voice note whose item isn't explicit now, and still in Odysseus, each with why it
-qualifies. To-dos filed in ``explicit`` mode or from the page are left out unless
+to-dos: label ``athena`` (``odysseus-sound`` before the rename), one checklist line, no
+due date and no reminder, filed from a voice note whose item isn't explicit now, and
+still in Odysseus, each with why it qualifies. To-dos filed in ``explicit`` mode or from the page are left out unless
 ``--all``; dated to-dos and reminders never qualify. With ``--apply`` it deletes them
 and dismisses their items in Athena (``update_action_item``; items already done
 stay done). They are never filed again.
 
 It runs in the hub, which holds the module's MCP connection: the script calls the admin
-route ``POST /api/modules/sound/unfile-todos`` (src/module_action_items.py,
+route ``POST /api/modules/athena/unfile-todos`` (src/module_action_items.py,
 ``unfile_auto_todos``). To remove only some, run it once without ``--apply``, then pass
-their item ids with ``--only``. A single one can also be undone on ``/modules/sound``
+their item ids with ``--only``. A single one can also be undone on ``/modules/athena``
 (Undo on the item).
 
 Usage:
@@ -33,7 +33,7 @@ from pathlib import Path
 
 import httpx
 
-ROUTE = "/api/modules/sound/unfile-todos"
+ROUTE = "/api/modules/athena/unfile-todos"
 
 
 def parse_args(argv: list[str] | None = None) -> argparse.Namespace:

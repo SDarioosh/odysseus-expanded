@@ -1,0 +1,15 @@
+ink eval (stored): 4 pairs, 3 scored, 0 failed; models: fixture-fake
+skipped pages: not_reviewed 1, stale 1, empty_text 1, auto 1, photo 1, no_stored_machine 1
+
+                             CER     WER    page CER med/p90    page WER med/p90   exact
+default                     7.6%   12.5%        2.9% / 17.4%       14.3% / 22.2%   33.3%
+loose                       5.9%    8.3%        2.9% / 13.0%       11.1% / 14.3%   33.3%
+pages without [?]           1.4%    6.7%                                           50.0%
+
+[?] marks: 1 on 1 of 3 pages
+INK_AUTO_SEND: 2 pages without [?] (66.7% of scored); 1 of them exactly right (50.0%), CER 1.4%, WER 6.7%
+
+note                                  page        chars     CER     WER  [?]  exact    sec
+00000000-0000-0000-0000-000012340000  fx0            37    0.0%    0.0%    0    yes      -
+00000000-0000-0000-0000-000012340001  fx1            35    2.9%   14.3%    0     no      -
+00000000-0000-0000-0000-000012340002  fx2            46   17.4%   22.2%    1     no      -

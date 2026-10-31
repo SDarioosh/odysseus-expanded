@@ -3335,9 +3335,12 @@ const _TOKEN_SCOPES = [
   { key: 'cookbook:read',     label: 'Cookbook read',     detail: 'List cookbook tasks + tail their tmux output' },
   { key: 'cookbook:launch',   label: 'Cookbook launch',   detail: 'Launch and stop cookbook serve tasks' },
   { key: 'insight:read',      label: 'Insight read',      detail: "Read today's insight" }, // Fork: Today insight (routes/today_insight_routes.py)
-  { key: 'sound:ingest',      label: 'Recordings upload', detail: 'Add recordings to Athena (phone relay)' }, // Fork: phone relay (routes/sound_relay_routes.py)
-  { key: 'sound:read',        label: 'Recordings read',   detail: 'Read Athena conversations and action items' }, // Fork: phone relay
-  { key: 'sound:write',       label: 'Recordings write',  detail: 'Mark Athena action items, make digests' }, // Fork: phone relay
+  { key: 'athena:ingest',     label: 'Recordings upload', detail: 'Add recordings to Athena (phone relay)' }, // Fork: phone relay (fork/athena/urls.py)
+  { key: 'athena:read',       label: 'Recordings read',   detail: 'Read Athena conversations and action items' }, // Fork: phone relay
+  { key: 'athena:write',      label: 'Recordings write',  detail: 'Mark Athena action items, make digests' }, // Fork: phone relay
+  { key: 'sound:ingest',      label: 'Recordings upload', detail: '(old name) The same as athena:ingest; older phone relays use it' }, // Fork: phone relay, old scope name
+  { key: 'sound:read',        label: 'Recordings read',   detail: '(old name) The same as athena:read; older phone relays use it' }, // Fork: phone relay, old scope name
+  { key: 'sound:write',       label: 'Recordings write',  detail: '(old name) The same as athena:write; older phone relays use it' }, // Fork: phone relay, old scope name
 ];
 
 function _renderTokenScopeRows(t) {

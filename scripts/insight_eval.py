@@ -38,21 +38,21 @@ from __future__ import annotations
 import argparse
 import copy
 import json
-import shutil
 import sys
-import tempfile
-from dataclasses import asdict, dataclass
+from dataclasses import asdict
 from datetime import date as Date
 from datetime import datetime, timedelta, timezone
 from fractions import Fraction
 from pathlib import Path
 from types import SimpleNamespace
-from typing import Any
 from zoneinfo import ZoneInfo
 
 REPO = Path(__file__).resolve().parents[1]
 if str(REPO) not in sys.path:
     sys.path.insert(0, str(REPO))
+
+from scripts import eval_common
+from scripts.eval_common import Check
 
 FIXTURE = REPO / "scripts" / "fixtures" / "insight_eval_day.json"
 T5_FIXTURE = REPO / "scripts" / "fixtures" / "t5_weights_day.json"
@@ -62,18 +62,6 @@ CASES = ("rule_order", "weights", "tiers", "min_shown", "t5_table", "t5_day",
          "owner_marks", "reset")
 T5_CAP = 5  # the T5's rule-based items per section
 T5_SECTIONS = ("do_first", "coming_up", "also")
-
-
-@dataclass
-class Check:
-    case: str
-    step: str
-    expected: Any
-    actual: Any
-
-    @property
-    def ok(self) -> bool:
-        return self.expected == self.actual
 
 
 class SetupError(RuntimeError):
@@ -109,7 +97,7 @@ class Day:
     """Today's inputs built from the fixture, fresh for every ordering."""
 
     def __init__(self, fx: dict):
-        from src import today_insight as ti
+        from fork.insight import today as ti
 
         self.ti = ti
         self.tz = ZoneInfo(fx.get("timezone") or "UTC")
@@ -144,8 +132,8 @@ def write_history(fx: dict, owner: str, overrides: dict[str, int] | None = None)
     """Write the fixture's outcome history through the outcome log, day by day: the
     morning pass shows every entry, the owner dismisses, the evening pass sees the ticks;
     the next day's pass finalizes the day before (``ignored`` = still open)."""
-    from src import insight_outcomes as io
-    from src import today_insight as ti
+    from fork.insight import outcomes as io
+    from fork.insight import today as ti
 
     hist = fx["history"]
     first = Date.fromisoformat(hist["first_day"])
@@ -207,7 +195,7 @@ class T5Day:
     with ``todos``, ``calendar``, ``weights`` and the T5's expected plan) as hub inputs."""
 
     def __init__(self, feed: dict):
-        from src import today_insight as ti
+        from fork.insight import today as ti
 
         self.ti = ti
         self.feed = feed
@@ -236,7 +224,7 @@ class T5Day:
 
     def weights(self) -> dict:
         """A hub weights dict whose ``candidate_weight`` is the table's number per note."""
-        from src import insight_weights as iw
+        from fork.insight import weights as iw
 
         keys: dict[str, dict] = {}
         big = {v for k, v in self.table.items() if abs(v) > iw.KEY_LIMIT}
@@ -275,7 +263,7 @@ def t5_rules(feed: dict, table: dict[str, int] | None) -> dict[str, list[str]]:
     published rules (Athena docs/t5-pda-plan.md §5): DO FIRST by (-w, due date,
     feed order), COMING UP by (-w, date), ALSO pinned by (-w, feed order) then undated by
     (-w, feed order); undated shopping lists left out; at most 5 per section. Titles."""
-    from src import today_insight as ti
+    from fork.insight import today as ti
 
     today = datetime.fromisoformat(feed["generated"].replace("Z", "+00:00")).astimezone(
         ZoneInfo(feed["tz"])).date()
@@ -304,14 +292,14 @@ def t5_rules(feed: dict, table: dict[str, int] | None) -> dict[str, list[str]]:
 
 # --------------------------------------------------------------------------- run
 def _key_view(row: dict) -> dict:
-    from src import insight_weights as iw
+    from fork.insight import weights as iw
 
     return {k: row.get(k) for k in ("weight", *iw.COUNTS)}
 
 
 def _cases(fx: dict, checks: list[Check]) -> None:
-    from src import insight_outcomes as io
-    from src import insight_weights as iw
+    from fork.insight import outcomes as io
+    from fork.insight import weights as iw
 
     exp = fx["expected"]
     day = Day(fx)
@@ -446,7 +434,7 @@ def _t5_day(feed: dict, checks: list[Check]) -> None:
     T5 table still carries its weight), the hub's 30-candidate cap vs the T5's 5 per
     section, and where an event stands among the to-dos of its section (the T5 places
     events by its own sort key)."""
-    from src import insight_weights as iw
+    from fork.insight import weights as iw
 
     day = T5Day(feed)
 
@@ -482,9 +470,8 @@ def run_eval(data_dir: Path, fixture: Path = FIXTURE,
              t5_fixture: Path = T5_FIXTURE) -> list[Check]:
     """Run every case in ``data_dir`` (must not hold an earlier run). DATA_DIR and the
     owner time zone are set for the run and restored after."""
-    from src import constants
-    from src import insight_outcomes as io
-    from src import today_insight as ti
+    from fork.insight import outcomes as io
+    from fork.insight import today as ti
 
     fx = load_fixture(fixture)
     data_dir = Path(data_dir)
@@ -492,39 +479,22 @@ def run_eval(data_dir: Path, fixture: Path = FIXTURE,
         raise SetupError(f"{data_dir} already holds an eval run; use an empty directory")
     data_dir.mkdir(parents=True, exist_ok=True)
     tz = ZoneInfo(fx.get("timezone") or "UTC")
-    saved = (constants.DATA_DIR, ti.owner_timezone, io._TITLES, io._LOCKS,
-             io._load_notes_by_id)
-    constants.DATA_DIR = str(data_dir)
+    saved = (ti.owner_timezone, io._TITLES, io._LOCKS, io._load_notes_by_id)
     ti.owner_timezone = lambda owner: tz
     io._TITLES, io._LOCKS = {}, {}
     io._load_notes_by_id = lambda owner, ids: {}  # every note is in the inputs
     checks: list[Check] = []
     try:
-        _cases(fx, checks)
-        _t5_day(load_fixture(t5_fixture), checks)
+        with eval_common.use_data_dir(data_dir):
+            _cases(fx, checks)
+            _t5_day(load_fixture(t5_fixture), checks)
     finally:
-        (constants.DATA_DIR, ti.owner_timezone, io._TITLES, io._LOCKS,
-         io._load_notes_by_id) = saved
+        ti.owner_timezone, io._TITLES, io._LOCKS, io._load_notes_by_id = saved
     return checks
 
 
 def table(checks: list[Check]) -> int:
-    failed = 0
-    for case in CASES:
-        mine = [c for c in checks if c.case == case]
-        ok = sum(c.ok for c in mine)
-        print(f"[{case}] {ok}/{len(mine)}")
-        for c in mine:
-            mark = "ok  " if c.ok else "FAIL"
-            print(f"  {mark} {c.step}")
-            if not c.ok:
-                failed += 1
-                print(f"       expected: {json.dumps(c.expected, ensure_ascii=False, default=str)}")
-                print(f"       got:      {json.dumps(c.actual, ensure_ascii=False, default=str)}")
-    cases_ok = sum(all(c.ok for c in checks if c.case == case) for case in CASES)
-    print(f"cases: {cases_ok}/{len(CASES)}")
-    print(f"score {sum(c.ok for c in checks)}/{len(checks)}")
-    return failed
+    return eval_common.case_table(checks, CASES)
 
 
 def main(argv: list[str] | None = None) -> int:
@@ -537,16 +507,12 @@ def main(argv: list[str] | None = None) -> int:
     ap.add_argument("--json", action="store_true", help="print the checks and score as JSON")
     args = ap.parse_args(argv)
     temp = args.data_dir is None
-    data_dir = Path(tempfile.mkdtemp(prefix="insight-eval-")) if temp else args.data_dir
-    try:
+    with eval_common.temp_data_dir(args.data_dir, "insight-eval-", keep=args.keep) as data_dir:
         try:
             checks = run_eval(data_dir, args.fixture, args.t5_fixture)
         except SetupError as e:
             print(f"insight_eval: {e}", file=sys.stderr)
             return 2
-    finally:
-        if temp and not args.keep:
-            shutil.rmtree(data_dir, ignore_errors=True)
     if args.json:
         failed = sum(not c.ok for c in checks)
         print(json.dumps({"score": sum(c.ok for c in checks), "total": len(checks),

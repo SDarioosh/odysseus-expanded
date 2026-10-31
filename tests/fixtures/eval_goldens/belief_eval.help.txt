@@ -1,0 +1,18 @@
+usage: belief_eval.py [-h] [--data-dir DATA_DIR] [--keep] [--owner OWNER]
+                      [--chat] [--bakeoff BAKEOFF] [--cleanup]
+
+Fork: the memory eval for the belief ledger (personal-context plan stage 1.6).
+
+options:
+  -h, --help           show this help message and exit
+  --data-dir DATA_DIR  where to seed beliefs.db and memory.json (default: a
+                       temp dir)
+  --keep               keep the temp dir (an explicit --data-dir is always
+                       kept)
+  --owner OWNER        owner to seed (default 'eval-owner'; with --chat,
+                       ODYSSEUS_USER or 'admin')
+  --chat               also ask a running Odysseus (needs --data-dir and
+                       --bakeoff)
+  --bakeoff BAKEOFF    Athena's server/eval/bakeoff.py
+  --cleanup            delete what an earlier run seeded for --owner in
+                       --data-dir

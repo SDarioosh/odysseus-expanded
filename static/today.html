@@ -6,48 +6,11 @@
   <title>Today — Odysseus</title>
   <meta name="theme-color" content="#282c34">
   <link rel="icon" href="/static/icon.ico">
-  <script nonce="{{CSP_NONCE}}">
-  // Fork: apply the theme the owner picked in Odysseus (saved in localStorage
-  // as 'odysseus-theme'), like the early script in index.html and login.html.
-  // theme.js isn't imported: it boots the whole settings UI.
-  (function () {
-    try {
-      var t = JSON.parse(localStorage.getItem('odysseus-theme'));
-      var s = document.documentElement.style;
-      if (t && t.colors) {
-        var c = t.colors;
-        s.setProperty('--bg', c.bg);
-        s.setProperty('--fg', c.fg);
-        s.setProperty('--panel', c.panel);
-        s.setProperty('--border', c.border);
-        if (c.red) s.setProperty('--red', c.red);
-        var a = c.advanced || {};
-        if (a.inputBg) s.setProperty('--input-bg', a.inputBg);
-        if (a.inputBorder) s.setProperty('--input-border', a.inputBorder);
-        var m = document.querySelector('meta[name="theme-color"]');
-        if (m && c.bg) m.setAttribute('content', c.bg);
-      }
-      // Same names as FONT_MAP in static/js/theme.js; unknown fonts keep the default.
-      var fonts = {
-        mono: "'Fira Code', monospace",
-        sans: "system-ui, -apple-system, 'Segoe UI', sans-serif",
-        serif: "Georgia, 'Times New Roman', serif",
-        opendyslexic: "'OpenDyslexic', sans-serif"
-      };
-      if (t && t.font && fonts[t.font]) s.setProperty('--font-family', fonts[t.font]);
-      if (t && t.density && t.density !== 'comfortable') {
-        document.documentElement.classList.add('density-' + t.density);
-      }
-    } catch (e) { /* no saved theme: keep the defaults */ }
-  })();
-  </script>
+  <!-- Fork: the theme the owner picked in Odysseus (static/js/forkPageTheme.js) -->
+  <script src="/static/js/forkPageTheme.js"></script>
   <link rel="stylesheet" href="/static/css/00-tokens.css?v=20260929csssplit">
   <!-- Fork: same look as the Today window in the main app (static/js/forkModuleWindows.js) -->
   <link rel="stylesheet" href="/static/css/fork-modules.css">
-  <style>
-    @font-face { font-family: 'Inter'; font-weight: 400; font-style: normal; font-display: swap; src: url('/static/fonts/Inter-Regular.woff2') format('woff2'); }
-    @font-face { font-family: 'Inter'; font-weight: 600; font-style: normal; font-display: swap; src: url('/static/fonts/Inter-SemiBold.woff2') format('woff2'); }
-  </style>
 </head>
 <body>
   <div class="fm-page-wrap">

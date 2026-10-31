@@ -2,6 +2,8 @@
 // Makes a single-use pairing code, shows it as a QR code rendered by the server, and
 // polls until the phone has redeemed it. The page never sees the phone's token.
 
+import { api } from './forkDom.js';
+
 const URL_KEY = 'odysseus-pair-url';
 
 const ui = {
@@ -31,18 +33,6 @@ function saveUrl(value) {
   try { localStorage.setItem(URL_KEY, value); } catch (e) { /* private window */ }
 }
 
-async function api(path, options = {}) {
-  const res = await fetch(path, { credentials: 'same-origin', ...options });
-  if (res.status === 401) {
-    window.location.href = '/login';
-    throw new Error('not signed in');
-  }
-  let data = {};
-  try { data = await res.json(); } catch (e) { /* empty answer */ }
-  if (!res.ok) throw new Error(data.detail || data.error || `HTTP ${res.status}`);
-  return data;
-}
-
 function stopPolling() {
   if (pollTimer) clearInterval(pollTimer);
   pollTimer = null;
@@ -59,7 +49,7 @@ async function poll(id) {
   showExpiry();
   let data;
   try {
-    data = await api(`/api/modules/sound/pair/${encodeURIComponent(id)}`);
+    data = await api(`/api/modules/athena/pair/${encodeURIComponent(id)}`);
   } catch (e) {
     return; // try again on the next tick
   }
@@ -82,7 +72,7 @@ async function create() {
   const url = ui.url.value.trim();
   ui.create.disabled = true;
   try {
-    const data = await api('/api/modules/sound/pair', {
+    const data = await api('/api/modules/athena/pair', {
       method: 'POST',
       headers: { 'Content-Type': 'application/json' },
       body: JSON.stringify({ url }),

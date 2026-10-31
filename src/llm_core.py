@@ -1217,10 +1217,13 @@ def _apply_local_qwen_thinking_mode(
     mode = _normalize_thinking_mode(thinking_mode)
     if not mode:
         return
-    # Fork: a private host counts as local even when its kind is api/proxy (src/private_endpoint_thinking.py)
-    from src.private_endpoint_thinking import is_private_host
+    # Fork: a private host counts as local even when its kind is api/proxy (fork/hub/private_endpoint_thinking.py)
+    from fork.hub.private_endpoint_thinking import is_private_host
     if not (is_local_endpoint(url) or is_private_host(url)):
         return
+    # Fork: brain turns switch thinking off whatever the model's name (fork/brain/turn.py)
+    from fork.brain.turn import apply_brain_thinking
+    if apply_brain_thinking(payload): return
     if not (_supports_thinking(model) or _is_odysseus_qwen_tool_router_model(model)):
         return
     kwargs = payload.setdefault("chat_template_kwargs", {})
@@ -1558,8 +1561,9 @@ def _build_chatgpt_responses_payload(
         "stream": stream,
         "store": False,
     }
-    if not _restricts_temperature(model):
-        payload["temperature"] = temperature
+    # ChatGPT plan Responses requests reject temperature for every model.
+    # The common caller still passes its preset value, but this provider must
+    # omit the field even for model names outside the known reasoning families.
     # ChatGPT Subscription Codex API does not support max_output_tokens —
     # passing it returns HTTP 400 "Unsupported parameter: max_output_tokens".
     # Do not include it in the payload.

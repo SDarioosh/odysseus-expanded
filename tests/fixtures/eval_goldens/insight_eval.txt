@@ -1,0 +1,63 @@
+[rule_order] 7/7
+  ok   order
+  ok   tiers
+  ok   tiers never go back
+  ok   overdue oldest first
+  ok   left out (undated shopping list, done items)
+  ok   every weight 0
+  ok   cap 4
+[weights] 11/11
+  ok   days final before today's first run
+  ok   days final after it (yesterday finalized)
+  ok   keys learnt
+  ok   list:note-work
+  ok   list:note-home
+  ok   list:note-garden
+  ok   list:note-errands
+  ok   list:note-reading
+  ok   note_type:checklist
+  ok   to-do base
+  ok   stable during the day
+[tiers] 5/5
+  ok   weighted order
+  ok   same tiers as the rule order
+  ok   same items as the rule order
+  ok   dismissed list's overdue item before favoured list's due-soon item
+  ok   cap keeps every overdue and due-today item
+[min_shown] 2/2
+  ok   list:note-errands shown 5 < 6
+  ok   list:note-errands shown 6
+[t5_table] 3/3
+  ok   weights
+  ok   fixture's feed block
+  ok   same as the hub's candidate weights
+[t5_day] 12/12
+  ok   candidate weight per note = the T5 table
+  ok   t5_table of those weights = the feed's weights
+  ok   without weights: do_first to-dos
+  ok   without weights: coming_up to-dos
+  ok   without weights: also to-dos
+  ok   without weights: T5 rules re-implemented
+  ok   without weights: events in the same sections
+  ok   with weights: do_first to-dos
+  ok   with weights: coming_up to-dos
+  ok   with weights: also to-dos
+  ok   with weights: T5 rules re-implemented
+  ok   with weights: events in the same sections
+[owner_marks] 6/6
+  ok   dismissed
+  ok   promoted
+  ok   not today leaves today's candidates
+  ok   ↑ first leads Do first
+  ok   coming up after
+  ok   weights unchanged by today's marks
+[reset] 7/7
+  ok   list:note-work weight
+  ok   list:note-work reset day
+  ok   list:note-work still 0 on the next read
+  ok   due-soon tier back to the rule order
+  ok   all weights 0 after reset all
+  ok   order is the rule order
+  ok   T5 table empty
+cases: 8/8
+score 53/53

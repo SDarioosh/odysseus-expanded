@@ -13,6 +13,14 @@ def standalone_dispatch_authority(monkeypatch):
     monkeypatch.setattr(tool_execution, "execute_tool_block",
                         server_authorized_executor(tool_execution.execute_tool_block))
 
+
+@pytest.fixture(autouse=True)
+def documents_table():
+    """Resolving an unnamed document target queries ``documents``; create it here rather
+    than relying on an earlier test in the same process to have done so."""
+    from core.database import Document, engine
+    Document.__table__.create(bind=engine, checkfirst=True)
+
 from src.tool_approvals import ToolApprovalStore, document_content_digest
 from src.tool_capabilities import ToolRunSecurityContext, capabilities_for_action
 

@@ -189,8 +189,8 @@ class McpManager:
                 effective_env = {**os.environ, **(env or {})}
                 self._resource_owners[server_id] = str(effective_env.get("ODYSSEUS_MCP_MEMORY_OWNER") or effective_env.get("ODYSSEUS_MEMORY_OWNER") or "").strip()
             if transport == "stdio":
-                # Fork: own the transport in a long-lived task, not the request (src/mcp_stdio_owner.py)
-                from src.mcp_stdio_owner import connect_stdio_owned
+                # Fork: own the transport in a long-lived task, not the request (fork/mcp/stdio_owner.py)
+                from fork.mcp.stdio_owner import connect_stdio_owned
                 res = await connect_stdio_owned(self, server_id, name, command, args or [], env or {})
             elif transport == "sse":
                 res = await self._connect_sse(server_id, name, url)
@@ -397,7 +397,7 @@ class McpManager:
                     "name": tool.name,
                     "description": tool.description or "",
                     "input_schema": tool.inputSchema if hasattr(tool, "inputSchema") else {},
-                    # Same as stdio/SSE: keep readOnlyHint / destructiveHint.
+                    # Fork: like stdio/SSE, keep readOnlyHint / destructiveHint (FORK.md).
                     "annotations": getattr(tool, "annotations", None),
                 })
 
@@ -476,8 +476,8 @@ class McpManager:
         ``AsyncExitStack``. On shutdown this task closes the stack in its
         ``finally`` block, satisfying AnyIO's cancel-scope ownership rule.
         """
-        # Fork: stdio connections already have an owner task (src/mcp_stdio_owner.py)
-        from src.mcp_stdio_owner import await_existing_owner
+        # Fork: stdio connections already have an owner task (fork/mcp/stdio_owner.py)
+        from fork.mcp.stdio_owner import await_existing_owner
         if await await_existing_owner(self, server_id):
             return
         event = asyncio.Event()
@@ -607,8 +607,8 @@ class McpManager:
                         ),
                         "exit_code": 1,
                     }
-            # Fork: module calls get a deadline (src/mcp_session_recovery.py)
-            from src.mcp_session_recovery import guarded_call
+            # Fork: module calls get a deadline (fork/mcp/session_recovery.py)
+            from fork.mcp.session_recovery import guarded_call
             result = await guarded_call(self, server_id, session, tool_name, arguments)
         except Exception as e:
             # Auto-reconnect for builtin servers whose subprocess may have died
@@ -629,8 +629,8 @@ class McpManager:
                     logger.error(f"MCP reconnect failed for {server_id}")
                     return {"error": f"MCP server crashed and reconnect failed: {server_id}", "exit_code": 1}
             else:
-                # Fork: reconnect a lost HTTP/SSE session and retry once (src/mcp_session_recovery.py)
-                from src.mcp_session_recovery import recover_call
+                # Fork: reconnect a lost HTTP/SSE session and retry once (fork/mcp/session_recovery.py)
+                from fork.mcp.session_recovery import recover_call
                 recovered = await recover_call(self, server_id, tool_name, arguments, e, session, bound_backend)
                 if recovered is not None:
                     return recovered

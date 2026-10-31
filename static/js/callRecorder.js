@@ -7,12 +7,13 @@
 // sent; the module ends a session after long silence or its maximum length, and the page
 // then continues in a new session.
 
+import { $ } from './forkDom.js';
+
 const PIECE_MS = 30000;
 const BITRATE = 32000; // Opus voice; ~120 KB per 30 s piece
 const RETRY_MAX_MS = 60000;
 const MIC_PREF = 'odysseus-call-recorder-mic';
 
-const $ = (sel) => document.querySelector(sel);
 const ui = {
   notice: $('#rc-notice'), start: $('#rc-start'), stop: $('#rc-stop'), mic: $('#rc-mic'),
   dot: $('#rc-dot'), time: $('#rc-time'), state: $('#rc-state'), sent: $('#rc-sent'),
@@ -130,7 +131,7 @@ async function pump() {
       form.append('codec', p.codec);
       let res;
       try {
-        res = await post('/api/modules/sound/record/chunk', form);
+        res = await post('/api/modules/athena/record/chunk', form);
       } catch (e) {
         res = { status: 0, data: {} };
       }
@@ -309,7 +310,7 @@ async function finish() {
   if (sentIn.has(sessionId)) {
     // Process now rather than after the module's idle timeout.
     try {
-      const res = await post(`/api/modules/sound/record/${encodeURIComponent(sessionId)}/end`, null);
+      const res = await post(`/api/modules/athena/record/${encodeURIComponent(sessionId)}/end`, null);
       if (res.status !== 200) lastError = `Sent, but couldn't end the session (${res.data.detail ||
         `HTTP ${res.status}`}); Athena ends it by itself after a few minutes.`;
     } catch (e) {
@@ -334,7 +335,7 @@ async function init() {
     }
   });
   try {
-    const res = await fetch('/api/modules/sound/record/config', { credentials: 'same-origin' });
+    const res = await fetch('/api/modules/athena/record/config', { credentials: 'same-origin' });
     if (res.status === 401) {
       window.location.href = '/login';
       return;

@@ -2,7 +2,7 @@
 """Fork: the memory eval for the belief ledger (personal-context plan stage 1.6).
 
 Seeds a fictional evidence history (one owner, three people, a project; sources
-``odysseus-sound`` and ``notes``) through the ledger's public API in
+``athena`` and ``notes``) through the ledger's public API in
 ``src/evidence_intake.py``, with every ``now`` given, and checks each case: status,
 ``confirmed_by`` and whether the belief is in Odysseus memory. Then the memory mirror:
 exactly the confirmed beliefs are in ``memory.json``, as ``<text> (source: <link>)``,
@@ -39,11 +39,9 @@ import json
 import os
 import re
 import shlex
-import shutil
 import sqlite3
 import sys
-import tempfile
-from dataclasses import dataclass
+import tempfile  # noqa: F401  (tests patch tempfile.mkdtemp as belief_eval.tempfile)
 from datetime import datetime, timezone
 from pathlib import Path
 from urllib.parse import urlsplit
@@ -52,13 +50,14 @@ REPO = Path(__file__).resolve().parents[1]
 if str(REPO) not in sys.path:
     sys.path.insert(0, str(REPO))
 
+from scripts import eval_common
+from scripts.eval_common import MODULE, NOTES, Check, source_name, table
+
 OWNER = "eval-owner"
 ME, PRIYA, TOMAS, LENA, HERON = ("Sam Rivera", "Priya Nair", "Tomas Berg", "Lena Okafor",
                                  "Project Heron")
-MODULE, NOTES = "odysseus-sound", "notes"
 NOTE_PREFIX = "belief-eval-note-"  # the eval's note ids: never a real note's id
-SETTINGS_ENV = ("BELIEF_CONFIRM_SOURCES", "BELIEF_CONFIRM_TIMES", "BELIEF_CONFIRM_DAYS",
-                "BELIEF_STALE_DAYS")
+SETTINGS_ENV = eval_common.BELIEF_SETTINGS_ENV
 OWN_MEMORY = "Sam Rivera keeps the spare bike key in the blue drawer"
 
 # The fictional claims, by case. Module fact ids are 9001+ (an eval range), notes n1+.
@@ -117,23 +116,11 @@ def at(month: int, day: int, hour: int = 9) -> datetime:
 
 
 def module_link(fact_id: int) -> str:
-    return f"http://127.0.0.1:8090/view/c{fact_id}?sig=eval#t={fact_id % 97}"
+    return eval_common.module_link(fact_id, "eval")
 
 
 def note_link(note: str) -> str:
     return f"/notes#{NOTE_PREFIX}{note}"
-
-
-@dataclass
-class Check:
-    case: str
-    step: str
-    expected: str
-    actual: str
-
-    @property
-    def ok(self) -> bool:
-        return self.expected == self.actual
 
 
 class SetupError(RuntimeError):
@@ -144,7 +131,7 @@ class Run:
     """One seeded history: the simulated module, notes, and the checks."""
 
     def __init__(self, owner: str):
-        from src import evidence_intake as ledger
+        from fork.beliefs import evidence_intake as ledger
 
         self.ledger = ledger
         self.owner = owner
@@ -173,7 +160,7 @@ class Run:
         present = {str(fid) for fid in self.module}
         present |= {e["source_id"] for b in ledger.list_beliefs(self.owner, limit=100000)
                     for e in b["evidence"]
-                    if e["source"] == MODULE and not _eval_id(e["source_id"])}
+                    if source_name(e["source"]) == MODULE and not _eval_id(e["source_id"])}
         ledger.reconcile_source(self.owner, MODULE, present, now=now, mirror=False)
         ledger.apply_decay(self.owner, now=now, mirror=False)
         ledger.sync_memory(self.owner, now=now)
@@ -232,7 +219,7 @@ def _eval_id(source_id: str) -> bool:
 
 def _eval_evidence(source: str, source_id: str) -> bool:
     """Evidence this eval submits: module fact ids 9001-9099, notes ``belief-eval-note-*``."""
-    return ((source == MODULE and _eval_id(source_id))
+    return ((source_name(source) == MODULE and _eval_id(source_id))
             or (source == NOTES and source_id.startswith(NOTE_PREFIX)))
 
 
@@ -306,7 +293,8 @@ def scenario(r: Run) -> None:
     evidence = ledger.reject(r.owner, employer["id"], "wrong company", now=at(10, 3, 12))
     r.expect("forgotten", "10-03 owner forgets it", EMPLOYER, REJ)
     r.check("forgotten", "10-03 reject returns its evidence",
-            "odysseus-sound:9006", ",".join(f"{e['source']}:{e['source_id']}" for e in evidence))
+            "athena:9006", ",".join(f"{source_name(e['source'])}:{e['source_id']}"
+                                    for e in evidence))
 
     birthday = r.belief(BIRTHDAY)
     memory_id = r.mirrored()[birthday["id"]]["id"]
@@ -493,15 +481,11 @@ def run_eval(data_dir: str | Path, owner: str = OWNER) -> list[Check]:
     """Seed and check in ``data_dir``. DATA_DIR and the BELIEF_* settings are set for the
     run (defaults) and restored afterwards. Raises :class:`SetupError` when the dir
     already has this eval's beliefs for ``owner``."""
-    from src import constants
-    from src import evidence_intake as ledger
+    from fork.beliefs import evidence_intake as ledger
 
     data_dir = Path(data_dir)
     data_dir.mkdir(parents=True, exist_ok=True)
-    saved_dir = constants.DATA_DIR
-    saved_env = {k: os.environ.pop(k) for k in SETTINGS_ENV if k in os.environ}
-    constants.DATA_DIR = str(data_dir)
-    try:
+    with eval_common.use_data_dir(data_dir, SETTINGS_ENV):
         norms = {ledger.normalize(t) for t in ALL_TEXTS}
         taken = [b["text"] for b in ledger.list_beliefs(owner, limit=100000)
                  if ledger.normalize(b["text"]) in norms]
@@ -522,9 +506,6 @@ def run_eval(data_dir: str | Path, owner: str = OWNER) -> list[Check]:
                 {"owner": owner, "belief_ids": _created(ledger, owner, before),
                  "memory_id": memory_id}, indent=2) + "\n", encoding="utf-8")
         return run.checks
-    finally:
-        constants.DATA_DIR = saved_dir
-        os.environ.update(saved_env)
 
 
 def cleanup(data_dir: str | Path, owner: str) -> dict[str, int]:
@@ -533,7 +514,7 @@ def cleanup(data_dir: str | Path, owner: str) -> dict[str, int]:
     copies (``sync_memory``), and the seeded own memory. Nothing else. Raises
     :class:`SetupError` without a manifest."""
     from src import constants
-    from src import evidence_intake as ledger
+    from fork.beliefs import evidence_intake as ledger
     from src.memory import MemoryManager
 
     path = manifest_path(data_dir, owner)
@@ -544,9 +525,7 @@ def cleanup(data_dir: str | Path, owner: str) -> dict[str, int]:
     if manifest.get("owner") != owner:
         raise SetupError(f"{path} is for owner {manifest.get('owner')!r}, not {owner!r}")
     counts = {"beliefs": 0, "kept": 0, "missing": 0, "memories": 0, "own_memory": 0}
-    saved_dir = constants.DATA_DIR
-    constants.DATA_DIR = str(data_dir)
-    try:
+    with eval_common.use_data_dir(data_dir):
         db = sqlite3.connect(str(ledger.db_path()), timeout=30, isolation_level=None)
         try:
             db.execute("PRAGMA foreign_keys = ON")
@@ -580,36 +559,12 @@ def cleanup(data_dir: str | Path, owner: str) -> dict[str, int]:
             manager.save(keep)
             counts["own_memory"] = len(entries) - len(keep)
         path.unlink()
-    finally:
-        constants.DATA_DIR = saved_dir
     return counts
 
 
 def cleanup_command(data_dir: Path, owner: str) -> str:
     return shlex.join([sys.executable, str(Path(__file__).resolve()), "--cleanup",
                        "--data-dir", str(data_dir), "--owner", owner])
-
-
-def table(checks: list[Check], out=None) -> int:
-    """Print expected vs actual per check and the score; returns the failures."""
-    out = out or sys.stdout
-    rows = [("case", "step", "expected", "actual", "")]
-    rows += [(c.case, c.step, c.expected, c.actual, "ok" if c.ok else "FAIL") for c in checks]
-    width = [min(48, max(len(row[i]) for row in rows)) for i in range(4)]
-    for row in rows:
-        cells = [row[i][:width[i]].ljust(width[i]) for i in range(4)]
-        print("  ".join(cells + [row[4]]).rstrip(), file=out)
-    passed = sum(c.ok for c in checks)
-    cases = {}
-    for c in checks:
-        cases[c.case] = cases.get(c.case, True) and c.ok
-    print(f"\ncases: {sum(cases.values())}/{len(cases)}   checks: score {passed}/{len(checks)}",
-          file=out)
-    for c in checks:
-        if not c.ok:
-            print(f"FAIL {c.case}: {c.step}\n  expected: {c.expected}\n  actual:   {c.actual}",
-                  file=out)
-    return len(checks) - passed
 
 
 # ------------------------------------------------------------------------- chat
@@ -709,8 +664,7 @@ def main(argv: list[str] | None = None) -> int:
         owner = os.environ.get("ODYSSEUS_USER", "admin") if args.chat else OWNER
 
     temp = args.data_dir is None
-    data_dir = Path(tempfile.mkdtemp(prefix="belief-eval-")) if temp else args.data_dir
-    try:
+    with eval_common.temp_data_dir(args.data_dir, "belief-eval-", keep=args.keep) as data_dir:
         try:
             checks = run_eval(data_dir, owner)
         except SetupError as e:
@@ -719,9 +673,6 @@ def main(argv: list[str] | None = None) -> int:
         failed = table(checks)
         if args.chat:
             chat(args.bakeoff)
-    finally:
-        if temp and not args.keep:
-            shutil.rmtree(data_dir, ignore_errors=True)
     if not temp or args.keep:
         print(f"ledger kept: {data_dir / 'beliefs.db'} (owner {owner!r})")
         print(f"cleanup: {cleanup_command(data_dir, owner)}")

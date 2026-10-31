@@ -14,8 +14,10 @@
 // their conversation in the evidence payload (src/module_facts.py): a card shows the kind
 // and the line, and the Tentative tab groups beliefs by conversation, each group with
 // "Dismiss all".
+// The page (static/beliefs.html, served at /beliefs) and the app's Wisdom window both call
+// mountBeliefs() below.
 
-const $ = (sel) => document.querySelector(sel);
+import { el, $, api } from './forkDom.js';
 
 const TABS = [
   ['tentative', 'Tentative'],
@@ -37,8 +39,13 @@ const CONFIRMED_BY = {
   rule: 'Confirmed by the rule',
 };
 
-const SOURCE_NAMES = { 'odysseus-sound': 'Conversations', notes: 'Notes', routines: 'Calendar' };
-const MODULE_SOURCE = 'odysseus-sound';
+// Athena's source: 'athena', or 'odysseus-sound' in a ledger from before the rename
+// (fork/common/athena_names.py).
+const SOURCE_NAMES = {
+  athena: 'Conversations', 'odysseus-sound': 'Conversations', notes: 'Notes', routines: 'Calendar',
+};
+const MODULE_SOURCES = ['athena', 'odysseus-sound'];
+const isModuleSource = (source) => MODULE_SOURCES.includes(source);
 
 // Athena's fact kinds (src/module_facts.py FACT_KINDS); "other" shows the category.
 const FACT_KINDS = {
@@ -91,41 +98,6 @@ const ICONS = {
   kind_thing: svg('<path d="M21 16V8a2 2 0 0 0-1-1.73l-7-4a2 2 0 0 0-2 0l-7 4A2 2 0 0 0 3 8v8a2 2 0 0 0 1 1.73l7 4a2 2 0 0 0 2 0l7-4A2 2 0 0 0 21 16z"/>' +
                   '<polyline points="3.27 6.96 12 12.01 20.73 6.96"/><line x1="12" y1="22.08" x2="12" y2="12"/>'),
 };
-
-function el(tag, attrs = {}, ...children) {
-  const node = document.createElement(tag);
-  for (const [k, v] of Object.entries(attrs)) {
-    if (v === undefined || v === null || v === false) continue;
-    if (k === 'className') node.className = v;
-    else if (k === 'html') node.innerHTML = v; // only for our own static SVG strings
-    else if (k.startsWith('on')) node.addEventListener(k.slice(2), v);
-    else node.setAttribute(k, v === true ? '' : v);
-  }
-  for (const c of children) {
-    if (c === null || c === undefined || c === false) continue;
-    node.append(c instanceof Node ? c : document.createTextNode(String(c)));
-  }
-  return node;
-}
-
-async function api(path, options = {}) {
-  const res = await fetch(path, { credentials: 'same-origin', ...options });
-  if (res.status === 401) {
-    window.location.href = '/login';
-    throw new Error('not logged in');
-  }
-  let data = {};
-  try {
-    data = await res.json();
-  } catch (e) {}
-  if (!res.ok) {
-    const err = new Error(data.detail || data.error || `HTTP ${res.status}`);
-    err.status = res.status;
-    err.data = data;
-    throw err;
-  }
-  return data;
-}
 
 function postJSON(path, body) {
   return api(path, {
@@ -465,7 +437,7 @@ async function movePanel(b, card) {
     ...others.map((o) => el('option', { value: String(o.id) }, o.display)));
   const input = el('input', { type: 'text', className: 'bs-filter', placeholder: 'or a new name',
                               'aria-label': 'New person', maxlength: '120' });
-  const fromSound = (b.evidence || []).some((e) => e.source === 'odysseus-sound' && e.link);
+  const fromSound = (b.evidence || []).some((e) => isModuleSource(e.source) && e.link);
   const fix = el('input', { type: 'checkbox', checked: true, id: `fix-${b.id}` });
   const go = () => {
     const name = input.value.trim();
@@ -631,7 +603,7 @@ function renderBeliefs() {
 // The Athena conversation a belief was heard in (live evidence), or null.
 function conversationOf(b) {
   const evidence = Array.isArray(b.evidence) ? b.evidence : [];
-  const e = evidence.find((x) => x.source === MODULE_SOURCE && !x.gone &&
+  const e = evidence.find((x) => isModuleSource(x.source) && !x.gone &&
                                  (x.payload || {}).conversation_id);
   return e ? e.payload.conversation_id : null;
 }
@@ -946,7 +918,7 @@ function openSubject(id) {
   state.detail = null;
   try { sessionStorage.setItem(VIEW_KEY, 'subject'); } catch (e) {}
   load();
-  // In the Beliefs window (static/js/forkBeliefsWindow.js) the window body scrolls.
+  // In the Wisdom window (static/js/forkModuleWindows.js) the window body scrolls.
   const scroller = $('#bl-main').closest('.fm-modal-body');
   if (scroller) scroller.scrollTo(0, 0);
   else window.scrollTo(0, 0);
@@ -1132,42 +1104,103 @@ async function sync() {
   }
 }
 
-$('#bl-attribute').replaceChildren(el('option', { value: '' }, 'All attributes'),
-  ...ATTRIBUTES.map(([key, label]) => el('option', { value: key }, label)));
-$('#bl-kind').replaceChildren(...KIND_FILTERS.map(([key, label]) => el('option', { value: key }, label)));
+// ------------------------------------------------------------------ mount
+// The view's markup, the same on the page (static/beliefs.html) and in the window.
+const MARKUP = `
+  <div class="bs-wrap">
+    <div class="bs-top">
+      <a href="/" title="Back to Odysseus">
+        <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"
+          stroke-linecap="round" stroke-linejoin="round"><polyline points="15 18 9 12 15 6"/></svg>
+      </a>
+      <h1>What I know about you</h1>
+      <a class="bs-btn" id="bl-export" href="/api/beliefs/export" download
+        title="Download everything here and your memories as one JSON file">Download</a>
+      <button type="button" class="bs-btn" id="bl-sync" title="Read the module's facts now">Sync now</button>
+    </div>
+    <p class="bs-sub" id="bl-counts"></p>
+    <div class="bs-search">
+      <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"
+        stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><circle cx="11" cy="11" r="8"/>
+        <line x1="21" y1="21" x2="16.65" y2="16.65"/></svg>
+      <input type="search" class="bs-filter" id="bl-search" placeholder="Search what I know"
+        aria-label="Search what I know" autocomplete="off">
+    </div>
+    <div class="bs-views" role="group" aria-label="View" id="bl-views">
+      <button type="button" class="bs-btn bs-view" data-view="status" aria-pressed="true">By status</button>
+      <button type="button" class="bs-btn bs-view" data-view="subject" aria-pressed="false">By subject</button>
+    </div>
+    <div class="bs-tabs" role="tablist" id="bl-tabs"></div>
+    <div class="bs-controls">
+      <input type="search" class="bs-filter" id="bl-filter" placeholder="Filter by subject"
+        aria-label="Filter by subject" autocomplete="off">
+      <select class="bs-select" id="bl-attribute" aria-label="Filter by attribute"></select>
+      <select class="bs-select" id="bl-kind" aria-label="Filter by kind" hidden></select>
+    </div>
+    <div id="bl-main"><div class="bs-status">Loading…</div></div>
+  </div>
+  <div class="bs-toast" id="bl-toast" role="status" aria-live="polite" hidden></div>
+`;
 
-let filterTimer = null;
-$('#bl-filter').addEventListener('input', (ev) => {
-  clearTimeout(filterTimer);
-  filterTimer = setTimeout(() => {
-    state.filter = ev.target.value || '';
-    render();
-  }, 150);
-});
-let searchTimer = null;
-$('#bl-search').addEventListener('input', (ev) => {
-  clearTimeout(searchTimer);
-  searchTimer = setTimeout(() => {
-    const q = (ev.target.value || '').trim();
-    if (q === state.query.trim()) return;
-    state.query = q;
+let mounted = false;
+
+/**
+ * Builds the view into `root` (the page's body, or the window body in the app) and loads it.
+ * - inApp: true in the app's Wisdom window (static/js/forkModuleWindows.js), which has its
+ *   own title bar: the view then keeps only the Download and Sync buttons of its top row.
+ * The view's look is in static/css/fork-modules.css, under the root's class `fm-beliefs`.
+ * Returns { refresh }.
+ */
+export function mountBeliefs(root, { inApp = false } = {}) {
+  if (mounted) throw new Error('the Wisdom view is already mounted');
+  mounted = true;
+  const template = document.createElement('template');
+  template.innerHTML = MARKUP; // our own static markup
+  if (inApp) {
+    const top = template.content.querySelector('.bs-top');
+    top.querySelector('a[href="/"]').remove();
+    top.querySelector('h1').replaceChildren();
+  }
+  root.classList.add('fm-beliefs');
+  root.prepend(...template.content.childNodes); // before the page's own script, if any
+  $('#bl-attribute').replaceChildren(el('option', { value: '' }, 'All attributes'),
+    ...ATTRIBUTES.map(([key, label]) => el('option', { value: key }, label)));
+  $('#bl-kind').replaceChildren(...KIND_FILTERS.map(([key, label]) => el('option', { value: key }, label)));
+
+  let filterTimer = null;
+  $('#bl-filter').addEventListener('input', (ev) => {
+    clearTimeout(filterTimer);
+    filterTimer = setTimeout(() => {
+      state.filter = ev.target.value || '';
+      render();
+    }, 150);
+  });
+  let searchTimer = null;
+  $('#bl-search').addEventListener('input', (ev) => {
+    clearTimeout(searchTimer);
+    searchTimer = setTimeout(() => {
+      const q = (ev.target.value || '').trim();
+      if (q === state.query.trim()) return;
+      state.query = q;
+      load();
+    }, 350);
+  });
+  $('#bl-search').addEventListener('keydown', (ev) => {
+    if (ev.key === 'Escape' && state.query) clearSearch();
+  });
+  $('#bl-attribute').addEventListener('change', (ev) => {
+    state.attribute = ev.target.value || '';
     load();
-  }, 350);
-});
-$('#bl-search').addEventListener('keydown', (ev) => {
-  if (ev.key === 'Escape' && state.query) clearSearch();
-});
-$('#bl-attribute').addEventListener('change', (ev) => {
-  state.attribute = ev.target.value || '';
+  });
+  $('#bl-kind').addEventListener('change', (ev) => {
+    state.kind = ev.target.value || '';
+    load();
+  });
+  for (const b of document.querySelectorAll('.bs-view')) {
+    b.addEventListener('click', () => selectView(b.dataset.view));
+  }
+  $('#bl-sync').addEventListener('click', sync);
+  renderControls();
   load();
-});
-$('#bl-kind').addEventListener('change', (ev) => {
-  state.kind = ev.target.value || '';
-  load();
-});
-for (const b of document.querySelectorAll('.bs-view')) {
-  b.addEventListener('click', () => selectView(b.dataset.view));
+  return { refresh() {} }; // "Sync now" in the view reloads it
 }
-$('#bl-sync').addEventListener('click', sync);
-renderControls();
-load();

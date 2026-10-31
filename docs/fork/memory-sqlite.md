@@ -1,6 +1,8 @@
 # Memory on SQLite: implementation plan
 
-Status: plan only. No code changes yet. Owner decisions are listed at the end.
+Status: **on hold** (2026-10-31). Athena's facts will reach chat through the belief ledger
+(`search_beliefs`) instead of being copied into `memory.json`; see [brain.md](brain.md#memory-and-beliefs).
+The plan below is kept for reference. Owner decisions are listed at the end.
 
 ## Summary
 
@@ -154,7 +156,7 @@ in the one hook in `MemoryManager.__init__`. Defaults stay `json` until the owne
 verified the migration, so merging the code changes nothing at runtime.
 
 **Fork bookkeeping.** Each hook gets a `# Fork: ... (src/memory_store.py)` comment and a
-row in the "Changes from upstream" table in `FORK.md`. No reformatting of `memory.py`.
+row in the "Hooks into upstream files" table in `FORK.md`. No reformatting of `memory.py`.
 
 ## Migration and rollback
 
@@ -230,7 +232,7 @@ upstream-file changes that are not a listed hook.
   corrupt database raises `MemoryStoreUnreadable`; unique-index dedup; import then export
   equals the original JSON; owner isolation in FTS and vector queries; stale-vector
   re-embedding is bounded.
-- Performance gate in the style of `tests/test_ledger_perf.py`: at 10k entries
+- Performance gate in the style of `tests/fork/test_ledger_perf.py`: at 10k entries
   `increment_uses` and `add` stay under a fixed millisecond budget set from the phase 1
   baseline, and recall latency does not grow linearly with a 5x larger store.
 

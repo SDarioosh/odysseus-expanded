@@ -13,6 +13,7 @@
 // (todayTrends.js). Contract: docs/fork/today-insight.md.
 import { mountWeights, renderWhy } from './todayWeights.js';
 import { mountTrends } from './todayTrends.js';
+import { el, api } from './forkDom.js';
 
 let root = null; // one mount per document
 const $ = (sel) => root.querySelector(sel);
@@ -27,41 +28,6 @@ const EVENT_ICON = '<svg width="14" height="14" viewBox="0 0 24 24" fill="none" 
   'stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><rect x="3" y="4" width="18" ' +
   'height="18" rx="2"/><line x1="16" y1="2" x2="16" y2="6"/><line x1="8" y1="2" x2="8" y2="6"/>' +
   '<line x1="3" y1="10" x2="21" y2="10"/></svg>';
-
-function el(tag, attrs = {}, ...children) {
-  const node = document.createElement(tag);
-  for (const [k, v] of Object.entries(attrs)) {
-    if (v === undefined || v === null || v === false) continue;
-    if (k === 'className') node.className = v;
-    else if (k === 'html') node.innerHTML = v; // only for our own static SVG strings
-    else if (k.startsWith('on')) node.addEventListener(k.slice(2), v);
-    else node.setAttribute(k, v === true ? '' : v);
-  }
-  for (const c of children) {
-    if (c === null || c === undefined) continue;
-    node.append(c instanceof Node ? c : document.createTextNode(String(c)));
-  }
-  return node;
-}
-
-async function api(path, options = {}) {
-  const res = await fetch(path, { credentials: 'same-origin', ...options });
-  if (res.status === 401) {
-    window.location.href = '/login';
-    throw new Error('not logged in');
-  }
-  let data = {};
-  try {
-    data = await res.json();
-  } catch (e) {}
-  if (!res.ok) {
-    const err = new Error(data.detail || data.error || `HTTP ${res.status}`);
-    err.status = res.status;
-    err.data = data;
-    throw err;
-  }
-  return data;
-}
 
 function postJSON(path, body) {
   return api(path, {
@@ -99,7 +65,7 @@ function postOutcome(ref, outcome, extra = {}) {
 async function setLoopStatus(ref, status) {
   const id = /^loop:(\d+)$/.exec(ref || '');
   if (!id) throw new Error('not an open loop');
-  const res = await postJSON(`/api/modules/sound/action-items/${id[1]}`, { status });
+  const res = await postJSON(`/api/modules/athena/action-items/${id[1]}`, { status });
   if (!res.ok) throw new Error(res.message || 'the module said no');
 }
 

@@ -121,7 +121,7 @@ try:
 except Exception as e:
     _root_logger.warning(f"Failed to initialize file logging handler (falling back to console-only): {e}")
 
-from src.log_redact import install as _fork_log_redact  # Fork: no tokens in logs (src/log_redact.py)
+from fork.hub.log_redact import install as _fork_log_redact  # Fork: no tokens in logs (fork/hub/log_redact.py)
 _fork_log_redact(_root_logger)
 
 logger = logging.getLogger(__name__)
@@ -181,6 +181,14 @@ app.add_middleware(SecurityHeadersMiddleware)
 import asyncio as _asyncio
 from starlette.middleware.base import BaseHTTPMiddleware as _BaseHTTPMiddleware
 from starlette.responses import JSONResponse as _JSONResponse
+import anyio as _anyio
+from starlette.requests import ClientDisconnect as _ClientDisconnect
+
+# SSE endpoints (e.g. /api/editor/bridge/events) end/abort mid-stream when the
+# browser disconnects; Starlette's BaseHTTPMiddleware surfaces that as
+# anyio.EndOfStream (and sometimes ClientDisconnect). Those are client-side
+# events, not server errors, so we map them to a 499 instead of a 500 traceback.
+_STREAM_CLIENT_EXC = (_anyio.EndOfStream, _ClientDisconnect)
 
 REQUEST_HARD_TIMEOUT = float(os.getenv("REQUEST_HARD_TIMEOUT", "45"))
 _TIMEOUT_EXEMPT_PREFIXES = (
@@ -193,6 +201,7 @@ _TIMEOUT_EXEMPT_PREFIXES = (
     "/api/cookbook/setup",  # remote pacman/apt installs
     "/api/upload",          # large files
     "/api/image",           # diffusion proxies (inpaint/harmonize/upscale/etc.) — own 120s httpx timeout
+    "/api/editor",          # editor agent/bridge: generative steps can take 30-110s (SAM + local diffusion)
     "/api/memory/audit",    # retains own 120s LLM inactivity timeout
 )
 
@@ -228,15 +237,43 @@ class _InteractiveActivityMiddleware(_BaseHTTPMiddleware):
             return await call_next(request)
 
 
+# Heavy image ops that can run 30-150 s; a deploy restart must not cut these off.
+_HEAVY_IMAGE_OP_PREFIXES = (
+    "/api/image/inpaint",
+    "/api/image/replace-background",
+    "/api/image/outpaint",
+    "/api/image/extend",
+    "/api/image/remove-bg",
+    "/api/image/mask",
+    "/api/image/upscale-local",
+    "/api/image/denoise",
+    "/api/image/enhance-face",
+    "/api/gallery/ai-upscale",
+    "/api/gallery/style-transfer",
+    "/api/editor/agent",
+)
+
+
 class _SlowRequestLogMiddleware(_BaseHTTPMiddleware):
     async def dispatch(self, request, call_next):
+        from src import activity
+        path = request.url.path or ""
+        heavy = any(path.startswith(p) for p in _HEAVY_IMAGE_OP_PREFIXES)
+        if heavy:
+            activity.begin_image_op(path)
         start = time.perf_counter()
         status = 500
         try:
             response = await call_next(request)
             status = getattr(response, "status_code", 0) or 0
             return response
+        except _STREAM_CLIENT_EXC:
+            # Client disconnected / SSE stream ended — not a server error.
+            status = 499
+            return _JSONResponse({"detail": "client disconnected"}, status_code=499)
         finally:
+            if heavy:
+                activity.end_image_op(path)
             elapsed = time.perf_counter() - start
             try:
                 threshold = float(os.getenv("ODYSSEUS_SLOW_REQUEST_LOG_SECONDS", "0.75") or "0.75")
@@ -280,7 +317,7 @@ if AUTH_ENABLED:
         "/api/version",
         "/login",
     }
-    AUTH_EXEMPT_EXACT.add("/api/pair/redeem")  # Fork: phone pairing, rate limited (routes/sound_relay_routes.py)
+    AUTH_EXEMPT_EXACT.add("/api/pair/redeem")  # Fork: phone pairing, rate limited (fork/athena/relay_routes.py)
     AUTH_EXEMPT_PREFIXES = ["/static"]
     # Dynamic paths whose own handler proves identity via a path-embedded
     # secret instead of the session/bearer auth. The route handler at
@@ -759,7 +796,8 @@ app.include_router(setup_research_routes(research_handler, session_manager=sessi
 
 # History
 from routes.history.history_routes import setup_history_routes
-app.include_router(setup_history_routes(session_manager, upload_handler=upload_handler))
+history_router = setup_history_routes(session_manager, upload_handler=upload_handler)
+app.include_router(history_router)
 
 # Search
 from routes.search.search_routes import setup_search_routes
@@ -825,6 +863,10 @@ app.include_router(setup_gallery_routes())
 from routes.editor_draft_routes import setup_editor_draft_routes
 app.include_router(setup_editor_draft_routes())
 
+# Natural-language editor planning (planner wired to the configured chat model)
+from routes.editor_agent_routes import setup_editor_agent_routes
+app.include_router(setup_editor_agent_routes())
+
 # Scheduled tasks + event bus
 from src.task_scheduler import TaskScheduler
 task_scheduler = TaskScheduler(session_manager)
@@ -880,36 +922,9 @@ from routes.mcp.mcp_routes import setup_mcp_routes
 mcp_manager = McpManager()
 set_mcp_manager(mcp_manager)
 app.include_router(setup_mcp_routes(mcp_manager))
-# Fork: Athena conversations page (routes/sound_module_routes.py)
-from routes.sound_module_routes import setup_sound_module_routes  # noqa: E402
-app.include_router(setup_sound_module_routes())
-# Fork: Today insight page, votes and token route (routes/today_insight_routes.py)
-from routes.today_insight_routes import setup_today_insight_routes  # noqa: E402
-app.include_router(setup_today_insight_routes())
-# Fork: belief search, mounted before the review page's /api/beliefs/{id} (routes/belief_search_routes.py)
-from routes.belief_search_routes import setup_belief_search_routes  # noqa: E402
-app.include_router(setup_belief_search_routes())
-# Fork: belief review page and routes (routes/beliefs_routes.py)
-from routes.beliefs_routes import setup_beliefs_routes  # noqa: E402
-app.include_router(setup_beliefs_routes())
-# Fork: Athena phone relay through Odysseus, pairing by QR (routes/sound_relay_routes.py)
-from routes.sound_relay_routes import setup_sound_relay_routes  # noqa: E402
-app.include_router(setup_sound_relay_routes())
-# Fork: Athena's summary model for Settings → AI Defaults (routes/summary_model_routes.py)
-from routes.summary_model_routes import setup_summary_model_routes  # noqa: E402
-app.include_router(setup_summary_model_routes())
-# Fork: Athena's whisper vocabulary for Settings → AI Defaults (routes/whisper_vocabulary_routes.py)
-from routes.whisper_vocabulary_routes import setup_whisper_vocabulary_routes  # noqa: E402
-app.include_router(setup_whisper_vocabulary_routes())
-# Fork: "Enroll My Voice" in Settings → AI Defaults (routes/voice_enroll_routes.py)
-from routes.voice_enroll_routes import setup_voice_enroll_routes  # noqa: E402
-app.include_router(setup_voice_enroll_routes())
-# Fork: auto mode switch for Settings → Tools (routes/auto_mode_routes.py)
-from routes.auto_mode_routes import setup_auto_mode_routes  # noqa: E402
-app.include_router(setup_auto_mode_routes())
-# Fork: handwritten notes, the Write view's strokes (routes/ink_routes.py)
-from routes.ink_routes import setup_ink_routes  # noqa: E402
-app.include_router(setup_ink_routes())
+# Fork: the fork's routes, in one call (fork/routes/__init__.py)
+from fork.routes import mount as _fork_mount_routes  # noqa: E402
+_fork_mount_routes(app)
 logger.info("MCP routes initialized")
 
 # AI Interaction tools (debates, pipelines, self-managing AI, UI control)
@@ -949,6 +964,7 @@ app.include_router(setup_codex_routes(
     memory_router=memory_router,
     calendar_router=calendar_router,
     document_router=document_router,
+    history_router=history_router,
 ))
 app.include_router(setup_claude_routes())
 
@@ -1030,6 +1046,16 @@ async def get_version():
         "version": APP_VERSION,
         "build": APP_BUILD_VERSION,
         "source_commit": APP_SOURCE_COMMIT,
+    }
+
+
+@app.get("/api/busy")
+async def get_busy():
+    """Report in-flight heavy work so a deploy can wait instead of dropping it."""
+    from src import activity
+    return {
+        "busy_image_ops": activity.heavy_image_ops_active(),
+        **activity.activity(),
     }
 
 @app.get("/api/health")
@@ -1217,9 +1243,9 @@ async def _startup_event():
         _startup_tasks.append(start_bg_monitor())
     except Exception as _e:
         logger.warning("Failed to start background-job monitor: %s", _e)
-    # Fork: archive finished checklists after a few minutes (src/checklist_auto_archive.py)
+    # Fork: archive finished checklists after a few minutes (fork/hub/checklist_auto_archive.py)
     try:
-        from src.checklist_auto_archive import start as _start_checklist_archive
+        from fork.hub.checklist_auto_archive import start as _start_checklist_archive
         _startup_tasks.extend(t for t in [_start_checklist_archive()] if t)
     except Exception as _e:
         logger.warning("Failed to start checklist auto-archive: %s", _e)
@@ -1476,4 +1502,35 @@ if __name__ == "__main__":
     bind_host = os.getenv("APP_BIND", "127.0.0.1")
     bind_port = int(os.getenv("APP_PORT", "7011"))
 
-    uvicorn.run(app, host=bind_host, port=bind_port, log_level="info")
+    # Give in-flight requests time to finish on SIGTERM instead of being cut
+    # off mid-flight. Diffusion edits run 60-120 s; outpaint/extend can run up
+    # to ~330 s (provider cap 900 s), so default the graceful window to 900 s.
+    # systemd's TimeoutStopSec must exceed this (see the graceful-stop drop-in).
+    #
+    # We hook uvicorn's signal handler so a SIGTERM also flips src.shutdown:
+    # SSE / streaming generators check it and end promptly, so an open browser
+    # stream cannot stall a restart for the whole window. The long window stays
+    # a safety net for genuine in-flight image ops.
+    from src import shutdown as _shutdown
+
+    config = uvicorn.Config(
+        app,
+        host=bind_host,
+        port=bind_port,
+        log_level="info",
+        timeout_graceful_shutdown=int(os.getenv("ODYSSEUS_GRACEFUL_SHUTDOWN_TIMEOUT", "900") or 900),
+    )
+    server = uvicorn.Server(config)
+
+    # uvicorn's capture_signals() wires SIGINT/SIGTERM to self.handle_exit, so
+    # wrapping that method lets us set the shutdown flag before the normal exit
+    # path runs (this uvicorn version has no install_signal_handlers kwarg).
+    _uvicorn_handle_exit = server.handle_exit
+
+    def _handle_shutdown_signal(signum, frame):
+        _shutdown.request_shutdown()
+        _uvicorn_handle_exit(signum, frame)
+
+    server.handle_exit = _handle_shutdown_signal
+
+    server.run()

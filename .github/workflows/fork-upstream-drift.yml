@@ -1,0 +1,40 @@
+# Fork: upstream drift report (scripts/upstream_drift.py). Report only, never fails.
+#
+# How many commits the fork is behind upstream Odysseus `dev`, and which upstream files
+# the fork hooks upstream changed since the merge base: where the next upstream sync
+# (docs/fork/upstream-sync.md) can conflict. The report goes to the job summary. Upstream
+# is public, so no secret is needed and it runs on pull requests from forks too.
+
+name: Upstream drift
+
+on:
+  pull_request:
+  push:
+    branches: [barvis]
+  schedule:
+    - cron: "41 5 * * 1"
+  workflow_dispatch:
+
+# Default-deny token; the job only reads the code.
+permissions: {}
+
+concurrency:
+  group: upstream-drift-${{ github.ref }}
+  cancel-in-progress: true
+
+jobs:
+  drift:
+    name: Upstream drift (report-only)
+    runs-on: ubuntu-latest
+    continue-on-error: true
+    timeout-minutes: 10
+    permissions:
+      contents: read
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1  # v7.0.1
+        with:
+          fetch-depth: 0
+          persist-credentials: false
+      - name: Report commits behind upstream and hooked files it changed
+        run: |
+          python3 scripts/upstream_drift.py --fetch --summary "$GITHUB_STEP_SUMMARY" || true

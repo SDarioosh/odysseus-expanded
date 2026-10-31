@@ -27,11 +27,13 @@ from src.llm_core import (
 from src.agent_loop import (
     stream_agent_loop,
     _configured_model_tool_surface,
+    _configured_model_tool_surface_raw,
     _local_media_needs_browser_render,
     _looks_like_workspace_coding_request,
 )
 from src.agent_loop import _normalize_ody_qwen_text_artifacts
 from src import agent_runs
+from src import shutdown as _shutdown
 from src.model_context import estimate_tokens
 from src.context_compactor import (
     apply_compaction_state,
@@ -329,6 +331,7 @@ def _is_external_discovery_request(text: str) -> bool:
 
 _URL_SCHEME_RE = re.compile(r"https?://", re.I)
 _PDF_URL_TAIL_RE = re.compile(r"\.pdf\b|/pdf/", re.I)
+_EDITOR_SESSION_RE = re.compile(r"[A-Za-z0-9@._:-]{1,128}")
 
 
 def _mentions_pdf_url(value: str) -> bool:
@@ -2502,8 +2505,8 @@ def setup_chat_routes(
         # actually get bash enabled.
         allow_bash = form_data.get("allow_bash") or (body or {}).get("allow_bash")
         allow_web_search = form_data.get("allow_web_search") or (body or {}).get("allow_web_search")
-        # Fork: this chat's Auto/Ask choice from the composer button (src/auto_mode.py)
-        from src.auto_mode import CHAT_MODE_FIELD, remember_chat_mode
+        # Fork: this chat's Auto/Ask choice from the composer button (fork/routing/auto_mode.py)
+        from fork.routing.auto_mode import CHAT_MODE_FIELD, remember_chat_mode
         remember_chat_mode(effective_user(request), session, form_data.get(CHAT_MODE_FIELD) or (body or {}).get(CHAT_MODE_FIELD))
         use_rag = form_data.get("use_rag")
         search_context = form_data.get("search_context")  # pre-fetched web search results (compare mode)
@@ -2646,11 +2649,9 @@ def setup_chat_routes(
         # shell disabled).
         auto_escalated = False
         _tool_intent = _classify_tool_intent(message) if isinstance(message, str) else None
-        # Fork: chat-mode how/why questions are answered, not run (src/chat_mode_scope.py)
-        from src.chat_mode_scope import keep_chat_for_question
-        if chat_mode == "chat" and keep_chat_for_question(message, _tool_intent):
-            logger.info("chat stays chat: %s matched a how/why question", _tool_intent.reason)
-            _tool_intent = None
+        # Fork: chat-mode how/why questions are answered, not run (fork/routing/turn_policy.py)
+        from fork.routing.turn_policy import scope_tool_intent
+        _tool_intent = scope_tool_intent(_tool_intent, chat_mode=chat_mode, message=message)
         # The opt-in trained-tools route owns its complete conversation loop.
         # Do not make each follow-up earn Agent mode again through the legacy
         # lexical intent classifier: that recreated the same per-turn RAG gate
@@ -2694,12 +2695,28 @@ def setup_chat_routes(
             chat_mode = "agent"
             auto_escalated = True
             logger.info("chat→agent auto-escalation: explicit private browser workflow")
-        # Fork: a slash-invoked skill that declares tools runs in agent mode (src/skill_invocation.py)
-        from src.skill_invocation import invoked_skill_needs_tools
-        if chat_mode == "chat" and invoked_skill_needs_tools(message, effective_user(request)):
-            chat_mode, auto_escalated = "agent", True
+        # Fork: slash skills with tools, module questions, store lookups run in agent mode (fork/routing/turn_policy.py)
+        from fork.routing.turn_policy import escalate_chat_mode
+        chat_mode, auto_escalated = escalate_chat_mode(chat_mode, auto_escalated, message=message, owner=effective_user(request))
         active_doc_id = form_data.get("active_doc_id", "").strip()
         active_doc_state = form_data.get("active_doc_state", "").strip().casefold()
+        # Scoped photo_editor agent context: the Quick Edit popup (and any
+        # image-edit chat turn) may carry the open image-editor session id and a
+        # canvas snapshot so the editor tool family can drive it in-process.
+        # The id is quoted into a system message, so accept only an
+        # identifier; any other value is treated as no open editor.
+        editor_session = str(
+            form_data.get("editor_session")
+            or form_data.get("editor_session_id")
+            or ""
+        ).strip()
+        if not _EDITOR_SESSION_RE.fullmatch(editor_session):
+            editor_session = ""
+        photo_editor_requested = (
+            str(form_data.get("photo_editor") or "").strip().lower()
+            in {"1", "true", "yes", "on"}
+            or bool(editor_session)
+        )
         logger.info(
             "[doc-inject] chat_mode=%s, active_doc_id=%r, active_doc_state=%r",
             chat_mode, active_doc_id, active_doc_state,
@@ -3042,6 +3059,11 @@ def setup_chat_routes(
                 logger.warning("Failed to parse attachments JSON, ignoring attachments", exc_info=e)
 
         image_generation_session = _is_image_generation_session(sess, owner=effective_user(request))
+        # Fork: brain: the fork's agent loop answers this turn when FORK_BRAIN is on (fork/brain/turn.py)
+        from fork.brain.turn import brain_response
+        _fork_brain = await brain_response(request, sess=sess, session_id=session, message=message, owner=owner, approval_id=tool_approval_id if tool_approval_continuation else None, exact_approval=exact_tool_approval, preset_id=preset_id, upstream_turn=bool(do_research or compare_mode or plan_mode or incognito or workspace or photo_editor_requested or client_runtime_context or image_generation_session or active_doc_id or selected_note_ids or active_email_uid or str(use_rag).lower() == "true"), attachments=att_ids, services=(session_manager, chat_handler, memory_manager, memory_vector, webhook_manager, skills_manager), external_untrusted_context_seen=external_untrusted_context_seen, no_memory=str(form_data.get("no_memory", "")).lower() == "true")
+        if _fork_brain is not None:
+            return _fork_brain
         no_memory = str(form_data.get("no_memory", "")).lower() == "true"
         if image_generation_session:
             no_memory = True
@@ -3282,7 +3304,34 @@ def setup_chat_routes(
             active_document=bool(active_doc), workspace=bool(workspace),
             image_attachment=any(str(a.get('mime') or '').startswith('image/') for a in (ctx.preprocessed.attachment_meta or [])),
         ) if _use_turn_contract else frozenset()
-        if 'image_editing' in _turn_capabilities and ctx.preprocessed.attachment_meta:
+        # Scoped photo_editor family: offered ONLY for an explicit editor
+        # request (Quick Edit popup / editor session) or an image-edit chat
+        # turn carrying an image. When active the turn offers just the editor
+        # tools plus ask_user, never the general tool list.
+        _photo_editor_active = bool(_use_turn_contract) and (
+            photo_editor_requested
+            or (
+                "image_editing" in _turn_capabilities
+                and bool(ctx.preprocessed.attachment_meta)
+            )
+        )
+        if _photo_editor_active:
+            if editor_session:
+                editor_context = {'role': 'system', 'content':
+                    'The image editor is open (session ' + editor_session + '). Use run_editor_command, '
+                    'plan_edit and get_editor_screenshot to inspect and change the current canvas, and '
+                    'ai_edit_image for model-based edits. Apply the user\'s requested edit to the open '
+                    'editor and confirm the result with a screenshot.'}
+            else:
+                editor_context = {'role': 'system', 'content':
+                    'The user attached an image but no image editor is open, so the editor tools cannot '
+                    'reach the canvas. Do not call editor tools. Reply briefly telling the user to open '
+                    'the attached image in the editor (Quick Edit) and repeat the request; the editor '
+                    'tools will then apply it.'}
+            ctx.messages.insert(0, editor_context)
+            if foreground_policy.enabled:
+                getattr(ctx, 'route_messages', ctx.messages).insert(0, dict(editor_context))
+        elif 'image_editing' in _turn_capabilities and ctx.preprocessed.attachment_meta:
             image_refs = ['odysseus://attachment/' + str(a['id']) for a in ctx.preprocessed.attachment_meta
                           if a.get('id') and str(a.get('mime') or '').startswith('image/')]
             if image_refs:
@@ -3319,6 +3368,11 @@ def setup_chat_routes(
             # pasted revision request. This only offers permitted schemas;
             # it never requires or performs a document mutation.
             _turn_capabilities = _turn_capabilities | {"documents"}
+        # Scoped photo_editor family (see above): when active the turn offers
+        # just the editor tools plus ask_user, never the general tool list.
+        if _photo_editor_active:
+            _turn_capabilities = frozenset({"photo_editor"})
+            _active_turn_capabilities = _turn_capabilities
         # Same decision that prepared the turn; it only stamps the contract
         # inside the agent-contract branch below.
         _clean_v3_preview = _compact_preview_turn
@@ -3486,7 +3540,7 @@ def setup_chat_routes(
             if not _privs.get("can_use_documents", True):
                 disabled_tools.update({"manage_documents", "create_document", "edit_document", "update_document", "suggest_document"})
             if not _privs.get("can_generate_images", True):
-                disabled_tools.update({"generate_image", "edit_image"})
+                disabled_tools.update({"generate_image", "edit_image", "ai_edit_image"})
             if not _privs.get("can_manage_memory", True):
                 disabled_tools.update({"manage_memory", "manage_skills"})
             if not _privs.get("can_use_research", True):
@@ -3568,9 +3622,22 @@ def setup_chat_routes(
             "document_editor": not {
                 "manage_documents", "create_document", "edit_document", "update_document",
             }.issubset(disabled_tools),
+            # A photo-editing chat turn can only reach a canvas when the image
+            # editor is actually open. The compact runtime uses this to reply
+            # (open the image in the editor) instead of looping on editor tools
+            # that have no canvas to drive.
+            "photo_editor_open": bool(editor_session),
         }
         # Capture permission state before schema selection/reconciliation.
         # Only deterministic request intent supplies grants, never inventory.
+        # The strict router (spec) surface picks its tools in src/spec_router.py
+        # AFTER authority is built, so its admission is keyed off the surface.
+        try:
+            _spec_surface = _configured_model_tool_surface_raw(
+                getattr(sess, "endpoint_url", ""), getattr(sess, "model", ""), _user
+            ) == "spec"
+        except Exception:
+            _spec_surface = False
         _request_authority = request_authority_for_http(
             request, message, owner=_user, session_id=session, workspace=workspace,
             history=_turn_history, policy=tool_policy,
@@ -3578,30 +3645,19 @@ def setup_chat_routes(
             active_document=bool(active_doc),
             image_attachment=any(str(a.get('mime') or '').startswith('image/')
                                  for a in (ctx.preprocessed.attachment_meta or [])),
-            capabilities=({'search_browser'} if (
+            capabilities=(({"photo_editor"} if _photo_editor_active else set()) | ({'search_browser'} if (
                 _explicit_browser_intent or _external_discovery_intent
-            ) else ()),
+            ) else set())),
         )
-        # Fork: web toggle on + no tool named in the words → web_search (src/web_turn_scope.py)
-        from src.web_turn_scope import with_unclassified_web_search
-        _request_authority = with_unclassified_web_search(
-            _request_authority, web_search_enabled="web_search" not in disabled_tools,
-            client_runtime_context=client_runtime_context)
-        # Fork: read-only actions of the personal-store tools on every turn (src/personal_read_grants.py)
-        from src.personal_read_grants import with_personal_store_reads
-        _request_authority = with_personal_store_reads(_request_authority)
-        # Fork: the calculator on every turn while the chat is in Auto (src/auto_mode.py)
-        from src.auto_mode import with_calculator_grant
-        _request_authority = with_calculator_grant(_request_authority, session_id=session)
         if exact_tool_approval is not None:
             from src.agent_runtime.authority import RequestAuthority
             _request_authority = (
                 exact_tool_approval.pending.request_authority
                 or RequestAuthority.empty(owner=_user, session_id=session, workspace=workspace)
             ).restrict(tool_policy)
-            # Fork: an approved trusted-module tool may run again in this resumed task (src/mcp_trust.py)
-            from src.mcp_trust import with_approved_tool_grant
-            _request_authority = with_approved_tool_grant(_request_authority, exact_tool_approval)
+        # Fork: web search, personal-store reads, calculator; or the approved module tool (fork/routing/turn_policy.py)
+        from fork.routing.turn_policy import extend_authority
+        _request_authority = extend_authority(_request_authority, exact_approval=exact_tool_approval, session_id=session, web_search_enabled="web_search" not in disabled_tools, client_runtime_context=client_runtime_context)
         _turn_contract = None
         # Image models execute directly, not through the text-agent inventory.
         # Keep the permission policy above, but do not apply routing omissions
@@ -3642,8 +3698,8 @@ def setup_chat_routes(
                 last_user_message=message,
             )
             _warm_tools = _successful_session_tool_names(sess)
-            # Fork: a used trusted module's other tools stay offered on follow-ups (src/mcp_trust.py)
-            from src.mcp_trust import with_trusted_server_tools
+            # Fork: a used trusted module's other tools stay offered on follow-ups (fork/mcp/trust.py)
+            from fork.mcp.trust import with_trusted_server_tools
             _warm_tools = with_trusted_server_tools(_warm_tools)
             _selected_tools = selected_tools_for_request(message)
             if _selected_tools is None and _contextual_browser_turn_followup:
@@ -3735,12 +3791,9 @@ def setup_chat_routes(
                 warm_tools=_warm_tools,
                 message=message, history=getattr(sess, "history", []) or [],
             )
-            # Fork: a slash-invoked skill pins its requires_toolsets for this message (src/skill_invocation.py)
-            from src.skill_invocation import pin_skill_contract
-            _turn_contract = pin_skill_contract(_turn_contract, message=message, owner=_user, schemas=_contract_schemas, policy=_contract_policy)
-            # Fork: offer the calculator next to the turn's tools in Auto (src/auto_mode.py)
-            from src.auto_mode import with_calculator_offer
-            _turn_contract = with_calculator_offer(_turn_contract, owner=_user, session_id=session)
+            # Fork: a slash skill's or module question's tools, the calculator in Auto (fork/routing/turn_policy.py)
+            from fork.routing.turn_policy import extend_contract
+            _turn_contract = extend_contract(_turn_contract, message=message, owner=_user, session_id=session, schemas=_contract_schemas, policy=_contract_policy)
             _request_authority = _request_authority.restrict(_contract_policy)
             # Resolution already applies user, owner, and global policy. An
             # admitted tool must not later be rejected by the stale
@@ -3793,7 +3846,9 @@ def setup_chat_routes(
                     # personal manager; core shell/Web tools are not task
                     # fallbacks. Other turns retain warm and workspace tools.
                     extra_tools=(
-                        frozenset()
+                        frozenset({"ask_user"})
+                        if _active_turn_capabilities == frozenset({"photo_editor"})
+                        else frozenset()
                         if _exact_selected_native_chain or _active_turn_capabilities == frozenset({"tasks"}) or (
                             _active_turn_capabilities in (
                                 frozenset({"transcription"}), frozenset({"ocr"}),
@@ -3842,10 +3897,9 @@ def setup_chat_routes(
             tool_policy = build_effective_tool_policy(
                 disabled_tools=disabled_tools, last_user_message=message,
             )
-        # Fork: the model may read every personal store it is offered (src/offered_reads.py)
-        from src.offered_reads import with_offered_read_grants
-        if chat_mode == "agent":
-            _request_authority = with_offered_read_grants(_request_authority, _turn_contract, tool_policy, disabled_tools, owner=_user)
+        # Fork: the model may read every personal store it is offered (fork/routing/turn_policy.py)
+        from fork.routing.turn_policy import admit_offered_reads
+        _request_authority = admit_offered_reads(_request_authority, chat_mode=chat_mode, contract=_turn_contract, policy=tool_policy, disabled_tools=disabled_tools, owner=_user)
         research_blocked_by_policy = bool(
             tool_policy.blocks("trigger_research")
             or tool_policy.blocks("manage_research")
@@ -3999,7 +4053,7 @@ def setup_chat_routes(
                     _heartbeat_counter = 0
                     _last_progress = {}
                     _sent_avg = False
-                    while True:
+                    while not _shutdown.is_shutting_down():
                         status = research_handler.get_status(session)
                         if not status or status["status"] != "running":
                             break
@@ -4261,8 +4315,6 @@ def setup_chat_routes(
                                     # indicator, but don't fold them into the saved
                                     # reply (mirrors the rewrite path below).
                                     if data.get("thinking"):
-                                        if thinking_mode == "off":
-                                            continue
                                         thinking_response += data["delta"]
                                     else:
                                         full_response += data["delta"]
@@ -4706,8 +4758,6 @@ def setup_chat_routes(
                                     # Forward them for the live indicator, but keep
                                     # them out of the saved reply (same as chat mode).
                                     if data.get("thinking"):
-                                        if thinking_mode == "off":
-                                            continue
                                         thinking_response += data["delta"]
                                     else:
                                         full_response = _render_state.content
@@ -4891,6 +4941,25 @@ def setup_chat_routes(
                                         _terminal_saved = True
                                         if _saved_id:
                                             yield f'data: {json.dumps(_render_state.message_saved(_saved_id))}\n\n'
+                                        run_post_response_tasks(
+                                            sess, session_manager, session, message, _saveable_no_tool_response,
+                                            _metrics_to_save, ctx.uprefs, memory_manager, memory_vector, webhook_manager,
+                                            incognito=incognito, compare_mode=compare_mode,
+                                            character_name=ctx.preset.character_name,
+                                            agent_rounds=_agent_rounds,
+                                            agent_tool_calls=_agent_tool_calls,
+                                            skills_manager=skills_manager,
+                                            owner=_user,
+                                            extract_skills=(
+                                                user_requested_agent
+                                                and not tool_approval_continuation
+                                            ),
+                                            allow_background_extraction=_post_response_extraction_allowed(
+                                                tools_blocked=tool_policy.block_all_tool_calls,
+                                                tool_approval_continuation=tool_approval_continuation,
+                                                client_runtime_context=client_runtime_context,
+                                            ),
+                                        )
                                     yield f'data: {json.dumps(_metrics_event)}\n\n'
                             except json.JSONDecodeError:
                                 yield chunk
@@ -5001,6 +5070,8 @@ def setup_chat_routes(
             raises before reaching a mode-specific finally block."""
             try:
                 async for chunk in stream_with_save():
+                    if _shutdown.is_shutting_down():
+                        break
                     yield chunk
             finally:
                 _active_streams.pop(session, None)
@@ -5095,7 +5166,12 @@ def setup_chat_routes(
         if rec is None:
             if agent_runs.is_active(session_id):
                 return {"status": "streaming", "detached": True}
-            raise HTTPException(404, "No active stream for this session")
+            # No active stream: report an explicit idle state with HTTP 200.
+            # A 404 here made every session load look like a failed request in
+            # the browser console. The client distinguishes "no stream" by the
+            # body (status != "streaming"), and still tolerates a 404 from an
+            # older server, so this stays backward compatible.
+            return {"status": "idle"}
         return rec
 
     # ------------------------------------------------------------------ #
@@ -5194,6 +5270,8 @@ def setup_chat_routes(
                     max_tokens=0,
                     tools=None,
                 ):
+                    if _shutdown.is_shutting_down():
+                        break
                     if chunk.startswith("data: ") and not chunk.startswith("data: [DONE]"):
                         try:
                             data = json.loads(chunk[6:])

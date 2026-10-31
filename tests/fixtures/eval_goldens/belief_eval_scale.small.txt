@@ -1,0 +1,61 @@
+belief eval at scale: size small, seed 7, corpus c27a677aa1103dba
+
+ledger
+  subjects / aliases                     31 / 5
+  beliefs                                300 (confirmed 179, tentative 87, stale 23, rejected 11)
+  confirmed share                        60%
+  evidence rows                          337
+  beliefs.db (+ wal)                     <size>
+
+timings
+  submit, new evidence                   <t> ms per 1000 (293 items)
+  submit, notes                          <t> ms per 1000 (44 items)
+  submit, unchanged (hourly pass)        <t> ms per 1000 (285 items)
+  sync_people                            <t> ms
+  reconcile_source                       <t> ms
+  apply_decay                            <t> ms
+  reconcile_source, nothing gone         <t> ms
+  apply_decay, nothing due               <t> ms
+  list_beliefs, all                      <t> ms
+  list_beliefs, confirmed                <t> ms
+  list_beliefs, review page (500)        <t> ms
+  list_beliefs, one subject              <t> ms
+  list_subjects                          <t> ms
+  stats                                  <t> ms
+  sync_memory, first (writes all)        <t> ms
+  sync_memory, second (no-op)            <t> ms
+  owner action (correct/reject/confirm)  <t> ms mean, p95 <t> ms (27 calls)
+
+memory
+  memory.json                            126 KB, 179 mirrored beliefs
+
+structure (fake model)
+  structured / candidates                179 / 179 (10 other, 179 as planned)
+  time per batch                         <t> ms (36 batches, <t> s)
+  hourly runs to structure all (40/run)  5
+
+retrieval
+  default: top-1 / top-5                 0.98 / 1.00 (60 queries)
+  default: p50 / p95                     <t> / <t> ms
+  default: top-5 by kind                 alias 1.00, attribute 1.00, name 1.00, owner 1.00
+  keyword: top-1 / top-5                 0.98 / 1.00 (60 queries)
+  keyword: p50 / p95                     <t> / <t> ms
+  keyword: top-5 by kind                 alias 1.00, attribute 1.00, name 1.00, owner 1.00
+  keyword lane forced by                 embedder
+  default lane used embeddings           no (no local lane loaded: same as keyword)
+
+checks
+  ok   second sync_memory writes nothing
+  ok   second sync_memory: memory.json byte-identical
+  ok   every belief ends in its planned status
+  ok   one belief per planned item
+  ok   subjects (owner + people + projects + things)
+  ok   projects inferred from their names
+  ok   one memory per confirmed belief
+  ok   structure: every confirmed belief structured
+  ok   structure: attribute and value as planned
+  ok   retrieval: top-5 recall >= 0.9
+  ok   retrieval: no hit that isn't a confirmed belief
+
+checks: 11/11
+results: <out>

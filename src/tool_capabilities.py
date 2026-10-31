@@ -217,6 +217,28 @@ _register(
     result_integrity=ResultIntegrity.EXTERNAL_UNTRUSTED,
 )
 _register(
+    {"ai_edit_image"},
+    ToolEffect.NETWORK_EGRESS,
+    ToolEffect.WRITE_PRIVATE,
+    result_integrity=ResultIntegrity.EXTERNAL_UNTRUSTED,
+)
+_register(
+    {"get_editor_screenshot"},
+    ToolEffect.READ_PRIVATE,
+)
+_register(
+    {"plan_edit"},
+    ToolEffect.NETWORK_EGRESS,
+    result_integrity=ResultIntegrity.EXTERNAL_UNTRUSTED,
+)
+_register(
+    {"run_editor_command"},
+    ToolEffect.READ_PRIVATE,
+    ToolEffect.WRITE_PRIVATE,
+    ToolEffect.UI_SIDE_EFFECT,
+    result_integrity=ResultIntegrity.EXTERNAL_UNTRUSTED,
+)
+_register(
     {
         "archive_email",
         "block_sender",
@@ -277,7 +299,7 @@ _register(
 )
 
 
-# Fork: calculator, arithmetic only (src/auto_mode.py)
+# Fork: calculator, arithmetic only (fork/routing/auto_mode.py)
 _register({"calculate"}, ToolEffect.READ_PUBLIC)
 
 TOOL_CAPABILITIES: Mapping[str, ToolCapabilities] = MappingProxyType(dict(_REGISTRY))
@@ -391,7 +413,7 @@ _PRIVATE_ACTION_WRITES: Mapping[str, frozenset[str]] = MappingProxyType(
         "manage_endpoints": frozenset({"add", "delete", "enable", "disable"}),
         "manage_mcp": frozenset({"add", "delete", "enable", "disable", "reconnect"}),
         "manage_settings": frozenset(
-            {"set", "delete", "reset", "disable_tool", "enable_tool"}
+            {"set", "delete", "reset", "disable_tool"}
         ),
         "manage_tokens": frozenset({"create", "delete"}),
         "manage_webhooks": frozenset({"add", "delete", "enable", "disable"}),
@@ -817,8 +839,8 @@ class ToolRunSecurityContext:
             self.external_untrusted_context_seen = True
         if messages_contain_external_untrusted_context(message_list):
             self.external_untrusted_context_seen = True
-        # Fork: note URLs the owner wrote and results returned (src/auto_mode.py)
-        from src.auto_mode import observe_messages as auto_mode_observe
+        # Fork: note URLs the owner wrote and results returned (fork/routing/auto_mode.py)
+        from fork.routing.auto_mode import observe_messages as auto_mode_observe
         auto_mode_observe(self, message_list)
 
     def decision_for(self, tool_name: Any, content: Any = None) -> ToolGateDecision:
@@ -839,13 +861,13 @@ class ToolRunSecurityContext:
             return ToolGateDecision(True)
         if isinstance(tool_name, str) and tool_name in self.unattended_tools:
             return ToolGateDecision(True)
-        from src.mcp_trust import is_trusted_readonly_mcp_tool
+        from fork.mcp.trust import is_trusted_readonly_mcp_tool
         if is_trusted_readonly_mcp_tool(tool_name):
             return ToolGateDecision(True)
         if not self.external_untrusted_context_seen:
             return ToolGateDecision(True)
-        # Fork: auto mode decides safe reads and known-URL fetches (src/auto_mode.py)
-        from src.auto_mode import gate_decision as auto_mode_gate
+        # Fork: auto mode decides safe reads and known-URL fetches (fork/routing/auto_mode.py)
+        from fork.routing.auto_mode import gate_decision as auto_mode_gate
         auto_verdict = auto_mode_gate(self, tool_name, content)
         if auto_verdict is not None:
             return ToolGateDecision(*auto_verdict)
@@ -895,8 +917,8 @@ class ToolRunSecurityContext:
         result: Any,
         content: Any = None,
     ) -> None:
-        # Fork: note URLs a tool result returned (src/auto_mode.py)
-        from src.auto_mode import observe_tool_result as auto_mode_observe_result
+        # Fork: note URLs a tool result returned (fork/routing/auto_mode.py)
+        from fork.routing.auto_mode import observe_tool_result as auto_mode_observe_result
         auto_mode_observe_result(self, result, tool_name)
         if not tool_result_should_arm_gate(tool_name, result, content):
             return

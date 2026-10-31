@@ -1,0 +1,1845 @@
+{
+ "ask": {
+  "notes_evidence bad_then_good": {
+   "logs": [
+    "WARNING fork.beliefs.notes_evidence: notes evidence: model answer 1 was not usable JSON"
+   ],
+   "result": [
+    {
+     "about": "person",
+     "fact": "Ava likes tea.",
+     "subject": "Ava"
+    }
+   ],
+   "sent": [
+    [
+     {
+      "content": "Q",
+      "role": "user"
+     }
+    ],
+    [
+     {
+      "content": "Q",
+      "role": "user"
+     },
+     {
+      "content": "no json",
+      "role": "assistant"
+     },
+     {
+      "content": "That was not valid JSON in the required shape. Reply with the JSON object only: {\"facts\": [...]}.",
+      "role": "user"
+     }
+    ]
+   ]
+  },
+  "notes_evidence bad_twice": {
+   "logs": [
+    "WARNING fork.beliefs.notes_evidence: notes evidence: model answer 1 was not usable JSON",
+    "WARNING fork.beliefs.notes_evidence: notes evidence: model answer 2 was not usable JSON"
+   ],
+   "result": null,
+   "sent": [
+    [
+     {
+      "content": "Q",
+      "role": "user"
+     }
+    ],
+    [
+     {
+      "content": "Q",
+      "role": "user"
+     },
+     {
+      "content": "{",
+      "role": "assistant"
+     },
+     {
+      "content": "That was not valid JSON in the required shape. Reply with the JSON object only: {\"facts\": [...]}.",
+      "role": "user"
+     }
+    ]
+   ]
+  },
+  "notes_evidence good": {
+   "logs": [],
+   "result": [
+    {
+     "about": "person",
+     "fact": "Ava likes tea.",
+     "subject": "Ava"
+    }
+   ],
+   "sent": [
+    [
+     {
+      "content": "Q",
+      "role": "user"
+     }
+    ]
+   ]
+  },
+  "notes_evidence long_bad": {
+   "logs": [
+    "WARNING fork.beliefs.notes_evidence: notes evidence: model answer 1 was not usable JSON"
+   ],
+   "result": [
+    {
+     "about": "person",
+     "fact": "Ava likes tea.",
+     "subject": "Ava"
+    }
+   ],
+   "sent": [
+    [
+     {
+      "content": "Q",
+      "role": "user"
+     }
+    ],
+    [
+     {
+      "content": "Q",
+      "role": "user"
+     },
+     {
+      "content": "yyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyy",
+      "role": "assistant"
+     },
+     {
+      "content": "That was not valid JSON in the required shape. Reply with the JSON object only: {\"facts\": [...]}.",
+      "role": "user"
+     }
+    ]
+   ]
+  },
+  "notes_evidence none_then_good": {
+   "logs": [
+    "WARNING fork.beliefs.notes_evidence: notes evidence: model answer 1 was not usable JSON"
+   ],
+   "result": [
+    {
+     "about": "person",
+     "fact": "Ava likes tea.",
+     "subject": "Ava"
+    }
+   ],
+   "sent": [
+    [
+     {
+      "content": "Q",
+      "role": "user"
+     }
+    ],
+    [
+     {
+      "content": "Q",
+      "role": "user"
+     },
+     {
+      "content": "",
+      "role": "assistant"
+     },
+     {
+      "content": "That was not valid JSON in the required shape. Reply with the JSON object only: {\"facts\": [...]}.",
+      "role": "user"
+     }
+    ]
+   ]
+  },
+  "structure bad_then_good": {
+   "logs": [
+    "WARNING fork.beliefs.structure: belief structure: model answer 1 was not usable JSON"
+   ],
+   "result": {
+    "b1": {
+     "attribute": "likes",
+     "rejected": false,
+     "valid_from": null,
+     "valid_to": null,
+     "value": "tea"
+    }
+   },
+   "sent": [
+    [
+     {
+      "content": "Q",
+      "role": "user"
+     }
+    ],
+    [
+     {
+      "content": "Q",
+      "role": "user"
+     },
+     {
+      "content": "no json",
+      "role": "assistant"
+     },
+     {
+      "content": "That was not valid JSON in the required shape. Reply with the JSON object only: {\"items\": [...]}.",
+      "role": "user"
+     }
+    ]
+   ]
+  },
+  "structure bad_twice": {
+   "logs": [
+    "WARNING fork.beliefs.structure: belief structure: model answer 1 was not usable JSON",
+    "WARNING fork.beliefs.structure: belief structure: model answer 2 was not usable JSON"
+   ],
+   "result": null,
+   "sent": [
+    [
+     {
+      "content": "Q",
+      "role": "user"
+     }
+    ],
+    [
+     {
+      "content": "Q",
+      "role": "user"
+     },
+     {
+      "content": "{",
+      "role": "assistant"
+     },
+     {
+      "content": "That was not valid JSON in the required shape. Reply with the JSON object only: {\"items\": [...]}.",
+      "role": "user"
+     }
+    ]
+   ]
+  },
+  "structure good": {
+   "logs": [],
+   "result": {
+    "b1": {
+     "attribute": "likes",
+     "rejected": false,
+     "valid_from": null,
+     "valid_to": null,
+     "value": "tea"
+    }
+   },
+   "sent": [
+    [
+     {
+      "content": "Q",
+      "role": "user"
+     }
+    ]
+   ]
+  },
+  "structure long_bad": {
+   "logs": [
+    "WARNING fork.beliefs.structure: belief structure: model answer 1 was not usable JSON"
+   ],
+   "result": {
+    "b1": {
+     "attribute": "likes",
+     "rejected": false,
+     "valid_from": null,
+     "valid_to": null,
+     "value": "tea"
+    }
+   },
+   "sent": [
+    [
+     {
+      "content": "Q",
+      "role": "user"
+     }
+    ],
+    [
+     {
+      "content": "Q",
+      "role": "user"
+     },
+     {
+      "content": "yyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyy",
+      "role": "assistant"
+     },
+     {
+      "content": "That was not valid JSON in the required shape. Reply with the JSON object only: {\"items\": [...]}.",
+      "role": "user"
+     }
+    ]
+   ]
+  },
+  "structure none_then_good": {
+   "logs": [
+    "WARNING fork.beliefs.structure: belief structure: model answer 1 was not usable JSON"
+   ],
+   "result": {
+    "b1": {
+     "attribute": "likes",
+     "rejected": false,
+     "valid_from": null,
+     "valid_to": null,
+     "value": "tea"
+    }
+   },
+   "sent": [
+    [
+     {
+      "content": "Q",
+      "role": "user"
+     }
+    ],
+    [
+     {
+      "content": "Q",
+      "role": "user"
+     },
+     {
+      "content": "",
+      "role": "assistant"
+     },
+     {
+      "content": "That was not valid JSON in the required shape. Reply with the JSON object only: {\"items\": [...]}.",
+      "role": "user"
+     }
+    ]
+   ]
+  },
+  "today bad_then_good": {
+   "logs": [
+    "WARNING fork.insight.today: today insight: model answer 1 was not usable JSON"
+   ],
+   "result": {
+    "also": [],
+    "coming_up": [],
+    "focus": [
+     {
+      "ref": "T1",
+      "why": "due"
+     }
+    ]
+   },
+   "sent": [
+    [
+     {
+      "content": "Q",
+      "role": "user"
+     }
+    ],
+    [
+     {
+      "content": "Q",
+      "role": "user"
+     },
+     {
+      "content": "no json",
+      "role": "assistant"
+     },
+     {
+      "content": "That was not valid JSON in the required shape. Reply with the JSON object only.",
+      "role": "user"
+     }
+    ]
+   ]
+  },
+  "today bad_twice": {
+   "logs": [
+    "WARNING fork.insight.today: today insight: model answer 1 was not usable JSON",
+    "WARNING fork.insight.today: today insight: model answer 2 was not usable JSON"
+   ],
+   "result": null,
+   "sent": [
+    [
+     {
+      "content": "Q",
+      "role": "user"
+     }
+    ],
+    [
+     {
+      "content": "Q",
+      "role": "user"
+     },
+     {
+      "content": "{",
+      "role": "assistant"
+     },
+     {
+      "content": "That was not valid JSON in the required shape. Reply with the JSON object only.",
+      "role": "user"
+     }
+    ]
+   ]
+  },
+  "today good": {
+   "logs": [],
+   "result": {
+    "also": [],
+    "coming_up": [],
+    "focus": [
+     {
+      "ref": "T1",
+      "why": "due"
+     }
+    ]
+   },
+   "sent": [
+    [
+     {
+      "content": "Q",
+      "role": "user"
+     }
+    ]
+   ]
+  },
+  "today long_bad": {
+   "logs": [
+    "WARNING fork.insight.today: today insight: model answer 1 was not usable JSON"
+   ],
+   "result": {
+    "also": [],
+    "coming_up": [],
+    "focus": [
+     {
+      "ref": "T1",
+      "why": "due"
+     }
+    ]
+   },
+   "sent": [
+    [
+     {
+      "content": "Q",
+      "role": "user"
+     }
+    ],
+    [
+     {
+      "content": "Q",
+      "role": "user"
+     },
+     {
+      "content": "yyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyy",
+      "role": "assistant"
+     },
+     {
+      "content": "That was not valid JSON in the required shape. Reply with the JSON object only.",
+      "role": "user"
+     }
+    ]
+   ]
+  },
+  "today none_then_good": {
+   "logs": [
+    "WARNING fork.insight.today: today insight: model answer 1 was not usable JSON"
+   ],
+   "result": {
+    "also": [],
+    "coming_up": [],
+    "focus": [
+     {
+      "ref": "T1",
+      "why": "due"
+     }
+    ]
+   },
+   "sent": [
+    [
+     {
+      "content": "Q",
+      "role": "user"
+     }
+    ],
+    [
+     {
+      "content": "Q",
+      "role": "user"
+     },
+     {
+      "content": "",
+      "role": "assistant"
+     },
+     {
+      "content": "That was not valid JSON in the required shape. Reply with the JSON object only.",
+      "role": "user"
+     }
+    ]
+   ]
+  },
+  "today_empty_no_candidates bad_then_good": {
+   "logs": [
+    "WARNING fork.insight.today: today insight: model answer 1 was not usable JSON"
+   ],
+   "result": {
+    "also": [],
+    "coming_up": [],
+    "focus": []
+   },
+   "sent": [
+    [
+     {
+      "content": "Q",
+      "role": "user"
+     }
+    ],
+    [
+     {
+      "content": "Q",
+      "role": "user"
+     },
+     {
+      "content": "no json",
+      "role": "assistant"
+     },
+     {
+      "content": "That was not valid JSON in the required shape. Reply with the JSON object only.",
+      "role": "user"
+     }
+    ]
+   ]
+  },
+  "today_empty_no_candidates bad_twice": {
+   "logs": [
+    "WARNING fork.insight.today: today insight: model answer 1 was not usable JSON",
+    "WARNING fork.insight.today: today insight: model answer 2 was not usable JSON"
+   ],
+   "result": null,
+   "sent": [
+    [
+     {
+      "content": "Q",
+      "role": "user"
+     }
+    ],
+    [
+     {
+      "content": "Q",
+      "role": "user"
+     },
+     {
+      "content": "{",
+      "role": "assistant"
+     },
+     {
+      "content": "That was not valid JSON in the required shape. Reply with the JSON object only.",
+      "role": "user"
+     }
+    ]
+   ]
+  },
+  "today_empty_no_candidates good": {
+   "logs": [],
+   "result": {
+    "also": [],
+    "coming_up": [],
+    "focus": []
+   },
+   "sent": [
+    [
+     {
+      "content": "Q",
+      "role": "user"
+     }
+    ]
+   ]
+  },
+  "today_empty_no_candidates long_bad": {
+   "logs": [
+    "WARNING fork.insight.today: today insight: model answer 1 was not usable JSON"
+   ],
+   "result": {
+    "also": [],
+    "coming_up": [],
+    "focus": []
+   },
+   "sent": [
+    [
+     {
+      "content": "Q",
+      "role": "user"
+     }
+    ],
+    [
+     {
+      "content": "Q",
+      "role": "user"
+     },
+     {
+      "content": "yyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyy",
+      "role": "assistant"
+     },
+     {
+      "content": "That was not valid JSON in the required shape. Reply with the JSON object only.",
+      "role": "user"
+     }
+    ]
+   ]
+  },
+  "today_empty_no_candidates none_then_good": {
+   "logs": [
+    "WARNING fork.insight.today: today insight: model answer 1 was not usable JSON"
+   ],
+   "result": {
+    "also": [],
+    "coming_up": [],
+    "focus": []
+   },
+   "sent": [
+    [
+     {
+      "content": "Q",
+      "role": "user"
+     }
+    ],
+    [
+     {
+      "content": "Q",
+      "role": "user"
+     },
+     {
+      "content": "",
+      "role": "assistant"
+     },
+     {
+      "content": "That was not valid JSON in the required shape. Reply with the JSON object only.",
+      "role": "user"
+     }
+    ]
+   ]
+  },
+  "today_empty_sections bad_then_good": {
+   "logs": [
+    "WARNING fork.insight.today: today insight: model answer 1 was not usable JSON",
+    "WARNING fork.insight.today: today insight: model answer 2 named no candidate"
+   ],
+   "result": null,
+   "sent": [
+    [
+     {
+      "content": "Q",
+      "role": "user"
+     }
+    ],
+    [
+     {
+      "content": "Q",
+      "role": "user"
+     },
+     {
+      "content": "no json",
+      "role": "assistant"
+     },
+     {
+      "content": "That was not valid JSON in the required shape. Reply with the JSON object only.",
+      "role": "user"
+     }
+    ]
+   ]
+  },
+  "today_empty_sections bad_twice": {
+   "logs": [
+    "WARNING fork.insight.today: today insight: model answer 1 was not usable JSON",
+    "WARNING fork.insight.today: today insight: model answer 2 was not usable JSON"
+   ],
+   "result": null,
+   "sent": [
+    [
+     {
+      "content": "Q",
+      "role": "user"
+     }
+    ],
+    [
+     {
+      "content": "Q",
+      "role": "user"
+     },
+     {
+      "content": "{",
+      "role": "assistant"
+     },
+     {
+      "content": "That was not valid JSON in the required shape. Reply with the JSON object only.",
+      "role": "user"
+     }
+    ]
+   ]
+  },
+  "today_empty_sections good": {
+   "logs": [
+    "WARNING fork.insight.today: today insight: model answer 1 named no candidate",
+    "WARNING fork.insight.today: today insight: model answer 2 was not usable JSON"
+   ],
+   "result": null,
+   "sent": [
+    [
+     {
+      "content": "Q",
+      "role": "user"
+     }
+    ],
+    [
+     {
+      "content": "Q",
+      "role": "user"
+     },
+     {
+      "content": "{\"headline\": \"h\"}",
+      "role": "assistant"
+     },
+     {
+      "content": "Use the labels from CANDIDATES (T1, E1, \u2026) as refs and reply with the JSON object only.",
+      "role": "user"
+     }
+    ]
+   ]
+  },
+  "today_empty_sections long_bad": {
+   "logs": [
+    "WARNING fork.insight.today: today insight: model answer 1 was not usable JSON",
+    "WARNING fork.insight.today: today insight: model answer 2 named no candidate"
+   ],
+   "result": null,
+   "sent": [
+    [
+     {
+      "content": "Q",
+      "role": "user"
+     }
+    ],
+    [
+     {
+      "content": "Q",
+      "role": "user"
+     },
+     {
+      "content": "yyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyy",
+      "role": "assistant"
+     },
+     {
+      "content": "That was not valid JSON in the required shape. Reply with the JSON object only.",
+      "role": "user"
+     }
+    ]
+   ]
+  },
+  "today_empty_sections none_then_good": {
+   "logs": [
+    "WARNING fork.insight.today: today insight: model answer 1 was not usable JSON",
+    "WARNING fork.insight.today: today insight: model answer 2 named no candidate"
+   ],
+   "result": null,
+   "sent": [
+    [
+     {
+      "content": "Q",
+      "role": "user"
+     }
+    ],
+    [
+     {
+      "content": "Q",
+      "role": "user"
+     },
+     {
+      "content": "",
+      "role": "assistant"
+     },
+     {
+      "content": "That was not valid JSON in the required shape. Reply with the JSON object only.",
+      "role": "user"
+     }
+    ]
+   ]
+  },
+  "today_no_candidates bad_then_good": {
+   "logs": [
+    "WARNING fork.insight.today: today insight: model answer 1 was not usable JSON"
+   ],
+   "result": {
+    "also": [],
+    "coming_up": [],
+    "focus": [
+     {
+      "ref": "T1",
+      "why": "due"
+     }
+    ]
+   },
+   "sent": [
+    [
+     {
+      "content": "Q",
+      "role": "user"
+     }
+    ],
+    [
+     {
+      "content": "Q",
+      "role": "user"
+     },
+     {
+      "content": "no json",
+      "role": "assistant"
+     },
+     {
+      "content": "That was not valid JSON in the required shape. Reply with the JSON object only.",
+      "role": "user"
+     }
+    ]
+   ]
+  },
+  "today_no_candidates bad_twice": {
+   "logs": [
+    "WARNING fork.insight.today: today insight: model answer 1 was not usable JSON",
+    "WARNING fork.insight.today: today insight: model answer 2 was not usable JSON"
+   ],
+   "result": null,
+   "sent": [
+    [
+     {
+      "content": "Q",
+      "role": "user"
+     }
+    ],
+    [
+     {
+      "content": "Q",
+      "role": "user"
+     },
+     {
+      "content": "{",
+      "role": "assistant"
+     },
+     {
+      "content": "That was not valid JSON in the required shape. Reply with the JSON object only.",
+      "role": "user"
+     }
+    ]
+   ]
+  },
+  "today_no_candidates good": {
+   "logs": [],
+   "result": {
+    "also": [],
+    "coming_up": [],
+    "focus": [
+     {
+      "ref": "T1",
+      "why": "due"
+     }
+    ]
+   },
+   "sent": [
+    [
+     {
+      "content": "Q",
+      "role": "user"
+     }
+    ]
+   ]
+  },
+  "today_no_candidates long_bad": {
+   "logs": [
+    "WARNING fork.insight.today: today insight: model answer 1 was not usable JSON"
+   ],
+   "result": {
+    "also": [],
+    "coming_up": [],
+    "focus": [
+     {
+      "ref": "T1",
+      "why": "due"
+     }
+    ]
+   },
+   "sent": [
+    [
+     {
+      "content": "Q",
+      "role": "user"
+     }
+    ],
+    [
+     {
+      "content": "Q",
+      "role": "user"
+     },
+     {
+      "content": "yyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyy",
+      "role": "assistant"
+     },
+     {
+      "content": "That was not valid JSON in the required shape. Reply with the JSON object only.",
+      "role": "user"
+     }
+    ]
+   ]
+  },
+  "today_no_candidates none_then_good": {
+   "logs": [
+    "WARNING fork.insight.today: today insight: model answer 1 was not usable JSON"
+   ],
+   "result": {
+    "also": [],
+    "coming_up": [],
+    "focus": [
+     {
+      "ref": "T1",
+      "why": "due"
+     }
+    ]
+   },
+   "sent": [
+    [
+     {
+      "content": "Q",
+      "role": "user"
+     }
+    ],
+    [
+     {
+      "content": "Q",
+      "role": "user"
+     },
+     {
+      "content": "",
+      "role": "assistant"
+     },
+     {
+      "content": "That was not valid JSON in the required shape. Reply with the JSON object only.",
+      "role": "user"
+     }
+    ]
+   ]
+  }
+ },
+ "default_llm": {
+  "notes_evidence": {
+   "answers": [
+    "answer",
+    "answer"
+   ],
+   "calls": [
+    {
+     "candidates": [
+      [
+       "http://llm",
+       "m1",
+       {}
+      ],
+      [
+       "http://llm2",
+       "m2",
+       {
+        "X": "1"
+       }
+      ]
+     ],
+     "max_tokens": 1200,
+     "messages": [
+      {
+       "content": "one",
+       "role": "user"
+      }
+     ],
+     "temperature": 0.1,
+     "thinking_mode": "off",
+     "timeout": 180,
+     "workload": "background"
+    },
+    {
+     "candidates": [
+      [
+       "http://llm",
+       "m1",
+       {}
+      ],
+      [
+       "http://llm2",
+       "m2",
+       {
+        "X": "1"
+       }
+      ]
+     ],
+     "max_tokens": 1200,
+     "messages": [
+      {
+       "content": "two",
+       "role": "user"
+      }
+     ],
+     "temperature": 0.1,
+     "thinking_mode": "off",
+     "timeout": 180,
+     "workload": "background"
+    }
+   ],
+   "resolved": [
+    {
+     "owner": "alice"
+    }
+   ],
+   "waited": [
+    "notes evidence",
+    "notes evidence"
+   ]
+  },
+  "notes_evidence no candidates": {
+   "raises": "RuntimeError: no model endpoint configured",
+   "resolved": [
+    {
+     "owner": "alice"
+    }
+   ]
+  },
+  "structure": {
+   "answers": [
+    "answer",
+    "answer"
+   ],
+   "calls": [
+    {
+     "candidates": [
+      [
+       "http://llm",
+       "m1",
+       {}
+      ],
+      [
+       "http://llm2",
+       "m2",
+       {
+        "X": "1"
+       }
+      ]
+     ],
+     "max_tokens": 1000,
+     "messages": [
+      {
+       "content": "one",
+       "role": "user"
+      }
+     ],
+     "temperature": 0.1,
+     "thinking_mode": "off",
+     "timeout": 180,
+     "workload": "background"
+    },
+    {
+     "candidates": [
+      [
+       "http://llm",
+       "m1",
+       {}
+      ],
+      [
+       "http://llm2",
+       "m2",
+       {
+        "X": "1"
+       }
+      ]
+     ],
+     "max_tokens": 1000,
+     "messages": [
+      {
+       "content": "two",
+       "role": "user"
+      }
+     ],
+     "temperature": 0.1,
+     "thinking_mode": "off",
+     "timeout": 180,
+     "workload": "background"
+    }
+   ],
+   "resolved": [
+    {
+     "owner": "alice"
+    }
+   ],
+   "waited": [
+    "belief structure",
+    "belief structure"
+   ]
+  },
+  "structure batch=10": {
+   "answers": [
+    "answer",
+    "answer"
+   ],
+   "calls": [
+    {
+     "candidates": [
+      [
+       "http://llm",
+       "m1",
+       {}
+      ],
+      [
+       "http://llm2",
+       "m2",
+       {
+        "X": "1"
+       }
+      ]
+     ],
+     "max_tokens": 1800,
+     "messages": [
+      {
+       "content": "one",
+       "role": "user"
+      }
+     ],
+     "temperature": 0.1,
+     "thinking_mode": "off",
+     "timeout": 180,
+     "workload": "background"
+    },
+    {
+     "candidates": [
+      [
+       "http://llm",
+       "m1",
+       {}
+      ],
+      [
+       "http://llm2",
+       "m2",
+       {
+        "X": "1"
+       }
+      ]
+     ],
+     "max_tokens": 1800,
+     "messages": [
+      {
+       "content": "two",
+       "role": "user"
+      }
+     ],
+     "temperature": 0.1,
+     "thinking_mode": "off",
+     "timeout": 180,
+     "workload": "background"
+    }
+   ],
+   "resolved": [
+    {
+     "owner": "alice"
+    }
+   ],
+   "waited": [
+    "belief structure",
+    "belief structure"
+   ]
+  },
+  "structure batch=10 no candidates": {
+   "raises": "RuntimeError: no model endpoint configured",
+   "resolved": [
+    {
+     "owner": "alice"
+    }
+   ]
+  },
+  "structure batch=3": {
+   "answers": [
+    "answer",
+    "answer"
+   ],
+   "calls": [
+    {
+     "candidates": [
+      [
+       "http://llm",
+       "m1",
+       {}
+      ],
+      [
+       "http://llm2",
+       "m2",
+       {
+        "X": "1"
+       }
+      ]
+     ],
+     "max_tokens": 680,
+     "messages": [
+      {
+       "content": "one",
+       "role": "user"
+      }
+     ],
+     "temperature": 0.1,
+     "thinking_mode": "off",
+     "timeout": 180,
+     "workload": "background"
+    },
+    {
+     "candidates": [
+      [
+       "http://llm",
+       "m1",
+       {}
+      ],
+      [
+       "http://llm2",
+       "m2",
+       {
+        "X": "1"
+       }
+      ]
+     ],
+     "max_tokens": 680,
+     "messages": [
+      {
+       "content": "two",
+       "role": "user"
+      }
+     ],
+     "temperature": 0.1,
+     "thinking_mode": "off",
+     "timeout": 180,
+     "workload": "background"
+    }
+   ],
+   "resolved": [
+    {
+     "owner": "alice"
+    }
+   ],
+   "waited": [
+    "belief structure",
+    "belief structure"
+   ]
+  },
+  "structure batch=3 no candidates": {
+   "raises": "RuntimeError: no model endpoint configured",
+   "resolved": [
+    {
+     "owner": "alice"
+    }
+   ]
+  },
+  "structure no candidates": {
+   "raises": "RuntimeError: no model endpoint configured",
+   "resolved": [
+    {
+     "owner": "alice"
+    }
+   ]
+  },
+  "structure_no_owner": {
+   "answers": [
+    "answer",
+    "answer"
+   ],
+   "calls": [
+    {
+     "candidates": [
+      [
+       "http://llm",
+       "m1",
+       {}
+      ],
+      [
+       "http://llm2",
+       "m2",
+       {
+        "X": "1"
+       }
+      ]
+     ],
+     "max_tokens": 1000,
+     "messages": [
+      {
+       "content": "one",
+       "role": "user"
+      }
+     ],
+     "temperature": 0.1,
+     "thinking_mode": "off",
+     "timeout": 180,
+     "workload": "background"
+    },
+    {
+     "candidates": [
+      [
+       "http://llm",
+       "m1",
+       {}
+      ],
+      [
+       "http://llm2",
+       "m2",
+       {
+        "X": "1"
+       }
+      ]
+     ],
+     "max_tokens": 1000,
+     "messages": [
+      {
+       "content": "two",
+       "role": "user"
+      }
+     ],
+     "temperature": 0.1,
+     "thinking_mode": "off",
+     "timeout": 180,
+     "workload": "background"
+    }
+   ],
+   "resolved": [
+    {
+     "owner": null
+    }
+   ],
+   "waited": [
+    "belief structure",
+    "belief structure"
+   ]
+  },
+  "structure_no_owner batch=10": {
+   "answers": [
+    "answer",
+    "answer"
+   ],
+   "calls": [
+    {
+     "candidates": [
+      [
+       "http://llm",
+       "m1",
+       {}
+      ],
+      [
+       "http://llm2",
+       "m2",
+       {
+        "X": "1"
+       }
+      ]
+     ],
+     "max_tokens": 1800,
+     "messages": [
+      {
+       "content": "one",
+       "role": "user"
+      }
+     ],
+     "temperature": 0.1,
+     "thinking_mode": "off",
+     "timeout": 180,
+     "workload": "background"
+    },
+    {
+     "candidates": [
+      [
+       "http://llm",
+       "m1",
+       {}
+      ],
+      [
+       "http://llm2",
+       "m2",
+       {
+        "X": "1"
+       }
+      ]
+     ],
+     "max_tokens": 1800,
+     "messages": [
+      {
+       "content": "two",
+       "role": "user"
+      }
+     ],
+     "temperature": 0.1,
+     "thinking_mode": "off",
+     "timeout": 180,
+     "workload": "background"
+    }
+   ],
+   "resolved": [
+    {
+     "owner": null
+    }
+   ],
+   "waited": [
+    "belief structure",
+    "belief structure"
+   ]
+  },
+  "structure_no_owner batch=10 no candidates": {
+   "raises": "RuntimeError: no model endpoint configured",
+   "resolved": [
+    {
+     "owner": null
+    }
+   ]
+  },
+  "structure_no_owner batch=3": {
+   "answers": [
+    "answer",
+    "answer"
+   ],
+   "calls": [
+    {
+     "candidates": [
+      [
+       "http://llm",
+       "m1",
+       {}
+      ],
+      [
+       "http://llm2",
+       "m2",
+       {
+        "X": "1"
+       }
+      ]
+     ],
+     "max_tokens": 680,
+     "messages": [
+      {
+       "content": "one",
+       "role": "user"
+      }
+     ],
+     "temperature": 0.1,
+     "thinking_mode": "off",
+     "timeout": 180,
+     "workload": "background"
+    },
+    {
+     "candidates": [
+      [
+       "http://llm",
+       "m1",
+       {}
+      ],
+      [
+       "http://llm2",
+       "m2",
+       {
+        "X": "1"
+       }
+      ]
+     ],
+     "max_tokens": 680,
+     "messages": [
+      {
+       "content": "two",
+       "role": "user"
+      }
+     ],
+     "temperature": 0.1,
+     "thinking_mode": "off",
+     "timeout": 180,
+     "workload": "background"
+    }
+   ],
+   "resolved": [
+    {
+     "owner": null
+    }
+   ],
+   "waited": [
+    "belief structure",
+    "belief structure"
+   ]
+  },
+  "structure_no_owner batch=3 no candidates": {
+   "raises": "RuntimeError: no model endpoint configured",
+   "resolved": [
+    {
+     "owner": null
+    }
+   ]
+  },
+  "structure_no_owner no candidates": {
+   "raises": "RuntimeError: no model endpoint configured",
+   "resolved": [
+    {
+     "owner": null
+    }
+   ]
+  },
+  "today": {
+   "answers": [
+    "answer",
+    "answer"
+   ],
+   "calls": [
+    {
+     "candidates": [
+      [
+       "http://llm",
+       "m1",
+       {}
+      ],
+      [
+       "http://llm2",
+       "m2",
+       {
+        "X": "1"
+       }
+      ]
+     ],
+     "max_tokens": 1200,
+     "messages": [
+      {
+       "content": "one",
+       "role": "user"
+      }
+     ],
+     "temperature": 0.2,
+     "thinking_mode": "off",
+     "timeout": 180,
+     "workload": "background"
+    },
+    {
+     "candidates": [
+      [
+       "http://llm",
+       "m1",
+       {}
+      ],
+      [
+       "http://llm2",
+       "m2",
+       {
+        "X": "1"
+       }
+      ]
+     ],
+     "max_tokens": 1200,
+     "messages": [
+      {
+       "content": "two",
+       "role": "user"
+      }
+     ],
+     "temperature": 0.2,
+     "thinking_mode": "off",
+     "timeout": 180,
+     "workload": "background"
+    }
+   ],
+   "resolved": [
+    {
+     "owner": "alice"
+    }
+   ],
+   "waited": [
+    "today insight",
+    "today insight"
+   ]
+  },
+  "today no candidates": {
+   "raises": "RuntimeError: no model endpoint configured",
+   "resolved": [
+    {
+     "owner": "alice"
+    }
+   ]
+  },
+  "today_refresh": {
+   "answers": [
+    "answer",
+    "answer"
+   ],
+   "calls": [
+    {
+     "candidates": [
+      [
+       "http://llm",
+       "m1",
+       {}
+      ],
+      [
+       "http://llm2",
+       "m2",
+       {
+        "X": "1"
+       }
+      ]
+     ],
+     "max_tokens": 1200,
+     "messages": [
+      {
+       "content": "one",
+       "role": "user"
+      }
+     ],
+     "temperature": 0.2,
+     "thinking_mode": "off",
+     "timeout": 180,
+     "workload": "foreground"
+    },
+    {
+     "candidates": [
+      [
+       "http://llm",
+       "m1",
+       {}
+      ],
+      [
+       "http://llm2",
+       "m2",
+       {
+        "X": "1"
+       }
+      ]
+     ],
+     "max_tokens": 1200,
+     "messages": [
+      {
+       "content": "two",
+       "role": "user"
+      }
+     ],
+     "temperature": 0.2,
+     "thinking_mode": "off",
+     "timeout": 180,
+     "workload": "foreground"
+    }
+   ],
+   "resolved": [
+    {
+     "owner": null
+    }
+   ],
+   "waited": []
+  },
+  "today_refresh no candidates": {
+   "raises": "RuntimeError: no model endpoint configured",
+   "resolved": [
+    {
+     "owner": null
+    }
+   ]
+  }
+ },
+ "parse": {
+  "notes_evidence.parse_facts": {
+   "'   '": null,
+   "''": null,
+   "'<think>thinking {not json}</think>{\"facts\": [{\"subject\": \"Ava\", \"about\": \"person\", \"fact\": \"Ava likes tea.\"}]}'": [
+    {
+     "about": "person",
+     "fact": "Ava likes tea.",
+     "subject": "Ava"
+    }
+   ],
+   "'<think>unclosed {\"items\": [{\"n\": 1, \"attribute\": \"likes\", \"value\": \"tea\"}]}'": null,
+   "'<think>x</think>\\n```json\\n{\"headline\": \"Plan the day\", \"focus\": [{\"ref\": \"T1\", \"why\": \"due\"}]}\\n```'": null,
+   "'Sure! {\"items\": [{\"n\": 1, \"attribute\": \"likes\", \"value\": \"tea\"}]} Hope that helps.'": null,
+   "'[]'": null,
+   "'[{}]'": null,
+   "'\\ufeff{\"headline\": \"Plan the day\", \"focus\": [{\"ref\": \"T1\", \"why\": \"due\"}]}'": null,
+   "'```JSON\\n{\"facts\": [{\"subject\": \"Ava\", \"about\": \"person\", \"fact\": \"Ava likes tea.\"}]}\\n```'": [
+    {
+     "about": "person",
+     "fact": "Ava likes tea.",
+     "subject": "Ava"
+    }
+   ],
+   "'```\\n{\"facts\": [{\"subject\": \"Ava\", \"about\": \"person\", \"fact\": \"Ava likes tea.\"}]}\\n```\\n'": [
+    {
+     "about": "person",
+     "fact": "Ava likes tea.",
+     "subject": "Ava"
+    }
+   ],
+   "'```json\\n{\"items\": [\\n```\\n{\"n\": 1}]}\\n```'": null,
+   "'```json\\n{\"items\": [{\"n\": 1, \"attribute\": \"likes\", \"value\": \"tea\"}]}\\n```'": null,
+   "'```json{\"headline\": \"Plan the day\", \"focus\": [{\"ref\": \"T1\", \"why\": \"due\"}]}```'": null,
+   "'null'": null,
+   "'plain words'": null,
+   "'text\\n```json\\n{\"facts\": [{\"subject\": \"Ava\", \"about\": \"person\", \"fact\": \"Ava likes tea.\"}]}\\n```\\nmore'": [
+    {
+     "about": "person",
+     "fact": "Ava likes tea.",
+     "subject": "Ava"
+    }
+   ],
+   "'{\"facts\": \"x\"}'": null,
+   "'{\"facts\": [{\"subject\": \"Ava\", \"about\": \"person\", \"fact\": \"Ava likes tea.\"}]}'": [
+    {
+     "about": "person",
+     "fact": "Ava likes tea.",
+     "subject": "Ava"
+    }
+   ],
+   "'{\"facts\": [{\"subject\": \"S\", \"about\": \"owner\", \"fact\": \"xxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxx\"}]}'": [
+    {
+     "about": "owner",
+     "fact": "xxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxx\u2026",
+     "subject": "S"
+    }
+   ],
+   "'{\"headline\": \"  \"}'": null,
+   "'{\"headline\": \"Plan the day\", \"focus\": [{\"ref\": \"T1\", \"why\": \"due\"}]}'": null,
+   "'{\"headline\": 5}'": null,
+   "'{\"items\": [{\"n\": \"1\", \"attribute\": \"likes\", \"value\": \"tea\"}, {\"n\": 2}, \"x\"]}'": null,
+   "'{\"items\": [{\"n\": 1, \"attribute\": \"likes\", \"value\": \"tea\"}]}'": null,
+   "'{\"items\": [{\"n\": 1, \"attribute\": \"likes\", \"value\": \"tea\"}]}\\n{\"facts\": [{\"subject\": \"Ava\", \"about\": \"person\", \"fact\": \"Ava likes tea.\"}]}'": null,
+   "'{\"items\": {}}'": null,
+   "'{'": null,
+   "'{bad json}'": null,
+   "'{} {\"headline\": \"Plan the day\", \"focus\": [{\"ref\": \"T1\", \"why\": \"due\"}]}'": null,
+   "'{}'": null,
+   "'}'": null,
+   "None": null
+  },
+  "structure.parse_items": {
+   "'   '": null,
+   "''": null,
+   "'<think>thinking {not json}</think>{\"facts\": [{\"subject\": \"Ava\", \"about\": \"person\", \"fact\": \"Ava likes tea.\"}]}'": null,
+   "'<think>unclosed {\"items\": [{\"n\": 1, \"attribute\": \"likes\", \"value\": \"tea\"}]}'": null,
+   "'<think>x</think>\\n```json\\n{\"headline\": \"Plan the day\", \"focus\": [{\"ref\": \"T1\", \"why\": \"due\"}]}\\n```'": null,
+   "'Sure! {\"items\": [{\"n\": 1, \"attribute\": \"likes\", \"value\": \"tea\"}]} Hope that helps.'": {
+    "b1": {
+     "attribute": "likes",
+     "rejected": false,
+     "valid_from": null,
+     "valid_to": null,
+     "value": "tea"
+    }
+   },
+   "'[]'": null,
+   "'[{}]'": null,
+   "'\\ufeff{\"headline\": \"Plan the day\", \"focus\": [{\"ref\": \"T1\", \"why\": \"due\"}]}'": null,
+   "'```JSON\\n{\"facts\": [{\"subject\": \"Ava\", \"about\": \"person\", \"fact\": \"Ava likes tea.\"}]}\\n```'": null,
+   "'```\\n{\"facts\": [{\"subject\": \"Ava\", \"about\": \"person\", \"fact\": \"Ava likes tea.\"}]}\\n```\\n'": null,
+   "'```json\\n{\"items\": [\\n```\\n{\"n\": 1}]}\\n```'": {
+    "b1": {
+     "attribute": "other",
+     "rejected": false,
+     "valid_from": null,
+     "valid_to": null,
+     "value": ""
+    }
+   },
+   "'```json\\n{\"items\": [{\"n\": 1, \"attribute\": \"likes\", \"value\": \"tea\"}]}\\n```'": {
+    "b1": {
+     "attribute": "likes",
+     "rejected": false,
+     "valid_from": null,
+     "valid_to": null,
+     "value": "tea"
+    }
+   },
+   "'```json{\"headline\": \"Plan the day\", \"focus\": [{\"ref\": \"T1\", \"why\": \"due\"}]}```'": null,
+   "'null'": null,
+   "'plain words'": null,
+   "'text\\n```json\\n{\"facts\": [{\"subject\": \"Ava\", \"about\": \"person\", \"fact\": \"Ava likes tea.\"}]}\\n```\\nmore'": null,
+   "'{\"facts\": \"x\"}'": null,
+   "'{\"facts\": [{\"subject\": \"Ava\", \"about\": \"person\", \"fact\": \"Ava likes tea.\"}]}'": null,
+   "'{\"facts\": [{\"subject\": \"S\", \"about\": \"owner\", \"fact\": \"xxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxx\"}]}'": null,
+   "'{\"headline\": \"  \"}'": null,
+   "'{\"headline\": \"Plan the day\", \"focus\": [{\"ref\": \"T1\", \"why\": \"due\"}]}'": null,
+   "'{\"headline\": 5}'": null,
+   "'{\"items\": [{\"n\": \"1\", \"attribute\": \"likes\", \"value\": \"tea\"}, {\"n\": 2}, \"x\"]}'": {
+    "b1": {
+     "attribute": "likes",
+     "rejected": false,
+     "valid_from": null,
+     "valid_to": null,
+     "value": "tea"
+    }
+   },
+   "'{\"items\": [{\"n\": 1, \"attribute\": \"likes\", \"value\": \"tea\"}]}'": {
+    "b1": {
+     "attribute": "likes",
+     "rejected": false,
+     "valid_from": null,
+     "valid_to": null,
+     "value": "tea"
+    }
+   },
+   "'{\"items\": [{\"n\": 1, \"attribute\": \"likes\", \"value\": \"tea\"}]}\\n{\"facts\": [{\"subject\": \"Ava\", \"about\": \"person\", \"fact\": \"Ava likes tea.\"}]}'": null,
+   "'{\"items\": {}}'": null,
+   "'{'": null,
+   "'{bad json}'": null,
+   "'{} {\"headline\": \"Plan the day\", \"focus\": [{\"ref\": \"T1\", \"why\": \"due\"}]}'": null,
+   "'{}'": null,
+   "'}'": null,
+   "None": null
+  },
+  "today.parse_answer": {
+   "'   '": null,
+   "''": null,
+   "'<think>thinking {not json}</think>{\"facts\": [{\"subject\": \"Ava\", \"about\": \"person\", \"fact\": \"Ava likes tea.\"}]}'": null,
+   "'<think>unclosed {\"items\": [{\"n\": 1, \"attribute\": \"likes\", \"value\": \"tea\"}]}'": null,
+   "'<think>x</think>\\n```json\\n{\"headline\": \"Plan the day\", \"focus\": [{\"ref\": \"T1\", \"why\": \"due\"}]}\\n```'": {
+    "focus": [
+     {
+      "ref": "T1",
+      "why": "due"
+     }
+    ],
+    "headline": "Plan the day"
+   },
+   "'Sure! {\"items\": [{\"n\": 1, \"attribute\": \"likes\", \"value\": \"tea\"}]} Hope that helps.'": null,
+   "'[]'": null,
+   "'[{}]'": null,
+   "'\\ufeff{\"headline\": \"Plan the day\", \"focus\": [{\"ref\": \"T1\", \"why\": \"due\"}]}'": {
+    "focus": [
+     {
+      "ref": "T1",
+      "why": "due"
+     }
+    ],
+    "headline": "Plan the day"
+   },
+   "'```JSON\\n{\"facts\": [{\"subject\": \"Ava\", \"about\": \"person\", \"fact\": \"Ava likes tea.\"}]}\\n```'": null,
+   "'```\\n{\"facts\": [{\"subject\": \"Ava\", \"about\": \"person\", \"fact\": \"Ava likes tea.\"}]}\\n```\\n'": null,
+   "'```json\\n{\"items\": [\\n```\\n{\"n\": 1}]}\\n```'": null,
+   "'```json\\n{\"items\": [{\"n\": 1, \"attribute\": \"likes\", \"value\": \"tea\"}]}\\n```'": null,
+   "'```json{\"headline\": \"Plan the day\", \"focus\": [{\"ref\": \"T1\", \"why\": \"due\"}]}```'": {
+    "focus": [
+     {
+      "ref": "T1",
+      "why": "due"
+     }
+    ],
+    "headline": "Plan the day"
+   },
+   "'null'": null,
+   "'plain words'": null,
+   "'text\\n```json\\n{\"facts\": [{\"subject\": \"Ava\", \"about\": \"person\", \"fact\": \"Ava likes tea.\"}]}\\n```\\nmore'": null,
+   "'{\"facts\": \"x\"}'": null,
+   "'{\"facts\": [{\"subject\": \"Ava\", \"about\": \"person\", \"fact\": \"Ava likes tea.\"}]}'": null,
+   "'{\"facts\": [{\"subject\": \"S\", \"about\": \"owner\", \"fact\": \"xxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxx\"}]}'": null,
+   "'{\"headline\": \"  \"}'": null,
+   "'{\"headline\": \"Plan the day\", \"focus\": [{\"ref\": \"T1\", \"why\": \"due\"}]}'": {
+    "focus": [
+     {
+      "ref": "T1",
+      "why": "due"
+     }
+    ],
+    "headline": "Plan the day"
+   },
+   "'{\"headline\": 5}'": {
+    "headline": 5
+   },
+   "'{\"items\": [{\"n\": \"1\", \"attribute\": \"likes\", \"value\": \"tea\"}, {\"n\": 2}, \"x\"]}'": null,
+   "'{\"items\": [{\"n\": 1, \"attribute\": \"likes\", \"value\": \"tea\"}]}'": null,
+   "'{\"items\": [{\"n\": 1, \"attribute\": \"likes\", \"value\": \"tea\"}]}\\n{\"facts\": [{\"subject\": \"Ava\", \"about\": \"person\", \"fact\": \"Ava likes tea.\"}]}'": null,
+   "'{\"items\": {}}'": null,
+   "'{'": null,
+   "'{bad json}'": null,
+   "'{} {\"headline\": \"Plan the day\", \"focus\": [{\"ref\": \"T1\", \"why\": \"due\"}]}'": null,
+   "'{}'": null,
+   "'}'": null,
+   "None": null
+  }
+ }
+}

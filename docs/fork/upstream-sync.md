@@ -25,6 +25,24 @@ git merge -s ours --allow-unrelated-histories 9712a54
 Since then `git merge-base origin/barvis upstream/dev` finds the last synced upstream
 commit and the weekly merge below works as is. Don't repeat that step.
 
+## How far behind
+
+The **Upstream drift** check (`.github/workflows/fork-upstream-drift.yml`, on every pull
+request, on pushes to `barvis` and weekly) writes to its job summary how many commits
+`barvis` is behind upstream `dev`, the merge base, and which upstream files the fork
+hooks upstream changed since then (with their commit counts): the likely conflicts of
+the next merge. It only reports, never fails, and needs no secret (it fetches public
+upstream into a ref of its own). Locally:
+
+```bash
+python scripts/upstream_drift.py            # against upstream/dev as fetched
+python scripts/upstream_drift.py --fetch    # fetch upstream dev first
+```
+
+A hooked file is an upstream file the fork changes that has a `Fork:` marker or a row in
+FORK.md's hooks table; other upstream files the fork changes (tests, docs) are listed
+apart. Tests: `tests/fork/test_upstream_drift.py` (throwaway git repos).
+
 ## Weekly merge
 
 ```bash
@@ -48,20 +66,28 @@ Merge, don't rebase: `barvis` is shared history.
 - `src/agent_loop.py`: hook in `_web_search_unavailable_for_turn`; four
   `skill_mcp_toolsets` hooks where `requires_toolsets` is used (active skills, the
   skill-aware tool include, the skill index gate, the `manage_skills view` unlock).
-- `routes/chat_routes.py`: `pin_skill_contract` right after `resolve_turn_contract` in
-  `chat_stream`. If upstream moves contract resolution, the hook goes after it.
+- `routes/chat_routes.py`: the turn-policy hooks in `chat_stream`
+  (`fork/routing/turn_policy.py`, listed in FORK.md), each tied to the upstream step it
+  follows: `_classify_tool_intent`, the chat→agent escalation, the request authority,
+  `resolve_turn_contract` and the final turn policy. If upstream moves one of those
+  steps, its hook moves with it.
 - `services/memory/skills.py`: managed-skill check in `index_for`.
-- `routes/skills_routes.py` (no hook): `tests/test_skill_mcp_toolsets.py` fails if the
+- `routes/skills_routes.py` (no hook): `tests/fork/test_skill_mcp_toolsets.py` fails if the
   invoke message format changes; update `INVOKE_PREFIX` in `src/skill_invocation.py`.
+- `routes/chat_routes.py` and `src/llm_core.py`: the brain's hooks (`fork/brain/turn.py`): `brain_response` in `chat_stream`, `apply_brain_thinking` in `_apply_local_qwen_thinking_mode`.
 - `src/agent_runtime/`: hooks in `authority.py` (`create_request_authority`) and
   `effect_adapters.py` (`classify`). Upstream is refactoring the agent runtime, so these
   move most.
 - `src/tool_capabilities.py`: hook in `ToolRunSecurityContext`.
 - `src/mcp_manager.py`: one line in `_connect_http` that keeps tool `annotations`.
-- `src/task_scheduler.py`: the `register_housekeeping` hooks after `HOUSEKEEPING_DEFAULTS`
-  and the built-in task authority hook in `_execute_action`.
-- `static/index.html`: the fork's sidebar links (Conversations, Today, and the other
-  module pages).
+- `src/task_scheduler.py`: the `fork.tasks` hook at the end of the file (seeded tasks,
+  silent and model-backed actions; the table is `fork/tasks.py`), the Send Athena hooks in
+  `_check_due_tasks` and the built-in task authority hook in `_execute_action`.
+- Upstream private names (`_`-prefixed) the fork reads are all in `fork/upstream.py`;
+  `tests/fork/test_fork_upstream.py` names any that a sync renamed or dropped. Fix the
+  function there, not its callers.
+- `static/index.html`: the fork's script tags at the end of the body (the sidebar entries
+  are added by `static/js/forkModuleWindows.js`).
 
 Before merging, list the files both sides changed since the last sync; those are where
 conflicts can happen:
@@ -90,8 +116,7 @@ When resolving:
 1. The fork's tests and the upstream tests around the hooks:
 
    ```bash
-   python -m pytest -q tests/test_mcp_trust.py tests/test_request_authority.py tests/test_tool_policy.py \
-     tests/test_skill_mcp_toolsets.py tests/test_modules_setup.py
+   python -m pytest -q -n 4 tests/fork tests/test_request_authority.py tests/test_tool_policy.py
    python -m py_compile app.py routes/*.py src/*.py
    ```
 

@@ -1,0 +1,83 @@
+case              step                                              expected                                          actual
+decay             03-20 module confirms it                          confirmed/source/mem                              confirmed/source/mem                              ok
+owner-confirmed   03-20 said once                                   tentative/-/out                                   tentative/-/out                                   ok
+owner-confirmed   03-21 owner confirms                              confirmed/owner/mem                               confirmed/owner/mem                               ok
+decay             09-15 day 179, no new sighting                    confirmed/source/mem                              confirmed/source/mem                              ok
+decay             10-01 day 195: decayed                            stale/-/out                                       stale/-/out                                       ok
+owner-confirmed   10-01 module no longer lists it                   confirmed/owner/mem                               confirmed/owner/mem                               ok
+owner-confirmed   10-01 its evidence shows gone                     [True]                                            [True]                                            ok
+said-once         10-01 said once                                   tentative/-/out                                   tentative/-/out                                   ok
+source-confirmed  10-01 said once                                   tentative/-/out                                   tentative/-/out                                   ok
+gone-upstream     10-01 module confirms it                          confirmed/source/mem                              confirmed/source/mem                              ok
+forgotten         10-01 module confirms it                          confirmed/source/mem                              confirmed/source/mem                              ok
+corrected         10-01 module confirms it                          confirmed/source/mem                              confirmed/source/mem                              ok
+preference        10-01 module confirms it                          confirmed/source/mem                              confirmed/source/mem                              ok
+preference        10-01 category                                    preference                                        preference                                        ok
+source-confirmed  10-02 said twice on 2 days                        tentative/-/out                                   tentative/-/out                                   ok
+seen-again        10-02 module confirms it                          confirmed/source/mem                              confirmed/source/mem                              ok
+lost-a-source     10-02 module only                                 tentative/-/out                                   tentative/-/out                                   ok
+lost-a-source     10-02 + a note: two sources                       confirmed/rule/mem                                confirmed/rule/mem                                ok
+source-confirmed  10-03 3 times on 2 days                           confirmed/source/mem                              confirmed/source/mem                              ok
+variant           10-03 variant joins: 2 sightings                  tentative/-/out                                   tentative/-/out                                   ok
+variant           10-03 one belief, evidence ids                    9009,9010                                         9009,9010                                         ok
+forgotten         10-03 owner forgets it                            rejected/-/out                                    rejected/-/out                                    ok
+forgotten         10-03 reject returns its evidence                 athena:9006                                       athena:9006                                       ok
+corrected         10-03 owner corrects it                           confirmed/owner/mem                               confirmed/owner/mem                               ok
+corrected         10-03 shown text                                  Priya Nair's birthday is on 21 May                Priya Nair's birthday is on 21 May                ok
+corrected         10-03 memory text                                 Priya Nair's birthday is on 21 May (source: http  Priya Nair's birthday is on 21 May (source: http  ok
+corrected         10-03 same memory id                              True                                              True                                              ok
+restored          10-03 forgotten by mistake                        rejected/-/out                                    rejected/-/out                                    ok
+restored          10-03 restored                                    confirmed/source/mem                              confirmed/source/mem                              ok
+gone-upstream     10-05 module no longer lists it                   stale/-/out                                       stale/-/out                                       ok
+seen-again        10-05 module no longer lists it                   stale/-/out                                       stale/-/out                                       ok
+lost-a-source     10-05 module drops it: note only                  tentative/-/out                                   tentative/-/out                                   ok
+forgotten         10-05 module re-reports it, 2 ids                 rejected/-/out                                    rejected/-/out                                    ok
+forgotten         10-05 evidence ids on the rejected belief         9006,9014                                         9006,9014                                         ok
+corrected         10-05 original text again: joins                  confirmed/owner/mem                               confirmed/owner/mem                               ok
+corrected         10-05 evidence ids                                9007,9015                                         9007,9015                                         ok
+two-sources       10-05 said once in a conversation                 tentative/-/out                                   tentative/-/out                                   ok
+corrected         10-05 new beliefs (only Rotterdam)                13                                                13                                                ok
+two-sources       10-08 + a note                                    confirmed/rule/mem                                confirmed/rule/mem                                ok
+corrected         10-08 note with the corrected text joins          9007,9015,belief-eval-note-3                      9007,9015,belief-eval-note-3                      ok
+one-day           10-08 two notes, one day                          tentative/-/out                                   tentative/-/out                                   ok
+note-once         10-08 one note                                    tentative/-/out                                   tentative/-/out                                   ok
+seen-again        10-08 reported again, new sighting                confirmed/source/mem                              confirmed/source/mem                              ok
+variant           10-08 third sighting, 3 days                      confirmed/rule/mem                                confirmed/rule/mem                                ok
+erased            10-08 module confirms it                          confirmed/source/mem                              confirmed/source/mem                              ok
+erased            10-08 rejected, out of memory                     rejected/out                                      rejected/out                                      ok
+erased            10-08 no words in the belief, evidence or events                                                                                                      ok
+erased            10-08 no belief shows its text                    0                                                 0                                                 ok
+valid-until       10-10 before its end date                         confirmed/source/mem                              confirmed/source/mem                              ok
+erased            10-10 said again: joins the erased belief, no wo  9019:done,9020:pending                            9019:done,9020:pending                            ok
+erased            10-10 still rejected, nothing new                 rejected/0                                        rejected/0                                        ok
+said-once         10-21 final                                       tentative/-/out                                   tentative/-/out                                   ok
+source-confirmed  10-21 final                                       confirmed/source/mem                              confirmed/source/mem                              ok
+two-sources       10-21 final                                       confirmed/rule/mem                                confirmed/rule/mem                                ok
+gone-upstream     10-21 final                                       stale/-/out                                       stale/-/out                                       ok
+forgotten         10-21 final                                       rejected/-/out                                    rejected/-/out                                    ok
+corrected         10-21 final                                       confirmed/owner/mem                               confirmed/owner/mem                               ok
+valid-until       10-21 final                                       stale/-/out                                       stale/-/out                                       ok
+decay             10-21 final                                       stale/-/out                                       stale/-/out                                       ok
+variant           10-21 final                                       confirmed/rule/mem                                confirmed/rule/mem                                ok
+owner-confirmed   10-21 final                                       confirmed/owner/mem                               confirmed/owner/mem                               ok
+restored          10-21 final                                       confirmed/source/mem                              confirmed/source/mem                              ok
+lost-a-source     10-21 final                                       tentative/-/out                                   tentative/-/out                                   ok
+seen-again        10-21 final                                       confirmed/source/mem                              confirmed/source/mem                              ok
+one-day           10-21 final                                       tentative/-/out                                   tentative/-/out                                   ok
+note-once         10-21 final                                       tentative/-/out                                   tentative/-/out                                   ok
+preference        10-21 final                                       confirmed/source/mem                              confirmed/source/mem                              ok
+valid-until       10-21 valid_until kept                            2026-10-15                                        2026-10-15                                        ok
+decay             10-21 old sighting re-reported: no flap           2026-03-20                                        2026-03-20                                        ok
+about-priya       10-21 confirmed shown texts                       ['Priya Nair is allergic to peanuts', 'Priya Nai  ['Priya Nair is allergic to peanuts', 'Priya Nai  ok
+about-priya       10-21 memory links (what --chat expects cited)    ['http://127.0.0.1:8090/view/c9004?sig=eval#t=80  ['http://127.0.0.1:8090/view/c9004?sig=eval#t=80  ok
+memory            mirrored beliefs == confirmed beliefs             [2, 4, 7, 8, 9, 10, 11, 13]                       [2, 4, 7, 8, 9, 10, 11, 13]                       ok
+memory            the expected confirmed set is in memory           ['Lena Okafor moved to Rotterdam', "Lena Okafor'  ['Lena Okafor moved to Rotterdam', "Lena Okafor'  ok
+memory            one memory per confirmed belief                   8                                                 8                                                 ok
+memory            texts are '<shown text> (source: <link>)'         []                                                []                                                ok
+memory            every memory link is non-empty                    True                                              True                                              ok
+memory            no memory keeps the corrected-away text           []                                                []                                                ok
+memory            the owner's own memory is untouched               1                                                 1                                                 ok
+memory            second sync changes nothing                       {'added': 0, 'updated': 0, 'removed': 0}          {'added': 0, 'updated': 0, 'removed': 0}          ok
+memory            second sync: memory.json byte-identical           True                                              True                                              ok
+
+cases: 19/19   checks: score 80/80

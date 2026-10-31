@@ -57,7 +57,7 @@ owner's server.
   settings. Knows nothing about module storage; it only calls module MCP tools.
 - **Modules:** separate repos and programs that own their data
   ([modules.md](modules.md)). Today: Athena
-  ([modules/odysseus-sound.md](modules/odysseus-sound.md)).
+  ([modules/athena.md](modules/athena.md)).
 - **Devices:** belong to modules. Athena's devices record audio and upload it
   through the phone.
 - **Local models:** one llama-server (OpenAI-compatible) and one whisper-server, shared by

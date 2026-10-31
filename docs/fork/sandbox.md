@@ -125,7 +125,7 @@ curl -s -b $J -X POST $B/api/model-endpoints -F name=sandbox-llama \
 curl -s -b $J -X POST $B/api/mcp/servers -F name=convo -F transport=http \
   -F "url=http://127.0.0.1:8001/mcp?access_token=$CONVO_MCP_TOKEN"
 INSTR=$(cd $SOUND/server && .venv/bin/python -c \
-  "import json; from convo_server.mcp_server import INSTRUCTIONS; print(json.dumps(INSTRUCTIONS))")
+  "import json; from athena.mcp_server import INSTRUCTIONS; print(json.dumps(INSTRUCTIONS))")
 curl -s -b $J -X POST $B/api/presets/custom -H 'content-type: application/json' \
   -d "{\"system_prompt\": $INSTR, \"temperature\": 0.3, \"max_tokens\": 2048}"
 # after the Custom preset: setup copies its text into the /athena skill (an empty
@@ -195,7 +195,7 @@ work at 32k), and `--trim` keeps the setup that answers recording questions.
 
 ### Slash skills, 2026-10-18
 
-`/sound` and `/context` (SDarioosh/Barvis#9). Same stack and seed, one Odysseus instance,
+`/sound` and `/context` (SDarioosh/odysseus-expanded#9). Same stack and seed, one Odysseus instance,
 questions 1, 4, 16 plus a person + relative date question (21: "What did Maria ask me
 to do on Friday?", answer in the 2026-10-16 `maria-oct` conversation). C, D and E ran
 with every tool on and "Auto"; only the message changed. D and E were sent through
@@ -271,7 +271,7 @@ sent through Odysseus (`--trim`, "Regular tools"), against a fictional 60-line m
 added to the seed for this test (the demo conversations are 4–7 lines). Before:
 Athena `main`; after: one time per line, 100 lines a page, and "give the link and
 a short summary" in the result, tool description and `INSTRUCTIONS`
-(SDarioosh/barvis-sound, branch `claude/sharp-sagan-yfcl39`). Token counts from the
+(SDarioosh/Athena, branch `claude/sharp-sagan-yfcl39`). Token counts from the
 llama-server log. This sandbox ran at ~3 tokens/s generation, ~25 tokens/s prompt.
 
 | | tool calls | final answer | `get_transcript` result | time |
@@ -326,7 +326,7 @@ These are real bugs, not sandbox quirks. 1–3 and 5 are bugs in Odysseus or the
    were not affected (they hold their connection in their own task). Fixed by opening
    every stdio connection in a long-lived owner task (`src/mcp_stdio_owner.py`, FORK.md).
    Reproduced and checked under uvicorn with a one-tool FastMCP server; regression test
-   `tests/test_mcp_stdio_owner.py`. Upstream issue to file.
+   `tests/fork/test_mcp_stdio_owner.py`. Upstream issue to file.
 3. **Empty answers:** some Odysseus replies are empty after tool calls (question 16 in the
    HTTP run). That matches the "Done." replies in the server eval.
 4. **Athena: failed summaries are never retried.** If llama-server is down when a

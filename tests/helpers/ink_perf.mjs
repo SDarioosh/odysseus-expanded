@@ -2,7 +2,7 @@
 // while the pen or the eraser moves fast over a dense page. Chrome's CPU is throttled
 // (default 4x) to stand in for a tablet. Prints one JSON line:
 // {pen: {meanMs, p95Ms, maxMs}, eraser: {...}, strokes}. "SKIP <reason>" without a browser.
-// Run by tests/test_ink_perf.py; also useful by hand: node tests/helpers/ink_perf.mjs
+// Run by tests/fork/test_ink_perf.py; also useful by hand: node tests/helpers/ink_perf.mjs
 import { launch, openPage } from './ink_view_harness.mjs';
 
 const THROTTLE = Number(process.env.INK_PERF_THROTTLE || 4);

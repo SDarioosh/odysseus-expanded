@@ -4,6 +4,8 @@
 // Athena's /speakers/enroll/next), the card shows statements to read one at a time, and
 // follows the recording until Athena has enrolled it. The recording makes no conversation.
 
+import { el } from './forkDom.js';
+
 const CARD_ID = 'fork-voice-enroll-card';
 const POLL_MS = 4000;
 
@@ -34,13 +36,6 @@ const TIPS = [
   'Your normal speaking voice, at your normal pace.',
   'One recording from start to finish: each enrollment replaces the one before.',
 ];
-
-function el(tag, attrs = {}, text) {
-  const node = document.createElement(tag);
-  Object.entries(attrs).forEach(([k, v]) => node.setAttribute(k, v));
-  if (text !== undefined) node.textContent = text;
-  return node;
-}
 
 function note(text) {
   const n = el('div', { class: 'admin-toggle-sub' }, text);

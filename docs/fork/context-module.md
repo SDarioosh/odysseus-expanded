@@ -49,7 +49,7 @@ and run.
 | `src/notes_evidence.py` | `context_server/sources/notes.py` |
 | `src/today_insight.py`, `src/insight_outcomes.py`, `src/insight_weights.py`, `src/insight_routines.py`, `src/insight_inputs.py`, `src/insight_trends.py`, `src/insight_push.py` | `context_server/insight/` |
 | `scripts/belief_eval.py`, `scripts/belief_eval_scale.py`, `scripts/insight_eval.py` | `eval/` |
-| Their tests (`tests/test_evidence_intake.py`, `test_subjects.py`, `test_belief_*.py`, `test_insight_*.py`, `test_today_insight.py`, `test_module_facts.py`, `test_notes_evidence.py`, `test_ledger_perf.py`) | `tests/` |
+| Their tests (`tests/fork/test_evidence_intake.py`, `test_subjects.py`, `test_belief_*.py`, `test_insight_*.py`, `test_today_insight.py`, `test_module_facts.py`, `test_notes_evidence.py`, `test_ledger_perf.py`) | `tests/` |
 | Data: `DATA_DIR/beliefs.db`, `DATA_DIR/today_insight/<owner>/`, `DATA_DIR/module_facts_<owner>.json`, `notes_evidence_<owner>.json`, `belief_structure_<owner>.json` | the module's data directory, moved once by a migration script |
 
 ### Stays in the hub

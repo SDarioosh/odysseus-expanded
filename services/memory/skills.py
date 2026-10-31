@@ -698,8 +698,8 @@ class SkillsManager:
             # A stale published record must not remain injectable after an
             # audit has recorded a failure. Inconclusive is not a failure.
             audit_verdict = str(s.get("audit_verdict") or "").lower()
-            # Fork: config-managed skills skip the audit gates (src/skill_invocation.py)
-            from src.skill_invocation import is_managed_skill
+            # Fork: config-managed skills skip the audit gates (fork/routing/skill_invocation.py)
+            from fork.routing.skill_invocation import is_managed_skill
             _managed = is_managed_skill(s)
             if audit_verdict in {"needs_work", "fail"} and not _managed:
                 continue

@@ -12,13 +12,22 @@ from datetime import datetime, timedelta, timezone
 from typing import Any, Awaitable, Callable, Dict, Tuple
 
 from core.auth import RESERVED_USERNAMES
-from src.owner_identity import REQUEST_SENTINEL_OWNERS
+from src.owner_identity import REQUEST_SENTINEL_OWNERS, auth_disabled
 from src.task_action_policy import (
     is_admin_only_task_action,
     owner_has_admin_task_privileges,
 )
 
 logger = logging.getLogger(__name__)
+
+
+class TaskEndpointAuthorityError(RuntimeError):
+    """A scheduled task's endpoint or its credentials cannot be authorized."""
+
+
+def _require_task_owner(owner):
+    if not str(owner or "").strip() and not auth_disabled():
+        raise TaskEndpointAuthorityError("Scheduled task has no owner in authenticated mode")
 
 
 def _is_sft_fixture_owner(owner: str | None) -> bool:
@@ -274,22 +283,6 @@ HOUSEKEEPING_DEFAULTS = {
     "check_email_urgency":   {"name": "Email Tags",               "schedule": "cron",  "scheduled_time": None,    "cron_expression": "0 * * * *", "ship_paused": True, "old_cron_expressions": ["*/15 * * * *"], "legacy_names": ["Email Triage", "Urgent Email"]},
     "audit_skills":          {"name": "Skills Audit",             "trigger_type": "schedule", "schedule": "daily", "scheduled_time": "02:00", "cron_expression": None, "legacy_names": ["Audit Skills"]},
 }
-
-# Fork: seed the module action-item sync task (src/module_action_items.py)
-from src.module_action_items import register_housekeeping as _fork_housekeeping  # noqa: E402
-_fork_housekeeping(HOUSEKEEPING_DEFAULTS)
-# Fork: seed the module facts -> memory task (src/module_facts.py)
-from src.module_facts import register_housekeeping as _fork_facts_housekeeping  # noqa: E402
-_fork_facts_housekeeping(HOUSEKEEPING_DEFAULTS)
-# Fork: seed the Today insight task (src/today_insight.py)
-from src.today_insight import register_housekeeping as _fork_today_housekeeping  # noqa: E402
-_fork_today_housekeeping(HOUSEKEEPING_DEFAULTS)
-# Fork: seed the Notes Evidence task (src/notes_evidence.py)
-from src.notes_evidence import register_housekeeping as _fork_notes_housekeeping  # noqa: E402
-_fork_notes_housekeeping(HOUSEKEEPING_DEFAULTS)
-# Fork: seed the Belief Structure task (src/belief_structure.py)
-from src.belief_structure import register_housekeeping as _fork_structure_housekeeping  # noqa: E402
-_fork_structure_housekeeping(HOUSEKEEPING_DEFAULTS)
 
 RETIRED_HOUSEKEEPING_ACTIONS = frozenset({
     "tidy_calendar",
@@ -850,8 +843,8 @@ class TaskScheduler:
                     ScheduledTask.id.notin_(executing_snapshot) if executing_snapshot else True,
                 ).all()
                 to_dispatch = []
-                # Fork: Send Athena joins run on time, not deferred while Odysseus is in use (src/meeting_auto_join.py)
-                from src.meeting_auto_join import is_time_critical as _fork_on_time
+                # Fork: Send Athena joins run on time, not deferred while Odysseus is in use (fork/athena/meeting_auto_join.py)
+                from fork.athena.meeting_auto_join import is_time_critical as _fork_on_time
                 on_time = {t.id for t in due if _fork_on_time(t)}
                 for task in due:
                     if task.id in self._executing:
@@ -1364,6 +1357,7 @@ class TaskScheduler:
 
     async def _execute_action(self, task, run_id: str | None = None) -> tuple:
         """Execute a built-in action (no LLM needed)."""
+        _require_task_owner(task.owner)
         from src.builtin_actions import BUILTIN_ACTIONS
         from src.agent_runtime.authority import (
             bind_request_authority, restore_task_authority, task_operation,
@@ -1375,8 +1369,8 @@ class TaskScheduler:
         authority = authority.restrict(disabled_tools=get_setting("disabled_tools", []) or ())
         operation = task_operation(task.task_type, task.action, task.prompt)
         if operation is None or not authority.permits(operation):
-            # Fork: re-seal a built-in task's broken authority, else say why (src/builtin_task_authority.py)
-            from src.builtin_task_authority import recover
+            # Fork: re-seal a built-in task's broken authority, else say why (fork/hub/builtin_task_authority.py)
+            from fork.hub.builtin_task_authority import recover
             authority, why = recover(task, get_setting("disabled_tools", []) or ())
             if authority is None:
                 return f"Scheduled action has no matching server request authority ({why}).", False
@@ -1657,6 +1651,7 @@ class TaskScheduler:
     async def _execute_llm_task(self, task, db) -> str:
         """Execute an LLM task with full tool access via the agent loop."""
         from core.database import Session as DbSession, ChatMessage, CrewMember
+        _require_task_owner(task.owner)
 
         # If this task is wired to a CrewMember (personal assistant, custom
         # crew), prefer the crew member's persona/model/endpoint as overrides.
@@ -1677,6 +1672,11 @@ class TaskScheduler:
             endpoint_url, model = self._resolve_defaults(db, task.owner)
         if not endpoint_url or not model:
             raise RuntimeError("No model/endpoint configured")
+        # Authorize the original URL before normalization can erase a query,
+        # fragment, or caller-selected path. Stored tasks do not themselves
+        # grant permission to contact an endpoint.
+        from src.endpoint_resolver import resolve_owner_registered_endpoint
+        resolve_owner_registered_endpoint(db, endpoint_url, task.owner or None)
         endpoint_url = _normalize_chat_endpoint(endpoint_url)
         # Record the resolved model so _execute_task_locked can persist it on
         # the run (tasks rarely pin a model, so this is the only record of
@@ -1795,6 +1795,8 @@ class TaskScheduler:
                 relevant_tools=relevant_tools,
                 datetime_context_msg=_dt_msg,
             )
+        except TaskEndpointAuthorityError:
+            raise
         except Exception as e:
             logger.warning(f"Agent loop failed for task '{task.name}', falling back to simple call: {e}")
             from src.task_endpoint import task_llm_call_async
@@ -2009,6 +2011,7 @@ class TaskScheduler:
                               override_user_message: str | None = None,
                               datetime_context_msg: dict | None = None) -> str:
         """Run the full agent loop with tool access, collecting the final text."""
+        _require_task_owner(task.owner)
         from src.agent_loop import stream_agent_loop
         from src.agent_runtime.authority import restore_task_authority
 
@@ -2038,8 +2041,8 @@ class TaskScheduler:
                 headers = build_headers(api_key, base)
             finally:
                 db2.close()
-        except Exception:
-            pass
+        except Exception as exc:
+            raise TaskEndpointAuthorityError("Scheduled task endpoint is unavailable or unauthorized") from exc
         full_text = ""
         final_text_replaced = False
         tool_results = []
@@ -2195,10 +2198,15 @@ class TaskScheduler:
         from src.settings import get_setting
 
         # Resolve endpoint/model: research settings > task settings > session defaults
+        _require_task_owner(task.owner)
         endpoint_url = task.endpoint_url
         model = task.model
         headers = {}
         headers_from_resolver = False
+
+        if endpoint_url:
+            from src.endpoint_resolver import resolve_owner_registered_endpoint
+            resolve_owner_registered_endpoint(db, endpoint_url, task.owner or None)
 
         if not endpoint_url or not model:
             try:
@@ -2236,8 +2244,8 @@ class TaskScheduler:
                 base, api_key = resolve_endpoint_runtime(ep, owner=task.owner or None)
                 endpoint_url = build_chat_url(base)
                 headers = build_headers(api_key, base)
-        except Exception:
-            pass
+        except Exception as exc:
+            raise TaskEndpointAuthorityError("Scheduled research endpoint is unavailable or unauthorized") from exc
         endpoint_url = _normalize_chat_endpoint(endpoint_url)
 
         max_tokens, extraction_timeout, extraction_concurrency = (
@@ -2371,11 +2379,11 @@ class TaskScheduler:
         have to special-case each tool's schema; the MCP tool ignores keys it
         doesn't recognise.
         """
+        _require_task_owner(task.owner)
         from src.tool_utils import get_mcp_manager
         mcp = get_mcp_manager()
         if not mcp:
-            logger.warning(f"Task {task.id}: MCP manager not available for delivery")
-            return
+            raise RuntimeError("MCP manager not available for task delivery")
 
         # Resolve recipient — prefer the configured email From (the established
         # "email yourself" pattern from daily_brief), fall back to task.owner.
@@ -2384,7 +2392,7 @@ class TaskScheduler:
         recipient = None
         try:
             from routes.email_helpers import _get_email_config
-            cfg = _get_email_config() or {}
+            cfg = _get_email_config(owner=task.owner or "") or {}
             recipient = cfg.get("from_address") or None
         except Exception as _e:
             logger.debug(f"_deliver_via_mcp: email config lookup failed: {_e}")
@@ -2400,6 +2408,14 @@ class TaskScheduler:
                 "X-Odysseus-Ref": str(task.id),
             },
         }
+        if tool_name.startswith("mcp__email__"):
+            # The email server uses this reserved field for its account and
+            # approval scope; it must come from the task owner, never a model.
+            from src.tool_execution import _EMAIL_MCP_OWNER_ARG, _EMAIL_MCP_SESSION_ARG
+            if task.owner:
+                args[_EMAIL_MCP_OWNER_ARG] = task.owner
+            if getattr(task, "session_id", None):
+                args[_EMAIL_MCP_SESSION_ARG] = task.session_id
         if recipient:
             # Cover the common field names so we work across MCP servers (Gmail,
             # generic SMTP, Slack DMs, etc.) without having to hard-code each.
@@ -2414,25 +2430,18 @@ class TaskScheduler:
             )
         try:
             mcp_result = await mcp.call_tool(tool_name, args)
-            stderr = mcp_result.get("stderr", "")
-            stdout = mcp_result.get("stdout", "")
-            body_len = len(result or "")
-            exit_code = mcp_result.get("exit_code", 0)
-            if exit_code != 0:
-                logger.warning(
-                    f"Task {task.id} MCP delivery FAILED via {tool_name}: "
-                    f"exit={exit_code} stderr={stderr[:400]!r} stdout={stdout[:400]!r}"
-                )
-            else:
-                # Include the MCP tool's own stdout (e.g. email_server returns
-                # "Sent email to ... with subject ...") + the body size so a
-                # silent SMTP failure is easier to spot in the logs.
-                logger.info(
-                    f"Task {task.id} delivered via MCP tool {tool_name} "
-                    f"(recipient_set={bool(recipient)}, body={body_len}b, reply={stdout[:200]!r})"
-                )
+            if isinstance(mcp_result, dict):
+                from src.tool_execution import _normalize_mcp_text_error
+                mcp_result = _normalize_mcp_text_error(dict(mcp_result))
+            if not isinstance(mcp_result, dict) or mcp_result.get("error") or mcp_result.get("exit_code") != 0:
+                raise RuntimeError("MCP task delivery failed or returned an invalid result")
+            if tool_name == "mcp__email__send_email" and not str(mcp_result.get("stdout") or "").strip().startswith("Sent email to "):
+                raise RuntimeError("MCP email delivery did not report a completed send")
+            logger.info("Task %s delivered via MCP tool %s (recipient_set=%s, body=%sb)",
+                        task.id, tool_name, bool(recipient), len(result or ""))
         except Exception as e:
             logger.error(f"Task {task.id} MCP delivery failed: {e}")
+            raise
 
     async def run_task_now(self, task_id: str, *, force: bool = False):
         """Manually trigger a task execution."""
@@ -2886,16 +2895,6 @@ class TaskScheduler:
             db.close()
 
 
-# Fork: the action-item sync posts nothing to the assistant chat (src/module_action_items.py)
-TaskScheduler._SILENT_ACTIONS = TaskScheduler._SILENT_ACTIONS | {"barvis_sync_action_items"}
-# Fork: the facts sync posts nothing to the assistant chat (src/module_facts.py)
-TaskScheduler._SILENT_ACTIONS = TaskScheduler._SILENT_ACTIONS | {"module_sync_facts"}
-# Fork: the Today insight posts nothing to chat and queues for the model (src/today_insight.py)
-TaskScheduler._SILENT_ACTIONS = TaskScheduler._SILENT_ACTIONS | {"today_insight"}
-TaskScheduler._MODEL_BACKED_ACTIONS = TaskScheduler._MODEL_BACKED_ACTIONS | {"today_insight"}
-# Fork: notes evidence posts nothing to chat and queues for the model (src/notes_evidence.py)
-TaskScheduler._SILENT_ACTIONS = TaskScheduler._SILENT_ACTIONS | {"notes_evidence"}
-TaskScheduler._MODEL_BACKED_ACTIONS = TaskScheduler._MODEL_BACKED_ACTIONS | {"notes_evidence"}
-# Fork: belief structure posts nothing to chat and queues for the model (src/belief_structure.py)
-TaskScheduler._SILENT_ACTIONS = TaskScheduler._SILENT_ACTIONS | {"belief_structure"}
-TaskScheduler._MODEL_BACKED_ACTIONS = TaskScheduler._MODEL_BACKED_ACTIONS | {"belief_structure"}
+# Fork: the fork's scheduled tasks: seeded, silent, model-backed (fork/tasks.py)
+from fork.tasks import register_scheduler as _fork_register_scheduler  # noqa: E402
+_fork_register_scheduler(HOUSEKEEPING_DEFAULTS, TaskScheduler)

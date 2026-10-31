@@ -1,0 +1,24 @@
+{
+  "facts": [
+    {
+      "about": "person",
+      "confirmed": true,
+      "conversation_id": "000000000000000000000000c0de0001",
+      "days": 3,
+      "fact": "Alice is moving to the Berlin office in January",
+      "first_said": "2026-09-15",
+      "id": 1,
+      "kind": "plan",
+      "last_said": "2026-10-15",
+      "link": "https://athena.example.org/view/000000000000000000000000c0de0001?sig=2b54669d195fa8debf17a886d696a0f8#t=48",
+      "note_link": null,
+      "person_id": 2,
+      "quote": "Also, between us, I'm moving to the Berlin office in January.",
+      "source": null,
+      "subject": "Alice",
+      "times_said": 3,
+      "valid_until": "2027-01-31",
+      "written_by_hand": false
+    }
+  ]
+}

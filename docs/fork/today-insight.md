@@ -7,7 +7,7 @@ Everything runs on the owner's network with the local model; no input or answer 
 
 Code: `src/today_insight.py` (the job, storage, chat context),
 `routes/today_insight_routes.py` (routes), `static/today.html` and `static/js/today.js`
-(the page). Test: `tests/test_today_insight.py`.
+(the page). Test: `tests/fork/test_today_insight.py`.
 
 ## The job
 
@@ -109,7 +109,7 @@ it. `votes` are 👍/👎 from the page, kept when the insight is rewritten late
 |---|---|---|
 | `GET /api/codex/insight/today` | API token with scope **`insight:read`** (or a browser session) | today's JSON without `input_hash` and `votes`; 404 `{"error": "no insight yet"}`; 403 without the scope |
 | `GET /api/codex/insight/weights` | API token with scope **`insight:read`** | the T5 weight table (see [Weights](#weights)); 200 with `"weights": {}` when none; 403 without the scope |
-| `GET /api/insight/today` | admin session (as `/modules/sound`) | the same plus `votes`, `refreshing` (a Refresh is running) and `refresh_error` (why the last one wrote nothing); 404 `{"error", "refreshing", "refresh_error"}` when none |
+| `GET /api/insight/today` | admin session (as `/modules/athena`) | the same plus `votes`, `refreshing` (a Refresh is running) and `refresh_error` (why the last one wrote nothing); 404 `{"error", "refreshing", "refresh_error"}` when none |
 | `POST /api/insight/today/vote` | admin session | body `{"vote": "up" \| "down"}`; answers `{"ok": true, "votes": [...]}` |
 | `POST /api/insight/refresh` | admin session | starts writing it now in the background, even when the inputs didn't change, and answers 202 `{"status": "started" \| "running", "generated": <current insight's generated or null>}` at once (a model call outlasts the 45 s request timeout) |
 | `GET /today` | session | the page |
@@ -185,7 +185,7 @@ off, as in incognito).
 
 ## Measure
 
-Tests on fictional data (`tests/test_today_insight.py`): buckets, shopping lists by note
+Tests on fictional data (`tests/fork/test_today_insight.py`): buckets, shopping lists by note
 type and due date, candidate order and cap, ref validation, the hash no-op, a fake model
 (good JSON, garbage once, garbage twice, labels, bare ids, empty sections twice), the
 memory-order-independent hash, the Refresh route's 202 and the no-wait flag, storage, votes, `context_block`, the token
@@ -203,7 +203,7 @@ hook.
 The candidates the model sees (at most 30 to-dos and events) are sorted in code by
 `(tier, -weight, date, time, input order)` (`order_candidates` in `src/today_insight.py`).
 This order is published: the T5 PDA's rule-based fallback (no insight for today) follows
-the same rules ([Athena `docs/t5-pda-plan.md`](https://github.com/SDarioosh/barvis-sound/blob/main/docs/t5-pda-plan.md) §5).
+the same rules ([Athena `docs/t5-pda-plan.md`](https://github.com/SDarioosh/Athena/blob/main/docs/t5-pda-plan.md) §5).
 
 | tier | items | within the tier |
 |---|---|---|
@@ -317,7 +317,7 @@ open their conversation; plans link to `/beliefs`.
 
 Open loops also have **Not a task**, for an action item that was never a to-do (a quick
 errand the summary model picked up, like "I'll move my truck"). The page sets the item to
-`dismissed` in Athena (`POST /api/modules/sound/action-items/{id}`, the module's
+`dismissed` in Athena (`POST /api/modules/athena/action-items/{id}`, the module's
 `update_action_item`), so it isn't an open loop again on later days, then posts
 `dismissed` with `not_task: true` to hide it today. Its row under "Not today" says "Not a
 task"; Undo reopens the module item and clears the mark. The outcome route answers 400 for
@@ -326,7 +326,7 @@ task"; Undo reopens the module item and clears the mark. The outcome route answe
 ### Weights
 
 Code: `src/insight_weights.py`, routes `routes/insight_weights_routes.py`, UI
-`static/js/todayWeights.js`. Test: `tests/test_insight_weights.py`.
+`static/js/todayWeights.js`. Test: `tests/fork/test_insight_weights.py`.
 
 **Keys.** A weight belongs to a key; a candidate's weight is the sum of the weights of
 its keys, clamped to [-6, 6]. Each key's weight is in [-3, 3].
@@ -508,8 +508,8 @@ Refs the owner marked "not today" are left out like the others.
 ### Trends and the insight eval
 
 Code: `src/insight_trends.py`, route `routes/insight_trends_routes.py`, UI
-`static/js/todayTrends.js`. Tests: `tests/test_insight_trends.py`,
-`tests/test_insight_eval.py`.
+`static/js/todayTrends.js`. Tests: `tests/fork/test_insight_trends.py`,
+`tests/fork/test_insight_eval.py`.
 
 **Route.** `GET /api/insight/trends?weeks=8` (admin session; `weeks` 1–26, default 8,
 else 422) counts, per ISO week (Monday to Sunday), the week of today (the owner's local
@@ -575,3 +575,25 @@ without weights, and that each event is in the same section. Not compared, becau
 two differ by design: the hub's tier 4 (unpinned, due later than a week: last for the
 hub, not on the T5's Today), the hub's cap of 30 against the T5's 5 per section, and
 where an event stands among the to-dos of its section. Change the two copies together.
+
+## Feature summaries
+
+Each section below was a row of the "Changes from upstream" table in
+[FORK.md](../../FORK.md) until 2026-10-29, moved here word for word; FORK.md now lists the
+features and the hooks into upstream files.
+
+### Daily Today insight
+
+**Daily Today insight.** A built-in task "Today Insight" (every 15 min per owner, silent, model-backed) gathers calendar event occurrences (today to +7 days; recurring series expanded with the calendar route's `_expand_rrule`, refs are occurrence uids), open items of `checklist`/`todo`/`goal` notes, memory (preference, contact, fact and Athena entries) and, when connected, Athena's `get_daily_digest` and open `list_action_items`. Code buckets items (overdue, due today, due soon, undated), drops done items, ended events and undated shopping-type lists (`TODAY_INSIGHT_SKIP_LISTS`), caps 30 candidates with refs (`todo:<note>:<index>`, `event:<uid>`) and hashes the inputs; the local model runs only when the hash changed or the day rolled over, picks refs (invented ones dropped) and writes ≤ 80-char reasons. Stored per owner and day in `DATA_DIR/today_insight/`. `/today` (sidebar: Today) shows it with tickable to-dos (the notes page's toggle route), events opening the calendar, 👍/👎 and Refresh. `GET /api/codex/insight/today` serves it to API tokens with the new scope `insight:read` (404 when none). Chat gets a ≤ 800-char block of it next to the saved memories when the message is about today's plan (`wants_insight`; never on `/sound`, `/context` or other slash turns), so "what should I do first today?" needs no tool and other questions still reach their tools. `TODAY_INSIGHT_ENABLED=off` stops it. [docs/fork/today-insight.md](today-insight.md)
+
+Files: `src/today_insight.py`, `routes/today_insight_routes.py`, `static/today.html`, `static/js/today.js` (new); hooks in `src/task_scheduler.py` (housekeeping default; silent and model-backed action), `src/builtin_actions.py` (action registry), `app.py` (router), `routes/api_token_routes.py` (`ALLOWED_SCOPES`), `static/js/admin.js` (token scope list), `static/index.html` (sidebar link), `src/chat_processor.py` (`build_context_preface`, memory context); test `tests/fork/test_today_insight.py` (new)
+
+Upstreamable: no
+
+### Today insight learns from outcomes (Phase 3)
+
+**Today insight learns from outcomes (Phase 3).** The Today Insight task also keeps a per-day outcome log next to each insight (`<day>.outcome.json`: every ref shown, its first section and position, and what happened: done, moved, promoted ("↑ first"), dismissed ("not today"), ignored, gone; ids and counts only), observed from the notes and calendar state on every pass, so ticks from the notes page, chat, the phone or the T5 count; the first pass after midnight finalizes earlier days. Integer rule weights per `note_type`, `list` (note id), `event_type` and `importance` are learned from the last 28 finalized days (0 until a key was shown 6 times; at most ±3 per key, ±6 per item), recomputed once a day and applied only within the rule tiers (overdue and due today, due soon, pinned, undated, later), so the model sees a better order and still picks. `/today` gets "↑ first", "Not today" (with Undo), "Not a task" on open loops (dismisses the module item for good), "Why first?", a "How Today ranks" table with Reset and weekly trends. `GET /api/codex/insight/weights` (scope `insight:read`) gives the T5's offline order the same weights per note. One ntfy push a day after `MODULE_DIGEST_HOUR` (`TODAY_INSIGHT_PUSH=on`, default off) through the module notify channel, never twice. Routines seen in the calendar join the prompt and are submitted once as tentative beliefs (new attribute `routine`; the owner confirms on `/beliefs`); open loops (module action items with `with`, MCP ≥ 0.9.0) and the owner's plans and decisions of the last 7 days are extra candidates (`L…`, `P…`). No new task, no new upstream hook. [docs/fork/today-insight.md](today-insight.md#learning-from-outcomes-phase-3)
+
+Files: `src/insight_outcomes.py`, `src/insight_weights.py`, `src/insight_push.py`, `src/insight_routines.py`, `src/insight_inputs.py`, `src/insight_trends.py`, `routes/insight_outcome_routes.py`, `routes/insight_weights_routes.py`, `routes/insight_trends_routes.py`, `static/js/todayWeights.js`, `static/js/todayTrends.js`, `scripts/insight_eval.py` (new); fork files `src/today_insight.py`, `routes/today_insight_routes.py`, `static/js/today.js`, `src/evidence_intake.py`, `src/belief_structure.py`, `src/belief_search.py`, `static/js/beliefs.js`, `static/css/fork-modules.css`; tests `tests/fork/test_insight_outcomes.py`, `tests/fork/test_insight_weights.py`, `tests/fork/test_insight_push.py`, `tests/fork/test_insight_routines.py`, `tests/fork/test_insight_inputs.py`, `tests/fork/test_insight_eval.py` (new)
+
+Upstreamable: no
