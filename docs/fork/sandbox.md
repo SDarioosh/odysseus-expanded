@@ -345,13 +345,17 @@ The owner runs this on the server after the sandbox checks pass. Every PR that c
 answers, devices or deployment has a **Server verification** section listing:
 
 - the commands to run, for example:
-  - restart the isolated test instance (`~/.hermes/cache/scratch/barvis-run.sh`, port 7010);
-  - `python scripts/modules_setup.py --url http://127.0.0.1:7010 --password-file <file>`;
-  - `python eval/bakeoff.py --frontend odysseus` in Athena `server/`;
+  - read-only checks on production: `scripts/fork_deploy.sh status`,
+    `curl -sf http://127.0.0.1:7000/api/health`, the MCP reachability check in
+    [deploy.md](deploy.md#features-and-modules);
+  - the deploy itself, last: `scripts/fork_deploy.sh deploy` (backup, automatic rollback);
+  - evals that write chats (`python eval/bakeoff.py --frontend odysseus` in Athena
+    `server/`) only where the owner chooses: the server's test instance (port 7010) is
+    retired;
 - the result to expect (e.g. "score ≥ previous 9/20");
 - anything that needs a real device, with the steps.
 
-Agents never run these themselves. Production (`~/models/odysseus`, port
-7000) is changed only by the owner with `scripts/fork_deploy.sh`
+Agents never run these themselves. Production (`/opt/odysseus`, formerly
+`~/models/odysseus`, port 7000) is changed only by the owner with `scripts/fork_deploy.sh`
 ([deploy.md](deploy.md)); a Server verification may end with that deploy step. The owner
 pastes the result into the PR; the agent continues from there.

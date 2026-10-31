@@ -17,11 +17,10 @@ flowchart LR
   end
 
   subgraph Server["Ubuntu server, RTX 3060 12 GB"]
-    testinst["Odysseus test instance<br/>127.0.0.1:7010"]
     prod["Odysseus production<br/>Docker, :7000"]
     subgraph sound["Module: Athena"]
       api["convo-server serve<br/>:8000"]
-      mcp["convo-server mcp<br/>stdio / HTTP :8001"]
+      mcp["convo-server mcp<br/>HTTP :8001"]
       db[("SQLite<br/>convo.db")]
     end
     llama["llama-server<br/>qwen3.5-35b<br/>127.0.0.1:8082"]
@@ -39,8 +38,6 @@ flowchart LR
   mcp --> db
   prod -- MCP --> mcp
   prod --> llama
-  testinst -- MCP --> mcp
-  testinst --> llama
   phone -- chat --> prod
   mac -- chat --> prod
   phone -- "transcript links /view/…" --> api
@@ -71,16 +68,16 @@ owner's server.
 
 | Service | Address | Status | Notes |
 |---|---|---|---|
-| llama-server (`qwen3.5-35b`, OpenAI-compatible, no auth) | `127.0.0.1:8082` | running | shared by both Odysseus instances and Athena |
+| llama-server (`qwen3.5-35b`, OpenAI-compatible, no auth) | `127.0.0.1:8082` | running, user `llm` | shared by Odysseus, Athena and Hermes |
 | whisper-server (whisper.cpp) | `127.0.0.1:8178` | running; can be the user service `barvis-sound-whisper` (`BARVIS_SOUND_WHISPER_CMD`) | used by Athena |
 | Athena API + worker (`convo-server serve`) | port 8000 | running (test server); user service `barvis-sound` once `odysseus-deploy` is set up | ingestion, read API, `/view/` transcript links |
 | Athena MCP over HTTP (`convo-server mcp --http`) | `CONVO_MCP_HOST:CONVO_MCP_PORT`, default `127.0.0.1:8001` | user service `barvis-sound-mcp` once `odysseus-deploy` is set up | stdio (`convo-server mcp`) needs no port |
-| Odysseus production (Docker, image `odysseus-fork:<commit>`; was upstream Odysseus until 2026-10-18) | port 7000, `~/models/odysseus` | running | the owner deploys it, and the modules, with `scripts/fork_deploy.sh` ([deploy.md](deploy.md)); agents never run anything on it |
-| Odysseus isolated test instance | `127.0.0.1:7010` | running on demand (`~/.hermes/cache/scratch/barvis-run.sh`) | use for all tests and evals |
+| Odysseus production (Docker, image `odysseus-fork:<commit>`; was upstream Odysseus until 2026-10-18) | port 7000; checkout `/opt/odysseus` (formerly `~/models/odysseus`), data `/srv/odysseus` | running, container user `odysseus` | the owner deploys it, and the modules, with `scripts/fork_deploy.sh` ([deploy.md](deploy.md#running-as-service-users)); agents never run anything on it |
+| Odysseus test instance | was `127.0.0.1:7010` | retired 2026-10-31 | evals run in the sandbox |
 | Odysseus ChromaDB | port 8100 | part of production's Compose stack | must not be reachable from outside |
 | ntfy | port 8091 | part of production's Compose stack; status not verified | Odysseus notifications planned |
 | Embeddings llama-server (`--embeddings`) | e.g. `127.0.0.1:8083` | planned, optional | `CONVO_EMBED_BASE_URL` in Athena |
-| Hermes Agent | — | installed | used by the Athena eval as a comparison frontend |
+| Hermes Agent | — | runs as user `hermes` | separate: no access to Odysseus or Athena on the server |
 
 ## Devices
 

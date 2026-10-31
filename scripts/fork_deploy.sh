@@ -20,11 +20,15 @@
 #   FORK_BACKUP_DIR     where data backups go (default: ~/odysseus-backups)
 #   FORK_KEEP_BACKUPS   how many backups to keep (default: 5)
 #   FORK_PASSWORD_FILE  admin password file for modules_setup.py (default: ~/.config/odysseus-fork/admin.txt)
-#   FORK_PY             python with httpx for modules_setup.py (default: venv/bin/python, else python3)
+#   FORK_PY             python with httpx for modules_setup.py (default: venv/bin/python, else python3;
+#                       without httpx there, it runs inside the odysseus container)
+#   FORK_SETUP_IN       host (default) or container: where modules_setup.py runs
 #   FORK_SETUP_ARGS     extra arguments for modules_setup.py (e.g. "--trim")
 #   FORK_INSTALL_OPTIONAL  build the image with requirements-optional.txt (PDF viewer and
 #                       forms via PyMuPDF, local OCR and speech-to-text, Office extraction):
 #                       true (default) or false
+#   FORK_ENV_FILES      more env files for compose, space separated, e.g. a root-only
+#                       /etc/odysseus/secrets.env with the tokens and keys (.env keeps the rest)
 #
 # The former names still work: BARVIS_<name> for each FORK_<name>, ~/.config/barvis/,
 # ~/barvis-backups, and the barvis:<commit> images (see docs/fork/deploy.md).
@@ -44,7 +48,7 @@ if [ -f "$CONFIG" ]; then  # KEY=value lines; the environment wins
   done < "$CONFIG"
 fi
 
-for name in MODULES REMOTE BACKUP_DIR KEEP_BACKUPS PASSWORD_FILE PY SETUP_ARGS INSTALL_OPTIONAL; do
+for name in MODULES REMOTE BACKUP_DIR KEEP_BACKUPS PASSWORD_FILE PY SETUP_ARGS INSTALL_OPTIONAL SETUP_IN ENV_FILES; do
   old=BARVIS_$name new=FORK_$name  # former names, still read
   [ -n "${!new+x}" ] || [ -z "${!old+x}" ] || export "$new=${!old}"
 done
@@ -62,12 +66,29 @@ LEGACY_IMAGE=barvis  # the images' former name
 
 die() { echo "error: $*" >&2; exit 1; }
 log() { echo "==> $*"; }
-compose() { $DOCKER compose "$@"; }
+
+# Compose reads .env by itself; FORK_ENV_FILES adds files to it (passing --env-file turns
+# the automatic .env off, so .env is passed first). A root-only file works because compose
+# runs as root (DOCKER=sudo docker). Nothing here reads or prints those files.
+COMPOSE_ENV=()
+if [ -n "${FORK_ENV_FILES:-}" ]; then
+  [ ! -f .env ] || COMPOSE_ENV+=(--env-file .env)
+  for f in $FORK_ENV_FILES; do COMPOSE_ENV+=(--env-file "${f/#\~/$HOME}"); done
+fi
+compose() { $DOCKER compose ${COMPOSE_ENV[@]+"${COMPOSE_ENV[@]}"} "$@"; }
 
 env_value() {  # value of KEY in .env, or the default
   local v=""
+  # Never guess: a default port or data dir would make deploy check the wrong URL or back
+  # up the wrong folder. Secrets belong in FORK_ENV_FILES; .env must stay readable.
+  [ ! -e .env ] || [ -r .env ] \
+    || die "$(pwd)/.env exists but $(id -un) can't read it; keep the non-secret settings there (readable) and move the secrets to a file in FORK_ENV_FILES (docs/fork/deploy.md)"
   [ -f .env ] && v=$(grep -E "^$1=" .env | tail -n 1 | cut -d= -f2- | tr -d '"'"'" || true)
   echo "${v:-$2}"
+}
+
+as_backup_owner() {  # run "$@" as whoever can write the backup dir: this user, else root
+  if [ -w "$BACKUP_DIR" ] && [ -x "$BACKUP_DIR" ]; then "$@"; else sudo "$@"; fi
 }
 
 APP_PORT=$(env_value APP_PORT 7011)
@@ -87,6 +108,11 @@ preflight() {
   [ -f docker-compose.override.yml ] || die "docker-compose.override.yml is missing; copy docker/fork.override.yml (docs/fork/deploy.md)"
   [ -n "$(override_image)" ] \
     || die "docker-compose.override.yml does not set 'image: odysseus-fork:...'; compose would run upstream's image"
+  local f
+  for f in ${FORK_ENV_FILES:-}; do
+    f=${f/#\~/$HOME}
+    [ -f "$f" ] || sudo test -f "$f" || die "FORK_ENV_FILES names $f, which doesn't exist"
+  done
 }
 
 has_image() { $DOCKER image inspect "$1" >/dev/null 2>&1; }
@@ -115,13 +141,18 @@ switch_to() {  # retag $1 as $IMAGE:current and recreate the container
 }
 
 backup_data() {
-  mkdir -p "$BACKUP_DIR"
+  # The backup dir may be root-only (backups hold app.db): then root writes and prunes it.
+  mkdir -p "$BACKUP_DIR" 2>/dev/null || sudo install -d -m 0700 "$BACKUP_DIR"
+  # Checked before anything is stopped: the data dir may be readable by its owner only.
+  [ -d "$DATA_DIR" ] || sudo test -d "$DATA_DIR" \
+    || die "data dir $DATA_DIR (APP_DATA_DIR in .env) not found; nothing was stopped"
   local file
   file="$BACKUP_DIR/data-$(date +%Y%m%d-%H%M%S)-$(image_rev "$IMAGE:previous").tgz"  # the image being replaced
   log "stopping $SERVICE and backing up $DATA_DIR to $file"
   compose stop "$SERVICE"
-  sudo tar czf "$file" -C "$(dirname "$DATA_DIR")" "$(basename "$DATA_DIR")"
-  ls -1t "$BACKUP_DIR"/data-*.tgz 2>/dev/null | tail -n +"$((KEEP_BACKUPS + 1))" | xargs -r rm -f
+  sudo sh -c 'umask 077 && exec tar czf "$1" -C "$2" "$3"' sh "$file" "$(dirname "$DATA_DIR")" "$(basename "$DATA_DIR")"
+  as_backup_owner sh -c 'ls -1t "$1"/data-*.tgz 2>/dev/null | tail -n +"$2" | xargs -r rm -f' \
+    sh "$BACKUP_DIR" "$((KEEP_BACKUPS + 1))"
 }
 
 # Fork: rename Athena's stored names (convo / "odysseus-sound" -> athena) once, while
@@ -133,14 +164,14 @@ NAMES_BACKUP=""
 NAMES_MARK=$BACKUP_DIR/athena-names-last
 migrate_names() {
   local out
-  rm -f "$NAMES_MARK"  # only the deploy that renamed may undo it
+  as_backup_owner rm -f "$NAMES_MARK"  # only the deploy that renamed may undo it
   [ "${FORK_ATHENA_NAMES:-on}" != off ] || { log "FORK_ATHENA_NAMES=off; not renaming Athena's stored names"; return 0; }
   [ -f scripts/athena_names_migrate.py ] || return 0
   log "renaming Athena's stored names (scripts/athena_names_migrate.py; backup first)"
   if out=$(sudo python3 scripts/athena_names_migrate.py --data-dir "$DATA_DIR" --apply --i-stopped-the-hub 2>&1); then
     echo "$out" | sed 's/^/    /'
     NAMES_BACKUP=$(echo "$out" | sed -n 's/^backup: //p' | tail -n 1)
-    [ -z "$NAMES_BACKUP" ] || echo "$NAMES_BACKUP" > "$NAMES_MARK"
+    [ -z "$NAMES_BACKUP" ] || printf '%s\n' "$NAMES_BACKUP" | as_backup_owner tee "$NAMES_MARK" >/dev/null
   else
     echo "$out" | sed 's/^/    /' >&2
     log "renaming the stored names failed; nothing was renamed by this step, the hub reads the old names as before"
@@ -153,23 +184,45 @@ undo_names() {  # before going back to an older image, which may know only the o
   compose stop "$SERVICE" || true
   sudo python3 scripts/athena_names_migrate.py --data-dir "$DATA_DIR" --rollback "$NAMES_BACKUP" --i-stopped-the-hub \
     || log "could not undo it; restore the newest backup in $BACKUP_DIR (docs/fork/deploy.md)"
-  rm -f "$NAMES_MARK"
+  as_backup_owner rm -f "$NAMES_MARK"
   NAMES_BACKUP=""
 }
 
+password() {  # the admin password file's text on stdout, read as root if it is root-only
+  if [ -r "$PASSWORD_FILE" ]; then cat "$PASSWORD_FILE"; else sudo cat "$PASSWORD_FILE"; fi
+}
+
 run_setup() {
-  if [ ! -f "$PASSWORD_FILE" ]; then
+  if [ ! -f "$PASSWORD_FILE" ] && ! sudo test -f "$PASSWORD_FILE"; then
     log "no $PASSWORD_FILE; run scripts/modules_setup.py yourself"
     return 0
   fi
-  local py=${FORK_PY:-}
-  if [ -z "$py" ]; then
-    if [ -x venv/bin/python ]; then py=venv/bin/python; else py=python3; fi
+  local py=${FORK_PY:-} where=${FORK_SETUP_IN:-host}
+  case $where in host|container) ;; *) die "FORK_SETUP_IN must be host or container, not \"$where\"" ;; esac
+  if [ "$where" = host ]; then
+    if [ -n "$py" ] && [ ! -x "${py/#\~/$HOME}" ]; then
+      log "FORK_PY=$py does not exist; running modules_setup.py inside the container instead"
+      where=container
+    elif [ -z "$py" ]; then
+      if [ -x venv/bin/python ]; then py=venv/bin/python; else py=python3; fi
+    fi
   fi
-  log "running modules_setup.py"
-  # shellcheck disable=SC2086
-  "$py" scripts/modules_setup.py --url "$URL" --password-file "$PASSWORD_FILE" ${FORK_SETUP_ARGS:-} \
-    || log "modules_setup.py failed; Odysseus is running. If httpx is missing, set FORK_PY to a python that has it (e.g. ~/projects/barvis/venv/bin/python) and rerun the script by hand"
+  if [ "$where" = host ] && ! "${py/#\~/$HOME}" -c 'import httpx' >/dev/null 2>&1; then
+    log "$py has no httpx; running modules_setup.py inside the container instead"
+    where=container
+  fi
+  log "running modules_setup.py ($where)"
+  # The password goes in on stdin, never on a command line or into a file.
+  if [ "$where" = container ]; then
+    # shellcheck disable=SC2086
+    password | compose exec -T --user "$(env_value PUID 1000):$(env_value PGID 1000)" "$SERVICE" \
+      python scripts/modules_setup.py --url http://127.0.0.1:7000 --password-file /dev/stdin ${FORK_SETUP_ARGS:-} \
+      || log "modules_setup.py failed in the container; Odysseus is running. Rerun it by hand (docs/fork/deploy.md)"
+  else
+    # shellcheck disable=SC2086
+    password | "${py/#\~/$HOME}" scripts/modules_setup.py --url "$URL" --password-file /dev/stdin ${FORK_SETUP_ARGS:-} \
+      || log "modules_setup.py failed; Odysseus is running. Rerun it by hand, or set FORK_SETUP_IN=container (docs/fork/deploy.md)"
+  fi
 }
 
 remote() {
@@ -257,14 +310,14 @@ cmd_deploy() {
 cmd_rollback() {
   preflight
   has_image "$IMAGE:previous" || die "no $IMAGE:previous image"
-  [ ! -f "$NAMES_MARK" ] || NAMES_BACKUP=$(cat "$NAMES_MARK")
+  NAMES_BACKUP=$(as_backup_owner cat "$NAMES_MARK" 2>/dev/null || true)
   undo_names
   log "switching back to $IMAGE:previous"
   switch_to "$IMAGE:previous" && wait_healthy || die "not healthy after rollback; see: $DOCKER compose logs $SERVICE"
   local latest
-  latest=$(ls -1t "$BACKUP_DIR"/data-*.tgz 2>/dev/null | head -n 1 || true)
+  latest=$(as_backup_owner sh -c 'ls -1t "$1"/data-*.tgz 2>/dev/null | head -n 1' sh "$BACKUP_DIR" || true)
   log "rolled back. If the newer version changed the database, restore its pre-deploy backup:"
-  echo "    $DOCKER compose stop $SERVICE && sudo rm -rf $DATA_DIR && sudo tar xzf ${latest:-<backup>} -C $(dirname "$DATA_DIR") && $DOCKER compose up -d"
+  echo "    $DOCKER compose ${COMPOSE_ENV[*]:-}${COMPOSE_ENV[*]:+ }stop $SERVICE && sudo rm -rf $DATA_DIR && sudo tar xzf ${latest:-<backup>} -C $(dirname "$DATA_DIR") && $DOCKER compose ${COMPOSE_ENV[*]:-}${COMPOSE_ENV[*]:+ }up -d"
 }
 
 cmd_status() {

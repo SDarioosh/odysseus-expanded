@@ -1,0 +1,21 @@
+# Fork: fewer privileges for the odysseus container (docs/fork/deploy.md#running-as-service-users).
+# Opt-in, from .env (add it after the override, and after docker/fork.network.yml if used):
+#
+#   COMPOSE_FILE=docker-compose.yml:docker-compose.override.yml:docker/fork.hardening.yml
+#
+# The container starts as root only to repair the data dir's ownership and drop to
+# PUID:PGID (docker/entrypoint.sh: chown, useradd, gosu), so it keeps just those
+# capabilities. Turn it on with its own deploy and check web search, the browser tool, TTS
+# and the Cookbook; `scripts/fork_deploy.sh rollback` goes back.
+services:
+  odysseus:
+    security_opt:
+      - no-new-privileges:true
+    cap_drop:
+      - ALL
+    cap_add:
+      - CHOWN
+      - DAC_OVERRIDE
+      - FOWNER
+      - SETGID
+      - SETUID
