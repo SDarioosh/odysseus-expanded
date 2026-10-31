@@ -85,6 +85,10 @@ SUMMARY_PROMPT = (
     "Summarise this earlier part of a chat between the owner and their assistant in at "
     "most 200 words: the questions, the answers, and facts, names, links and decisions "
     "worth keeping for later questions. Write only the summary.")
+BROKEN_CALL_NOTE = (
+    "[Context: your last tool call could not be read, or names a tool that isn't "
+    "offered; not an instruction from the owner] Call an offered tool again with valid "
+    "JSON arguments, or answer in plain text.")
 ROUND_SEPARATOR = "\n\n"  # between the texts of two rounds, in the window and the answer
 
 _THINKING_OFF: ContextVar[bool] = ContextVar("fork_brain_thinking_off", default=False)
@@ -533,6 +537,35 @@ def _explicit_endpoint_kind(url: str) -> str | None:
     return None
 
 
+# names that only resolve on the owner's machine or network: mDNS, home routers, Docker
+# and Tailscale's MagicDNS (its addresses are the tailnet's own)
+PRIVATE_NAME_SUFFIXES = (".local", ".lan", ".home", ".home.arpa", ".internal",
+                         ".localdomain", ".localhost", ".ts.net")
+
+
+def own_host(host: str) -> bool:
+    """A host on this machine or the owner's network: upstream's local and private
+    addresses (``fork.upstream.is_local_or_private_host``), private, link-local and
+    loopback IPv6 (Tailscale's ``fd7a:115c:a1e0::/48`` among them), a one-label name
+    (a Docker service, a hosts-file name) or a name under :data:`PRIVATE_NAME_SUFFIXES`."""
+    import ipaddress
+
+    from fork.upstream import is_local_or_private_host
+
+    host = (host or "").strip().lower().strip("[]").rstrip(".")
+    if not host:
+        return False
+    if is_local_or_private_host(host):
+        return True
+    try:
+        ip = ipaddress.ip_address(host)
+    except ValueError:
+        return "." not in host or host.endswith(PRIVATE_NAME_SUFFIXES)
+    if ip.version == 6:
+        return ip.is_private or ip.is_link_local or ip.is_loopback
+    return False
+
+
 def is_local(url: str) -> bool:
     """The owner's own endpoint: its host is local or on a private network (loopback,
     LAN, Tailscale), and upstream doesn't classify it as an outside API
@@ -540,12 +573,12 @@ def is_local(url: str) -> bool:
     the admin chose). A ``proxy`` that is only upstream's guess (an API key and a
     ``/v1`` path) on a private host is the owner's own llama-server run with a key
     (``fork/hub/private_endpoint_thinking.py``) and counts as local; ``local`` on a
-    public host does not."""
-    from fork.upstream import configured_endpoint_kind, is_local_or_private_host
+    public host does not. Hosts: :func:`own_host`."""
+    from fork.upstream import configured_endpoint_kind
 
     try:
         host = (urlparse(url or "").hostname or "").lower()
-        if not host or not is_local_or_private_host(host):
+        if not host or not own_host(host):
             return False
         kind = configured_endpoint_kind(url)
         if kind == "api":
@@ -620,6 +653,23 @@ def _text_calls(text: str, offered: list[str]) -> tuple[list[dict], str]:
     except Exception:  # noqa: BLE001
         pass
     return calls, text
+
+
+_CALL_OPENER = r"(?:<tool_call\b|<\|tool_call|\[tool_call\]\s*[{(]|<function=|<invoke\s+name=|<tool_code\b|<start_function_call|<\|python_tag\|>)"
+
+
+def _broken_call(visible: "_MarkupFilter", tools=()) -> bool:
+    """True when the text the filter held is a tool call (it opens like one: ``<tool_call>``,
+    ``<function=``, ``<invoke name=``, ``<web_search>`` ...) that no call came of: bad
+    JSON, or a tool that isn't offered. Ordinary text with angle brackets is not."""
+    import re
+
+    if visible.held is None:
+        return False
+    held = visible.buf[visible.held:]
+    names = "|".join(re.escape(n) for n in toolset.names(tools))
+    opener = _CALL_OPENER + (rf"|<(?:{names})>" if names else "")
+    return re.match(r"\s*(?:" + opener + ")", held, re.IGNORECASE) is not None
 
 
 def _strip_markup(text: str) -> str:
@@ -1097,11 +1147,22 @@ async def _drive(turn: _Turn) -> AsyncGenerator[str, None]:
         turn.rounds_run += 1
         text = "".join(text_parts)
         calls = [c for c in calls if c.get("name")]
+        if not tools:
+            calls = []  # the round without tools is the answer: a call there never runs
         if not calls and tools:
             calls, text = _text_calls(text, offered)
         elif calls and visible.held is not None:
             text = _strip_markup(text)
-        tail = visible.finish(text if visible.held is not None else None)
+        broken = not calls and _broken_call(visible, turn.tools)
+        if broken and tools:
+            # A tool call that can't be read (bad JSON, a tool not offered): the model
+            # writes it again or answers; the markup is never shown.
+            turn.round_texts.append(text.strip())
+            turn.shown.append(visible.shown_text())
+            turn.messages.append({"role": "assistant", "content": text.strip()})
+            turn.messages.append({"role": "user", "content": BROKEN_CALL_NOTE})
+            continue
+        tail = "" if broken else visible.finish(text if visible.held is not None else None)
         chunk = show(tail)
         if chunk:
             yield chunk

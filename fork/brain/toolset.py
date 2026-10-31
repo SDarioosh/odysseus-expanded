@@ -187,7 +187,8 @@ def for_chat(session_id: str, *, owner: Any, disabled=frozenset(), manager: Any 
 
     Kept in memory per chat (a restart resolves it again, from the same settings). A
     tool disabled since (privileges, global list) is dropped from the kept set; a set
-    that came out empty (MCP not yet connected) is resolved again next turn.
+    that came out empty (MCP not yet connected) is resolved again next turn. MCP tools
+    are dropped for an owner who may not use them any more (no longer an admin).
     """
     key = str(session_id or "")
     with _LOCK:
@@ -202,7 +203,11 @@ def for_chat(session_id: str, *, owner: Any, disabled=frozenset(), manager: Any 
                 while len(_CHAT_SETS) > _CHAT_SETS_MAX:
                     _CHAT_SETS.popitem(last=False)
     off = set(disabled or ())
-    return tuple(s for s in kept if s["function"]["name"] not in off)
+    # checked every turn: an owner who lost admin since the set was kept loses MCP too
+    no_mcp = any(s["function"]["name"].startswith("mcp__") for s in kept) \
+        and owner_blocks_mcp(owner)
+    return tuple(s for s in kept if s["function"]["name"] not in off
+                 and not (no_mcp and s["function"]["name"].startswith("mcp__")))
 
 
 def forget_chat(session_id: str) -> None:
