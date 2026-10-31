@@ -44,7 +44,7 @@ branches) are kept in [status-history.md](status-history.md).
 
 - **The brain** ([brain.md](brain.md)): a small fork-owned agent loop that answers chat
   turns as a general personal assistant (web, Athena, workspace), streaming and with a
-  fixed tool set, behind `brain_enabled`. Design only; the
+  fixed tool set, behind `FORK_BRAIN`. Design only; the
   [SQLite memory plan](memory-sqlite.md) is on hold for it.
 
 - **Cleanup of the fork and Athena** ([cleanup-plan.md](cleanup-plan.md), full plan in

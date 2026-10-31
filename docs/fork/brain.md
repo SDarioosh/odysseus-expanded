@@ -6,7 +6,7 @@ Status: design only (2026-10-31). No code yet. Owner decisions so far are under
 ## Summary
 
 Odysseus chat gets a new agent loop of the fork's own, `fork/brain/`, that answers every
-chat turn when the `brain_enabled` setting is on. It is a general personal assistant:
+chat turn when the `FORK_BRAIN` setting is on. It is a general personal assistant:
 everyday questions, web search, and the owner's own data (Athena, calendar, tasks, notes,
 contacts, memory, beliefs). It is not for coding; the owner keeps Hermes Agent for that.
 
@@ -98,7 +98,7 @@ can be borrowed where they help, with the notice kept.
 
 One hook in `chat_stream` (`routes/chat_routes.py`), after the session, owner and message
 are resolved and before upstream's intent classification
-(`_classify_tool_intent`): when `brain_enabled` is on and the turn is a normal chat
+(`_classify_tool_intent`): when `FORK_BRAIN` is on and the turn is a normal chat
 message, it returns `fork.brain.turn.stream_turn(...)` and upstream's chat and agent paths
 are skipped for that turn. Marked `# Fork: brain (fork/brain/turn.py)` and listed in
 FORK.md's hooks table. The exact line is pinned in the first code PR; it sits among the
@@ -119,7 +119,7 @@ New files, all in a new fork area `fork/brain/` (added to FORK.md's list of area
 | `fork/brain/tools.py` | Runs a tool call through upstream's tool runner with a request authority |
 | `fork/brain/history.py` | Stores each turn's tool calls and results so follow-ups can see them |
 | `fork/brain/query_guard.py` | Removes private details from outgoing web search queries |
-| `fork/brain/settings.py` | `brain_enabled`, `brain_max_rounds`, tool groups |
+| `fork/brain/settings.py` | Reads `FORK_BRAIN`, `FORK_BRAIN_MAX_ROUNDS`, `FORK_BRAIN_TOOL_GROUPS` (rows in `fork/common/settings.py`) |
 
 ### Prompt layout
 
@@ -155,10 +155,13 @@ about 20 tools and ≤ 6k tokens of schemas (measured in the first PR).
 | Workspace | `manage_calendar`, `manage_tasks`, `manage_notes`, `resolve_contact`, `manage_contact`, `manage_memory` | read actions run directly, write actions ask |
 | Beliefs | `search_beliefs` (new fork tool over `fork/beliefs/search.py`) | read |
 | Chats | `search_chats` | read |
-| Research | `trigger_research` (upstream's deep research, for long questions) | read, slow |
+| Email | `list_email_accounts`, `list_emails`, `search_emails`, `read_email` | read |
+| Email | `draft_email`, `draft_email_reply`, `send_email`, `reply_to_email` | write, ask |
 
-Optional groups, off until the eval says they help: email (`list_emails`, `search_emails`,
-`read_email` read; drafting and sending ask), images (`generate_image`).
+Deep research (`trigger_research`) is not in the set: it runs only through upstream's
+`/research` command (`static/js/slashCommands.js`; owner's decision), which the brain
+hands to upstream's research flow unchanged. Optional group, off until the
+eval says it helps: images (`generate_image`).
 
 Never in the set: `bash`, `host_shell`, `python`, file tools, model serving, endpoint,
 token, MCP, settings and webhook management, `api_call`, `app_api`.
@@ -182,7 +185,7 @@ using the fork's existing `requires_toolsets` handling (`fork/routing/skill_invo
 4. When the model returns tool calls (native `tool_calls`, or the text formats Qwen
    sometimes writes, parsed with upstream's `src/tool_parsing.py`), run them (below),
    append the results, and go to step 2.
-5. Stop when the model answers without a tool call, or after `brain_max_rounds` (default
+5. Stop when the model answers without a tool call, or after `FORK_BRAIN_MAX_ROUNDS` (default
    8): then one last round without tools asks for the best answer from what it has.
 6. Save the turn: the answer as a normal Odysseus message (so titles, exports and search
    keep working), plus tool calls and trimmed results in `history.py`.
@@ -254,13 +257,16 @@ separate, later change.
 
 ### Settings
 
-| Setting | Default | Meaning |
-|---|---|---|
-| `brain_enabled` | `false` | Brain answers chat turns |
-| `brain_max_rounds` | `8` | Tool rounds per turn |
-| `brain_tool_groups` | web, athena, workspace, beliefs, chats, research | Groups in the tool set |
+Fork settings are environment variables in the table of `fork/common/settings.py`
+(generated into [settings.md](settings.md)), so the switch is global by nature.
 
-Merging the brain changes nothing at runtime until the owner turns `brain_enabled` on, on
+| Variable | Unset means | Meaning |
+|---|---|---|
+| `FORK_BRAIN` | `off` | The brain answers every chat turn of every chat (one global switch, no per-chat choice) |
+| `FORK_BRAIN_MAX_ROUNDS` | `8` | Tool rounds per turn |
+| `FORK_BRAIN_TOOL_GROUPS` | `web,athena,workspace,beliefs,chats,email` | Groups in the tool set |
+
+Merging the brain changes nothing at runtime until the owner turns `FORK_BRAIN` on, on
 the test instance first.
 
 ### Background jobs
@@ -355,7 +361,7 @@ Targets only the isolated test instance on `127.0.0.1:7010`. It never touches pr
 (Docker, port 7000).
 
 1. Restart the test instance on the PR's branch with
-   `~/.hermes/cache/scratch/barvis-run.sh`, and set `brain_enabled` on for it.
+   `~/.hermes/cache/scratch/barvis-run.sh`, with `FORK_BRAIN=on`.
 2. Run the Athena bakeoff against it (`--frontend odysseus`, all 20 questions) and paste the
    score and the first-text and total times. Expected: ≥ 15/20, and first text well under
    the current fork's.
@@ -363,7 +369,7 @@ Targets only the isolated test instance on `127.0.0.1:7010`. It never touches pr
 4. In chat on the phone: a general question, a web question, a personal question, a mixed
    one, a follow-up, and one write (add a task) with its approval. Check that the answer
    starts appearing at once and that the web answer links its sources.
-5. Set `brain_enabled` off and check chat works as before.
+5. Restart without `FORK_BRAIN` and check chat works as before.
 
 Deploy is left to the owner: `scripts/fork_deploy.sh deploy`, after the PR is merged and
 verified on the test instance.
@@ -388,11 +394,13 @@ verified on the test instance.
 - **2026-10-31:** web search through SearXNG with the DuckDuckGo fallback.
 - **2026-10-31:** the [SQLite memory plan](memory-sqlite.md) is on hold; Athena's facts reach
   chat through the belief ledger instead.
+- **2026-10-31:** email reading is in the default tool set; sending and drafting ask.
+- **2026-10-31:** one global `FORK_BRAIN` switch, no per-chat choice. It stays off by
+  default in code until the owner has verified the brain on the test instance (phase 5
+  flips it).
+- **2026-10-31:** deep research only through `/research`.
+- **2026-10-31:** a pending approval waits 10 minutes.
 
 ## Open questions for the owner
 
-- Should email reading be in the default tool set, or only on request?
-- A global `brain_enabled` setting, or a per-chat choice in the chat window as well?
-- Should deep research (`trigger_research`) be offered on every turn, or only through
-  `/research`?
-- How long should a pending approval wait before the turn ends? (Default 10 minutes.)
+None open. Earlier questions are answered under [Decisions](#decisions).
