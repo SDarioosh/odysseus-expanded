@@ -1305,7 +1305,8 @@ async def _finish(turn: _Turn, text: str):
     answer = _shown_answer(turn, text)
     if not answer:
         answer = "Done." if turn.tool_calls else "(no answer)"
-        answer += _claims_note(turn, answer)
+        if turn.writes:  # the brain's own "Done." claims nothing after reads only
+            answer += _claims_note(turn, answer)
         yield _sse({"type": "final_response", "content": answer})
     else:
         # The answer streamed as it was written; a change it claims that no write of

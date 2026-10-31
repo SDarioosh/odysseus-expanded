@@ -340,3 +340,14 @@ def test_the_check_takes_well_under_5_ms_on_a_20k_answer(kind):
         brain_claims.correction(answer, writes)
         best = min(best, time.perf_counter() - start)
     assert best < 0.005, f"{kind}: {best * 1000:.2f} ms"
+
+
+async def test_the_brains_own_done_after_reads_only_gets_no_note(brain):
+    """An empty answer after read tools becomes the brain's own "Done.": it claims no
+    change, so no "nothing was changed" note follows it."""
+    sess = brain.session()
+    brain.llm.rounds([calls(("web_search", {"query": "lisbon weather"}))], [text("")])
+    events = await brain.run(sess, "look up the lisbon weather")
+    final = [e for e in events if e.get("type") == "final_response"]
+    assert final and final[-1]["content"] == "Done."
+    assert sess.history[-1].content == "Done."
