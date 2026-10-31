@@ -10,7 +10,8 @@ chats, workspace or native-client turns, an open document, internal tool request
 without the agent privilege), and for an approval that isn't one of the brain's. Selected
 notes and an open email are the brain's: the route passes the notes it loaded and the
 email's uid, folder and account, and they go into the turn's context message
-(``fork/brain/selection.py``). Otherwise it returns the brain's streaming response, detached like upstream's (``src/agent_runs.py``), with the
+(``fork/brain/selection.py``). Otherwise it returns the brain's streaming response,
+detached like upstream's (``src/agent_runs.py``), with the
 same headers. The hook also runs ``history.py``'s sweep on the first request after a
 start and then hourly, in a worker thread, whether the brain is on or not.
 
@@ -175,7 +176,8 @@ async def brain_response(request: Any, *, sess: Any, session_id: str, message: A
     ``approval_id``: set when this request continues a consumed tool approval;
     ``exact_approval`` is then upstream's consumed grant. ``upstream_turn``: the route
     already knows the turn is upstream's (research, compare, plan mode, incognito, a
-    workspace or native client, an image chat, an open document). ``services``: the route's ``(session_manager, chat_handler,
+    workspace or native client, an image chat, an open document). ``services``: the
+    route's ``(session_manager, chat_handler,
     memory_manager, memory_vector, webhook_manager, skills_manager)``.
     ``external_untrusted_context_seen``: the route's flag that this turn follows outside
     content (a retired approval card's taint); it arms the run. ``no_memory``: the
