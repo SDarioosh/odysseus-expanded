@@ -343,9 +343,10 @@ test that failed before the fix:
   valid `time_filter`); `get_weather` locations go through the guard too.
 - **Retention.** `brain.db` rows older than 30 days are deleted; only the last 4 exchanges
   are replayed; a sweep runs on the first request after a start, then hourly, in a worker
-  thread, even with the brain off. **Gap:** the hub's Forget and Athena's `erase_fact`
-  don't purge `brain.db` yet; a forgotten fact can stay in a stored exchange for up to 30
-  days.
+  thread, even with the brain off. The hub's Forget (`fork/beliefs/forget.py`) also drops
+  every stored exchange and summary of that owner containing the fact's words or the
+  line it was said on (`history.forget_texts`). Not covered: Athena's own transcript
+  retention; such a line stays in a stored exchange until the row expires (≤ 30 days).
 - **Robustness.** A timed-out approval leaves no tool call without a result; a failure
   while setting up the turn ends it with an error answer; the saved answer is all the text
   that was shown, and tool-call markup never reaches the window; SQLite runs off the event

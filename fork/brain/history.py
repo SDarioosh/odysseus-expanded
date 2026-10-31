@@ -25,8 +25,12 @@ Retention. Rows don't outlive their chat and don't keep private data for long:
   them, summaries included;
 - the rows of a deleted message are skipped (and dropped) the next time its chat is read.
 
-Not covered: Athena's ``erase_fact`` and transcript retention, and the hub's Forget, don't
-reach this file; an exchange that quoted a forgotten fact keeps it until the row expires.
+- the hub's Forget (``fork/beliefs/forget.py``) calls :func:`forget_texts`, which drops
+  every exchange and summary of that owner that contains the forgotten fact's words or
+  the transcript line it was said on.
+
+Not covered: Athena's own transcript retention (``CONVO_TRANSCRIPT_RETENTION_DAYS``); a
+stored exchange that quoted an expired transcript line keeps it until the row expires.
 
 Storage follows ``fork/beliefs/ledger_db.py``: stdlib sqlite3, WAL, one transaction per
 :func:`_connect`, one process-wide write lock.
@@ -176,6 +180,37 @@ def save_summary(session_id: str, upto_message_id: str, text: str) -> None:
         db.execute("INSERT OR REPLACE INTO summaries (session_id, upto_message_id, text, "
                    "created_at) VALUES (?, ?, ?, ?)",
                    (str(session_id), str(upto_message_id), text, time.time()))
+
+
+def _plain(text: str) -> str:
+    """Lowercased words only, so a fact matches however the JSON quoted it."""
+    import re
+
+    return " ".join(re.sub(r"[^\w ]+", " ", str(text or "").lower()).split())
+
+
+def forget_texts(owner: str | None, texts: Iterable[str]) -> int:
+    """Drop this owner's stored exchanges, and the summaries of their chats, whose
+    words contain one of ``texts`` (a forgotten fact, the line it was said on). Texts
+    shorter than three words are ignored: too likely to match unrelated turns. Returns how
+    many exchanges were dropped."""
+    wanted = [t for t in (_plain(x) for x in texts) if len(t.split()) >= 3]
+    if not wanted or not db_path().exists():
+        return 0
+    owner = owner or ""
+    with _WRITE, _connect(write=True) as db:
+        rows = db.execute("SELECT session_id, message_id, messages FROM turns WHERE owner = ?",
+                          (owner,)).fetchall()
+        hit = [(r["session_id"], r["message_id"]) for r in rows
+               if any(w in _plain(r["messages"]) for w in wanted)]
+        for session_id, message_id in hit:
+            db.execute("DELETE FROM turns WHERE session_id = ? AND message_id = ?",
+                       (session_id, message_id))
+        owned = {r["session_id"] for r in rows}
+        for row in db.execute("SELECT session_id, text FROM summaries").fetchall():
+            if row["session_id"] in owned and any(w in _plain(row["text"]) for w in wanted):
+                db.execute("DELETE FROM summaries WHERE session_id = ?", (row["session_id"],))
+    return len(hit)
 
 
 def delete_chat(session_id: str) -> None:
