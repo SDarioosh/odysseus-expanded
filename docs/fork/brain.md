@@ -204,7 +204,9 @@ frontend change is needed.
 evidence ledger keep working; the brain adds no security logic of its own.
 
 - **Reads run without asking:** Athena's `readOnlyHint` tools (the fork's trusted read-only
-  MCP rule), web search and fetch, and the read actions of the workspace tools.
+  MCP rule), web search, and the read actions of the workspace tools. `web_fetch` runs
+  unasked only for a URL the owner typed or a search hit of the chat (see
+  [After the security review](#after-the-security-review-2026-10-31)).
 - **Writes ask:** creating or changing an event, task, note, contact or memory, and
   `update_action_item`, show upstream's approval prompt. The loop **pauses** with its state
   kept in memory under the approval id (timeout 10 minutes) and **resumes** when the owner
@@ -310,6 +312,52 @@ Where the code differs from the design above:
 - **First token after 60 s.** `stream_llm` retries a silent local stream once (before
   anything reaches the brain, so nothing runs twice); a second timeout ends the turn. On a
   slow CPU set `ODYSSEUS_FIRST_TOKEN_TIMEOUT=0`.
+
+### After the security review (2026-10-31)
+
+An adversarial review found two high and several medium issues; all are fixed, each with a
+test that failed before the fix:
+
+- **Outside content carries across turns.** Each exchange in `brain.db` records whether a
+  tool result was untrusted (upstream's `tool_result_should_arm_gate`; `search_beliefs`
+  counts as untrusted). Replayed results of such exchanges are marked untrusted, and the
+  run is armed when any replayed exchange or the route's `external_untrusted_context_seen`
+  is. So an injected web page or email can't steer the next turn.
+- **`web_fetch` never runs unasked for a URL the model made up.** It runs without asking
+  only for a URL the owner typed in this message or a search hit of this chat; any other
+  URL asks, also after "allow for this task".
+- **Approved writes run.** Approvals are filed armed (upstream's runner refuses an exact
+  approval on an unarmed run); a test runs a real approved note through
+  `execute_tool_block`.
+- **Local only, strictly.** An endpoint must be on a local or private host, and an endpoint
+  the admin set to `api` or `proxy` is refused. A proxy that is only upstream's guess
+  (API key and `/v1` on a private host, the owner's own llama-server) still counts as
+  local.
+- **After-turn jobs stay local.** Memory, persona and skill extraction are skipped when
+  their endpoint isn't local; titles then come from the message instead of a model; a
+  refused turn runs no after-turn job.
+- **Privileges and consent.** Users without `can_use_agent` go to upstream. Memories and
+  beliefs follow `no_memory`, the owner's memory setting and the chat's memory-injection
+  switch; `search_beliefs` is offered only where `manage_memory` would be.
+- **Query guard can't be bypassed.** `web_search` calls are rewritten to `query` (and a
+  valid `time_filter`); `get_weather` locations go through the guard too.
+- **Retention.** `brain.db` rows older than 30 days are deleted; only the last 4 exchanges
+  are replayed; a sweep runs on the first request after a start, then hourly, in a worker
+  thread, even with the brain off. **Gap:** the hub's Forget and Athena's `erase_fact`
+  don't purge `brain.db` yet; a forgotten fact can stay in a stored exchange for up to 30
+  days.
+- **Robustness.** A timed-out approval leaves no tool call without a result; a failure
+  while setting up the turn ends it with an error answer; the saved answer is all the text
+  that was shown, and tool-call markup never reaches the window; SQLite runs off the event
+  loop.
+- **More turns left to upstream:** an open document, selected notes, an open email, and
+  `use_rag=true`.
+- **One worker.** Paused turns live in memory; the fork runs one uvicorn worker (the
+  Dockerfile and compose set none), so that's safe.
+
+The `chat_stream` hook now also passes `external_untrusted_context_seen` and `no_memory`
+and widens `upstream_turn`; `fork/upstream.py` gains `configured_endpoint_kind` and
+`normalize_endpoint_base`.
 
 ## Upstream impact
 

@@ -3061,7 +3061,7 @@ def setup_chat_routes(
         image_generation_session = _is_image_generation_session(sess, owner=effective_user(request))
         # Fork: brain: the fork's agent loop answers this turn when FORK_BRAIN is on (fork/brain/turn.py)
         from fork.brain.turn import brain_response
-        _fork_brain = await brain_response(request, sess=sess, session_id=session, message=message, owner=owner, approval_id=tool_approval_id if tool_approval_continuation else None, exact_approval=exact_tool_approval, preset_id=preset_id, upstream_turn=bool(do_research or compare_mode or plan_mode or incognito or workspace or photo_editor_requested or client_runtime_context or image_generation_session), attachments=att_ids, services=(session_manager, chat_handler, memory_manager, memory_vector, webhook_manager, skills_manager))
+        _fork_brain = await brain_response(request, sess=sess, session_id=session, message=message, owner=owner, approval_id=tool_approval_id if tool_approval_continuation else None, exact_approval=exact_tool_approval, preset_id=preset_id, upstream_turn=bool(do_research or compare_mode or plan_mode or incognito or workspace or photo_editor_requested or client_runtime_context or image_generation_session or active_doc_id or selected_note_ids or active_email_uid or str(use_rag).lower() == "true"), attachments=att_ids, services=(session_manager, chat_handler, memory_manager, memory_vector, webhook_manager, skills_manager), external_untrusted_context_seen=external_untrusted_context_seen, no_memory=str(form_data.get("no_memory", "")).lower() == "true")
         if _fork_brain is not None:
             return _fork_brain
         no_memory = str(form_data.get("no_memory", "")).lower() == "true"

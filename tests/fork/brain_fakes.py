@@ -32,6 +32,9 @@ ATHENA_TOOLS = [
 
 
 class SchemaMcpManager(FakeMcpManager):
+    def resource_identity(self, qualified_name):
+        return None  # no external backend: upstream binds the native one
+
     def get_all_openai_schemas(self, disabled_map=None):
         out = []
         for sid, tools in self._tools.items():
@@ -145,6 +148,14 @@ class Brain:
         turn._PENDING.clear()
         # the chat-delete sweep reads upstream's chat database: not in these tests
         monkeypatch.setattr(brain_history, "_last_sweep", time.monotonic())
+        # The query guard reads upstream's database from a worker thread
+        # (asyncio.to_thread), a new thread each test. On the suite's in-memory engine
+        # every thread gets a connection of its own, and past five the pool closes one
+        # at random: the main thread's, with every table later tests in this worker
+        # need. So upstream's database is a file here, opened per use.
+        import core.database as cdb
+
+        monkeypatch.setattr(cdb, "SessionLocal", upstream_db())
 
     async def _window(self, _turn):
         return self.window
@@ -165,13 +176,15 @@ class Brain:
     def session(self, **kw) -> FakeSession:
         return FakeSession(**kw)
 
-    def start(self, sess, message, *, owner=None, request=None, preset_id=None, deps=None):
+    def start(self, sess, message, *, owner=None, request=None, preset_id=None, deps=None,
+              **extra):
+        """``extra``: the hook's ``external_seen`` / ``no_memory``."""
         from fork.brain import turn
 
         return turn._start_turn(request or fake_request(owner or sess.owner), sess=sess,
                                 session_id=sess.id, message=message,
                                 owner=owner or sess.owner, preset_id=preset_id,
-                                deps=deps or turn._Deps())
+                                deps=deps or turn._Deps(), **extra)
 
     async def run(self, sess, message, **kw) -> list[dict]:
         from fork.brain import turn
@@ -192,6 +205,49 @@ class Brain:
         assert paused is not None and exact is not None
         paused.sess = sess
         return [_event(c) async for c in turn._resume(paused, exact)]
+
+
+_UPSTREAM_DB: list = []
+
+
+def upstream_db():
+    """A session factory for an empty Odysseus database in a temp file (every table,
+    no pooled connections), made once per test process; never the suite's shared
+    in-memory engine."""
+    if not _UPSTREAM_DB:
+        import atexit
+        import shutil
+        import tempfile
+
+        from sqlalchemy import create_engine
+        from sqlalchemy.orm import sessionmaker
+        from sqlalchemy.pool import NullPool
+
+        import core.database as cdb
+
+        folder = tempfile.mkdtemp(prefix="brain-tests-")
+        atexit.register(shutil.rmtree, folder, ignore_errors=True)
+        engine = create_engine(f"sqlite:///{folder}/odysseus.db", poolclass=NullPool,
+                               connect_args={"check_same_thread": False})
+        cdb.Base.metadata.create_all(engine)
+        _UPSTREAM_DB.append(sessionmaker(bind=engine, autoflush=False, autocommit=False))
+    return _UPSTREAM_DB[0]
+
+
+def notes_db(monkeypatch):
+    """A real Odysseus notes database in a temp file (``core.database.SessionLocal``)."""
+    import core.database as cdb
+    from tests.helpers.sqlite_db import make_temp_sqlite
+
+    factory, engine, _tmp = make_temp_sqlite(cdb.Base.metadata)
+    monkeypatch.setattr(cdb, "SessionLocal", factory)
+    return factory
+
+
+def search_output(text: str, *urls: str) -> str:
+    """A ``web_search`` output with its ranked hits, as upstream's tool appends them."""
+    hits = json.dumps([{"url": u} for u in urls])
+    return f"{text}\n<!-- SOURCES:{hits} -->"
 
 
 def _event(chunk: str):

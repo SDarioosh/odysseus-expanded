@@ -112,3 +112,64 @@ def test_trim_cuts_at_a_line_and_says_so():
     out = brain_tools.trim(rows, 100)
     assert out.splitlines()[0] == "row 0" and "more characters not shown" in out
     assert brain_tools.trim("short") == "short"
+
+
+@pytest.mark.parametrize("case", ["privilege", "token", "non_admin", "global"])
+def test_search_beliefs_follows_upstreams_manage_memory_policy(monkeypatch, case):
+    monkeypatch.setattr("src.tool_security.owner_is_admin_or_single_user",
+                        lambda o: case != "non_admin")
+    monkeypatch.setattr("src.settings.get_setting", lambda key, default=None: (
+        ["manage_memory"] if case == "global" and key == "disabled_tools" else default))
+    off = brain_tools.turn_disabled_tools(
+        None, "alice", privileges={"can_manage_memory": case != "privilege"},
+        delegated=case == "token")
+    assert {"manage_memory", "search_beliefs"} <= off
+
+
+def test_search_beliefs_stays_for_an_admin_with_memory(monkeypatch):
+    monkeypatch.setattr("src.tool_security.owner_is_admin_or_single_user", lambda o: True)
+    monkeypatch.setattr("src.settings.get_setting", lambda key, default=None: default)
+    assert "search_beliefs" not in brain_tools.turn_disabled_tools(None, "alice")
+
+
+async def test_a_token_turn_is_not_offered_search_beliefs(brain):
+    from fork.brain import toolset
+
+    sess = brain.session()
+    brain.mp.setattr("src.auth_helpers.is_delegated_credential", lambda request: True)
+    brain.llm.rounds([text("ok")])
+    await brain.run(sess, "hello")
+    offered = toolset.names(brain.llm.requests[0]["tools"])
+    assert "search_beliefs" not in offered and "manage_memory" not in offered
+
+
+def test_a_fetch_runs_only_for_the_owners_url_or_a_search_hit():
+    from tests.fork.brain_fakes import search_output
+
+    run = brain_tools.build_run(
+        request_text="summarise https://example.org/post please", owner="alice",
+        session_id="c1", history=[], offered=("web_search", "web_fetch"), disabled=set(),
+        chat_search_hits=["https://news.example.org/a?id=4"])
+    ask = brain_tools.needs_approval
+    assert ask(run, "web_fetch", '{"url": "https://example.org/post"}') is None
+    assert ask(run, "web_fetch", '{"url": "https://www.example.org/post/"}') is None
+    assert ask(run, "web_fetch", '{"url": "https://news.example.org/a?id=4"}') is None
+    assert ask(run, "web_fetch", '{"url": "https://example.org/post?d=secret"}')
+    assert ask(run, "web_fetch", '{"url": "https://evil.example/c?d=x"}')
+    assert ask(run, "web_fetch", '{"urls": ["https://example.org/post", "https://evil.example/"]}')
+    # a hit of this turn's own search counts too
+    run.security.observe_tool_result(
+        "web_search", {"output": search_output("hits", "https://docs.example.net/guide")})
+    assert ask(run, "web_fetch", '{"url": "https://docs.example.net/guide"}') is None
+    # a token run is never asked (it can't answer); upstream refuses the call
+    run.security.delegated_credential = True
+    assert ask(run, "web_fetch", '{"url": "https://evil.example/c?d=x"}') is None
+
+
+def test_approvals_are_filed_armed():
+    run = brain_tools.build_run(request_text="note it", owner="alice", session_id="c1",
+                                history=[], offered=("manage_notes",), disabled=set())
+    assert run.security.external_untrusted_context_seen is False
+    pending = brain_tools.create_approval(run, "manage_notes", '{"action": "add", "title": "x"}',
+                                          continuation_query="note it")
+    assert pending.external_untrusted_context_seen is True

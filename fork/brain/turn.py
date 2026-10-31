@@ -6,20 +6,24 @@ session, owner and message are resolved, the chat privileges enforced, a tool ap
 consumed (upstream's own checks) and the research decision made. It returns None, and the
 route goes on as upstream wrote it, when ``FORK_BRAIN`` is off, for ``/research`` and
 other turns the brain doesn't take (compare, plan mode, incognito, attachments, image
-chats, workspace or native-client turns, internal tool requests), and for an approval
-that isn't one of the brain's. Otherwise it returns the brain's streaming response,
-detached like upstream's (``src/agent_runs.py``), with the same headers.
+chats, workspace or native-client turns, an open document, selected notes, an open
+email, document RAG asked for, internal tool requests, users without the agent
+privilege), and for an approval that isn't one of the brain's. Otherwise it returns the
+brain's streaming response, detached like upstream's (``src/agent_runs.py``), with the
+same headers. The hook also runs ``history.py``'s sweep on the first request after a
+start and then hourly, in a worker thread, whether the brain is on or not.
 
 Per turn (:func:`_drive`):
 
-1. The endpoint must be local or on a private network (upstream's ``is_local_endpoint``,
-   the fork's ``is_private_host``); otherwise the answer is :data:`LOCAL_ONLY`.
+1. The endpoint must be the owner's own (:func:`is_local`: a local or private-network
+   host, and not configured as ``api`` or ``proxy``); otherwise the answer is
+   :data:`LOCAL_ONLY` and no after-turn job runs.
 2. Each round streams from upstream's ``stream_llm`` (endpoint headers, auth,
    ``cache_prompt`` and ``session_id`` slot affinity stay upstream's), with thinking off:
    ``enable_thinking: false`` is sent to local endpoints whatever the model's name
    (:func:`apply_brain_thinking`, called by a hook in upstream's
    ``_apply_local_qwen_thinking_mode``). Text deltas go to the chat window as they
-   arrive.
+   arrive, except tool-call markup a model writes as text (:class:`_MarkupFilter`).
 3. Tool calls (native ``tool_calls``, or the text formats upstream's
    ``src/tool_parsing.py`` reads) run through ``fork/brain/tools.py``; their results are
    appended and the next round starts. After ``FORK_BRAIN_MAX_ROUNDS`` rounds one last
@@ -30,17 +34,23 @@ Per turn (:func:`_drive`):
    owner's answer comes back as a new request; :func:`brain_response` resumes the state
    and runs the approved call without asking the model again. Unanswered in time, the
    turn ends with :data:`NOT_APPROVED`.
-5. The answer is saved as a normal Odysseus message (``save_assistant_response``), the
-   turn's tool exchange in ``history.py``, and upstream's after-turn jobs run
-   (``run_post_response_tasks``: title, memory extraction, token totals, webhooks).
+5. The answer (all the text the window showed) is saved as a normal Odysseus message
+   (``save_assistant_response``), the turn's tool exchange in ``history.py`` (in a worker
+   thread), and upstream's after-turn jobs run (``run_post_response_tasks``: title,
+   memory extraction, token totals, webhooks); the jobs that call a model run only when
+   the endpoint they would use passes :func:`is_local`.
 
 Events are the ones ``static/js/chat.js`` renders: ``{"delta"}``, ``agent_step``,
 ``tool_start``, ``tool_output`` (``execution_attempted``, ``blocked``), ``ask_user``,
 ``final_response``, ``metrics``, ``message_saved``, ``[DONE]``.
+
+One process: the paused turns live in this process's memory, which is right for the
+fork's deployments (one uvicorn worker: ``Dockerfile``, ``docs/fork/deploy.md``).
 """
 from __future__ import annotations
 
 import asyncio
+import functools
 import json
 import logging
 import threading
@@ -50,6 +60,7 @@ from contextvars import ContextVar
 from dataclasses import dataclass, field
 from types import SimpleNamespace
 from typing import Any, AsyncGenerator
+from urllib.parse import urlparse
 
 from fork.brain import history as brain_history
 from fork.brain import prompt as brain_prompt
@@ -62,6 +73,8 @@ logger = logging.getLogger(__name__)
 PENDING_SECONDS = 10 * 60
 LOCAL_ONLY = "The assistant runs only on local models."
 NOT_APPROVED = "The change wasn't approved in time."
+NOT_RUN_UNAPPROVED = "Not run: the owner didn't approve this call in time."
+TURN_FAILED = "The assistant failed on this turn."
 CONTEXT_BUDGET = 0.75  # share of the model's context a prompt may fill
 KEEP_RECENT_TURNS = 2  # user turns never summarised
 FINAL_ROUND_NOTE = (
@@ -71,6 +84,7 @@ SUMMARY_PROMPT = (
     "Summarise this earlier part of a chat between the owner and their assistant in at "
     "most 200 words: the questions, the answers, and facts, names, links and decisions "
     "worth keeping for later questions. Write only the summary.")
+ROUND_SEPARATOR = "\n\n"  # between the texts of two rounds, in the window and the answer
 
 _THINKING_OFF: ContextVar[bool] = ContextVar("fork_brain_thinking_off", default=False)
 
@@ -108,19 +122,53 @@ def takes_turn(*, message: Any, upstream_turn: bool, attachments: Any = None,
     return True
 
 
+_SWEEPS: set = set()  # running sweep tasks, kept so they aren't collected early
+
+
+def _sweep_soon() -> None:
+    """Run ``history.py``'s sweep in a worker thread when it is due (first request after
+    a start, then hourly; only once ``brain.db`` exists). Never fails the request."""
+    try:
+        if not brain_history.sweep_due():
+            return
+        task = asyncio.get_running_loop().create_task(asyncio.to_thread(brain_history.sweep))
+    except Exception:  # noqa: BLE001 -- no loop (a sync caller) or no data dir
+        return
+    _SWEEPS.add(task)
+    task.add_done_callback(_SWEEPS.discard)
+
+
+def agent_permitted(request: Any, owner: Any) -> bool:
+    """False for a user whose privileges say no agent: upstream forces chat mode for
+    them (``chat_stream``, ``can_use_agent``), so the brain hands their turns back."""
+    user = owner
+    try:
+        from src.auth_helpers import effective_user
+        user = effective_user(request) or owner
+    except Exception:  # noqa: BLE001 -- a bare test request
+        pass
+    return _privileges(request, user).get("can_use_agent", True) is not False
+
+
 async def brain_response(request: Any, *, sess: Any, session_id: str, message: Any,
                          owner: Any, approval_id: Any = None, exact_approval: Any = None,
                          preset_id: Any = None, upstream_turn: bool = False,
-                         attachments: Any = None, services: tuple = ()) -> Any:
+                         attachments: Any = None, services: tuple = (),
+                         external_untrusted_context_seen: bool = False,
+                         no_memory: bool = False) -> Any:
     """The brain's streaming response for this turn, or None for upstream's paths.
 
     ``approval_id``: set when this request continues a consumed tool approval;
     ``exact_approval`` is then upstream's consumed grant. ``upstream_turn``: the route
     already knows the turn is upstream's (research, compare, plan mode, incognito, a
-    workspace or native client, an image chat). ``services``: the route's
-    ``(session_manager, chat_handler, memory_manager, memory_vector, webhook_manager,
-    skills_manager)``.
+    workspace or native client, an image chat, an open document or email, selected
+    notes, document RAG). ``services``: the route's ``(session_manager, chat_handler,
+    memory_manager, memory_vector, webhook_manager, skills_manager)``.
+    ``external_untrusted_context_seen``: the route's flag that this turn follows outside
+    content (a retired approval card's taint); it arms the run. ``no_memory``: the
+    message asked for no memory (upstream's ``no_memory`` form field).
     """
+    _sweep_soon()
     if not brain_settings.enabled():
         return None
     deps = _Deps(*services) if services else _Deps()
@@ -137,9 +185,13 @@ async def brain_response(request: Any, *, sess: Any, session_id: str, message: A
     if not takes_turn(message=message, upstream_turn=upstream_turn,
                       attachments=attachments, request=request):
         return None
+    if not agent_permitted(request, owner):
+        return None
     drop_pending_for_chat(owner=owner, session_id=session_id)
     turn = _start_turn(request, sess=sess, session_id=session_id, message=message,
-                       owner=owner, preset_id=preset_id, deps=deps)
+                       owner=owner, preset_id=preset_id, deps=deps,
+                       external_seen=bool(external_untrusted_context_seen),
+                       no_memory=bool(no_memory))
     return _response(session_id, _run_new_turn(turn))
 
 
@@ -187,10 +239,10 @@ class _Turn:
     temperature: float | None
     max_tokens: int | None
     character_name: str | None
-    tools: tuple[dict, ...]
-    run: Any
-    messages: list[dict]
-    turn_start: int  # index of the context message: what is before it is history
+    tools: tuple[dict, ...] = ()
+    run: Any = None
+    messages: list[dict] = field(default_factory=list)
+    turn_start: int = 0  # index of the context message: what is before it is history
     history_ids: list[str] = field(default_factory=list)
     exchange: list[dict] = field(default_factory=list)
     queue: list[dict] = field(default_factory=list)  # calls of the round still to run
@@ -199,6 +251,7 @@ class _Turn:
     tool_calls: int = 0
     tool_events: list[dict] = field(default_factory=list)
     round_texts: list[str] = field(default_factory=list)
+    shown: list[str] = field(default_factory=list)  # visible text of each round, in order
     started: float = field(default_factory=time.time)
     first_token_at: float | None = None
     input_tokens: int = 0
@@ -207,6 +260,7 @@ class _Turn:
     expires_at: float = 0.0
     paused_message_id: str | None = None
     timer: Any = None
+    prep: dict | None = None  # what _prepare() still needs; None once prepared
 
 
 _PENDING: dict[str, _Turn] = {}
@@ -258,6 +312,15 @@ def _park(turn: _Turn, approval_expires_at: float | None = None) -> None:
         turn.timer = None
 
 
+def _close_unrun_calls(turn: _Turn, text: str) -> None:
+    """Answer every queued call of the paused round with ``text``, so the saved exchange
+    has no tool call without a result (the next prompt would be malformed)."""
+    for call in turn.queue:
+        turn.exchange.append({"role": "tool", "tool_call_id": call["id"],
+                              "name": call["name"], "content": text})
+    turn.queue = []
+
+
 def expire_pending(now: float | None = None) -> int:
     """Drop the paused turns that can't resume any more. One whose approval record is
     gone from upstream's store (the owner chose Deny, or a new message retired it) is
@@ -280,8 +343,10 @@ def expire_pending(now: float | None = None) -> int:
             t.timer.cancel()
         tool_approval_store.consume(t.approval_id, decision="deny", owner=t.owner,
                                     session_id=t.session_id)
+        _close_unrun_calls(t, NOT_RUN_UNAPPROVED)
         try:
-            _save_answer(t, NOT_APPROVED, post_tasks=False)
+            saved = _save_answer(t, NOT_APPROVED, post_tasks=False)
+            _keep_exchange_later(t, saved)
         except Exception:  # noqa: BLE001
             logger.warning("brain: could not save the timed-out turn", exc_info=True)
     return len(timed_out)
@@ -327,6 +392,14 @@ def _delegated(request: Any) -> bool:
         return False
 
 
+def _user_prefs(owner: Any) -> dict:
+    try:
+        from routes.chat_helpers import load_prefs_for_user
+        return load_prefs_for_user(owner) or {}
+    except Exception:  # noqa: BLE001
+        return {}
+
+
 def _save_user_message(turn_sess: Any, deps: _Deps, request: Any, session_id: str,
                        message: str) -> None:
     """The owner's message, saved the way upstream's chat turns save it."""
@@ -347,35 +420,14 @@ def _save_user_message(turn_sess: Any, deps: _Deps, request: Any, session_id: st
 
 
 def _start_turn(request: Any, *, sess: Any, session_id: str, message: str, owner: Any,
-                preset_id: Any, deps: _Deps) -> _Turn:
-    brain_history.sweep()
+                preset_id: Any, deps: _Deps, external_seen: bool = False,
+                no_memory: bool = False) -> _Turn:
+    """Save the owner's message and set the turn up; the tool set, the history and the
+    authority are built by :func:`_prepare` when the stream starts, so a failure there
+    ends the turn with an answer instead of an HTTP error."""
     preset = _preset(deps.chat_handler, preset_id)
     rows = list(getattr(sess, "history", None) or ())
     _save_user_message(sess, deps, request, session_id, message)
-
-    delegated = _delegated(request)
-    disabled = brain_tools.turn_disabled_tools(
-        request, owner, privileges=_privileges(request, owner), delegated=delegated)
-    schemas = toolset.for_chat(session_id, owner=owner, disabled=disabled)
-    schemas = toolset.with_skill_tools(schemas, message, owner=owner, disabled=disabled)
-
-    keep_ids = [brain_prompt.message_id(m) for m in rows if brain_prompt.message_id(m)]
-    try:
-        exchanges = brain_history.turns(session_id, keep_ids=keep_ids)
-        summary = brain_history.summary(session_id)
-    except Exception:  # noqa: BLE001 -- follow-ups lose tool results, the turn still runs
-        logger.warning("brain: history unavailable", exc_info=True)
-        exchanges, summary = {}, None
-    hist = brain_prompt.history_messages(rows, exchanges, summary=summary)
-    recalled = brain_prompt.recalled_items(owner, message, deps.memory_manager)
-    messages = brain_prompt.build_messages(preset_text=preset.system_prompt, history=hist,
-                                           recalled=recalled, message=message)
-    run = brain_tools.build_run(
-        request_text=message, owner=owner, session_id=session_id, history=rows,
-        offered=tuple(toolset.names(schemas)), disabled=disabled, delegated=delegated,
-        prompt_messages=messages)
-    if run.policy.block_all_tool_calls:
-        schemas = ()
     temperature = getattr(sess, "temperature_override", None)
     if temperature is None:
         temperature = preset.temperature
@@ -386,8 +438,60 @@ def _start_turn(request: Any, *, sess: Any, session_id: str, message: str, owner
         model=str(getattr(sess, "model", "") or ""),
         headers=dict(getattr(sess, "headers", None) or {}),
         temperature=temperature, max_tokens=max_tokens,
-        character_name=preset.character_name, tools=tuple(schemas), run=run,
-        messages=messages, turn_start=len(messages) - 2, history_ids=keep_ids)
+        character_name=preset.character_name,
+        prep={"request": request, "rows": rows, "preset_text": preset.system_prompt,
+              "external_seen": external_seen, "no_memory": no_memory})
+
+
+def _replay(rows: list, stored: dict[str, dict]) -> tuple[dict[str, list[dict]], bool, list[str]]:
+    """The exchanges put back into the prompt: those of the last
+    :data:`~fork.brain.prompt.REPLAY_EXCHANGES` answers that have one, marked untrusted
+    where they were. Returns them, whether any is untrusted, and their search hits."""
+    order = [brain_prompt.message_id(m) for m in rows if brain_prompt.message_id(m) in stored]
+    keep = order[-brain_prompt.REPLAY_EXCHANGES:] if brain_prompt.REPLAY_EXCHANGES else []
+    out, tainted, hits = {}, False, []
+    for mid in keep:
+        row = stored[mid]
+        out[mid] = brain_prompt.replayed(row["messages"], tainted=row["tainted"])
+        tainted = tainted or row["tainted"]
+        hits.extend(row["search_hits"])
+    return out, tainted, hits
+
+
+async def _prepare(turn: _Turn) -> None:
+    """The tool set, the prompt and the run's authority and security context."""
+    prep, turn.prep = turn.prep, None
+    request, rows, owner, message = prep["request"], prep["rows"], turn.owner, turn.message
+    delegated = _delegated(request)
+    disabled = brain_tools.turn_disabled_tools(
+        request, owner, privileges=_privileges(request, owner), delegated=delegated)
+    schemas = toolset.for_chat(turn.session_id, owner=owner, disabled=disabled)
+    schemas = toolset.with_skill_tools(schemas, message, owner=owner, disabled=disabled)
+
+    keep_ids = [brain_prompt.message_id(m) for m in rows if brain_prompt.message_id(m)]
+    try:
+        stored = await asyncio.to_thread(brain_history.exchanges, turn.session_id, keep_ids)
+        summary = await asyncio.to_thread(brain_history.summary, turn.session_id)
+    except Exception:  # noqa: BLE001 -- follow-ups lose tool results, the turn still runs
+        logger.warning("brain: history unavailable", exc_info=True)
+        stored, summary = {}, None
+    exchanges, tainted, hits = _replay(rows, stored)
+    hist = brain_prompt.history_messages(rows, exchanges, summary=summary)
+    consent = brain_prompt.memory_enabled(turn.sess, _user_prefs(owner),
+                                          no_memory=prep["no_memory"])
+    recalled = await asyncio.to_thread(brain_prompt.recalled_items, owner, message,
+                                       turn.deps.memory_manager, enabled=consent)
+    messages = brain_prompt.build_messages(preset_text=prep["preset_text"], history=hist,
+                                           recalled=recalled, message=message)
+    run = brain_tools.build_run(
+        request_text=message, owner=owner, session_id=turn.session_id, history=rows,
+        offered=tuple(toolset.names(schemas)), disabled=disabled, delegated=delegated,
+        prompt_messages=messages, external_seen=bool(prep["external_seen"] or tainted),
+        chat_search_hits=hits)
+    if run.policy.block_all_tool_calls:
+        schemas = ()
+    turn.tools, turn.run, turn.messages = tuple(schemas), run, messages
+    turn.turn_start, turn.history_ids = len(messages) - 2, keep_ids
 
 
 # --------------------------------------------------------------------- the model
@@ -406,14 +510,48 @@ def apply_brain_thinking(payload: dict) -> bool:
     return True
 
 
-def is_local(url: str) -> bool:
-    """A local or private-network endpoint (upstream's check, then the fork's)."""
-    from src.model_context import is_local_endpoint
+def _explicit_endpoint_kind(url: str) -> str | None:
+    """The ``endpoint_kind`` the admin chose for the registered endpoint ``url`` belongs
+    to (``local``, ``api``, ``proxy``), or None (auto, or not registered)."""
+    from fork.upstream import normalize_endpoint_base
 
-    from fork.hub.private_endpoint_thinking import is_private_host
+    target = normalize_endpoint_base(url)
+    if not target:
+        return None
+    from core.database import ModelEndpoint, SessionLocal
+
+    db = SessionLocal()
+    try:
+        for ep in db.query(ModelEndpoint).filter(ModelEndpoint.is_enabled == True).all():  # noqa: E712
+            base = normalize_endpoint_base(getattr(ep, "base_url", "") or "")
+            if base and (target == base or target.startswith(base + "/")):
+                kind = (getattr(ep, "endpoint_kind", None) or "auto").strip().lower()
+                return kind if kind in ("local", "api", "proxy") else None
+    finally:
+        db.close()
+    return None
+
+
+def is_local(url: str) -> bool:
+    """The owner's own endpoint: its host is local or on a private network (loopback,
+    LAN, Tailscale), and upstream doesn't classify it as an outside API
+    (``src/model_context.py``'s ``_configured_endpoint_kind``: ``api``, or a ``proxy``
+    the admin chose). A ``proxy`` that is only upstream's guess (an API key and a
+    ``/v1`` path) on a private host is the owner's own llama-server run with a key
+    (``fork/hub/private_endpoint_thinking.py``) and counts as local; ``local`` on a
+    public host does not."""
+    from fork.upstream import configured_endpoint_kind, is_local_or_private_host
 
     try:
-        return bool(is_local_endpoint(url) or is_private_host(url))
+        host = (urlparse(url or "").hostname or "").lower()
+        if not host or not is_local_or_private_host(host):
+            return False
+        kind = configured_endpoint_kind(url)
+        if kind == "api":
+            return False
+        if kind == "proxy" and _explicit_endpoint_kind(url) == "proxy":
+            return False
+        return True
     except Exception:  # noqa: BLE001
         return False
 
@@ -478,6 +616,70 @@ def _text_calls(text: str, offered: list[str]) -> tuple[list[dict], str]:
     except Exception:  # noqa: BLE001
         pass
     return calls, text
+
+
+def _strip_markup(text: str) -> str:
+    from src.tool_parsing import strip_tool_blocks
+    try:
+        return strip_tool_blocks(text)
+    except Exception:  # noqa: BLE001
+        return text
+
+
+class _MarkupFilter:
+    """Passes a round's text deltas to the window as they come, but holds everything
+    from the first tool-call opener (``<tool_call>``, ``<function=``, ``<invoke``,
+    ``[TOOL_CALL]``, ``<web_search>`` ...) to the end of the round, so raw markup never
+    shows. At the end (:meth:`finish`) the held part is shown without the markup
+    (``strip_tool_blocks``). A possible opener split across deltas is held too."""
+
+    MARKERS = ("<tool_call", "<function", "<invoke", "<tool_code", "[tool_call]",
+               "<|tool_call", "<｜", "<minimax:", "<parameter", "<|open|>",
+               "<start_function_call", "<|python_tag|>")
+
+    def __init__(self, tool_names=()):
+        names = {str(n).lower() for n in tool_names or () if n}
+        self.markers = tuple(self.MARKERS) + tuple(f"<{n}" for n in sorted(names))
+        self.longest = max(len(m) for m in self.markers)
+        self.buf = ""
+        self.sent = 0  # characters of buf shown
+        self.held: int | None = None  # where the held markup starts
+
+    def feed(self, delta: str) -> str:
+        self.buf += delta
+        if self.held is not None:
+            return ""
+        low = self.buf.lower()
+        hits = [i for i in (low.find(m, self.sent) for m in self.markers) if i >= 0]
+        if hits:
+            self.held = min(hits)
+            out, self.sent = self.buf[self.sent:self.held], self.held
+            return out
+        end = len(self.buf)
+        opener = max(low.rfind("<", self.sent), low.rfind("[", self.sent))
+        if opener >= 0 and end - opener < self.longest \
+                and any(m.startswith(low[opener:]) for m in self.markers):
+            end = opener
+        out, self.sent = self.buf[self.sent:end], end
+        return out
+
+    def finish(self, cleaned: str | None = None) -> str:
+        """The rest to show: the held text without markup (``cleaned``, the round's text
+        with its tool calls stripped, when known), or the remainder as it is."""
+        if self.held is None:
+            out, self.sent = self.buf[self.sent:], len(self.buf)
+            return out
+        shown = self.buf[:self.held]
+        clean = _strip_markup(self.buf) if cleaned is None else cleaned
+        self.sent = len(self.buf)
+        if clean.startswith(shown):
+            return clean[len(shown):]
+        if clean.strip().startswith(shown.strip()):
+            return clean.strip()[len(shown.strip()):]
+        return ""
+
+    def shown_text(self, tail: str = "") -> str:
+        return (self.buf[:self.held] if self.held is not None else self.buf[:self.sent]) + tail
 
 
 # ---------------------------------------------------------------- context budget
@@ -551,8 +753,9 @@ async def _summarise_older(turn: _Turn, budget: int) -> bool:
         {"role": "user", "content": brain_tools.trim(text, 24000)}])
     if not summary:
         return False
-    brain_history.save_summary(turn.session_id, upto, summary)
-    exchanges = brain_history.turns(turn.session_id)
+    await asyncio.to_thread(brain_history.save_summary, turn.session_id, upto, summary)
+    stored = await asyncio.to_thread(brain_history.exchanges, turn.session_id)
+    exchanges, _tainted, _hits = _replay(rows, stored)
     hist = brain_prompt.history_messages(rows, exchanges, summary=(upto, summary))
     tail = turn.messages[turn.turn_start:]
     turn.messages = [turn.messages[0], *hist, *tail]
@@ -623,10 +826,64 @@ def _metrics(turn: _Turn, **extra) -> dict:
     return data
 
 
+def _shown_answer(turn: _Turn, last: str = "") -> str:
+    """Everything the window showed this turn, as one answer (rounds apart by a blank
+    line, as streamed)."""
+    parts = [t.strip() for t in [*turn.shown, last] if t and t.strip()]
+    return ROUND_SEPARATOR.join(parts)
+
+
+def _background_endpoints_local(turn: _Turn) -> tuple[bool, bool]:
+    """``(extraction, title)``: whether upstream's after-turn jobs would call only
+    endpoints :func:`is_local` accepts. Memory and persona extraction use the task
+    endpoint (``resolve_task_endpoint``); a title uses it too, or (when it is the chat's
+    own endpoint and that can't be used) the utility or default endpoint."""
+    try:
+        from src.task_endpoint import resolve_task_endpoint
+        url, model, _ = resolve_task_endpoint(turn.endpoint_url, turn.model, turn.headers,
+                                              owner=turn.owner)
+    except Exception:  # noqa: BLE001
+        return False, False
+    extraction = not url or is_local(str(url))
+    title = extraction
+    if title and url and str(url) == turn.endpoint_url:
+        try:
+            from src.endpoint_resolver import resolve_endpoint
+            for prefix in ("utility", "default"):
+                u, m, _ = resolve_endpoint(prefix, owner=turn.owner)
+                if u and m and not is_local(str(u)):
+                    title = False
+        except Exception:  # noqa: BLE001
+            title = False
+    return extraction, title
+
+
+def _local_title(turn: _Turn) -> None:
+    """Name a chat that still has its placeholder name from its first message, without a
+    model, so upstream's auto-name never sends it to an outside endpoint."""
+    from routes.chat_helpers import fallback_session_title, needs_auto_name
+
+    sess = turn.sess
+    if not needs_auto_name(getattr(sess, "name", "") or ""):
+        return
+    first = next((brain_prompt._text(brain_prompt._content(m))
+                  for m in getattr(sess, "history", None) or ()
+                  if brain_prompt._role(m) == "user"), turn.message)
+    title = fallback_session_title(str(first or "")[:500])
+    manager = turn.deps.session_manager
+    if manager is not None and hasattr(manager, "update_session_name"):
+        manager.update_session_name(turn.session_id, title)
+    try:
+        sess.name = title
+    except AttributeError:
+        pass
+
+
 def _save_answer(turn: _Turn, text: str, *, post_tasks: bool = True,
                  extra_metadata: dict | None = None) -> str | None:
-    """Save ``text`` as the turn's answer (a normal assistant message), its tool
-    exchange in ``history.py``, then upstream's after-turn jobs. Returns the message id."""
+    """Save ``text`` as the turn's answer (a normal assistant message), then upstream's
+    after-turn jobs, only those whose endpoint is local. Returns the message id. The
+    tool exchange is kept by :func:`_keep_exchange`."""
     from routes.chat_helpers import run_post_response_tasks, save_assistant_response
 
     metrics = _metrics(turn, **{brain_prompt.TURN_FLAG: True, **(extra_metadata or {})})
@@ -634,41 +891,96 @@ def _save_answer(turn: _Turn, text: str, *, post_tasks: bool = True,
     message_id = save_assistant_response(
         turn.sess, deps.session_manager, turn.session_id, text, metrics,
         character_name=turn.character_name)
-    if message_id and turn.exchange and not (extra_metadata or {}).get(brain_prompt.PAUSED_FLAG):
-        try:
-            brain_history.save_turn(turn.session_id, str(message_id), turn.exchange,
-                                    owner=turn.owner)
-        except Exception:  # noqa: BLE001
-            logger.warning("brain: could not keep the turn's tool results", exc_info=True)
     if post_tasks:
         try:
-            from routes.chat_helpers import load_prefs_for_user
-            uprefs = load_prefs_for_user(turn.owner) or {}
-        except Exception:  # noqa: BLE001
-            uprefs = {}
-        try:
+            extraction, title = _background_endpoints_local(turn)
+            if not title:
+                _local_title(turn)
             run_post_response_tasks(
                 turn.sess, deps.session_manager, turn.session_id, turn.message, text, metrics,
-                uprefs, deps.memory_manager, deps.memory_vector, deps.webhook_manager,
-                character_name=turn.character_name, agent_rounds=turn.rounds_run,
-                agent_tool_calls=turn.tool_calls, skills_manager=deps.skills_manager,
-                owner=turn.owner, extract_skills=False)
+                _user_prefs(turn.owner), deps.memory_manager, deps.memory_vector,
+                deps.webhook_manager, character_name=turn.character_name,
+                agent_rounds=turn.rounds_run, agent_tool_calls=turn.tool_calls,
+                skills_manager=deps.skills_manager, owner=turn.owner, extract_skills=False,
+                allow_background_extraction=extraction)
         except Exception:  # noqa: BLE001
             logger.warning("brain: after-turn jobs failed", exc_info=True)
     return str(message_id) if message_id else None
 
 
+def _exchange_row(turn: _Turn, message_id: str | None) -> tuple | None:
+    if not message_id or not turn.exchange:
+        return None
+    run = turn.run
+    return (turn.session_id, str(message_id), list(turn.exchange),
+            {"owner": turn.owner, "tainted": bool(getattr(run, "tainted", False)),
+             "search_hits": sorted(getattr(run, "search_hits", ()) or ())})
+
+
+async def _keep_exchange(turn: _Turn, message_id: str | None) -> None:
+    """Keep the turn's tool exchange under its answer in ``history.py`` (worker thread)."""
+    row = _exchange_row(turn, message_id)
+    if row is None:
+        return
+    sid, mid, messages, kw = row
+    try:
+        await asyncio.to_thread(brain_history.save_turn, sid, mid, messages, **kw)
+    except Exception:  # noqa: BLE001
+        logger.warning("brain: could not keep the turn's tool results", exc_info=True)
+
+
+def _keep_exchange_later(turn: _Turn, message_id: str | None) -> None:
+    """:func:`_keep_exchange` from sync code (the time-out): in a worker thread when an
+    event loop runs, else right here."""
+    row = _exchange_row(turn, message_id)
+    if row is None:
+        return
+    sid, mid, messages, kw = row
+    job = functools.partial(brain_history.save_turn, sid, mid, messages, **kw)
+    try:
+        asyncio.get_running_loop().run_in_executor(None, job)
+    except RuntimeError:
+        job()
+
+
 # ----------------------------------------------------------------------- the loop
 async def _run_new_turn(turn: _Turn) -> AsyncGenerator[str, None]:
-    async for chunk in _guarded(turn, _drive(turn)):
+    async def go():
+        if turn.prep is not None:
+            try:
+                await _prepare(turn)
+            except Exception:  # noqa: BLE001 -- answer instead of a 500 after the saved message
+                logger.exception("brain: setting the turn up failed")
+                async for chunk in _fail(turn):
+                    yield chunk
+                return
+        async for chunk in _drive(turn):
+            yield chunk
+    async for chunk in _guarded(turn, go()):
         yield chunk
 
 
+async def _fail(turn: _Turn):
+    yield _sse({"type": "final_response", "content": TURN_FAILED})
+    yield _sse({"type": "metrics", "data": _metrics(turn)})
+    saved = _save_answer(turn, TURN_FAILED, post_tasks=False, extra_metadata={"error": True})
+    if saved:
+        yield _sse({"type": "message_saved", "id": saved})
+
+
 async def _resume(turn: _Turn, exact_approval: Any) -> AsyncGenerator[str, None]:
+    # The resumed call runs on the paused turn's run (authority, security context, URL
+    # state), not one built for the approval request: the approval is for that run's
+    # exact call. (Review finding 12, kept on purpose.)
     async def go():
+        # execute_tool_block takes an exact approval only for an armed run; arming only
+        # adds gates for the rest of this turn.
+        turn.run.security.external_untrusted_context_seen = True
         if getattr(exact_approval, "allow_remaining_actions", False):
-            # The card's "allow" lifts upstream's approval gate for the rest of this
-            # task, as in upstream's agent; every write of the brain still asks.
+            # The card's "allow for this task" lifts upstream's approval gate for the
+            # rest of this task, for reads: every write of the brain still asks, and so
+            # does a web_fetch of an address that isn't the owner's or a search hit
+            # (tools.needs_approval checks both before upstream's gate).
             turn.run.security.approval_gate_bypassed = True
         turn.started = time.time()
         call = turn.queue.pop(0)
@@ -693,7 +1005,7 @@ async def _guarded(turn: _Turn, inner: AsyncGenerator[str, None]) -> AsyncGenera
             yield chunk
     except Exception:  # noqa: BLE001
         logger.exception("brain: turn failed")
-        yield f'event: error\ndata: {json.dumps({"error": "The assistant failed on this turn.", "status": 500})}\n\n'
+        yield f'event: error\ndata: {json.dumps({"error": TURN_FAILED, "status": 500})}\n\n'
     finally:
         streams.pop(turn.session_id, None)
     yield "data: [DONE]\n\n"
@@ -705,7 +1017,7 @@ async def _drive(turn: _Turn) -> AsyncGenerator[str, None]:
         turn.round_texts.append(LOCAL_ONLY)
         yield _sse({"type": "final_response", "content": LOCAL_ONLY})
         yield _sse({"type": "metrics", "data": _metrics(turn)})
-        saved = _save_answer(turn, LOCAL_ONLY)
+        saved = _save_answer(turn, LOCAL_ONLY, post_tasks=False)
         if saved:
             yield _sse({"type": "message_saved", "id": saved})
         return
@@ -728,14 +1040,39 @@ async def _drive(turn: _Turn) -> AsyncGenerator[str, None]:
         await _fit_context(turn)
         if turn.round > 0:
             yield _sse({"type": "agent_step", "round": turn.round + 1})
+        offered = toolset.names(tools)
+        visible = _MarkupFilter(offered)
+        # The window gets what the saved answer will hold: rounds apart by
+        # ROUND_SEPARATOR, each without leading or trailing blanks (trailing ones wait
+        # for more text of the round).
+        first_round = not _shown_answer(turn)
+        state = {"started": False, "blank": ""}
         text_parts: list[str] = []
         calls: list[dict] = []
+
+        def show(out: str) -> str | None:
+            if not out:
+                return None
+            if not state["started"]:
+                out = out.lstrip()
+                if not out:
+                    return None
+                state["started"] = True
+                out = ("" if first_round else ROUND_SEPARATOR) + out
+            else:
+                out = state["blank"] + out
+            body = out.rstrip()
+            state["blank"] = out[len(body):]
+            return _sse({"delta": body}) if body else None
+
         async for kind, value in _stream_round(turn, turn.messages, tools):
             if kind == "text":
                 if turn.first_token_at is None and value.strip():
                     turn.first_token_at = time.time()
                 text_parts.append(value)
-                yield _sse({"delta": value})
+                chunk = show(visible.feed(value))
+                if chunk:
+                    yield chunk
             elif kind == "calls":
                 calls = value
             elif kind == "usage":
@@ -743,24 +1080,32 @@ async def _drive(turn: _Turn) -> AsyncGenerator[str, None]:
                 turn.output_tokens += int(value.get("output_tokens") or 0)
             elif kind == "error":
                 yield value
-                partial = "".join(text_parts).strip()
+                partial = _shown_answer(turn, visible.shown_text())
                 if partial:
                     saved = _save_answer(turn, partial, extra_metadata={"stopped": True})
+                    await _keep_exchange(turn, saved)
                     if saved:
                         yield _sse({"type": "message_saved", "id": saved})
                 return
         turn.round += 1
         turn.rounds_run += 1
         text = "".join(text_parts)
-        offered = toolset.names(tools)
         calls = [c for c in calls if c.get("name")]
         if not calls and tools:
             calls, text = _text_calls(text, offered)
+        elif calls and visible.held is not None:
+            text = _strip_markup(text)
+        tail = visible.finish(text if visible.held is not None else None)
+        chunk = show(tail)
+        if chunk:
+            yield chunk
+        round_shown = visible.shown_text(tail)
         turn.round_texts.append(text.strip())
         if not calls:
-            async for chunk in _finish(turn, text):
+            async for chunk in _finish(turn, round_shown):
                 yield chunk
             return
+        turn.shown.append(round_shown)
         for c in calls:
             c["id"] = c.get("id") or f"call_{uuid.uuid4().hex[:12]}"
             c["arguments"] = c.get("arguments") or "{}"
@@ -799,43 +1144,60 @@ async def _run_call(turn: _Turn, call: dict, *, exact_approval: Any = None):
 
 
 async def _pause(turn: _Turn, call: dict, reason: str):
-    """File the exact approval, send the card, save the waiting message, keep the state."""
+    """File the exact approval, send the card, save the waiting message, keep the state.
+    If anything fails between filing the approval and keeping the state, the approval
+    is retired, so upstream can't resume it in its own agent."""
     name, content, call_id = call["name"], call["arguments"], call["id"]
     pending = brain_tools.create_approval(turn.run, name, content,
                                           continuation_query=turn.message)
     turn.approval_id = pending.approval_id
-    payload = pending.public_payload(reason=reason)
-    result = {"output": "Waiting for an exact user approval.", "exit_code": None,
-              "approval_required": True}
-    event = _tool_output_event(name, content, call_id, result, attempted=False,
-                               window_text=result["output"])
-    event["ask_user"] = payload
-    yield _sse(event)
-    question = f"I need your approval to run {name}."
-    if not "".join(turn.round_texts).strip():
-        yield _sse({"type": "final_response", "content": question})
-    yield _sse({"type": "ask_user", "data": payload})
-    turn.tool_events.append({"round": turn.round, "tool": name,
-                             "desc": f"{name}: APPROVAL REQUIRED",
-                             "command": _display(name, content),
-                             "output": result["output"], "exit_code": None,
-                             "ask_user": payload})
-    yield _sse({"type": "metrics", "data": _metrics(turn)})
-    saved = _save_answer(turn, (turn.round_texts[-1] if turn.round_texts else "") or question,
-                         post_tasks=False, extra_metadata={brain_prompt.PAUSED_FLAG: True})
-    turn.paused_message_id = saved
-    if saved:
-        yield _sse({"type": "message_saved", "id": saved})
-    turn.tool_events = [e for e in turn.tool_events if "ask_user" not in e]
-    _park(turn, getattr(pending, "expires_at", None))
+    parked = False
+    try:
+        payload = pending.public_payload(reason=reason)
+        result = {"output": "Waiting for an exact user approval.", "exit_code": None,
+                  "approval_required": True}
+        event = _tool_output_event(name, content, call_id, result, attempted=False,
+                                   window_text=result["output"])
+        event["ask_user"] = payload
+        yield _sse(event)
+        question = f"I need your approval to run {name}."
+        shown = _shown_answer(turn)
+        if not shown:
+            yield _sse({"type": "final_response", "content": question})
+        yield _sse({"type": "ask_user", "data": payload})
+        turn.tool_events.append({"round": turn.round, "tool": name,
+                                 "desc": f"{name}: APPROVAL REQUIRED",
+                                 "command": _display(name, content),
+                                 "output": result["output"], "exit_code": None,
+                                 "ask_user": payload})
+        yield _sse({"type": "metrics", "data": _metrics(turn)})
+        saved = _save_answer(turn, shown or question, post_tasks=False,
+                             extra_metadata={brain_prompt.PAUSED_FLAG: True})
+        turn.paused_message_id = saved
+        # the waiting message holds what was shown so far; the resumed answer is new
+        turn.shown = []
+        turn.tool_events = [e for e in turn.tool_events if "ask_user" not in e]
+        _park(turn, getattr(pending, "expires_at", None))
+        parked = True
+        if saved:
+            yield _sse({"type": "message_saved", "id": saved})
+    finally:
+        if not parked:
+            from src.tool_approvals import tool_approval_store
+            try:
+                tool_approval_store.consume(turn.approval_id, decision="deny",
+                                            owner=turn.owner, session_id=turn.session_id)
+            except Exception:  # noqa: BLE001
+                logger.warning("brain: could not retire the approval", exc_info=True)
 
 
 async def _finish(turn: _Turn, text: str):
-    answer = text.strip()
+    answer = _shown_answer(turn, text)
     if not answer:
         answer = "Done." if turn.tool_calls else "(no answer)"
         yield _sse({"type": "final_response", "content": answer})
     yield _sse({"type": "metrics", "data": _metrics(turn)})
     saved = _save_answer(turn, answer)
+    await _keep_exchange(turn, saved)
     if saved:
         yield _sse({"type": "message_saved", "id": saved})

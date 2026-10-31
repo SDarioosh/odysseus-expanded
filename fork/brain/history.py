@@ -9,10 +9,24 @@ follow-up ("and the second result?") sees what the earlier turn found.
 Also kept: one summary per chat of its older turns (``summaries``), written once when a
 chat outgrows its context budget (``fork/brain/turn.py``).
 
-Deleting a chat deletes its rows lazily, without a hook in upstream's session delete:
-:func:`sweep` drops the rows of every chat that no longer exists in upstream's chat
-database. It runs at most every :data:`SWEEP_SECONDS` when a brain turn starts, and the
-rows of a deleted message are skipped (and dropped) the next time its chat is read.
+Each exchange row also keeps whether a tool result in it was untrusted (``tainted``:
+web pages, email, notes, Athena, anything upstream's ``tool_result_should_arm_gate``
+counts as outside content) and the ranked web-search hits it returned (``search_hits``),
+so the next turn re-arms upstream's approval gate and may fetch those pages.
+
+Retention. Rows don't outlive their chat and don't keep private data for long:
+
+- deleting a chat deletes its rows lazily, without a hook in upstream's session delete:
+  :func:`sweep` drops the rows of every chat that no longer exists in upstream's chat
+  database. It runs on the first chat request after a start (the brain's hook calls
+  :func:`sweep_due` whether ``FORK_BRAIN`` is on or not, once ``brain.db`` exists), then at
+  most every :data:`SWEEP_SECONDS`, in a worker thread;
+- rows older than :data:`MAX_AGE_SECONDS` (30 days) are never read and the sweep deletes
+  them, summaries included;
+- the rows of a deleted message are skipped (and dropped) the next time its chat is read.
+
+Not covered: Athena's ``erase_fact`` and transcript retention, and the hub's Forget, don't
+reach this file; an exchange that quoted a forgotten fact keeps it until the row expires.
 
 Storage follows ``fork/beliefs/ledger_db.py``: stdlib sqlite3, WAL, one transaction per
 :func:`_connect`, one process-wide write lock.
@@ -32,6 +46,7 @@ logger = logging.getLogger(__name__)
 
 DB_NAME = "brain.db"
 SWEEP_SECONDS = 3600.0
+MAX_AGE_SECONDS = 30 * 24 * 3600.0
 SCHEMA = """
 CREATE TABLE IF NOT EXISTS turns (
     session_id TEXT NOT NULL,
@@ -39,6 +54,8 @@ CREATE TABLE IF NOT EXISTS turns (
     owner TEXT NOT NULL DEFAULT '',
     messages TEXT NOT NULL,
     created_at REAL NOT NULL,
+    tainted INTEGER NOT NULL DEFAULT 0,
+    search_hits TEXT NOT NULL DEFAULT '[]',
     PRIMARY KEY (session_id, message_id)
 );
 CREATE TABLE IF NOT EXISTS summaries (
@@ -49,8 +66,12 @@ CREATE TABLE IF NOT EXISTS summaries (
 );
 """
 
-_WRITE = threading.Lock()
-_last_sweep = 0.0
+# columns added after the first version: a brain.db written by it gets them on open
+_ADDED_COLUMNS = (("tainted", "INTEGER NOT NULL DEFAULT 0"),
+                  ("search_hits", "TEXT NOT NULL DEFAULT '[]'"))
+
+_WRITE = threading.RLock()  # re-entrant: _connect may add columns under it
+_last_sweep: float | None = None  # None: not swept since this process started
 
 
 def db_path() -> Path:
@@ -69,6 +90,14 @@ def _connect(write: bool = False) -> Iterator[sqlite3.Connection]:
     try:
         db.execute("PRAGMA journal_mode = WAL")
         db.executescript(SCHEMA)
+        have = {r[1] for r in db.execute("PRAGMA table_info(turns)").fetchall()}
+        for name, decl in _ADDED_COLUMNS:
+            if name not in have:
+                with _WRITE:
+                    try:
+                        db.execute(f"ALTER TABLE turns ADD COLUMN {name} {decl}")
+                    except sqlite3.OperationalError:  # another connection added it
+                        pass
         db.execute("BEGIN IMMEDIATE" if write else "BEGIN")
         try:
             yield db
@@ -81,30 +110,42 @@ def _connect(write: bool = False) -> Iterator[sqlite3.Connection]:
 
 
 def save_turn(session_id: str, message_id: str, messages: list[dict], *,
-              owner: str | None = None) -> None:
-    """Keep a turn's tool exchange (``messages``) under its saved answer's id."""
+              owner: str | None = None, tainted: bool = False,
+              search_hits: Iterable[str] = ()) -> None:
+    """Keep a turn's tool exchange (``messages``) under its saved answer's id, with
+    whether a result in it was untrusted and the web-search hits it returned."""
     if not session_id or not message_id or not messages:
         return
     with _WRITE, _connect(write=True) as db:
         db.execute(
-            "INSERT OR REPLACE INTO turns (session_id, message_id, owner, messages, created_at)"
-            " VALUES (?, ?, ?, ?, ?)",
+            "INSERT OR REPLACE INTO turns (session_id, message_id, owner, messages, created_at,"
+            " tainted, search_hits) VALUES (?, ?, ?, ?, ?, ?, ?)",
             (str(session_id), str(message_id), str(owner or ""),
-             json.dumps(messages, ensure_ascii=False), time.time()))
+             json.dumps(messages, ensure_ascii=False), time.time(), 1 if tainted else 0,
+             json.dumps(sorted({str(u) for u in search_hits or ()}))))
 
 
-def turns(session_id: str, keep_ids: Iterable[str] | None = None) -> dict[str, list[dict]]:
-    """``{message id: tool exchange}`` of a chat. With ``keep_ids`` (the chat's current
-    message ids), rows of messages no longer in the chat are dropped."""
+def _cutoff(now: float | None = None) -> float:
+    return (time.time() if now is None else now) - MAX_AGE_SECONDS
+
+
+def exchanges(session_id: str, keep_ids: Iterable[str] | None = None) -> dict[str, dict]:
+    """``{message id: {"messages", "tainted", "search_hits"}}`` of a chat, rows older
+    than :data:`MAX_AGE_SECONDS` left out. With ``keep_ids`` (the chat's current message
+    ids), rows of messages no longer in the chat are dropped."""
     with _connect() as db:
-        rows = db.execute("SELECT message_id, messages FROM turns WHERE session_id = ?",
-                          (str(session_id),)).fetchall()
-    out = {}
+        rows = db.execute("SELECT message_id, messages, tainted, search_hits FROM turns"
+                          " WHERE session_id = ? AND created_at >= ?",
+                          (str(session_id), _cutoff())).fetchall()
+    out: dict[str, dict] = {}
     for row in rows:
         try:
-            out[row["message_id"]] = json.loads(row["messages"])
+            messages = json.loads(row["messages"])
+            hits = json.loads(row["search_hits"] or "[]")
         except ValueError:
             continue
+        out[row["message_id"]] = {"messages": messages, "tainted": bool(row["tainted"]),
+                                  "search_hits": [str(u) for u in hits or ()]}
     if keep_ids is not None:
         keep = {str(i) for i in keep_ids}
         gone = [m for m in out if m not in keep]
@@ -117,11 +158,16 @@ def turns(session_id: str, keep_ids: Iterable[str] | None = None) -> dict[str, l
     return out
 
 
+def turns(session_id: str, keep_ids: Iterable[str] | None = None) -> dict[str, list[dict]]:
+    """``{message id: tool exchange}`` of a chat (:func:`exchanges` without the flags)."""
+    return {k: v["messages"] for k, v in exchanges(session_id, keep_ids).items()}
+
+
 def summary(session_id: str) -> tuple[str, str] | None:
     """``(upto_message_id, text)`` of a chat's summary of older turns, or None."""
     with _connect() as db:
-        row = db.execute("SELECT upto_message_id, text FROM summaries WHERE session_id = ?",
-                         (str(session_id),)).fetchone()
+        row = db.execute("SELECT upto_message_id, text FROM summaries WHERE session_id = ?"
+                         " AND created_at >= ?", (str(session_id), _cutoff())).fetchone()
     return (row["upto_message_id"], row["text"]) if row else None
 
 
@@ -158,15 +204,37 @@ def _live_chats(ids: set[str]) -> set[str]:
         db.close()
 
 
+def expire(now: float | None = None) -> int:
+    """Delete the rows older than :data:`MAX_AGE_SECONDS`; returns how many."""
+    cutoff = _cutoff(now)
+    with _WRITE, _connect(write=True) as db:
+        n = db.execute("DELETE FROM turns WHERE created_at < ?", (cutoff,)).rowcount
+        n += db.execute("DELETE FROM summaries WHERE created_at < ?", (cutoff,)).rowcount
+    return int(n or 0)
+
+
+def sweep_due() -> bool:
+    """True when :func:`sweep` would run now: ``brain.db`` exists and it hasn't run since
+    this process started, or not for :data:`SWEEP_SECONDS`."""
+    if _last_sweep is not None and time.monotonic() - _last_sweep < SWEEP_SECONDS:
+        return False
+    try:
+        return db_path().exists()
+    except Exception:  # noqa: BLE001
+        return False
+
+
 def sweep(*, force: bool = False, live=None) -> int:
-    """Drop the rows of deleted chats; returns how many chats were dropped. ``live``:
-    the function that says which ids still exist (tests pass their own)."""
+    """Expire old rows and drop the rows of deleted chats; returns how many chats were
+    dropped. ``live``: the function that says which ids still exist (tests pass their
+    own). Blocking: call it from a worker thread (``asyncio.to_thread``)."""
     global _last_sweep
     now = time.monotonic()
-    if not force and now - _last_sweep < SWEEP_SECONDS:
+    if not force and _last_sweep is not None and now - _last_sweep < SWEEP_SECONDS:
         return 0
     _last_sweep = now
     try:
+        expire()
         ids = stored_chats()
         if not ids:
             return 0

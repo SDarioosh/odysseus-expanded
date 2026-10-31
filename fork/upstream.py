@@ -77,6 +77,22 @@ def is_local_or_private_host(host: str) -> bool:
     return host in _LOCAL_HOSTS or _is_private_ip_literal(host) or _in_tailscale_range(host)
 
 
+def configured_endpoint_kind(url: str) -> Any:
+    """``src.model_context._configured_endpoint_kind(url)``: ``local``, ``api``, ``proxy``
+    (chosen, or guessed from an API key and a ``/v1`` path), ``auto`` or None."""
+    from src.model_context import _configured_endpoint_kind
+
+    return _configured_endpoint_kind(url)
+
+
+def normalize_endpoint_base(url: str) -> str:
+    """``src.model_context._normalize_base_for_compare(url)``: the base URL an endpoint
+    registration is matched by."""
+    from src.model_context import _normalize_base_for_compare
+
+    return _normalize_base_for_compare(url)
+
+
 def endpoint_enabled_models(endpoint: Any) -> Any:
     """``src.endpoint_resolver._endpoint_enabled_models(endpoint)``."""
     from src.endpoint_resolver import _endpoint_enabled_models
@@ -158,6 +174,8 @@ PRIVATE_NAMES: dict[str, tuple[str, str]] = {
     "is_local_or_private_host:hosts": ("src.model_context", "_LOCAL_HOSTS"),
     "is_local_or_private_host:ip": ("src.model_context", "_is_private_ip_literal"),
     "is_local_or_private_host:tailscale": ("src.model_context", "_in_tailscale_range"),
+    "configured_endpoint_kind": ("src.model_context", "_configured_endpoint_kind"),
+    "normalize_endpoint_base": ("src.model_context", "_normalize_base_for_compare"),
     "endpoint_enabled_models": ("src.endpoint_resolver", "_endpoint_enabled_models"),
     "resolve_model": ("src.ai_interaction", "_resolve_model"),
     "memory_vector": ("src.ai_interaction", "_memory_vector"),

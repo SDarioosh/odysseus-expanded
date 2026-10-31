@@ -21,6 +21,16 @@ class _Request(_RouteRequest):
         self._form.update(form)
 
 
+@pytest.fixture(autouse=True)
+def no_sweep(monkeypatch):
+    """The hook's history sweep reads the real data dir and chat database: not here."""
+    import time
+
+    from fork.brain import history
+
+    monkeypatch.setattr(history, "_last_sweep", time.monotonic())
+
+
 @pytest.fixture
 def spy(monkeypatch):
     """Records each call of the hook and its answer."""
@@ -163,3 +173,53 @@ async def test_the_hook_takes_only_its_own_approvals(monkeypatch):
     assert await brain_turn.brain_response(object(), sess=None, session_id="s", message="",
                                            owner="alice", approval_id="unknown",
                                            exact_approval=object()) is None
+
+
+@pytest.mark.parametrize("form", [{"active_doc_id": "doc-1"},
+                                  {"selected_note_ids": '["note-1"]'},
+                                  {"active_email_uid": "42"},
+                                  {"use_rag": "true"}])
+async def test_turns_with_open_documents_notes_email_or_rag_stay_upstreams(monkeypatch, spy, form):
+    monkeypatch.setenv("FORK_BRAIN", "on")
+    monkeypatch.setattr(brain_turn, "_start_turn", lambda *a, **k: (_ for _ in ()).throw(
+        AssertionError("brain took an upstream turn")))
+    captured = {}
+    endpoint = _chat_stream_endpoint(monkeypatch, "chat", captured)
+    if "selected_note_ids" in form:
+        import core.database as cdb
+        import routes.chat_routes as chat_routes
+        from tests.fork.brain_fakes import notes_db
+
+        factory = notes_db(monkeypatch)  # the route reads the selected notes first
+        monkeypatch.setattr(chat_routes, "SessionLocal", factory)
+        with factory() as db:
+            db.add(cdb.Note(id="note-1", owner="alice", title="Trip", note_type="note",
+                            content="Pack the tent"))
+            db.commit()
+    try:
+        await _body(await endpoint(_Request("chat", **form)))
+    except AssertionError:
+        raise
+    except Exception:  # noqa: BLE001
+        pass
+    assert spy and spy[0][1] is None and spy[0][0]["upstream_turn"] is True
+
+
+async def test_the_hook_passes_memory_consent_and_the_outside_content_flag(monkeypatch, spy):
+    monkeypatch.setenv("FORK_BRAIN", "on")
+    started = {}
+
+    def fake_start(request, **kw):
+        started.update(kw)
+        return "turn"
+
+    async def fake_run(turn):
+        yield "data: [DONE]\n\n"
+
+    monkeypatch.setattr(brain_turn, "_start_turn", fake_start)
+    monkeypatch.setattr(brain_turn, "_run_new_turn", fake_run)
+    endpoint = _chat_stream_endpoint(monkeypatch, "chat", {})
+    await _body(await endpoint(_Request("chat")))  # the stub form sends no_memory=true
+    kwargs, _ = spy[0]
+    assert kwargs["no_memory"] is True and kwargs["external_untrusted_context_seen"] is False
+    assert started["no_memory"] is True and started["external_seen"] is False
