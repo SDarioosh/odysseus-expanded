@@ -355,6 +355,7 @@ is an old path of a module that moved into `fork/`; it only aliases the new modu
 - `tests/fork/test_brain_forget.py`
 - `tests/fork/test_brain_history.py`
 - `tests/fork/test_brain_hook.py`
+- `tests/fork/test_brain_known_bugs.py`
 - `tests/fork/test_brain_query_guard.py`
 - `tests/fork/test_brain_tools.py`
 - `tests/fork/test_brain_toolset.py`
