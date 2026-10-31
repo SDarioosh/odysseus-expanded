@@ -34,6 +34,7 @@ is an old path of a module that moved into `fork/`; it only aliases the new modu
 
 - `docs/fork/architecture.md`
 - `docs/fork/beliefs.md`
+- `docs/fork/brain.md`
 - `docs/fork/cleanup-plan.md`
 - `docs/fork/context-module.md`
 - `docs/fork/deploy.md`
