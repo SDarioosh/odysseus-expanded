@@ -101,6 +101,7 @@ is an old path of a module that moved into `fork/`; it only aliases the new modu
 - `fork/beliefs/notes_evidence.py`
 - `fork/beliefs/search.py`
 - `fork/beliefs/structure.py`
+- `fork/brain/query_guard.py`
 - `fork/common/__init__.py`
 - `fork/common/athena_names.py`
 - `fork/common/llm.py`
@@ -329,6 +330,7 @@ is an old path of a module that moved into `fork/`; it only aliases the new modu
 - `tests/fork/test_belief_search.py`
 - `tests/fork/test_belief_structure.py`
 - `tests/fork/test_beliefs_routes.py`
+- `tests/fork/test_brain_query_guard.py`
 - `tests/fork/test_builtin_task_authority.py`
 - `tests/fork/test_calendar_reminder_wall_time.py`
 - `tests/fork/test_call_recorder.py`
