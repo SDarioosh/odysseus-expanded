@@ -282,3 +282,16 @@ def test_deploy_without_the_names_script_goes_on(checkout):
     r = checkout("deploy")
     assert r.returncode == 0, r.stdout + r.stderr
     assert "renaming" not in r.stdout
+
+
+def test_deploy_builds_with_the_optional_extras(checkout):
+    r = checkout("deploy")
+    assert r.returncode == 0, r.stdout + r.stderr
+    assert "--build-arg INSTALL_OPTIONAL=true" in checkout.log.read_text()
+
+
+@pytest.mark.parametrize("name", ["FORK_INSTALL_OPTIONAL", "BARVIS_INSTALL_OPTIONAL"])
+def test_deploy_can_leave_the_optional_extras_out(checkout, name):
+    r = checkout("deploy", env={name: "false"})
+    assert r.returncode == 0, r.stdout + r.stderr
+    assert "--build-arg INSTALL_OPTIONAL=false" in checkout.log.read_text()
