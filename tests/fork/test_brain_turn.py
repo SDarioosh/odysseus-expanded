@@ -870,3 +870,15 @@ async def test_history_is_read_and_written_off_the_event_loop(brain):
     brain.llm.rounds([calls((SEARCH, {"query": "q"}))], [text("ok")])
     await brain.run(sess, "question")
     assert len(threads) == 2 and loop_thread not in threads
+
+
+async def test_a_model_error_mid_answer_closes_the_round_in_its_own_context(brain):
+    # the round's stream is closed by the turn, not later by asyncio's finalizer, so the
+    # thinking-off flag is reset where it was set (sandbox log: "Task exception was never
+    # retrieved ... was created in a different Context")
+    sess = brain.session()
+    brain.llm.script.append([text("Half an "),
+                             'event: error\ndata: {"error": "boom", "status": 503}\n\n'])
+    events = await brain.run(sess, "hello")
+    assert any(e.get("type") == "raw" and "boom" in e.get("chunk", "") for e in events)
+    assert brain_turn._THINKING_OFF.get() is False

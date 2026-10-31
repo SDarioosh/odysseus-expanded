@@ -50,6 +50,7 @@ fork's deployments (one uvicorn worker: ``Dockerfile``, ``docs/fork/deploy.md``)
 from __future__ import annotations
 
 import asyncio
+import contextlib
 import functools
 import json
 import logging
@@ -595,7 +596,10 @@ async def _stream_round(turn: _Turn, messages: list[dict], tools: tuple[dict, ..
             elif isinstance(data.get("delta"), str) and not data.get("thinking"):
                 yield "text", data["delta"]
     finally:
-        _THINKING_OFF.reset(token)
+        try:
+            _THINKING_OFF.reset(token)
+        except ValueError:  # closed from another context (asyncio's finalizer): its own
+            pass            # copy of the flag was never set, nothing to undo there
 
 
 def _text_calls(text: str, offered: list[str]) -> tuple[list[dict], str]:
@@ -727,9 +731,10 @@ def drop_old_tool_results(messages: list[dict], budget: int, tools=(), *,
 
 async def _complete(turn: _Turn, messages: list[dict]) -> str:
     parts = []
-    async for kind, value in _stream_round(turn, messages, ()):
-        if kind == "text":
-            parts.append(value)
+    async with contextlib.aclosing(_stream_round(turn, messages, ())) as rounds:
+        async for kind, value in rounds:
+            if kind == "text":
+                parts.append(value)
     from src.tool_parsing import strip_tool_blocks
     return strip_tool_blocks("".join(parts)).strip()
 
@@ -1065,28 +1070,29 @@ async def _drive(turn: _Turn) -> AsyncGenerator[str, None]:
             state["blank"] = out[len(body):]
             return _sse({"delta": body}) if body else None
 
-        async for kind, value in _stream_round(turn, turn.messages, tools):
-            if kind == "text":
-                if turn.first_token_at is None and value.strip():
-                    turn.first_token_at = time.time()
-                text_parts.append(value)
-                chunk = show(visible.feed(value))
-                if chunk:
-                    yield chunk
-            elif kind == "calls":
-                calls = value
-            elif kind == "usage":
-                turn.input_tokens += int(value.get("input_tokens") or 0)
-                turn.output_tokens += int(value.get("output_tokens") or 0)
-            elif kind == "error":
-                yield value
-                partial = _shown_answer(turn, visible.shown_text())
-                if partial:
-                    saved = _save_answer(turn, partial, extra_metadata={"stopped": True})
-                    await _keep_exchange(turn, saved)
-                    if saved:
-                        yield _sse({"type": "message_saved", "id": saved})
-                return
+        async with contextlib.aclosing(_stream_round(turn, turn.messages, tools)) as rounds:
+            async for kind, value in rounds:
+                if kind == "text":
+                    if turn.first_token_at is None and value.strip():
+                        turn.first_token_at = time.time()
+                    text_parts.append(value)
+                    chunk = show(visible.feed(value))
+                    if chunk:
+                        yield chunk
+                elif kind == "calls":
+                    calls = value
+                elif kind == "usage":
+                    turn.input_tokens += int(value.get("input_tokens") or 0)
+                    turn.output_tokens += int(value.get("output_tokens") or 0)
+                elif kind == "error":
+                    yield value
+                    partial = _shown_answer(turn, visible.shown_text())
+                    if partial:
+                        saved = _save_answer(turn, partial, extra_metadata={"stopped": True})
+                        await _keep_exchange(turn, saved)
+                        if saved:
+                            yield _sse({"type": "message_saved", "id": saved})
+                    return
         turn.round += 1
         turn.rounds_run += 1
         text = "".join(text_parts)
