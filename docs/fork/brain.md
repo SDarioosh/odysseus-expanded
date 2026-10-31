@@ -442,6 +442,51 @@ tests `tests/fork/test_brain_documents.py`):
   language list, `search_documents` ~134). The two upstream tools keep upstream's
   parameters with shorter descriptions.
 
+### Invented actions (2026-10-31)
+
+Upstream's agent holds all answer text back until the end (`with_completion_gate`,
+`src/agent_runtime/completion.py`) so it can drop "I've created/sent ..." claims no tool
+call backs. The brain keeps streaming and checks afterwards (`fork/brain/claims.py`; tests
+`tests/fork/test_brain_claims.py`):
+
+- **When.** Once per answer, on its final text, in `_finish` (so also for a turn resumed
+  after an approval). The turn records every write call and whether it succeeded
+  (`_Turn.writes`: ran, exit code 0 or none, no error; read or write by `toolset.is_read`);
+  the list is part of the paused turn, so writes before a pause still count after it.
+- **What.** First-person claims of a change in this turn ("I've added ...", "I just sent
+  ...", "..., and saved ..."), pronoun passives ("It's been added to your calendar",
+  "It's now on your calendar"), store nouns in the perfect passive ("The reminder has been
+  saved"), statements opening with the verb ("Added to your calendar: ..."), and a bare
+  "Done."/"All set." that opens the answer (a closing one only after a write that failed).
+  Statements come from upstream's `_unquoted_statements` (quotes and code blanked), and
+  upstream's `_BARE_SUCCESS` and `_NON_REPORT_SCOPE` are reused through `fork/upstream.py`;
+  upstream's `_EXECUTION_CLAIM` is not (its "and sent", "was sent" and "wrote" forms
+  catch other people's actions and chat drafts).
+- **Not claims.** Questions and offers, future tense, conditional, modal or attributed
+  prose, negations, other turns ("earlier", "yesterday", "already"), other people ("you
+  created", "Maria sent"), reads ("I found"), text shown in the chat ("below", "Here's a
+  draft:"), and edits of the chat's own text (an object that names no store and isn't
+  "it"/"that": "I've added a few details to the paragraph").
+- **Stores.** A claim names calendar, notes (to-dos, reminders, lists), email, contacts,
+  memory, documents or Athena's action items when one is its object or destination (not
+  after of/about/for/with: "a summary of the meeting"); it is backed by a successful write
+  of that store's tools (`manage_calendar`; `manage_notes`; the email write tools;
+  `manage_contact`; `manage_memory`; `create_document`/`manage_documents`; an
+  `mcp__…__update_action_item`). A claim that names no store needs any successful write.
+- **The note.** One `{"delta"}` after the last answer text and before `metrics`, saved with
+  the answer and its last round text, so follow-ups and a reload see it: "Note: nothing was
+  changed in this turn: no calendar event was added or changed." (or "Note: no email was
+  sent or drafted in this turn." when another write did succeed). An empty answer's
+  "Done." carries it in its `final_response`. A timed-out approval saves only
+  `NOT_APPROVED`, without a note; a denied one is dropped quietly as before.
+- **Cost.** No model call, no buffering, nothing before the first text. Regexes are
+  compiled at import and run on lowercased text; only lines (or, in a line over 1,500
+  characters, sentences) with a claim word go through upstream's splitter, at most 80
+  claim words (the first and the last 40). On a 20,000-character answer: ~0.7 ms without
+  claim words, ~1 ms for paragraphs with quoted claim words and a real claim at the end,
+  ~2 ms for 20,000 characters of nothing but claims (best of 30, sandbox CPU shared with
+  other work); the test asserts under 5 ms.
+
 ## Sandbox results (2026-10-31)
 
 Qwen3-4B on 4 CPUs, `seed_demo.py`, one config at a time, llama-server and Odysseus
