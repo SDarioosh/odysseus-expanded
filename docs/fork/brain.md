@@ -137,7 +137,9 @@ its cached prompt:
 4. **Context message, volatile (a user-role message right before the new question):**
    current date and time, the owner's timezone, up to 5 relevant memories and beliefs.
    Marked as context, not instructions, like upstream's untrusted-context messages
-   (`src/prompt_security.py`).
+   (`src/prompt_security.py`) Then the notes the owner selected and the email they have
+   open, if any, in upstream's untrusted wrapper
+   ([Selected notes and open email](#selected-notes-and-open-email-2026-10-31)).
 5. **The new message.**
 
 Within a turn, each round only appends (assistant tool call, tool result), so every round
@@ -297,8 +299,9 @@ Where the code differs from the design above:
   upstream consumes an approval reply and after the research decision. Everything before
   it is classification and upstream's own checks, which the brain reuses.
 - **Turns left to upstream:** research, compare, plan, incognito, attachments, image
-  chats, workspace or path turns, native and TUI clients, and approval replies that aren't
-  the brain's.
+  chats, workspace or path turns, native and TUI clients, an open document, and approval
+  replies that aren't the brain's (selected notes and an open email are the brain's since
+  [Selected notes and open email](#selected-notes-and-open-email-2026-10-31)).
 - **Approvals.** Upstream consumes the reply before the hook, so "Deny" shows upstream's
   resolved card and the brain drops its paused turn; after a restart upstream answers
   "approval expired" (409). Every write asks on its own; "allow for this chat" covers
@@ -363,7 +366,9 @@ test that failed before the fix:
   loop.
 - **More turns left to upstream:** an open document, selected notes, an open email, and
   `use_rag=true` (since [Documents](#documents-2026-10-31) the brain takes `use_rag=true`
-  turns again).
+  turns again, and since
+  [Selected notes and open email](#selected-notes-and-open-email-2026-10-31) selected
+  notes and an open email).
 - **One worker.** Paused turns live in memory; the fork runs one uvicorn worker (the
   Dockerfile and compose set none), so that's safe.
 
@@ -490,6 +495,55 @@ call backs. The brain keeps streaming and checks afterwards (`fork/brain/claims.
   claim words, ~1 ms for paragraphs with quoted claim words and a real claim at the end,
   ~2 ms for 20,000 characters of nothing but claims (best of 30, sandbox CPU shared with
   other work); the test asserts under 5 ms.
+
+### Selected notes and open email (2026-10-31)
+
+Turns with notes selected (`selected_note_ids`) or an email open in the reader
+(`active_email_uid`, `active_email_folder`, `active_email_account`) went to upstream's
+agent, minutes per turn on the owner's CPU. They are the brain's now
+(`fork/brain/selection.py`; tests `tests/fork/test_brain_context.py`). An open document
+stays upstream's.
+
+- **Hook.** Same line: `upstream_turn` no longer names `selected_note_ids` and
+  `active_email_uid`; the hook also passes `selected_notes=selected_notes_context` and
+  `active_email=active_email_ctx`, both built by upstream before the hook.
+- **Notes.** The text `chat_stream` already loaded and formatted
+  (`_format_selected_notes_context`, `Note.owner == owner`): not read again. Another
+  owner's note ids give nothing. Cut to 8,000 characters with a note saying how much was
+  left out.
+- **Email.** Upstream passes its agent only the uid, folder and account (the cache lookup
+  in `chat_stream` that would add subject and a preview imports names
+  `routes/email_routes.py` doesn't export, so it never adds anything); its model then
+  calls `read_email`. The brain makes that call once while setting the turn up (in
+  `_prepare`, so a failure answers instead of a 500), through upstream's runner with the
+  turn's authority, tool policy and disabled tools; no tool card. Upstream's rules decide:
+  `read_email` is admin-only (`NON_ADMIN_BLOCKED_TOOLS`) and never for an API token, so
+  for those turns (and when the admin disabled it or `email` is out of
+  `FORK_BRAIN_TOOL_GROUPS`) the email is left out and the context says only that one is
+  open. Chosen over handing the turn back: upstream's agent couldn't read it either.
+  The call is the owner's (they opened the email), so it runs before this context arms
+  the run, with a security context of its own. Cut to 6,000 characters; a failed or slow
+  read (20 s) leaves the uid, folder and account and a line that it couldn't be loaded.
+- **Prompt.** Both go into the volatile context message (position 4), after the recalled
+  memories, each in upstream's untrusted wrapper with upstream's labels ("Selected notes
+  and todos", "active email reader"). The system message, the tools and the history are
+  byte-identical with and without them (tested), so the prompt cache holds. The system
+  prompt gained one sentence: with notes or an email in the context, "this", "summarise
+  it" or "reply to it" mean those, and changes still ask.
+- **Armed.** The context message then carries upstream's untrusted marking:
+  `observe_messages` arms the run (a write asks; a private read is decided by upstream's
+  gate, Ask or Auto), URLs in the notes or the email count as outside content and never
+  as ones the owner typed, and the turn's exchange is kept tainted, so it replays
+  untrusted.
+- **Follow-ups.** The context is for one turn, like upstream's; a second question with the
+  notes still selected or the email still open sends them again and gets them again.
+- **Cost.** A turn without notes or an email: none (two list checks). With notes: no I/O
+  of the brain's (the route loaded them). With an email: one `read_email` call before the
+  first round (an IMAP fetch through the email MCP server), and no extra model call or
+  round; upstream's agent spends a whole model round on that same call.
+- **Not mirrored.** Upstream's agent with an email open also takes `send_email`,
+  `reply_to_email` and `create_document` out of the turn. The brain keeps its fixed tool
+  set (changing it per turn would break the prompt cache); those are writes and ask.
 
 ## Sandbox results (2026-10-31)
 

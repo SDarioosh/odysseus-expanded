@@ -186,28 +186,16 @@ async def test_the_hook_takes_only_its_own_approvals(monkeypatch):
                                            exact_approval=object()) is None
 
 
-@pytest.mark.parametrize("form", [{"active_doc_id": "doc-1"},
-                                  {"selected_note_ids": '["note-1"]'},
-                                  {"active_email_uid": "42"}])
-async def test_turns_with_open_documents_notes_or_email_stay_upstreams(monkeypatch, spy, form):
+async def test_turns_with_an_open_document_stay_upstreams(monkeypatch, spy):
+    """An open document stays upstream's; selected notes and an open email are the
+    brain's since 2026-10-31 (tests/fork/test_brain_context.py)."""
     monkeypatch.setenv("FORK_BRAIN", "on")
     monkeypatch.setattr(brain_turn, "_start_turn", lambda *a, **k: (_ for _ in ()).throw(
         AssertionError("brain took an upstream turn")))
     captured = {}
     endpoint = _chat_stream_endpoint(monkeypatch, "chat", captured)
-    if "selected_note_ids" in form:
-        import core.database as cdb
-        import routes.chat_routes as chat_routes
-        from tests.fork.brain_fakes import notes_db
-
-        factory = notes_db(monkeypatch)  # the route reads the selected notes first
-        monkeypatch.setattr(chat_routes, "SessionLocal", factory)
-        with factory() as db:
-            db.add(cdb.Note(id="note-1", owner="alice", title="Trip", note_type="note",
-                            content="Pack the tent"))
-            db.commit()
     try:
-        await _body(await endpoint(_Request("chat", **form)))
+        await _body(await endpoint(_Request("chat", active_doc_id="doc-1")))
     except AssertionError:
         raise
     except Exception:  # noqa: BLE001
