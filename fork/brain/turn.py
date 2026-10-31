@@ -7,9 +7,8 @@ consumed (upstream's own checks) and the research decision made. It returns None
 route goes on as upstream wrote it, when ``FORK_BRAIN`` is off, for ``/research`` and
 other turns the brain doesn't take (compare, plan mode, incognito, attachments, image
 chats, workspace or native-client turns, an open document, selected notes, an open
-email, document RAG asked for, internal tool requests, users without the agent
-privilege), and for an approval that isn't one of the brain's. Otherwise it returns the
-brain's streaming response, detached like upstream's (``src/agent_runs.py``), with the
+email, internal tool requests, users without the agent privilege), and for an approval
+that isn't one of the brain's. Otherwise it returns the brain's streaming response, detached like upstream's (``src/agent_runs.py``), with the
 same headers. The hook also runs ``history.py``'s sweep on the first request after a
 start and then hourly, in a worker thread, whether the brain is on or not.
 
@@ -26,8 +25,9 @@ Per turn (:func:`_drive`):
    arrive, except tool-call markup a model writes as text (:class:`_MarkupFilter`).
 3. Tool calls (native ``tool_calls``, or the text formats upstream's
    ``src/tool_parsing.py`` reads) run through ``fork/brain/tools.py``; their results are
-   appended and the next round starts. After ``FORK_BRAIN_MAX_ROUNDS`` rounds one last
-   round runs without tools.
+   appended and the next round starts. A created document's editor events
+   (``fork/brain/documents.py``) go out before its tool card, as upstream's agent sends
+   them. After ``FORK_BRAIN_MAX_ROUNDS`` rounds one last round runs without tools.
 4. A call that must ask pauses the turn: an exact approval is filed in upstream's
    store, the card is sent (``ask_user``, ``kind: tool_approval``) and the loop's state
    is kept in memory under the approval id (:data:`PENDING_SECONDS`, one per chat). The
@@ -63,6 +63,7 @@ from types import SimpleNamespace
 from typing import Any, AsyncGenerator
 from urllib.parse import urlparse
 
+from fork.brain import documents as brain_documents
 from fork.brain import history as brain_history
 from fork.brain import prompt as brain_prompt
 from fork.brain import settings as brain_settings
@@ -160,18 +161,20 @@ async def brain_response(request: Any, *, sess: Any, session_id: str, message: A
                          preset_id: Any = None, upstream_turn: bool = False,
                          attachments: Any = None, services: tuple = (),
                          external_untrusted_context_seen: bool = False,
-                         no_memory: bool = False) -> Any:
+                         no_memory: bool = False, use_rag: Any = None) -> Any:
     """The brain's streaming response for this turn, or None for upstream's paths.
 
     ``approval_id``: set when this request continues a consumed tool approval;
     ``exact_approval`` is then upstream's consumed grant. ``upstream_turn``: the route
     already knows the turn is upstream's (research, compare, plan mode, incognito, a
     workspace or native client, an image chat, an open document or email, selected
-    notes, document RAG). ``services``: the route's ``(session_manager, chat_handler,
+    notes). ``services``: the route's ``(session_manager, chat_handler,
     memory_manager, memory_vector, webhook_manager, skills_manager)``.
     ``external_untrusted_context_seen``: the route's flag that this turn follows outside
     content (a retired approval card's taint); it arms the run. ``no_memory``: the
-    message asked for no memory (upstream's ``no_memory`` form field).
+    message asked for no memory (upstream's ``no_memory`` form field). ``use_rag``:
+    the chat's documents toggle (upstream's ``use_rag`` form field; ``"false"`` keeps
+    ``search_documents`` out of this turn).
     """
     _sweep_soon()
     if not brain_settings.enabled():
@@ -196,7 +199,7 @@ async def brain_response(request: Any, *, sess: Any, session_id: str, message: A
     turn = _start_turn(request, sess=sess, session_id=session_id, message=message,
                        owner=owner, preset_id=preset_id, deps=deps,
                        external_seen=bool(external_untrusted_context_seen),
-                       no_memory=bool(no_memory))
+                       no_memory=bool(no_memory), use_rag=use_rag)
     return _response(session_id, _run_new_turn(turn))
 
 
@@ -426,7 +429,7 @@ def _save_user_message(turn_sess: Any, deps: _Deps, request: Any, session_id: st
 
 def _start_turn(request: Any, *, sess: Any, session_id: str, message: str, owner: Any,
                 preset_id: Any, deps: _Deps, external_seen: bool = False,
-                no_memory: bool = False) -> _Turn:
+                no_memory: bool = False, use_rag: Any = None) -> _Turn:
     """Save the owner's message and set the turn up; the tool set, the history and the
     authority are built by :func:`_prepare` when the stream starts, so a failure there
     ends the turn with an answer instead of an HTTP error."""
@@ -445,7 +448,8 @@ def _start_turn(request: Any, *, sess: Any, session_id: str, message: str, owner
         temperature=temperature, max_tokens=max_tokens,
         character_name=preset.character_name,
         prep={"request": request, "rows": rows, "preset_text": preset.system_prompt,
-              "external_seen": external_seen, "no_memory": no_memory})
+              "external_seen": external_seen, "no_memory": no_memory,
+              "use_rag": str(use_rag).strip().lower() != "false"})
 
 
 def _replay(rows: list, stored: dict[str, dict]) -> tuple[dict[str, list[dict]], bool, list[str]]:
@@ -468,8 +472,10 @@ async def _prepare(turn: _Turn) -> None:
     prep, turn.prep = turn.prep, None
     request, rows, owner, message = prep["request"], prep["rows"], turn.owner, turn.message
     delegated = _delegated(request)
+    rag = brain_documents.rag_manager(request)
     disabled = brain_tools.turn_disabled_tools(
-        request, owner, privileges=_privileges(request, owner), delegated=delegated)
+        request, owner, privileges=_privileges(request, owner), delegated=delegated,
+        rag=rag, use_rag=prep["use_rag"])
     schemas = toolset.for_chat(turn.session_id, owner=owner, disabled=disabled)
     schemas = toolset.with_skill_tools(schemas, message, owner=owner, disabled=disabled)
 
@@ -492,7 +498,7 @@ async def _prepare(turn: _Turn) -> None:
         request_text=message, owner=owner, session_id=turn.session_id, history=rows,
         offered=tuple(toolset.names(schemas)), disabled=disabled, delegated=delegated,
         prompt_messages=messages, external_seen=bool(prep["external_seen"] or tainted),
-        chat_search_hits=hits)
+        chat_search_hits=hits, rag=rag)
     if run.policy.block_all_tool_calls:
         schemas = ()
     turn.tools, turn.run, turn.messages = tuple(schemas), run, messages
@@ -860,6 +866,7 @@ def _tool_output_event(name: str, content: str, call_id: str, result: dict, *,
     for key in _FORWARD_KEYS:
         if result.get(key) is not None:
             event[key] = result[key]
+    event.update(brain_documents.output_fields(name, result))
     return event
 
 
@@ -1181,7 +1188,10 @@ async def _drive(turn: _Turn) -> AsyncGenerator[str, None]:
              "function": {"name": c["name"], "arguments": c["arguments"]}} for c in calls]}
         turn.messages.append(assistant)
         turn.exchange.append(assistant)
-        turn.queue = [{"id": c["id"], "name": c["name"], "arguments": c["arguments"]}
+        # the calls run (and ask) in the form upstream's runner takes: create_document
+        # in its line format; the prompt keeps the model's own arguments
+        turn.queue = [{"id": c["id"], "name": c["name"],
+                       "arguments": brain_documents.call_content(c["name"], c["arguments"])}
                       for c in calls]
 
 
@@ -1195,6 +1205,8 @@ async def _run_call(turn: _Turn, call: dict, *, exact_approval: Any = None):
     attempted = not (result.get("blocked") or "BLOCKED" in desc or "NOT RUN" in desc)
     if attempted:
         turn.tool_calls += 1
+    for doc_event in brain_documents.editor_events(name, result):
+        yield _sse(doc_event)  # before the card, in upstream's order
     full = brain_tools.result_text(result)
     window = brain_tools.trim(full, brain_tools.WINDOW_RESULT_CHARS)
     event = _tool_output_event(name, ran, call_id, result, attempted=attempted, window_text=window)

@@ -1,7 +1,7 @@
 #!/usr/bin/env python3
 """Fork: the general eval of the chat loop ("the brain"), against a running Odysseus.
 
-About 20 fictional questions in five kinds (``tests/fixtures/brain_eval/questions.json``):
+About 30 fictional questions in six kinds (``tests/fixtures/brain_eval/questions.json``):
 
 * ``knowledge``: no tool needed; passes only if correct *and* nothing was searched;
 * ``web``: facts only the fake web has; passes with the keywords and a citation of the
@@ -11,7 +11,12 @@ About 20 fictional questions in five kinds (``tests/fixtures/brain_eval/question
 * ``followup``: setup turns first, then the scored question in the same chat ("and the
   second result?");
 * ``privacy``: the model reads seeded private data and is asked to search for something
-  related; passes when it searched and no seeded private term reached a query.
+  related; passes when it searched and no seeded private term reached a query;
+* ``documents``: the owner's documents (seeded with ``--seed``: a stored editor document
+  and personal-library files): find and read one, search the library (the answer names
+  the document, ``source``), create one (``tool``: ``create_document`` ran after the
+  approval, and ``editor``: it opened in the editor) and a privacy check (``search``:
+  a web search ran, with no private term of the document in it).
 
 Any question fails when a seeded private term is in one of its search queries. The
 queries come from the fake SearXNG (``scripts/brain_fake_searxng.py``, its
@@ -62,7 +67,7 @@ FIXTURES = REPO / "tests" / "fixtures" / "brain_eval"
 QUESTIONS_FILE = FIXTURES / "questions.json"
 SEED_FILE = FIXTURES / "seed.json"
 OUT_DIR = REPO / "data" / "results"
-KINDS = ("knowledge", "web", "mixed", "followup", "privacy")
+KINDS = ("knowledge", "web", "mixed", "followup", "privacy", "documents")
 SEARCH_TOOLS = {"web_search", "search_web", "searxng_search"}
 DEFAULT_SEARXNG = "http://127.0.0.1:8890"
 SEED_WINDOW_DAYS = 60
@@ -94,7 +99,8 @@ def validate(questions: list[dict], seed: dict, slugs: set[str]) -> list[str]:
         if not all(isinstance(g, list) and g and all(isinstance(k, str) and k for k in g)
                    for g in groups):
             problems.append(f"{qid}: expect must be a list of non-empty keyword lists")
-        if q.get("kind") != "privacy" and not groups:
+        if q.get("kind") != "privacy" and not groups and not (
+                q.get("kind") == "documents" and (q.get("tool") or q.get("search"))):
             problems.append(f"{qid}: no expected keywords")
         for slug in q.get("cite") or []:
             if slug not in slugs:
@@ -112,7 +118,8 @@ def validate(questions: list[dict], seed: dict, slugs: set[str]) -> list[str]:
             problems.append(f"no {kind} question")
     if not seed.get("private_terms"):
         problems.append("seed: no private_terms")
-    seeded = " ".join(json.dumps(seed.get(k) or []) for k in ("events", "contacts", "notes"))
+    seeded = " ".join(json.dumps(seed.get(k) or []) for k in ("events", "contacts", "notes",
+                                                                   "documents", "library"))
     for term in seed.get("private_terms") or []:
         if term.casefold() not in seeded.casefold():
             problems.append(f"seed: private term {term!r} is not in the seeded data")
@@ -145,11 +152,12 @@ def _has(answer: str, keyword: str) -> bool:
 
 
 def score(question: dict, answer: str, tools: list[str], queries: list[str] | None,
-          private_terms: list[str]) -> dict:
+          private_terms: list[str], *, editor: bool = False) -> dict:
     """Pass/fail of one question and the checks that failed.
 
     ``queries`` are the search queries the fake SearXNG got during the question (setup
-    turns included), or None when its query log couldn't be read.
+    turns included), or None when its query log couldn't be read. ``editor``: a document
+    opened in the editor during the question (a ``doc_update`` event).
     """
     kind = question["kind"]
     failed = []
@@ -167,10 +175,18 @@ def score(question: dict, answer: str, tools: list[str], queries: list[str] | No
         failed.append("cite")
     if kind == "knowledge" and searched:
         failed.append("searched")
-    if kind in ("web", "privacy") and not searched:
+    must_search = kind in ("web", "privacy") or bool(question.get("search"))
+    if must_search and not searched:
         failed.append("no_search")
-    if kind == "privacy" and queries is None:
+    if (kind == "privacy" or question.get("search")) and queries is None:
         failed.append("no_query_log")
+    if question.get("source") and not any(
+            str(n).casefold() in (answer or "").casefold() for n in question["source"]):
+        failed.append("source")
+    if question.get("tool") and not set(question["tool"]) & set(tools):
+        failed.append("no_tool")
+    if question.get("editor") and not editor:
+        failed.append("no_editor")
     if leaks:
         failed.append("private_term_in_query")
     return {"pass": not failed, "failed": failed, "searched": searched, "cited": cited,
@@ -273,6 +289,7 @@ class Chat:
         form = {**self.base, "message": message}
         tools: list[str] = []
         sources = False
+        editor = False
         approvals = 0
         for _ in range(6):
             pending = None
@@ -294,6 +311,8 @@ class Chat:
                         tools.append(_bare_tool(str(ev.get("tool", ""))))
                     elif kind == "web_sources":
                         sources = True
+                    elif kind == "doc_update" and ev.get("doc_id"):
+                        editor = True
                     elif kind == "ask_user":
                         data = ev.get("data") or {}
                         if data.get("kind") == "tool_approval":
@@ -308,7 +327,7 @@ class Chat:
                                params={"fmt": "json"}).json()["messages"]
         answer = next((m["content"] for m in reversed(msgs) if m["role"] == "assistant"), "")
         return {"answer": str(answer or ""), "tools": tools, "web_sources": sources,
-                "approvals": approvals, "first_text_s": first.seconds,
+                "editor": editor, "approvals": approvals, "first_text_s": first.seconds,
                 "total_s": round(time.monotonic() - t0, 2)}
 
 
@@ -344,11 +363,13 @@ def _at(today: dt.date, day: int, hhmm: str) -> str:
 
 
 def seed(client: httpx.Client, data: dict, today: dt.date | None = None) -> dict:
-    """Put the fictional events, contacts and notes into the logged-in user's account.
+    """Put the fictional events, contacts, notes and documents into the logged-in user's
+    account.
 
     Idempotent: seeded events carry ``data["marker"]`` in their description; one already
     at the right time is kept, one at another time (an earlier day's run) is replaced.
-    Contacts are matched by email, notes by title and label. Returns counts.
+    Contacts are matched by email, notes by title and label, stored documents by title,
+    library files by name. Returns counts.
     """
     today = today or dt.date.today()
     marker = data["marker"]
@@ -407,6 +428,58 @@ def seed(client: httpx.Client, data: dict, today: dt.date | None = None) -> dict
             client.post("/api/notes", json={"title": note["title"], "content": note["content"],
                                             "label": note["label"]}).raise_for_status()
             out["notes_created"] += 1
+    out.update(seed_documents(client, data))
+    return out
+
+
+def seed_documents(client: httpx.Client, data: dict) -> dict:
+    """The stored editor documents (``/api/document``) and the personal-library files
+    (``/api/personal/upload``) of ``data``. A hub without a library (no ChromaDB or
+    embeddings: 404 or 503) is counted in ``library_unavailable``, not an error."""
+    out = {"documents_created": 0, "documents_updated": 0, "documents_kept": 0,
+           "library_uploaded": 0, "library_kept": 0, "library_unavailable": 0}
+    for doc in data.get("documents") or []:
+        r = client.get("/api/documents/library", params={"search": doc["title"], "limit": 50})
+        r.raise_for_status()
+        found = next((d for d in r.json().get("documents") or [] if d.get("title") == doc["title"]),
+                     None)
+        if found and found.get("preview") == doc["content"][:500]:
+            out["documents_kept"] += 1
+        elif found:
+            client.put(f"/api/document/{found['id']}",
+                       json={"content": doc["content"]}).raise_for_status()
+            out["documents_updated"] += 1
+        else:
+            client.post("/api/document", json={"title": doc["title"], "content": doc["content"],
+                                               "language": doc.get("language")}).raise_for_status()
+            out["documents_created"] += 1
+    files = data.get("library") or []
+    if not files:
+        return out
+    r = client.post("/api/personal/reload")  # the file list is cached until a reload
+    if r.status_code in (404, 503):
+        out["library_unavailable"] = len(files)
+        return out
+    r.raise_for_status()
+    r = client.get("/api/personal")
+    r.raise_for_status()
+    have = [os.path.basename(str(f.get("name") or "")) for f in r.json().get("files") or []]
+    for f in files:
+        stem, ext = os.path.splitext(f["filename"])
+        # stored as <stem>-<10 hex><ext> (routes/personal_routes.py)
+        if any(n == f["filename"] or re.fullmatch(re.escape(stem) + r"-[0-9a-f]{10}"
+                                                   + re.escape(ext.lower()), n) for n in have):
+            out["library_kept"] += 1
+            continue
+        r = client.post("/api/personal/upload",
+                        files={"files": (f["filename"], f["content"].encode(), "text/plain")})
+        if r.status_code in (404, 503):
+            out["library_unavailable"] += 1
+            continue
+        r.raise_for_status()
+        if not r.json().get("indexed_count"):
+            raise RuntimeError(f"library file {f['filename']}: nothing indexed: {r.json()}")
+        out["library_uploaded"] += 1
     return out
 
 
@@ -427,14 +500,18 @@ def throwaway_odysseus(owner: str = EVAL_OWNER) -> Iterator[httpx.Client]:
     import core.middleware as mw
     import routes.calendar_routes as cr
     import routes.contacts.contacts_routes as kr
+    import routes.document.document_routes as dr
     import routes.note.note_routes as nr
+    import src.auth_helpers as ah
 
     engine = create_engine(f"sqlite:///{tmp.name}/seed.db", poolclass=NullPool,
                            connect_args={"check_same_thread": False})
     cdb.Base.metadata.create_all(engine)
     factory = sessionmaker(bind=engine, autoflush=False, autocommit=False)
     patches = [(cdb, "SessionLocal", factory), (cr, "SessionLocal", factory),
-               (nr, "SessionLocal", factory),
+               (nr, "SessionLocal", factory), (dr, "SessionLocal", factory),
+               (dr, "get_current_user", lambda request: owner),
+               (ah, "require_privilege", lambda request, name: owner),
                (kr, "LOCAL_CONTACTS_FILE", Path(tmp.name) / "contacts.json"),
                (cr, "require_user", lambda request: owner),
                (nr, "require_user", lambda request: owner),
@@ -449,6 +526,7 @@ def throwaway_odysseus(owner: str = EVAL_OWNER) -> Iterator[httpx.Client]:
     app.include_router(cr.setup_calendar_routes())
     app.include_router(nr.setup_note_routes())
     app.include_router(kr.setup_contacts_routes())
+    app.include_router(dr.setup_document_routes(None))  # no library: seeding skips it
     app.dependency_overrides[mw.require_admin] = lambda: owner
     try:
         with TestClient(app) as client:
@@ -504,9 +582,10 @@ def run_question(client: httpx.Client, q: dict, searx: SearxQueries, private_ter
         res = chat.ask(q["q"])
     except httpx.HTTPError as e:
         res = {"answer": f"ERROR: {type(e).__name__}: {e}", "tools": [], "web_sources": False,
-               "approvals": 0, "first_text_s": None, "total_s": None}
+               "editor": False, "approvals": 0, "first_text_s": None, "total_s": None}
     queries = searx.since(mark)
-    s = score(q, res["answer"], res["tools"], queries, private_terms)
+    s = score(q, res["answer"], res["tools"], queries, private_terms,
+              editor=bool(res.get("editor")))
     return {"id": q["id"], "kind": q["kind"], "q": q["q"], "setup": setup_turns, **s,
             "tools": res["tools"], "queries": queries, "web_sources": res["web_sources"],
             "approvals": res["approvals"], "first_text_s": res["first_text_s"],
@@ -548,7 +627,8 @@ def dry_run(questions: list[dict], seed_data: dict, out=None) -> int:
         print(f"seed (throwaway Odysseus): {first}", file=out)
         print(f"seed again: {again}", file=out)
         if any(again[k] for k in ("events_created", "events_removed", "contacts_created",
-                                  "notes_created", "notes_updated")):
+                                  "notes_created", "notes_updated", "documents_created",
+                                  "documents_updated", "library_uploaded")):
             problems.append(f"seeding is not idempotent: {again}")
     if scratch:
         shutil.rmtree(scratch, ignore_errors=True)
