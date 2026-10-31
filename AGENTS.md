@@ -147,17 +147,20 @@ the two PRs to each other.
   [docs/fork/sandbox.md](docs/fork/sandbox.md#server-verification).
 - The owner runs it and pastes the result into the PR. Continue from that result; you
   don't run anything on the server.
-- On the server there are two instances of the fork ([docs/fork/deploy.md](docs/fork/deploy.md)).
-  **Production** (Docker, `~/models/odysseus`, port 7000) is the owner's daily
-  install, with all Odysseus features. Only the owner changes it, and only with
-  `scripts/fork_deploy.sh` after the PR is merged and verified on the test instance.
-  Never write verification steps that edit, restart, rebuild or reconfigure production
-  in any other way; a PR may end its Server verification with "deploy:
-  `scripts/fork_deploy.sh deploy`" for the owner to run. The **isolated test instance**
-  (`127.0.0.1:7010`, started with `~/.hermes/cache/scratch/barvis-run.sh`, log
-  `~/.hermes/cache/scratch/bakeoff/barvis.log`) is what verification steps target.
-- Server clones: `~/projects/barvis` (this repo) and `~/projects/barvis-ai-wt/*`
-  (Athena worktrees; the folder may be renamed).
+- On the server the fork runs once ([docs/fork/deploy.md](docs/fork/deploy.md)):
+  **production** (Docker, port 7000; checkout `/opt/odysseus`, formerly
+  `~/models/odysseus`) is the owner's daily install, with all Odysseus features. Only the
+  owner changes it, and only with `scripts/fork_deploy.sh` after the PR is merged (it
+  backs up first and rolls back by itself if the new image isn't healthy). Never write
+  verification steps that edit, restart, rebuild or reconfigure production in any other
+  way; read-only checks (status, health, reachability) are fine, and a PR may end its
+  Server verification with "deploy: `scripts/fork_deploy.sh deploy`" for the owner to
+  run. The server's test instance (port 7010) is retired (2026-10-31): evals that write
+  chats run in the sandbox.
+- On the server Odysseus, Athena and Proton Bridge each run as their own user, data in
+  `/srv/<name>`, secrets in root-only files, deployed by an admin account
+  ([deploy.md](docs/fork/deploy.md#running-as-service-users)). Odysseus reaches Athena only
+  through its MCP server (port 8001). Hermes has no access to Odysseus or Athena.
 
 ## Tests
 

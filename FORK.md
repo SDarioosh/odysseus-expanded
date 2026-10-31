@@ -168,6 +168,7 @@ the link goes to its details (what it does, its files, whether it can go upstrea
 ### Deployment
 
 - [Deployment](docs/fork/deploy.md#deployment): the `odysseus-fork:<commit>` image, `scripts/fork_deploy.sh` and the `host-relay` service.
+- [Running as service users](docs/fork/deploy.md#running-as-service-users): admin-run deploys with secrets in root-only env files (`FORK_ENV_FILES`), root-only backups and admin password, `modules_setup.py` in the container, and the opt-in `docker/fork.network.yml` (fixed subnet for the firewall) and `docker/fork.hardening.yml` (fewer privileges).
 
 ## Hooks into upstream files
 

@@ -1,0 +1,17 @@
+# Fork: the Odysseus stack on a network with a fixed subnet and bridge name, so a host
+# firewall can name it (docs/fork/deploy.md#running-as-service-users). Opt-in, from .env:
+#
+#   COMPOSE_FILE=docker-compose.yml:docker-compose.override.yml:docker/fork.network.yml
+#   FORK_NET_SUBNET=172.29.20.0/24
+#
+# The subnet must not overlap another Docker network (docker network ls). The next deploy
+# recreates the containers on the new network; named volumes (Chroma, SearXNG, ntfy) stay.
+networks:
+  default:
+    name: ${FORK_NET_NAME:-odysseus-net}
+    driver: bridge
+    driver_opts:
+      com.docker.network.bridge.name: ${FORK_NET_BRIDGE:-br-odysseus}
+    ipam:
+      config:
+        - subnet: ${FORK_NET_SUBNET:?set FORK_NET_SUBNET in .env, e.g. 172.29.20.0/24}

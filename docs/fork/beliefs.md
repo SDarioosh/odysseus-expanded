@@ -953,8 +953,8 @@ ODYSSEUS_URL=http://127.0.0.1:7010 ODYSSEUS_PASSWORD_FILE=$SBX/admin.txt \
   --data-dir <the test instance's data dir> --bakeoff $SOUND/server/eval/bakeoff.py
 ```
 
-It seeds that instance's `beliefs.db` and `memory.json` (sandbox or the test instance on
-`127.0.0.1:7010`, never production). Other module evidence of that owner is left alone,
+It seeds that instance's `beliefs.db` and `memory.json` (the sandbox instance on
+`127.0.0.1:7010`, never production; the server's test instance is retired). Other module evidence of that owner is left alone,
 but the instance's own Module Facts pass retires the eval's module facts (ids 9001+), so
 ask right after seeding or set `MODULE_FACTS_SYNC=off` on that instance.
 

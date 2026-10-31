@@ -769,7 +769,8 @@ Sandbox tests, no models (fake LLM, fake MCP manager from `tests/fork/fakes.py`)
 
 ## Server verification (owner)
 
-Targets only the isolated test instance on `127.0.0.1:7010`. It never touches production
+Written for the server's isolated test instance on `127.0.0.1:7010`, which is retired
+(2026-10-31): run these steps on a sandbox instance instead. They never touch production
 (Docker, port 7000).
 
 1. Restart the test instance on the PR's branch with

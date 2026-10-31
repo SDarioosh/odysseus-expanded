@@ -1,19 +1,24 @@
 # Deploying the fork on the server
 
-Our Odysseus fork runs on the owner's server in two places:
+Our Odysseus fork runs on the owner's server once, as production:
 
-| | Production | Test instance |
-|---|---|---|
-| What | the owner's daily install: all Odysseus features plus modules | throwaway copy for checks and evals |
-| How | Docker Compose, image `odysseus-fork:<commit>` built locally | from source (`uvicorn`), its own data dir |
-| Where | `~/models/odysseus`, port 7000 | `~/projects/barvis`, `127.0.0.1:7010` (`~/.hermes/cache/scratch/barvis-run.sh`) |
-| Changed by | the owner only, with `scripts/fork_deploy.sh` | verification steps in PRs |
+| | Production |
+|---|---|
+| What | the owner's daily install: all Odysseus features plus modules |
+| How | Docker Compose, image `odysseus-fork:<commit>` built locally |
+| Where | checkout `/opt/odysseus` (formerly `~/models/odysseus`), data `/srv/odysseus`, port 7000 |
+| Runs as | the `odysseus` user inside the container; deployed by an admin account ([below](#running-as-service-users)) |
+| Changed by | the owner only, with `scripts/fork_deploy.sh` |
+
+The test instance that ran from `~/projects/barvis` on `127.0.0.1:7010` is retired
+(2026-10-31); checks and evals run in the cloud sandbox ([sandbox.md](sandbox.md)).
 
 Production ran upstream Odysseus until 2026-10-18 and was converted in place, so it kept
 its accounts, chats, settings, ChromaDB and ntfy data.
 
-The flow for every change: **PR → sandbox checks → merge into `barvis` → test instance
-(Server verification) → `fork_deploy.sh deploy` on production.**
+The flow for every change: **PR → sandbox checks → merge into `barvis` → Server
+verification (read-only checks) → `fork_deploy.sh deploy` on production** (backup first,
+automatic rollback if the new image isn't healthy).
 
 ## Update production
 
@@ -49,8 +54,8 @@ odysseus-deploy rollback        # Odysseus back to the image before the last dep
    it switches back to `odysseus-fork:previous` by itself and says so.
 7. Runs `scripts/modules_setup.py` if `~/.config/odysseus-fork/admin.txt` exists.
 
-Run it as your user, not with `sudo`: it calls `sudo docker` itself, and the modules run
-as your user.
+Run it as your user (the admin account), not with `sudo`: it calls `sudo docker` itself,
+and the modules run as your user.
 
 Athena's own `server/scripts/deploy.sh deploy` does the same in the other order:
 it updates the module, then runs this script with no modules (it finds this checkout from the
@@ -61,7 +66,7 @@ command updates both. Started from here, the module's script skips that step
 Settings (all optional), as `KEY=value` lines in `~/.config/odysseus-fork/deploy.env` or in the
 environment (which wins): `FORK_MODULES`, `DOCKER` (default `sudo docker`),
 `FORK_REMOTE`, `FORK_BACKUP_DIR`, `FORK_KEEP_BACKUPS`, `FORK_PASSWORD_FILE`,
-`FORK_PY`, `FORK_SETUP_ARGS`, `FORK_INSTALL_OPTIONAL`. See the top of the script. The former `BARVIS_*`
+`FORK_PY`, `FORK_SETUP_IN`, `FORK_SETUP_ARGS`, `FORK_INSTALL_OPTIONAL`, `FORK_ENV_FILES`. See the top of the script. The former `BARVIS_*`
 names, `~/.config/barvis/` and `~/barvis-backups` still work ([below](#moving-from-the-barvis-name-once)).
 
 The image is built with upstream's optional extras (`requirements-optional.txt`:
@@ -109,19 +114,22 @@ odysseus-deploy deploy
 
 ### One-command setup (once)
 
-On the owner's server, with Athena in `~/projects/barvis-ai-wt/main` (adjust the
-path if the folder was renamed):
+On the owner's server, as the admin account, with Athena in `/opt/athena` (formerly
+`~/projects/barvis-ai-wt/main`):
 
 ```bash
 mkdir -p ~/.local/bin ~/.config/odysseus-fork
-ln -sf ~/models/odysseus/scripts/fork_deploy.sh ~/.local/bin/odysseus-deploy
+ln -sf /opt/odysseus/scripts/fork_deploy.sh ~/.local/bin/odysseus-deploy
 cat > ~/.config/odysseus-fork/deploy.env <<'EOF'
-FORK_MODULES=~/projects/barvis-ai-wt/main/server/scripts/deploy.sh
-FORK_PY=~/projects/barvis/venv/bin/python
+FORK_MODULES=/opt/athena/server/scripts/deploy.sh
+FORK_SETUP_IN=container
 EOF
 ```
 
-`modules_setup.py` needs Python with `httpx`, hence `FORK_PY`. In Athena's
+`modules_setup.py` needs Python with `httpx`. `FORK_SETUP_IN=container` runs it inside the
+`odysseus` container, which has it; or point `FORK_PY` at a host Python with `httpx`. A
+`FORK_PY` that doesn't exist (as after the old test instance's venv went away), or one
+without `httpx`, falls back to the container by itself. In Athena's
 `server/.env`, set what used to be typed on the command line, so the services get it:
 
 ```bash
@@ -167,6 +175,61 @@ sudo rm -rf data && sudo tar xzf ~/odysseus-backups/data-<date>-<sha>.tgz -C .
 sudo docker compose up -d
 ```
 
+## Running as service users
+
+The server's target layout (2026-10-31): the admin account holds root; Odysseus, Athena and
+Proton Bridge each run as their own unprivileged user (no sudo, not in the docker group),
+with data in `/srv/<name>` and secrets in root-only files. Docker stays rootful and only
+the admin uses it, through `sudo`; the containers run as the service users. Hermes is
+separate: it has no access to Odysseus or Athena.
+
+| | Odysseus | Athena |
+|---|---|---|
+| Checkout (admin-owned: whoever can edit the compose files controls what root runs) | `/opt/odysseus` | `/opt/athena` |
+| Data (service user, `0750`) | `/srv/odysseus/{data,logs}`: `APP_DATA_DIR`, `APP_LOGS_DIR` | `/srv/athena/data`: `CONVO_DATA_DIR` |
+| Container user | `PUID`/`PGID` (the entrypoint repairs ownership and drops to it) | `PUID`/`PGID` |
+| Secrets (`root:root 0600`) | `/etc/odysseus/secrets.env` via `FORK_ENV_FILES`; admin password `/etc/odysseus/admin.txt` (`FORK_PASSWORD_FILE`) | `/etc/athena/secrets.env` (`ATHENA_SECRETS_FILE`) |
+| Backups | `FORK_BACKUP_DIR=/srv/backups/odysseus` (`root 0700`) | `ATHENA_DB_BACKUPS=5`: `<data dir>/backups/` |
+
+How `scripts/fork_deploy.sh` supports it:
+
+- **`FORK_ENV_FILES`**: more env files for every `compose` call, e.g. a root-only
+  `/etc/odysseus/secrets.env` with the tokens and keys. Upstream's compose file lists those
+  variables under `environment:` as `${X:-}`, so they must reach compose's interpolation,
+  not an `env_file:`; the script passes `--env-file .env --env-file <file>`. Root reads the
+  file (`sudo docker`); the script never reads or prints it. A file that doesn't exist stops
+  the deploy before anything is built.
+- **`.env` must stay readable** by the admin: the script reads `APP_PORT` and `APP_DATA_DIR`
+  from it and stops with an error if it can't, rather than checking the wrong port or
+  backing up the wrong folder. Keep only non-secret settings there.
+- **Root-only backups**: if `FORK_BACKUP_DIR` isn't writable by the admin, root writes and
+  prunes it. Backups are always `0600` (they hold `app.db`). A missing data dir stops the
+  deploy before Odysseus is stopped.
+- **Admin password**: `FORK_PASSWORD_FILE` may be root-only; it is read with `sudo` and
+  handed to `modules_setup.py` on stdin, never on a command line.
+- **Opt-in compose files**, added in `.env` with `COMPOSE_FILE` (list the override too: with
+  `COMPOSE_FILE` set, compose no longer adds it by itself):
+  ```bash
+  COMPOSE_FILE=docker-compose.yml:docker-compose.override.yml:docker/fork.network.yml:docker/fork.hardening.yml
+  FORK_NET_SUBNET=172.29.20.0/24   # not used by any other Docker network
+  COMPOSE_PROJECT_NAME=odysseus    # keeps the named volumes if the checkout folder moves
+  ```
+  - `docker/fork.network.yml`: the stack's network gets a fixed subnet and bridge name
+    (`FORK_NET_SUBNET`, `FORK_NET_BRIDGE` default `br-odysseus`, `FORK_NET_NAME` default
+    `odysseus-net`), so host firewall rules can let it reach llama-server (8082), Proton
+    Bridge (1143/1025) and Athena's MCP server (8001) and nothing else. Athena has the same
+    for its own network (`ATHENA_NET_SUBNET`).
+  - `docker/fork.hardening.yml`: `no-new-privileges` and only the capabilities the
+    entrypoint needs. Turn it on with a deploy of its own and check web search, the browser
+    tool, TTS and the Cookbook; `rollback` goes back.
+
+Pitfalls: moving the checkout changes the compose project name unless
+`COMPOSE_PROJECT_NAME` is set, and a new name means new, empty Chroma, SearXNG and ntfy
+volumes. A wrong `APP_DATA_DIR` makes Docker create an empty folder and Odysseus starts as
+a fresh install; check the mount sources (`sudo docker compose config --format json`, only
+the `source` fields) before the first start. `docker compose config` and `docker inspect`
+print secrets: never paste their output.
+
 ## Features and modules
 
 Production keeps every Odysseus feature. `scripts/modules_setup.py` (run by `deploy`):
@@ -209,9 +272,10 @@ a plain question doesn't reach module tools: per-turn selection picks built-ins
   preset and rerun setup; don't edit the skill by hand. `--no-skills` skips them;
   `--module-skill NAME=SERVER`, `--skill-text NAME=FILE`, `--context-skill NAME` and
   `--trusted a,b` change them.
-- `modules_setup.py` runs outside the container, so it can't see the container's
-  `ODYSSEUS_TRUSTED_READONLY_MCP`. Without `--trusted` or that variable in its own
-  environment, `/context` covers the `--module` list (default `convo`).
+- Run on the host, `modules_setup.py` can't see the container's
+  `ODYSSEUS_TRUSTED_READONLY_MCP`: without `--trusted` or that variable in its own
+  environment, `/context` covers the `--module` list (default `convo`). Inside the container
+  (`FORK_SETUP_IN=container`) it sees the variable.
 - If a module's server is down, the slash message answers that its tools are
   unavailable (`unavailable: mcp:convo`) instead of guessing.
 - Works in "Auto". In "Regular tools" every enabled tool is sent anyway, so with all
@@ -319,7 +383,8 @@ Pitfalls met during the switch:
 - **"Connection reset by peer"** right after a start means the app is still starting
   (5–15 s); `deploy` waits for `/api/health`.
 - Harmless warnings: `ODYSSEUS_TTS_CACHE_MAX_BYTES variable is not set` (upstream's
-  compose file has no default for it) and "current commit information was not captured"
+  compose file has no default for it; the code then uses 500 MB. `ODYSSEUS_TTS_CACHE_MAX_BYTES=524288000`
+  in `.env` silences it without changing anything) and "current commit information was not captured"
   during `sudo docker build` (root can't read a repo owned by your user; the script labels
   the image with the commit instead).
 

@@ -236,8 +236,9 @@ upstream-file changes that are not a listed hook.
   `increment_uses` and `add` stay under a fixed millisecond budget set from the phase 1
   baseline, and recall latency does not grow linearly with a 5x larger store.
 
-**Server verification (owner).** Targets the isolated test instance on `127.0.0.1:7010`
-only. It never touches production (Docker, port 7000).
+**Server verification (owner).** Written for the server's isolated test instance on
+`127.0.0.1:7010`, which is retired (2026-10-31): run these steps on a sandbox instance
+instead. They never touch production (Docker, port 7000).
 
 1. Copy the test instance's `data/` aside, then
    `python scripts/memory_migrate.py import && python scripts/memory_migrate.py verify`.

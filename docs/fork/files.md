@@ -29,6 +29,8 @@ is an old path of a module that moved into `fork/`; it only aliases the new modu
 
 ## docker/
 
+- `docker/fork.hardening.yml`
+- `docker/fork.network.yml`
 - `docker/fork.override.yml`
 
 ## docs/
