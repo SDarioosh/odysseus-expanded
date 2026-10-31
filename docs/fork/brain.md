@@ -581,8 +581,10 @@ files upstream reads as text (`fork/brain/attachments.py`; tests
   then summarising older turns).
 - **Outside content.** A file can carry injected instructions. The run is armed
   (`tools.distrust`: `external_untrusted_context_seen`, source `chat attachment`, and the
-  turn's exchange is kept as tainted), and so is every later turn while that message is
-  in the replayed history (after a summary's cut it is not). Upstream arms neither; the
+  turn's exchange is kept as tainted), and so is a later turn while that message is one
+  of the owner's last 4 (`REPLAY_EXCHANGES`, the window in which a replayed untrusted
+  tool result re-arms; after a summary's cut it is not). An older file no longer arms
+  every turn of the chat, which in Ask mode would ask before every private read. Upstream arms neither; the
   brain does because the file's text stays in its prompt on follow-ups, the same reason
   tainted exchanges re-arm. The request authority is still built from the owner's typed
   message only, so a file's text grants nothing. In Ask mode an armed run asks before a

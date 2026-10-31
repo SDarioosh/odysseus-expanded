@@ -243,3 +243,25 @@ async def test_the_system_message_is_identical_with_and_without_an_attachment(br
     await brain.run(brain.session(sid="chat-2"), "two")
     first, second = (r["messages"][0] for r in brain.llm.requests)
     assert first == second and first["content"] == brain_prompt.system_prompt()
+
+
+async def test_an_old_attachment_no_longer_arms_later_turns(brain, uploads):
+    """Only a file among the owner's last REPLAY_EXCHANGES messages arms a follow-up,
+    like a replayed untrusted result; an older one doesn't arm the chat for good."""
+    from fork.brain import prompt as brain_prompt
+
+    sess = brain.session()
+    files = await attached(sess, uploads, upload(uploads, "memo.txt", b"Lunch at noon.\n"))
+    brain.llm.rounds([text("Lunch at noon.")])
+    await brain.run(sess, "When is lunch?", attached=files)
+    for i in range(brain_prompt.REPLAY_EXCHANGES - 1):
+        brain.llm.rounds([text("ok")])
+        await brain.run(sess, f"thanks {i}")
+    t = brain.start(sess, "and now?")  # the file's message is the 4th-last: still armed
+    await brain_turn._prepare(t)
+    assert t.run.security.external_untrusted_context_seen is True
+    brain.llm.rounds([text("ok")])
+    [_ async for _ in brain_turn._run_new_turn(t)]
+    t = brain.start(sess, "one more")  # now it is 5th-last
+    await brain_turn._prepare(t)
+    assert t.run.security.external_untrusted_context_seen is False

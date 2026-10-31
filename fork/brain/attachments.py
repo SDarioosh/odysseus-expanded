@@ -24,7 +24,7 @@ attachment chips. The brain caps it smaller than upstream (:data:`PER_FILE_CHARS
 :data:`TOTAL_CHARS` in all, a note saying how much was left out) so a big PDF can't fill
 the context of a CPU model. The message is saved with upstream's ``attachment_meta``
 (the chips, and reload). The file's text is outside content: the turn's run is armed,
-and so is a later turn's while the message is still in the replayed history
+and so is a later turn's while the message is one of the owner's last few
 (:func:`in_history`).
 
 Extraction runs in a worker thread, before the owner's message is saved: a failure
@@ -174,8 +174,11 @@ async def read(sess: Any, chat_handler: Any, attachments: Any) -> Attached | Non
 
 
 def in_history(rows: list, summary: tuple[str, str] | None = None) -> bool:
-    """True when a user message with attachments is in the history this turn replays
-    (after the summary's cut, as ``prompt.history_messages`` replays it)."""
+    """True when one of the owner's last :data:`~fork.brain.prompt.REPLAY_EXCHANGES`
+    messages (after the summary's cut, as ``prompt.history_messages`` replays them) had
+    attachments: the same window in which the brain re-arms a run for an earlier
+    untrusted tool result. Older files no longer arm every later turn, so a chat with
+    one attachment doesn't ask before private reads for the rest of its life."""
     from fork.brain import prompt as brain_prompt
 
     rows = list(rows or ())
@@ -184,5 +187,6 @@ def in_history(rows: list, summary: tuple[str, str] | None = None) -> bool:
                    None)
         if cut is not None:
             rows = rows[cut + 1:]
-    return any(brain_prompt._role(m) == "user" and brain_prompt._metadata(m).get("attachments")
-               for m in rows)
+    users = [m for m in rows if brain_prompt._role(m) == "user"]
+    recent = users[-brain_prompt.REPLAY_EXCHANGES:] if brain_prompt.REPLAY_EXCHANGES else []
+    return any(brain_prompt._metadata(m).get("attachments") for m in recent)
