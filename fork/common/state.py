@@ -1,7 +1,11 @@
 """Fork: per-owner JSON files, read and written the one way.
 
 * :func:`owner_slug`: an owner name as a file-name part (``None`` or "" is ``default``;
-  every character that is not a letter, digit or one of ``safe`` becomes ``_``).
+  every character that is not a letter, digit or one of ``safe`` becomes ``_``). A slug
+  that would be ``.`` or ``..`` (a folder, not a name, in a path such as
+  ``today_insight/<slug>/``) is ``_`` plus the first 12 hex digits of the name's
+  SHA-256 instead, so no owner's files land outside their feature folder. Every other
+  name keeps the slug it always had.
 * :func:`owner_file`: ``<DATA_DIR>/<prefix>_<slug>.json``, the per-owner state files.
 * :func:`read_json`: the parsed file, or ``default`` when it is missing or not JSON.
 * :func:`write_json` / :func:`write_atomic`: write a temp file next to the target
@@ -13,6 +17,7 @@
 
 from __future__ import annotations
 
+import hashlib
 import json
 import os
 import threading
@@ -23,7 +28,11 @@ SAFE = "-_.@"
 
 
 def owner_slug(owner: str | None, *, safe: str = SAFE) -> str:
-    return "".join(c if (c.isalnum() or c in safe) else "_" for c in (owner or "default"))
+    name = owner or "default"
+    slug = "".join(c if (c.isalnum() or c in safe) else "_" for c in name)
+    if slug in ("", ".", ".."):
+        return "_" + hashlib.sha256(name.encode("utf-8", "surrogatepass")).hexdigest()[:12]
+    return slug
 
 
 def owner_file(prefix: str, owner: str | None) -> Path:
