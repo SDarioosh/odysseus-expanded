@@ -35,8 +35,13 @@ What the brain adds is which calls run without asking and which ask:
   untrusted marking), and by upstream itself when a result of this turn is. ``tainted``
   records the last for this turn's exchange.
 
-The one tool upstream doesn't have, ``search_beliefs``, runs here, owner-scoped
-(``fork/beliefs/search.py``). Before ``web_search`` runs, its query passes through
+The tools upstream doesn't have run here, owner-scoped: ``search_beliefs``
+(``fork/beliefs/search.py``) and ``search_documents`` (the owner's document library,
+``fork/brain/documents.py``). A result of theirs with content is outside content: it arms
+the run like an untrusted result of upstream's runner (:func:`_distrust`). A
+``create_document`` call runs in upstream's line format and its result names the new
+document for the model (``documents.py``). Before ``web_search`` runs, its query passes
+through
 ``fork/brain/query_guard.py``; when nothing public is left, the search isn't run and the
 model is told why.
 
@@ -51,6 +56,7 @@ import logging
 from dataclasses import dataclass, field, replace
 from typing import Any
 
+from fork.brain import documents as brain_documents
 from fork.brain import toolset
 
 logger = logging.getLogger(__name__)
@@ -79,13 +85,16 @@ class ToolRun:
     owner_urls: frozenset[str] = frozenset()  # URLs the owner typed in this message
     tainted: bool = False  # a result of this turn was untrusted
     search_hits: set[str] = field(default_factory=set)  # ranked hits of this turn
+    rag: Any = None  # the document library's rag_manager, when there is one
 
 
 def turn_disabled_tools(request: Any, owner: Any, *, privileges: dict | None = None,
-                        delegated: bool = False) -> set[str]:
+                        delegated: bool = False, rag: Any = None,
+                        use_rag: bool = True) -> set[str]:
     """The tools this request may not use, from the same inputs ``chat_stream`` reads:
     the user's privileges, the admin's global list, the owner's public-user policy and,
-    for a bearer token, the delegated-credential list."""
+    for a bearer token, the delegated-credential list. ``rag``: the document library
+    (none: no ``search_documents``); ``use_rag``: the chat's documents toggle."""
     from src.tool_security import blocked_tools_for_owner, delegated_credential_blocked_tools
 
     disabled = set(blocked_tools_for_owner(owner))
@@ -113,6 +122,11 @@ def turn_disabled_tools(request: Any, owner: Any, *, privileges: dict | None = N
     # users, API tokens, the privilege, the global list) doesn't get search_beliefs.
     if "manage_memory" in disabled:
         disabled.add(toolset.SEARCH_BELIEFS)
+    # The library is documents: whoever upstream keeps from manage_documents (the
+    # document privilege, non-admin users, API tokens, the global list) doesn't get
+    # search_documents; nor a chat with the documents toggle off, nor a hub without one.
+    if "manage_documents" in disabled or rag is None or not use_rag:
+        disabled.add(toolset.SEARCH_DOCUMENTS)
     return disabled
 
 
@@ -126,8 +140,8 @@ def _with_read_grants(authority: Any, offered: tuple[str, ...]) -> Any:
         return authority
     grants = {g.tool: g for g in authority.grants}
     for name in offered:
-        if name.startswith("mcp__") or name == toolset.SEARCH_BELIEFS:
-            continue  # MCP reads: upstream's trusted read-only grant; beliefs: run here
+        if name.startswith("mcp__") or name in toolset.FORK_TOOLS:
+            continue  # MCP reads: upstream's trusted read-only grant; fork tools: run here
         tool = canonical_tool(name)
         if tool in authority.denied:
             continue
@@ -162,14 +176,15 @@ def _with_read_grants(authority: Any, offered: tuple[str, ...]) -> Any:
 def build_run(*, request_text: str, owner: Any, session_id: str, history: list,
               offered: tuple[str, ...], disabled: set[str], delegated: bool = False,
               prompt_messages: list[dict] | None = None, authority: Any = None,
-              external_seen: bool = False, chat_search_hits=()) -> ToolRun:
+              external_seen: bool = False, chat_search_hits=(), rag: Any = None) -> ToolRun:
     """The authority, security context and policy for one brain turn.
 
     ``authority``: the sealed authority of a paused turn (an approval resume); otherwise
     a new one is created from ``request_text``. ``external_seen``: the turn follows
     outside content (the route's flag, an untrusted earlier exchange): the security
     context starts armed. ``chat_search_hits``: the ranked web-search hits of this
-    chat's earlier turns, which ``web_fetch`` may read.
+    chat's earlier turns, which ``web_fetch`` may read. ``rag``: the document library
+    ``search_documents`` reads.
     """
     from src.agent_runtime.authority import create_request_authority
     from src.tool_capabilities import ToolRunSecurityContext
@@ -193,7 +208,7 @@ def build_run(*, request_text: str, owner: Any, session_id: str, history: list,
                    security=security, policy=policy, disabled=frozenset(policy.all_disabled_names()),
                    offered=tuple(offered), request_text=request_text,
                    external_seen=bool(security.external_untrusted_context_seen),
-                   owner_urls=frozenset(_urls_in(request_text or "", bare=True)))
+                   owner_urls=frozenset(_urls_in(request_text or "", bare=True)), rag=rag)
 
 
 def _seed_search_hits(security: Any, hits) -> None:
@@ -270,7 +285,7 @@ def _with_fetch_grant(authority: Any, content: str) -> Any:
 # ------------------------------------------------------------------ deciding to ask
 def needs_approval(run: ToolRun, name: str, content: str) -> str | None:
     """Why this call must ask the owner first, or None when it runs directly."""
-    if name not in run.offered:
+    if name not in run.offered or brain_documents.refusal(name, content):
         return None  # refused by execute(), never asked
     if name == "web_fetch" and not run.security.delegated_credential \
             and not fetch_known(run, content):
@@ -333,7 +348,19 @@ async def _search_beliefs(run: ToolRun, content: str) -> tuple[str, dict]:
         link = str(b.get("link") or "").strip()
         lines.append("- " + (f"{name}: " if name else "") + text + (f" ({link})" if link else ""))
     output = "\n".join(lines) if lines else "No matching facts."
-    return f"search_beliefs: {len(lines)} result(s)", {"output": output, "exit_code": 0}
+    # beliefs come from recorded conversations, notes and memory: outside content, as
+    # upstream counts Athena's and the notes' results
+    return f"search_beliefs: {len(lines)} result(s)", {"output": output, "exit_code": 0,
+                                                       "untrusted_content": True}
+
+
+def _distrust(run: ToolRun, source: str) -> None:
+    """A fork tool returned outside content: the run is armed, as upstream's runner arms
+    it for an untrusted result, and this turn's exchange is replayed untrusted."""
+    run.tainted = True
+    run.security.external_untrusted_context_seen = True
+    if source not in run.security.external_sources:
+        run.security.external_sources.append(source)
 
 
 TIME_FILTERS = frozenset({"day", "week", "month", "year"})
@@ -394,18 +421,18 @@ async def execute(run: ToolRun, name: str, content: str, *, exact_approval: Any 
     from src.tool_execution import execute_tool_block
     from src.tool_types import ToolBlock
 
-    if name not in run.offered:
-        desc, result = _blocked(name, f"Tool '{name}' is not available here.")
+    refused = None if name in run.offered else f"Tool '{name}' is not available here."
+    refused = refused or brain_documents.refusal(name, content)
+    if refused:
+        desc, result = _blocked(name, refused)
         return content, desc, result
-    if name == toolset.SEARCH_BELIEFS:
-        desc, result = await _search_beliefs(run, content)
-        if result.get("exit_code") == 0:
-            # beliefs come from recorded conversations, notes and memory: outside
-            # content, as upstream counts Athena's and the notes' results
-            run.tainted = True
-            run.security.external_untrusted_context_seen = True
-            if toolset.SEARCH_BELIEFS not in run.security.external_sources:
-                run.security.external_sources.append(toolset.SEARCH_BELIEFS)
+    if name in toolset.FORK_TOOLS:
+        if name == toolset.SEARCH_BELIEFS:
+            desc, result = await _search_beliefs(run, content)
+        else:
+            desc, result = await brain_documents.search(run.owner, run.rag, content)
+        if result.pop("untrusted_content", False):
+            _distrust(run, name)
         return content, desc, result
     if name in ("web_search", "get_weather"):
         guard = _guarded_web_search if name == "web_search" else _guarded_weather
@@ -422,6 +449,7 @@ async def execute(run: ToolRun, name: str, content: str, *, exact_approval: Any 
         client_runtime_context=None, request_authority=authority)
     if not isinstance(result, dict):
         result = {"output": str(result or "")}
+    brain_documents.describe(name, result)
     run.security.observe_tool_result(name, result, content)
     from src.tool_capabilities import tool_result_should_arm_gate
     if tool_result_should_arm_gate(name, result, content):

@@ -201,10 +201,10 @@ BRAIN_MAX_ROUNDS = _setting(
     "Tool rounds per brain turn before one last round without tools; clamped to 1-20.",
     used_in=("fork/brain/settings.py",))
 BRAIN_TOOL_GROUPS = _setting(
-    "FORK_BRAIN_TOOL_GROUPS", "web,athena,workspace,beliefs,chats,email",
+    "FORK_BRAIN_TOOL_GROUPS", "web,athena,workspace,documents,beliefs,chats,email",
     "comma-separated groups",
-    "Tool groups the brain offers (web, athena, workspace, beliefs, chats, email, "
-    "images); unknown names are ignored.",
+    "Tool groups the brain offers (web, athena, workspace, documents, beliefs, chats, "
+    "email, images); unknown names are ignored.",
     used_in=("fork/brain/settings.py",))
 # Handwritten notes (docs/fork/handwritten-notes.md)
 INK_AUTO_SEND = _setting(
