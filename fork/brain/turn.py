@@ -264,6 +264,9 @@ class _Turn:
     first_token_at: float | None = None
     input_tokens: int = 0
     output_tokens: int = 0
+    usage_seen: bool = False  # the model reported token counts (not estimated)
+    decode_seconds: float = 0.0  # backend decode time of the rounds that reported a speed
+    decode_tokens: int = 0  # output tokens of those rounds
     approval_id: str = ""
     expires_at: float = 0.0
     paused_message_id: str | None = None
@@ -870,6 +873,22 @@ def _tool_output_event(name: str, content: str, call_id: str, result: dict, *,
     return event
 
 
+def _add_usage(turn: _Turn, usage: dict) -> None:
+    """Count one round's usage event (src/llm_core.py): tokens, and the decode time
+    behind the backend's speed (``gen_tps``) so rounds average by their tokens."""
+    out = int(usage.get("output_tokens") or 0)
+    turn.input_tokens += int(usage.get("input_tokens") or 0)
+    turn.output_tokens += out
+    turn.usage_seen = True
+    try:
+        gen_tps = float(usage.get("gen_tps") or 0)
+    except (TypeError, ValueError):
+        gen_tps = 0.0
+    if gen_tps > 0 and out > 0:
+        turn.decode_seconds += out / gen_tps
+        turn.decode_tokens += out
+
+
 def _metrics(turn: _Turn, **extra) -> dict:
     now = time.time()
     data = {
@@ -881,7 +900,16 @@ def _metrics(turn: _Turn, **extra) -> dict:
                                 if turn.first_token_at else None),
         "agent_rounds": turn.rounds_run, "tool_calls": turn.tool_calls,
         "round_texts": list(turn.round_texts), "brain": True,
+        "usage_source": "real" if turn.usage_seen else "estimated",
     }
+    # Speed as upstream shows it (src/agent_loop.py _build_final_metrics): the backend's
+    # decode speed when it reported one (llama.cpp timings), else tokens over wall time.
+    if turn.decode_seconds > 0 and turn.decode_tokens:
+        data["tokens_per_second"] = round(turn.decode_tokens / turn.decode_seconds, 2)
+        data["tps_source"] = "backend"
+    elif turn.output_tokens and now > turn.started:
+        data["tokens_per_second"] = round(turn.output_tokens / (now - turn.started), 2)
+        data["tps_source"] = "computed"
     if turn.tool_events:
         data["tool_events"] = list(turn.tool_events)
     data.update(extra)
@@ -1139,8 +1167,7 @@ async def _drive(turn: _Turn) -> AsyncGenerator[str, None]:
                 elif kind == "calls":
                     calls = value
                 elif kind == "usage":
-                    turn.input_tokens += int(value.get("input_tokens") or 0)
-                    turn.output_tokens += int(value.get("output_tokens") or 0)
+                    _add_usage(turn, value)
                 elif kind == "error":
                     yield value
                     partial = _shown_answer(turn, visible.shown_text())

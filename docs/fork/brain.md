@@ -195,7 +195,11 @@ using the fork's existing `requires_toolsets` handling (`fork/routing/skill_invo
 Events sent to the chat window are the ones it already renders (`static/js/chat.js`):
 text, `tool_start`, `tool_output`, `ask_user` (approvals), `final_response`, `metrics`.
 The exact shapes are taken from upstream's agent stream in the first code PR, so no
-frontend change is needed.
+frontend change is needed. `metrics` carries the fields the message stats read, as
+upstream fills them: `tokens_per_second` (the backend's decode speed from llama.cpp
+`timings`, averaged over the rounds by their tokens, `tps_source: "backend"`; else output
+tokens over wall time, `"computed"`) and `usage_source` (`"real"` once the model reported
+token counts).
 
 ### Running tools safely
 
