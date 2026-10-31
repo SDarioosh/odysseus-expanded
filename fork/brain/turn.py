@@ -6,9 +6,11 @@ session, owner and message are resolved, the chat privileges enforced, a tool ap
 consumed (upstream's own checks) and the research decision made. It returns None, and the
 route goes on as upstream wrote it, when ``FORK_BRAIN`` is off, for ``/research`` and
 other turns the brain doesn't take (compare, plan mode, incognito, attachments, image
-chats, workspace or native-client turns, an open document, selected notes, an open
-email, internal tool requests, users without the agent privilege), and for an approval
-that isn't one of the brain's. Otherwise it returns the brain's streaming response, detached like upstream's (``src/agent_runs.py``), with the
+chats, workspace or native-client turns, an open document, internal tool requests, users
+without the agent privilege), and for an approval that isn't one of the brain's. Selected
+notes and an open email are the brain's: the route passes the notes it loaded and the
+email's uid, folder and account, and they go into the turn's context message
+(``fork/brain/selection.py``). Otherwise it returns the brain's streaming response, detached like upstream's (``src/agent_runs.py``), with the
 same headers. The hook also runs ``history.py``'s sweep on the first request after a
 start and then hourly, in a worker thread, whether the brain is on or not.
 
@@ -70,6 +72,7 @@ from fork.brain import claims as brain_claims
 from fork.brain import documents as brain_documents
 from fork.brain import history as brain_history
 from fork.brain import prompt as brain_prompt
+from fork.brain import selection as brain_selection
 from fork.brain import settings as brain_settings
 from fork.brain import tools as brain_tools
 from fork.brain import toolset
@@ -165,20 +168,25 @@ async def brain_response(request: Any, *, sess: Any, session_id: str, message: A
                          preset_id: Any = None, upstream_turn: bool = False,
                          attachments: Any = None, services: tuple = (),
                          external_untrusted_context_seen: bool = False,
-                         no_memory: bool = False, use_rag: Any = None) -> Any:
+                         no_memory: bool = False, use_rag: Any = None,
+                         selected_notes: Any = None, active_email: Any = None) -> Any:
     """The brain's streaming response for this turn, or None for upstream's paths.
 
     ``approval_id``: set when this request continues a consumed tool approval;
     ``exact_approval`` is then upstream's consumed grant. ``upstream_turn``: the route
     already knows the turn is upstream's (research, compare, plan mode, incognito, a
-    workspace or native client, an image chat, an open document or email, selected
-    notes). ``services``: the route's ``(session_manager, chat_handler,
+    workspace or native client, an image chat, an open document). ``services``: the route's ``(session_manager, chat_handler,
     memory_manager, memory_vector, webhook_manager, skills_manager)``.
     ``external_untrusted_context_seen``: the route's flag that this turn follows outside
     content (a retired approval card's taint); it arms the run. ``no_memory``: the
     message asked for no memory (upstream's ``no_memory`` form field). ``use_rag``:
     the chat's documents toggle (upstream's ``use_rag`` form field; ``"false"`` keeps
-    ``search_documents`` out of this turn).
+    ``search_documents`` out of this turn). ``selected_notes``: the route's
+    ``selected_notes_context`` (the owner's selected notes, loaded and formatted by
+    upstream, owner-checked). ``active_email``: the route's ``active_email_ctx`` (uid,
+    folder, account of the email open in the reader), or None. Both are for this turn
+    only (``fork/brain/selection.py``); a follow-up with them still selected sends them
+    again.
     """
     _sweep_soon()
     if not brain_settings.enabled():
@@ -203,7 +211,8 @@ async def brain_response(request: Any, *, sess: Any, session_id: str, message: A
     turn = _start_turn(request, sess=sess, session_id=session_id, message=message,
                        owner=owner, preset_id=preset_id, deps=deps,
                        external_seen=bool(external_untrusted_context_seen),
-                       no_memory=bool(no_memory), use_rag=use_rag)
+                       no_memory=bool(no_memory), use_rag=use_rag,
+                       selected_notes=selected_notes, active_email=active_email)
     return _response(session_id, _run_new_turn(turn))
 
 
@@ -435,7 +444,8 @@ def _save_user_message(turn_sess: Any, deps: _Deps, request: Any, session_id: st
 
 def _start_turn(request: Any, *, sess: Any, session_id: str, message: str, owner: Any,
                 preset_id: Any, deps: _Deps, external_seen: bool = False,
-                no_memory: bool = False, use_rag: Any = None) -> _Turn:
+                no_memory: bool = False, use_rag: Any = None,
+                selected_notes: Any = None, active_email: Any = None) -> _Turn:
     """Save the owner's message and set the turn up; the tool set, the history and the
     authority are built by :func:`_prepare` when the stream starts, so a failure there
     ends the turn with an answer instead of an HTTP error."""
@@ -455,7 +465,9 @@ def _start_turn(request: Any, *, sess: Any, session_id: str, message: str, owner
         character_name=preset.character_name,
         prep={"request": request, "rows": rows, "preset_text": preset.system_prompt,
               "external_seen": external_seen, "no_memory": no_memory,
-              "use_rag": str(use_rag).strip().lower() != "false"})
+              "use_rag": str(use_rag).strip().lower() != "false",
+              "selected_notes": str(selected_notes or ""),
+              "active_email": dict(active_email) if isinstance(active_email, dict) else None})
 
 
 def _replay(rows: list, stored: dict[str, dict]) -> tuple[dict[str, list[dict]], bool, list[str]]:
@@ -505,6 +517,18 @@ async def _prepare(turn: _Turn) -> None:
         offered=tuple(toolset.names(schemas)), disabled=disabled, delegated=delegated,
         prompt_messages=messages, external_seen=bool(prep["external_seen"] or tainted),
         chat_search_hits=hits, rag=rag)
+    selected = [brain_selection.notes_item(prep.get("selected_notes")),
+                await brain_selection.email_text(run, prep.get("active_email"))]
+    selected = [item for item in selected if item]
+    if selected:
+        # Only the context message changes; the selection arms the run (upstream's
+        # marking, read by observe_messages) and the exchange is kept untrusted.
+        messages[-2] = brain_prompt.context_message(recalled, selected=selected)
+        run.security.observe_messages([messages[-2]])
+        for item in selected:
+            if isinstance(item, tuple):
+                brain_tools._distrust(run, item[0])
+        run.external_seen = bool(run.security.external_untrusted_context_seen)
     if run.policy.block_all_tool_calls:
         schemas = ()
     turn.tools, turn.run, turn.messages = tuple(schemas), run, messages
