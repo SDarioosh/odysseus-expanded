@@ -22,6 +22,9 @@
 #   FORK_PASSWORD_FILE  admin password file for modules_setup.py (default: ~/.config/odysseus-fork/admin.txt)
 #   FORK_PY             python with httpx for modules_setup.py (default: venv/bin/python, else python3)
 #   FORK_SETUP_ARGS     extra arguments for modules_setup.py (e.g. "--trim")
+#   FORK_INSTALL_OPTIONAL  build the image with requirements-optional.txt (PDF viewer and
+#                       forms via PyMuPDF, local OCR and speech-to-text, Office extraction):
+#                       true (default) or false
 #
 # The former names still work: BARVIS_<name> for each FORK_<name>, ~/.config/barvis/,
 # ~/barvis-backups, and the barvis:<commit> images (see docs/fork/deploy.md).
@@ -41,7 +44,7 @@ if [ -f "$CONFIG" ]; then  # KEY=value lines; the environment wins
   done < "$CONFIG"
 fi
 
-for name in MODULES REMOTE BACKUP_DIR KEEP_BACKUPS PASSWORD_FILE PY SETUP_ARGS; do
+for name in MODULES REMOTE BACKUP_DIR KEEP_BACKUPS PASSWORD_FILE PY SETUP_ARGS INSTALL_OPTIONAL; do
   old=BARVIS_$name new=FORK_$name  # former names, still read
   [ -n "${!new+x}" ] || [ -z "${!old+x}" ] || export "$new=${!old}"
 done
@@ -51,6 +54,8 @@ default_backups=$HOME/odysseus-backups
 DOCKER=${DOCKER:-sudo docker}
 BACKUP_DIR=${FORK_BACKUP_DIR:-$default_backups}
 KEEP_BACKUPS=${FORK_KEEP_BACKUPS:-5}
+# Upstream's image leaves the optional extras out; the fork is AGPL already, so PyMuPDF's AGPL adds nothing
+INSTALL_OPTIONAL=${FORK_INSTALL_OPTIONAL:-true}
 PASSWORD_FILE=${FORK_PASSWORD_FILE:-$CONFIG_DIR/admin.txt}
 SERVICE=odysseus
 LEGACY_IMAGE=barvis  # the images' former name
@@ -223,7 +228,8 @@ cmd_deploy() {
   fi
   sha=$(git rev-parse --short HEAD)
   log "building $IMAGE:$sha"
-  $DOCKER build -q --label "odysseus-fork.revision=$sha" -t "$IMAGE:$sha" . >/dev/null
+  $DOCKER build -q --build-arg "INSTALL_OPTIONAL=$INSTALL_OPTIONAL" \
+    --label "odysseus-fork.revision=$sha" -t "$IMAGE:$sha" . >/dev/null
 
   if has_image "$IMAGE:current"; then
     $DOCKER tag "$IMAGE:current" "$IMAGE:previous"

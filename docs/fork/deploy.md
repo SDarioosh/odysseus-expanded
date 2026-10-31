@@ -61,8 +61,14 @@ command updates both. Started from here, the module's script skips that step
 Settings (all optional), as `KEY=value` lines in `~/.config/odysseus-fork/deploy.env` or in the
 environment (which wins): `FORK_MODULES`, `DOCKER` (default `sudo docker`),
 `FORK_REMOTE`, `FORK_BACKUP_DIR`, `FORK_KEEP_BACKUPS`, `FORK_PASSWORD_FILE`,
-`FORK_PY`, `FORK_SETUP_ARGS`. See the top of the script. The former `BARVIS_*`
+`FORK_PY`, `FORK_SETUP_ARGS`, `FORK_INSTALL_OPTIONAL`. See the top of the script. The former `BARVIS_*`
 names, `~/.config/barvis/` and `~/barvis-backups` still work ([below](#moving-from-the-barvis-name-once)).
+
+The image is built with upstream's optional extras (`requirements-optional.txt`:
+PyMuPDF for the PDF viewer and PDF forms, local OCR, local speech-to-text, Office and
+EPUB extraction, PSD previews), which upstream's image leaves out. Without them the
+document viewer shows "PDF viewer requires PyMuPDF". The fork is AGPL-3.0 already, so
+PyMuPDF's AGPL brings no new obligation. `FORK_INSTALL_OPTIONAL=false` builds without them.
 
 ### Fork settings in `.env`
 
