@@ -34,7 +34,10 @@ Per turn (:func:`_drive`):
    owner's answer comes back as a new request; :func:`brain_response` resumes the state
    and runs the approved call without asking the model again. Unanswered in time, the
    turn ends with :data:`NOT_APPROVED`.
-5. The answer (all the text the window showed) is saved as a normal Odysseus message
+5. When the answer claims a change ("I've added it to your calendar", "Done.") that no
+   successful write of this turn made (before or after an approval), one note follows it
+   (``fork/brain/claims.py``), streamed as a last delta and saved with the answer.
+6. The answer (all the text the window showed) is saved as a normal Odysseus message
    (``save_assistant_response``), the turn's tool exchange in ``history.py`` (in a worker
    thread), and upstream's after-turn jobs run (``run_post_response_tasks``: title,
    memory extraction, token totals, webhooks); the jobs that call a model run only when
@@ -63,6 +66,7 @@ from types import SimpleNamespace
 from typing import Any, AsyncGenerator
 from urllib.parse import urlparse
 
+from fork.brain import claims as brain_claims
 from fork.brain import documents as brain_documents
 from fork.brain import history as brain_history
 from fork.brain import prompt as brain_prompt
@@ -258,6 +262,8 @@ class _Turn:
     rounds_run: int = 0
     tool_calls: int = 0
     tool_events: list[dict] = field(default_factory=list)
+    # (tool, succeeded) of every write call this turn, kept across a pause (claims.py)
+    writes: list[tuple[str, bool]] = field(default_factory=list)
     round_texts: list[str] = field(default_factory=list)
     shown: list[str] = field(default_factory=list)  # visible text of each round, in order
     started: float = field(default_factory=time.time)
@@ -1216,10 +1222,35 @@ async def _run_call(turn: _Turn, call: dict, *, exact_approval: Any = None):
     turn.tool_events.append({"round": turn.round, "tool": name, "desc": desc,
                              "command": _display(name, ran), "output": window[:4000],
                              "exit_code": result.get("exit_code")})
+    _note_write(turn, name, content, result, attempted=attempted)
     tool_message = {"role": "tool", "tool_call_id": call_id, "name": name,
                     "content": brain_tools.trim(full)}
     turn.messages.append(tool_message)
     turn.exchange.append(tool_message)
+
+
+def _note_write(turn: _Turn, name: str, content: str, result: dict, *, attempted: bool) -> None:
+    """Record a write call and whether it succeeded (ran, exit code 0 or none, no error),
+    for the answer's check of claimed changes (``claims.py``)."""
+    try:
+        if toolset.is_read(name, content):
+            return
+    except Exception:  # noqa: BLE001 -- unknown: counted as a write
+        pass
+    code = result.get("exit_code")
+    ok = (attempted and not result.get("blocked") and not result.get("error")
+          and not result.get("approval_required")
+          and (code is None or (isinstance(code, int) and not isinstance(code, bool) and code == 0)))
+    turn.writes.append((name, bool(ok)))
+
+
+def _claims_note(turn: _Turn, answer: str) -> str:
+    """The note for a change the answer claims and no write of this turn made, or ""."""
+    try:
+        return brain_claims.correction(answer, turn.writes)
+    except Exception:  # noqa: BLE001 -- the check never fails the turn
+        logger.warning("brain: claim check failed", exc_info=True)
+        return ""
 
 
 async def _pause(turn: _Turn, call: dict, reason: str):
@@ -1274,7 +1305,17 @@ async def _finish(turn: _Turn, text: str):
     answer = _shown_answer(turn, text)
     if not answer:
         answer = "Done." if turn.tool_calls else "(no answer)"
+        answer += _claims_note(turn, answer)
         yield _sse({"type": "final_response", "content": answer})
+    else:
+        # The answer streamed as it was written; a change it claims that no write of
+        # this turn made gets one note after it, shown and saved (claims.py).
+        note = _claims_note(turn, answer)
+        if note:
+            yield _sse({"delta": note})
+            answer += note
+            if turn.round_texts:
+                turn.round_texts[-1] = turn.round_texts[-1] + note
     yield _sse({"type": "metrics", "data": _metrics(turn)})
     saved = _save_answer(turn, answer)
     await _keep_exchange(turn, saved)

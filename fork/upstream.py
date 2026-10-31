@@ -165,6 +165,23 @@ def chat_active_streams() -> dict:
     return _active_streams
 
 
+def unquoted_statements(text: str) -> Any:
+    """``src.agent_evidence._unquoted_statements(text)``: ``(statement, scoped)`` pairs,
+    the scoped text with quotes and code blocks blanked (upstream's completion gate)."""
+    from src.agent_evidence import _unquoted_statements
+
+    return _unquoted_statements(text)
+
+
+def completion_claim_patterns() -> dict:
+    """The completion gate's claim patterns (``src.agent_runtime.completion``):
+    ``bare_success`` (``_BARE_SUCCESS``: a bare "Done."/"All set.") and ``non_report``
+    (``_NON_REPORT_SCOPE``: conditional, modal or attributed prose before a claim)."""
+    from src.agent_runtime.completion import _BARE_SUCCESS, _NON_REPORT_SCOPE
+
+    return {"bare_success": _BARE_SUCCESS, "non_report": _NON_REPORT_SCOPE}
+
+
 # name -> (upstream module, private attribute) for every function above that imports one
 PRIVATE_NAMES: dict[str, tuple[str, str]] = {
     "load_mcp_disabled_map": ("src.agent_loop", "_load_mcp_disabled_map"),
@@ -185,4 +202,7 @@ PRIVATE_NAMES: dict[str, tuple[str, str]] = {
     "resolve_task_timezone": ("src.task_scheduler", "_resolve_task_timezone"),
     "fetch_contacts": ("routes.contacts.contacts_routes", "_fetch_contacts"),
     "chat_active_streams": ("routes.chat_routes", "_active_streams"),
+    "unquoted_statements": ("src.agent_evidence", "_unquoted_statements"),
+    "completion_claim_patterns:bare": ("src.agent_runtime.completion", "_BARE_SUCCESS"),
+    "completion_claim_patterns:scope": ("src.agent_runtime.completion", "_NON_REPORT_SCOPE"),
 }
