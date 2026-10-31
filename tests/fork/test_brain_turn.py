@@ -882,3 +882,41 @@ async def test_a_model_error_mid_answer_closes_the_round_in_its_own_context(brai
     events = await brain.run(sess, "hello")
     assert any(e.get("type") == "raw" and "boom" in e.get("chunk", "") for e in events)
     assert brain_turn._THINKING_OFF.get() is False
+
+
+def _usage(inp, out, gen_tps=None):
+    data = {"input_tokens": inp, "output_tokens": out}
+    if gen_tps:
+        data["gen_tps"] = gen_tps
+    return f'data: {json.dumps({"type": "usage", "data": data})}\n\n'
+
+
+async def test_metrics_show_the_backend_speed_averaged_over_rounds(brain):
+    sess = brain.session()
+    brain.llm.rounds([calls((SEARCH, {"query": "budget"})), _usage(100, 20, gen_tps=40.0)],
+                     [text("Alice approved it."), _usage(150, 60, gen_tps=20.0)])
+    events = await brain.run(sess, "What did Alice say about the budget?")
+    data = of(events, "metrics")[-1]["data"]
+    # 80 tokens in 20/40 + 60/20 = 3.5 s of decode
+    assert data["tokens_per_second"] == round(80 / 3.5, 2)
+    assert data["tps_source"] == "backend"
+    assert data["usage_source"] == "real"
+    assert (data["input_tokens"], data["output_tokens"]) == (250, 80)
+
+
+async def test_metrics_fall_back_to_tokens_over_wall_time(brain):
+    sess = brain.session()
+    brain.llm.rounds([text("Hello there."), _usage(50, 10)])
+    events = await brain.run(sess, "hello")
+    data = of(events, "metrics")[-1]["data"]
+    assert data["tps_source"] == "computed" and data["tokens_per_second"] > 0
+    assert data["usage_source"] == "real"
+
+
+async def test_metrics_without_usage_say_estimated_and_have_no_speed(brain):
+    sess = brain.session()
+    brain.llm.rounds([text("Hello there.")])
+    events = await brain.run(sess, "hello")
+    data = of(events, "metrics")[-1]["data"]
+    assert data["usage_source"] == "estimated"
+    assert "tokens_per_second" not in data
