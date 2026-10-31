@@ -190,6 +190,22 @@ CHECKLIST_ARCHIVE_MINUTES = _setting(
     "Minutes a finished checklist waits before it is archived (default 10); 0, off, "
     "no, false or none: never.",
     used_in=("fork/hub/checklist_auto_archive.py",))
+# The brain (docs/fork/brain.md)
+BRAIN = _setting(
+    "FORK_BRAIN", "on", "on/off",
+    "The brain, the fork's own agent loop, answers every chat turn of every chat; off "
+    "(0, false, no, off) gives the turns back to upstream's agent.",
+    used_in=("fork/brain/settings.py",))
+BRAIN_MAX_ROUNDS = _setting(
+    "FORK_BRAIN_MAX_ROUNDS", "8", "integer 1-20",
+    "Tool rounds per brain turn before one last round without tools; clamped to 1-20.",
+    used_in=("fork/brain/settings.py",))
+BRAIN_TOOL_GROUPS = _setting(
+    "FORK_BRAIN_TOOL_GROUPS", "web,athena,workspace,beliefs,chats,email",
+    "comma-separated groups",
+    "Tool groups the brain offers (web, athena, workspace, beliefs, chats, email, "
+    "images); unknown names are ignored.",
+    used_in=("fork/brain/settings.py",))
 # Handwritten notes (docs/fork/handwritten-notes.md)
 INK_AUTO_SEND = _setting(
     "INK_AUTO_SEND", "", "on/off",
@@ -318,6 +334,19 @@ def personal_store_escalation() -> bool:
 def trusted_readonly_mcp() -> frozenset[str]:
     raw = TRUSTED_READONLY_MCP.value() or ""
     return frozenset(part.strip().casefold() for part in raw.split(",") if part.strip())
+
+
+def brain() -> bool:
+    return flag(BRAIN.value(), True)
+
+
+def brain_max_rounds() -> int:
+    return _int(BRAIN_MAX_ROUNDS, 1, 20)
+
+
+def brain_tool_groups() -> tuple[str, ...]:
+    raw = BRAIN_TOOL_GROUPS.value() or ""
+    return tuple(dict.fromkeys(p.strip().casefold() for p in raw.split(",") if p.strip()))
 
 
 CHECKLIST_ARCHIVE_DEFAULT = 10.0

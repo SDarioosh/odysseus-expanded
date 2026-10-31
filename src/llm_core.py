@@ -1221,6 +1221,9 @@ def _apply_local_qwen_thinking_mode(
     from fork.hub.private_endpoint_thinking import is_private_host
     if not (is_local_endpoint(url) or is_private_host(url)):
         return
+    # Fork: brain turns switch thinking off whatever the model's name (fork/brain/turn.py)
+    from fork.brain.turn import apply_brain_thinking
+    if apply_brain_thinking(payload): return
     if not (_supports_thinking(model) or _is_odysseus_qwen_tool_router_model(model)):
         return
     kwargs = payload.setdefault("chat_template_kwargs", {})

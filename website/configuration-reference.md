@@ -189,8 +189,8 @@ The source tree reads **151** `ODYSSEUS_*` variables: 93 an operator may want to
 
 | Variable | Default | Read in | What it does |
 |---|---|---|---|
-| `ODYSSEUS_API_TOKEN` | `''` | `integrations/claude/skills/odysseus/scripts/odysseus_api.py` (+1 more) | API token those scripts authenticate with. Both this and the URL are required; the scripts name whichever is missing. |
-| `ODYSSEUS_URL` | `''` | `integrations/claude/skills/odysseus/scripts/odysseus_api.py` (+1 more) | Base URL of the Odysseus instance the bundled integration scripts call. |
+| `ODYSSEUS_API_TOKEN` | `''` | `integrations/claude/skills/odysseus/scripts/odysseus_api.py` (+2 more) | API token those scripts authenticate with. Both this and the URL are required; the scripts name whichever is missing. |
+| `ODYSSEUS_URL` | `''` | `integrations/claude/skills/odysseus/scripts/odysseus_api.py` (+2 more) | Base URL of the Odysseus instance the bundled integration scripts call. |
 
 ## Internal and development-only variables
 
@@ -275,7 +275,7 @@ Listed for completeness. Setting one of these on a real install is either a no-o
 | `ODYSSEUS_TEST_STATIC_ORIGIN` | *unset* | `scripts/css_snapshot.py` (+3 more) | Origin an already-running static server is serving the repository from, so snapshot tooling reuses it instead of starting its own. |
 | `ODYSSEUS_TEST_STATIC_PORT` | *unset* | `tests/conftest.py` | Fixed port for the test suite's static server. Unset takes an ephemeral port, which is what keeps parallel runs from colliding. |
 | `ODYSSEUS_TINY_MODEL_PATH` | *unset* | `scripts/odysseus_related_flow_audit.py` | Path to a local compact model GGUF file used in Cookbook serve lifecycle audit flows. |
-| `ODYSSEUS_USER` | `'admin'` | `scripts/belief_eval.py` | Fork. The account `scripts/belief_eval.py --chat` signs in as; defaults to `admin`. |
+| `ODYSSEUS_USER` | `'admin'` | `scripts/belief_eval.py` (+1 more) | Fork. The account `scripts/belief_eval.py --chat` signs in as; defaults to `admin`. |
 
 ### Build and release metadata
 

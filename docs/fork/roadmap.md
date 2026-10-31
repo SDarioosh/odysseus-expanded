@@ -42,6 +42,11 @@ branches) are kept in [status-history.md](status-history.md).
 
 ## Next
 
+- **The brain** ([brain.md](brain.md)): a small fork-owned agent loop that answers chat
+  turns as a general personal assistant (web, Athena, workspace), streaming and with a
+  fixed tool set, on by default (`FORK_BRAIN=off` turns it off). Built; the
+  [SQLite memory plan](memory-sqlite.md) is on hold for it.
+
 - **Cleanup of the fork and Athena** ([cleanup-plan.md](cleanup-plan.md), full plan in
   Athena's `docs/cleanup-plan.md`): safety-net tests, bug fixes, a `fork/` package, one
   Athena client, shared helpers, fewer upstream hooks. Five phases in lanes for subagents

@@ -1,6 +1,8 @@
 # Memory on SQLite: implementation plan
 
-Status: plan only. No code changes yet. Owner decisions are listed at the end.
+Status: **on hold** (2026-10-31). Athena's facts will reach chat through the belief ledger
+(`search_beliefs`) instead of being copied into `memory.json`; see [brain.md](brain.md#memory-and-beliefs).
+The plan below is kept for reference. Owner decisions are listed at the end.
 
 ## Summary
 

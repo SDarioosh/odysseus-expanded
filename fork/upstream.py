@@ -77,6 +77,22 @@ def is_local_or_private_host(host: str) -> bool:
     return host in _LOCAL_HOSTS or _is_private_ip_literal(host) or _in_tailscale_range(host)
 
 
+def configured_endpoint_kind(url: str) -> Any:
+    """``src.model_context._configured_endpoint_kind(url)``: ``local``, ``api``, ``proxy``
+    (chosen, or guessed from an API key and a ``/v1`` path), ``auto`` or None."""
+    from src.model_context import _configured_endpoint_kind
+
+    return _configured_endpoint_kind(url)
+
+
+def normalize_endpoint_base(url: str) -> str:
+    """``src.model_context._normalize_base_for_compare(url)``: the base URL an endpoint
+    registration is matched by."""
+    from src.model_context import _normalize_base_for_compare
+
+    return _normalize_base_for_compare(url)
+
+
 def endpoint_enabled_models(endpoint: Any) -> Any:
     """``src.endpoint_resolver._endpoint_enabled_models(endpoint)``."""
     from src.endpoint_resolver import _endpoint_enabled_models
@@ -140,6 +156,15 @@ def fetch_contacts(*args: Any, **kwargs: Any) -> Any:
     return _fetch_contacts(*args, **kwargs)
 
 
+# ------------------------------------------------------------------------ the brain
+def chat_active_streams() -> dict:
+    """``routes.chat_routes._active_streams``: ``{session_id: stream record}`` of the chat
+    turns streaming now (background extraction waits while its chat is in it)."""
+    from routes.chat_routes import _active_streams
+
+    return _active_streams
+
+
 # name -> (upstream module, private attribute) for every function above that imports one
 PRIVATE_NAMES: dict[str, tuple[str, str]] = {
     "load_mcp_disabled_map": ("src.agent_loop", "_load_mcp_disabled_map"),
@@ -149,6 +174,8 @@ PRIVATE_NAMES: dict[str, tuple[str, str]] = {
     "is_local_or_private_host:hosts": ("src.model_context", "_LOCAL_HOSTS"),
     "is_local_or_private_host:ip": ("src.model_context", "_is_private_ip_literal"),
     "is_local_or_private_host:tailscale": ("src.model_context", "_in_tailscale_range"),
+    "configured_endpoint_kind": ("src.model_context", "_configured_endpoint_kind"),
+    "normalize_endpoint_base": ("src.model_context", "_normalize_base_for_compare"),
     "endpoint_enabled_models": ("src.endpoint_resolver", "_endpoint_enabled_models"),
     "resolve_model": ("src.ai_interaction", "_resolve_model"),
     "memory_vector": ("src.ai_interaction", "_memory_vector"),
@@ -157,4 +184,5 @@ PRIVATE_NAMES: dict[str, tuple[str, str]] = {
     "checkin_calendar_events": ("src.task_scheduler", "_checkin_calendar_events"),
     "resolve_task_timezone": ("src.task_scheduler", "_resolve_task_timezone"),
     "fetch_contacts": ("routes.contacts.contacts_routes", "_fetch_contacts"),
+    "chat_active_streams": ("routes.chat_routes", "_active_streams"),
 }

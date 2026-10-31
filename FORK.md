@@ -148,6 +148,12 @@ the link goes to its details (what it does, its files, whether it can go upstrea
 - [Centered chat title in Nobody mode](docs/fork/features/chat-ui.md#centered-chat-title-in-nobody-mode): the chat title no longer shifts when the Nobody eye appears.
 - [A run that ended while the page was away shows its answer](docs/fork/features/chat-ui.md#a-run-that-ended-while-the-page-was-away-shows-its-answer): the chat reloads a run that ended while the page was away.
 
+### The brain (chat agent loop)
+
+- [The brain](docs/fork/brain.md): by default (`FORK_BRAIN=off` turns it off), a small fork-owned agent loop answers chat turns as a general assistant: a stable prompt, a fixed tool set (web, Athena, calendar, notes, contacts, memory, beliefs, chats, email), answers streamed as written, tool calls through upstream's runner and approvals, follow-ups that keep tool results (`data/brain.db`). On by default.
+- [Web query guard](docs/fork/brain.md#web-search): the brain's web searches leave out the owner's contact names, upcoming event titles, emails, phone numbers and street addresses.
+- [General eval](docs/fork/brain.md#evaluation): `scripts/brain_eval.py` with a fake SearXNG of fictional pages (`scripts/brain_fake_searxng.py`): knowledge, web, mixed, follow-up and privacy questions, with time to first text.
+
 ### Logs and tests
 
 - [Test isolation: a fresh `core.middleware` no longer leaks](docs/fork/features/logs-and-tests.md#test-isolation-a-fresh-coremiddleware-no-longer-leaks): an upstream test no longer leaves a fresh `core.middleware` in `sys.modules`.
@@ -183,6 +189,7 @@ to be offered) upstream, "with discussion" a change upstream may want in another
 | `routes/calendar_routes.py` | `delete_event`, whole event | `fork/athena/meeting_auto_join.py` | same | no |
 | `routes/calendar_routes.py` | `quick_parse`, the model call | none | `thinking_mode="off"`, 1024 tokens, 30 s, so a thinking model returns JSON | yes |
 | `routes/chat_routes.py` | chat handler, form fields | `fork/routing/auto_mode.py` | remember the chat's Auto/Ask choice | no |
+| `routes/chat_routes.py` | `chat_stream`, after the session, privileges and approval are resolved | `fork/brain/turn.py` (`brain_response`; passes the outside-content flag and `no_memory`) | the brain answers the turn when `FORK_BRAIN` is on; also starts its lazy `brain.db` sweep | no |
 | `routes/chat_routes.py` | after `_classify_tool_intent` | `fork/routing/turn_policy.py` (`scope_tool_intent`: `fork/routing/chat_mode_scope.py`) | how/why questions stay in chat mode | yes |
 | `routes/chat_routes.py` | after upstream's chat→agent escalation | `fork/routing/turn_policy.py` (`escalate_chat_mode`: a slash skill, `fork/routing/skill_invocation.py`; else a module question, `fork/routing/module_turn_scope.py`; else a store lookup, `fork/routing/personal_store_escalation.py`) | slash skills with tools, module questions and store lookups run in agent mode | yes |
 | `routes/chat_routes.py` | after the request authority and the exact-approval authority | `fork/routing/turn_policy.py` (`extend_authority`: `web_search` with the web toggle on, `fork/routing/web_turn_scope.py`; read actions of the personal stores, `fork/routing/personal_read_grants.py`; calculator in Auto, `fork/routing/auto_mode.py`; on an approval continuation only the approved trusted-module tool, `fork/mcp/trust.py`) | grants that need no exact wording | yes, with discussion (calculator: no) |
@@ -216,6 +223,7 @@ to be offered) upstream, "with discussion" a change upstream may want in another
 | `src/chat_processor.py` | `ChatProcessor.build_context_preface`, memory context | `fork/insight/today.py` | Today and beliefs block on plan questions | no |
 | `src/document_processor.py` | `_resolve_vl_model` | `fork/hub/vision_auto_detect.py` | auto-detect the owner's vision models | yes |
 | `src/llm_core.py` | `_apply_local_qwen_thinking_mode` | `fork/hub/private_endpoint_thinking.py` | a private host counts as local | yes |
+| `src/llm_core.py` | `_apply_local_qwen_thinking_mode`, after the local check | `fork/brain/turn.py` (`apply_brain_thinking`) | brain turns switch thinking off whatever the model's name | no |
 | `src/mcp_manager.py` | `connect_server`, stdio | `fork/mcp/stdio_owner.py` | own the stdio transport in a long-lived task | yes |
 | `src/mcp_manager.py` | `_connect_http` | none | keep tool annotations | yes |
 | `src/mcp_manager.py` | `hold_owned_connection` | `fork/mcp/stdio_owner.py` | stdio connections already have an owner task | yes |
@@ -273,7 +281,8 @@ The fork's Python code lives in the `fork/` package, apart from upstream's `src/
 granted; `turn_policy.py` is what the chat route's hooks call), `fork/athena/` (the
 Athena module in the hub, its routes included; `fork/athena/client.py` is the one way the
 fork calls Athena, MCP tools and HTTP routes alike),
-`fork/beliefs/`, `fork/insight/`, `fork/ink/`, `fork/hub/` (fixes to upstream's own
+`fork/beliefs/`, `fork/insight/`, `fork/ink/`, `fork/brain/` (the brain, a chat agent loop of the fork's own;
+[docs/fork/brain.md](docs/fork/brain.md)), `fork/hub/` (fixes to upstream's own
 features), `fork/routes/` (the other route files; `fork.routes.mount` includes all the
 fork's routers) and `fork/common/` (shared helpers). `fork/tasks.py` is the table of the
 fork's scheduled tasks; `fork/upstream.py` is the one place that reads upstream's private

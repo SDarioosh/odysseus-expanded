@@ -1,0 +1,61 @@
+{
+  "_about": "Fork: the fictional web of the brain eval (scripts/brain_fake_searxng.py, scripts/brain_eval.py). Every place, shop, product and event here is made up, so a model can only know it by searching. A query matches an entry when it contains one of the entry's terms; entries are ranked by matched terms, then topics, then their order here. Placeholders: {{date+N}} (Sunday 1 November 2026), {{iso+N}} (2026-11-01), {{weekday+N}} (Sunday), {{year}}, counted in days from the server's today.",
+  "entries": [
+    {
+      "slug": "velmora-weather",
+      "title": "Velmora weather forecast: hourly and 3-day outlook | Velmora Skywatch",
+      "snippet": "Velmora, {{date+1}}: rain from 1 pm to 6 pm, heaviest around 3 pm (90% chance, 8 mm), 14 °C, wind 25 km/h from the west. {{date+2}}: sunny, 19 °C, no rain. {{date+3}}: cloudy, 16 °C.",
+      "terms": ["velmora"],
+      "topics": ["weather", "forecast", "rain", "temperature", "sunny", "umbrella", "tomorrow"],
+      "published": "{{iso+0}}"
+    },
+    {
+      "slug": "marrowbys-bicycle-workshop",
+      "title": "Marrowby's Bicycle Workshop, Velmora: repairs, opening hours",
+      "snippet": "Marrowby's Bicycle Workshop, 4 Tannery Lane, Velmora. Opening hours: Monday to Friday 08:30 to 17:30, Saturday 10:00 to 14:00, closed on Sundays. Brake and gear repairs while you wait.",
+      "terms": ["marrowby", "velmora"],
+      "topics": ["bike", "bicycle", "cycle", "repair", "shop", "workshop", "opening", "hours", "open", "brake"],
+      "published": "2026-03-02"
+    },
+    {
+      "slug": "spokewright-cycles",
+      "title": "Spokewright Cycles Velmora: bike repair and rental, open Sundays",
+      "snippet": "Spokewright Cycles, 19 Quayside Row, Velmora. Bike repair, tune-ups and rentals. Open every day; Sunday 11:00 to 16:00. Weekdays 09:00 to 18:00.",
+      "terms": ["spokewright", "velmora"],
+      "topics": ["bike", "bicycle", "cycle", "repair", "shop", "rental", "sunday", "open", "hours"],
+      "published": "2026-05-14"
+    },
+    {
+      "slug": "quillfeather-7-3",
+      "title": "Quillfeather 7.3 released: offline handwriting sync | Brindlewood Labs",
+      "snippet": "Brindlewood Labs released Quillfeather 7.3, the latest version of its note-taking app, on 20 October 2026. New: offline handwriting sync and a lasso-to-text tool. Quillfeather Pro costs 29 euros a year; the basic app stays free.",
+      "terms": ["quillfeather", "brindlewood"],
+      "topics": ["release", "version", "latest", "new", "update", "price", "cost", "app", "note"],
+      "published": "2026-10-20"
+    },
+    {
+      "slug": "lanternfall-festival",
+      "title": "Lanternfall Festival {{year}} in Velmora: date, venue, line-up",
+      "snippet": "The Lanternfall Festival returns to Harbour Square, Velmora, on {{date+7}} from 18:00. Headliner: The Copper Wrens. Lantern parade at 20:30. Free entry.",
+      "terms": ["lanternfall", "velmora"],
+      "topics": ["festival", "event", "events", "concert", "things to do", "what's on", "evening", "lantern", "headliner", "fun"],
+      "published": "{{iso-3}}"
+    },
+    {
+      "slug": "tamsk-ferry",
+      "title": "Velmora to Isle of Tamsk ferry: timetable and fares | Tamsk Ferry Co.",
+      "snippet": "Ferries from Velmora harbour to the Isle of Tamsk leave daily at 07:15, 11:40 and 16:05 (crossing 55 minutes). Adult single ticket 12.50 euros, bicycles free.",
+      "terms": ["tamsk", "velmora"],
+      "topics": ["ferry", "boat", "timetable", "departure", "departures", "ticket", "fare", "price", "crossing", "trip"],
+      "published": "2026-09-01"
+    }
+  ],
+  "no_results": [
+    {
+      "slug": "no-results",
+      "title": "No relevant results",
+      "snippet": "The eval web has no page about this query. Try naming the place, shop, product or event.",
+      "published": "2026-01-01"
+    }
+  ]
+}

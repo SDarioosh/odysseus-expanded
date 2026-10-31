@@ -213,3 +213,17 @@ async def test_another_owner_is_untouched(data):
     await bf.forget("alice", belief_id("Keeps bees on the roof terrace"), call=Module())
     assert belief_id("Keeps bees on the roof terrace", "bob")
     assert any(m["owner"] == "bob" and "bees" in m["text"] for m in memory().load_all())
+
+
+async def test_forget_drops_the_brains_stored_exchanges_that_quote_it(data):
+    # Fork: the brain's tool exchanges (fork/brain/history.py) are erased with the belief
+    from fork.brain import history
+
+    history.save_turn("chat-1", "m1", [{"role": "tool", "tool_call_id": "c1",
+                                        "content": "Facts: Keeps bees on the roof terrace."}],
+                      owner="alice")
+    history.save_turn("chat-1", "m2", [{"role": "tool", "tool_call_id": "c2",
+                                        "content": "Facts: Plays the cello every Sunday."}],
+                      owner="alice")
+    await bf.forget("alice", belief_id("Keeps bees on the roof terrace"), call=Module())
+    assert set(history.turns("chat-1")) == {"m2"}

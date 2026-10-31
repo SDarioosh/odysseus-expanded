@@ -16,6 +16,9 @@ When the owner forgets a belief on ``/beliefs`` it is erased, not only rejected.
    their vectors, and stored Today insights drop the items that point at the belief and
    any reason or headline that quotes it.
 
+The brain's stored tool exchanges (``data/brain.db``) that contain its words or the
+line it was said on are dropped too (``fork/brain/history.py``, :func:`forget_texts`).
+
 Not touched: the owner's chats (they may quote it) and sources the owner writes
 (notes): the answer lists where the words still are (``remaining``) so the owner can
 edit them. Erasing can't be undone; an erased belief can't be restored.
@@ -191,6 +194,12 @@ async def forget(owner: str | None, belief_id: int, reason: str = "", *,
         insights = scrub_insights(owner, belief_id, result["texts"])
     except OSError as e:
         logger.error("belief %s erased; Today insights not checked: %s", belief_id, e)
+    try:  # the brain's stored tool exchanges that quoted it (fork/brain/history.py)
+        from fork.brain.history import forget_texts
+
+        forget_texts(owner, [*result["texts"], *(q for q in quotes if q)])
+    except Exception as e:  # noqa: BLE001 -- the forget stands; rows also expire in 30 days
+        logger.error("belief %s erased; the brain's history not checked: %s", belief_id, e)
     counts = {k: 0 for k in ("erased", "retired", "failed", "unsupported")}
     for state in outcomes.values():
         counts[state] += 1
