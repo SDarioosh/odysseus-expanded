@@ -327,8 +327,9 @@ test that failed before the fix:
   run is armed when any replayed exchange or the route's `external_untrusted_context_seen`
   is. So an injected web page or email can't steer the next turn.
 - **`web_fetch` never runs unasked for a URL the model made up.** It runs without asking
-  only for a URL the owner typed in this message or a search hit of this chat; any other
-  URL asks, also after "allow for this task".
+  only for a URL the owner typed in this message or a search hit of this chat, exactly;
+  any other URL asks, also after "allow for this task" (since the bug hunt below, also
+  another page on a hit's site).
 - **Approved writes run.** Approvals are filed armed (upstream's runner refuses an exact
   approval on an unarmed run); a test runs a real approved note through
   `execute_tool_block`.
@@ -362,6 +363,39 @@ test that failed before the fix:
 The `chat_stream` hook now also passes `external_untrusted_context_seen` and `no_memory`
 and widens `upstream_turn`; `fork/upstream.py` gains `configured_endpoint_kind` and
 `normalize_endpoint_base`.
+
+### After the bug hunt (2026-10-31)
+
+A second adversarial pass (`tests/fork/test_brain_hardening.py`) found and fixed:
+
+- **Made-up pages on a search hit's site.** `web_fetch` ran unasked for any short path on
+  a hit's site (`fork/routing/web_turn_scope.py`'s rule), so an injected page could have
+  the model fetch `https://its-site/<private data>`. The brain now fetches unasked only
+  the exact hit (`www.` and a trailing `/` aside); upstream's agent keeps its rule.
+- **Query guard gaps.** Names, titles and addresses now match without accents ("Jose
+  Garcia" for "José García", "Mueller" for "Müller") and with joined words (`Wren_Hale`,
+  `WrenHale`); an event title also goes when all its words of three letters or more are
+  in the query, reworded; the contacts' own phone numbers go however written (same last
+  seven digits), and their street addresses in any case and either order; two-letter
+  names ("Mo") go unless a common word or abbreviation; "Elm Street 12" is an address.
+  Spelled-out emails ("jane at example dot com") are not caught.
+- **Host names of the owner's own servers.** `is_local` accepted only IP addresses,
+  `localhost` and `host.docker.internal`, so a model server at a Docker service name, a
+  `.local`, `.lan` or `.internal` name, a Tailscale `*.ts.net` name or a private IPv6
+  address answered every turn with "runs only on local models". Those count as local now
+  (`turn.own_host`); public hosts and endpoints set to `api` or `proxy` are still refused.
+- **The final round.** Tool calls a server returns in the round without tools are
+  dropped, so the round limit holds.
+- **Broken tool calls.** A tool call the model writes as text that can't be read (bad
+  JSON, a tool not offered) is never shown; the model gets one more round with a note
+  (`BROKEN_CALL_NOTE`, counted against `FORK_BRAIN_MAX_ROUNDS`).
+- **Forget** matches the decoded text of stored exchanges, so a fact split by a line
+  break is found.
+- **Demoted admins** lose the MCP tools of their chat's kept tool set at the next turn.
+
+Left as it is: memories and beliefs recalled into the context message don't arm the
+approval gate (a `search_beliefs` call does). Arming there would ask before private reads
+on most personal questions in Ask mode, and every write and unknown fetch asks anyway.
 
 ## Sandbox results (2026-10-31)
 

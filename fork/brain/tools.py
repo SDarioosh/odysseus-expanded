@@ -18,8 +18,8 @@ What the brain adds is which calls run without asking and which ask:
   rule, ``fork/mcp/trust.py``).
 - **Fetches of known pages only:** ``web_fetch`` has no standing grant. A fetch runs
   without asking only when every URL is one the owner typed in this message, or a ranked
-  web-search hit of this chat (``fork/routing/web_turn_scope.py``'s rule, also for the
-  hits of earlier turns, kept in ``history.py``); it then gets a grant for that one exact
+  web-search hit of this chat, exactly (also the hits of earlier turns, kept in
+  ``history.py``; not other pages on a hit's site); it then gets a grant for that one exact
   call (:func:`_with_fetch_grant`). Any other URL asks, since a URL the model makes up
   can carry data out.
 - **Writes ask:** a write never runs on the model's word. :func:`needs_approval` says so
@@ -216,22 +216,25 @@ FETCH_ASKS = ("This opens a web address that is neither in your message nor a se
 
 def fetch_known(run: ToolRun, content: Any) -> bool:
     """True when every URL of this ``web_fetch`` is one the owner typed in this message
-    (``www.`` and a trailing ``/`` aside) or a ranked web-search hit of this chat (or a
-    short clean page on a hit's site: ``fork/routing/web_turn_scope.py``'s rule)."""
-    from fork.routing.auto_mode import _loose, fetch_urls, normalize_url
-    from fork.routing.web_turn_scope import _search_hit
+    or a ranked web-search hit of this chat, exactly (``www.`` and a trailing ``/``
+    aside). Not another page on a hit's site (``fork/routing/web_turn_scope.py`` allows
+    that for upstream's agent): its path is made up by the model, and a page the search
+    found could have asked for one that carries private data out."""
+    from fork.routing.auto_mode import _host, _loose, _state, fetch_urls, normalize_url, public_host
 
     urls = fetch_urls(content)
     if not urls:
         return False
     own = {_loose(u) for u in run.owner_urls}
+    hits = {_loose(u) for u in (_state(run.security).get("search") or ())}
     for url in urls:
         normalized = normalize_url(url)
         if normalized is None:
             return False
-        if _loose(normalized) in own:
+        loose = _loose(normalized)
+        if loose in own:
             continue
-        if not _search_hit(run.security, normalized):
+        if not (public_host(_host(normalized)) and loose in hits):
             return False
     return True
 

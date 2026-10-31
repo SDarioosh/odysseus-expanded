@@ -189,6 +189,34 @@ def _plain(text: str) -> str:
     return " ".join(re.sub(r"[^\w ]+", " ", str(text or "").lower()).split())
 
 
+def _exchange_text(raw: str) -> str:
+    """The words of a stored exchange: its messages' texts and tool-call arguments,
+    decoded (in the stored JSON a line break is ``\\n``, which would glue an ``n`` onto
+    the next word and hide a fact split across lines)."""
+    try:
+        messages = json.loads(raw or "[]")
+    except ValueError:
+        return str(raw or "")
+    parts: list[str] = []
+
+    def add(value) -> None:
+        if isinstance(value, str):
+            parts.append(value)
+        elif isinstance(value, list):
+            for item in value:
+                add(item.get("text") if isinstance(item, dict) else item)
+
+    for m in messages if isinstance(messages, list) else [messages]:
+        if not isinstance(m, dict):
+            add(m)
+            continue
+        add(m.get("content"))
+        for call in m.get("tool_calls") or ():
+            if isinstance(call, dict):
+                add((call.get("function") or {}).get("arguments"))
+    return "\n".join(parts)
+
+
 def forget_texts(owner: str | None, texts: Iterable[str]) -> int:
     """Drop this owner's stored exchanges, and the summaries of their chats, whose
     words contain one of ``texts`` (a forgotten fact, the line it was said on). Texts
@@ -202,7 +230,7 @@ def forget_texts(owner: str | None, texts: Iterable[str]) -> int:
         rows = db.execute("SELECT session_id, message_id, messages FROM turns WHERE owner = ?",
                           (owner,)).fetchall()
         hit = [(r["session_id"], r["message_id"]) for r in rows
-               if any(w in _plain(r["messages"]) for w in wanted)]
+               if any(w in _plain(_exchange_text(r["messages"])) for w in wanted)]
         for session_id, message_id in hit:
             db.execute("DELETE FROM turns WHERE session_id = ? AND message_id = ?",
                        (session_id, message_id))
