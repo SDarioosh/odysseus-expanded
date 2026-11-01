@@ -37,3 +37,11 @@ Upstreamable: yes
 Files: `static/js/forkResumeFallback.js` (new); hook in `static/js/chat.js` (`_tryAutoRecover`); test `tests/fork/test_fork_resume_fallback.py` (new)
 
 Upstreamable: yes
+
+## An agent answer reads as one flow
+
+**An agent answer reads as one flow.** When the model writes some text, calls a tool and then answers, the chat shows that text, the tool step, and a new bubble below it. But the final answer the server sends and saves is the text of every round joined, and the page drew it into the last bubble, so the text before the tool call showed a second time under the tool step (for example the list of moon phases, then the search, then the same list again with today's phase). Now the last bubble leaves out what the earlier rounds already showed, live and after a reload. A final answer that doesn't start with the earlier rounds' text (a summary written from scratch, or a turn the server replaces whole) is shown as it is. The saved message is unchanged.
+
+Files: `static/js/forkRoundFlow.js` (new); hooks in `static/js/chat.js` (import, round tracking, `agent_step`, `final_response`, `_replaceLiveTurnWithSavedAssistantMessage`) and `static/js/chatRenderer.js` (import, `addMessage`); test `tests/fork/test_fork_round_flow.py` (new)
+
+Upstreamable: yes

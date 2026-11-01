@@ -38,6 +38,8 @@ import {
 import { createTerminalStreamError, isRecoverableStreamError } from './chatStreamErrors.js';
 import { loadPanel } from './panels.js?v=20260909movepicklayer1';
 import { invalidateSettings } from './appConfig.js';
+// Fork: the final answer leaves out the rounds already shown (static/js/forkRoundFlow.js)
+import { withoutShownRounds } from './forkRoundFlow.js';
 
   const RESEARCH_TIMEOUT_MS = 360000;
   const DEFAULT_TIMEOUT_MS = 120000;
@@ -2913,6 +2915,7 @@ import { invalidateSettings } from './appConfig.js';
       // Multi-bubble agent tracking
       let roundHolder = holder;       // Current AI text bubble (changes per round)
       let roundText = '';             // Text accumulated for current round
+      const _forkShownRounds = [];    // Fork: text of earlier rounds (static/js/forkRoundFlow.js)
       let roundReplyText = null;      // Reply-only text after a thinking transition
       let currentToolBubble = null;   // Current tool execution bubble
       let lastToolThread = null;      // Visible tool timeline for tool-only turns
@@ -3021,7 +3024,8 @@ import { invalidateSettings } from './appConfig.js';
           }
           if (!saved || !String(saved.content || '').trim()) return false;
           const scrollSnapshot = uiModule.captureHistoryScroll?.();
-          const rendered = _renderTerminalAnswer(saved.content, _savedAssistantMessageId, saved.metadata?.render_owner, saved.metadata?.replacement_scope);
+          // Fork: leave out the rounds already shown (static/js/forkRoundFlow.js)
+          const rendered = _renderTerminalAnswer(withoutShownRounds(saved.content, saved.metadata?.replacement_scope === 'turn' ? [] : _forkShownRounds), _savedAssistantMessageId, saved.metadata?.render_owner, saved.metadata?.replacement_scope);
           uiModule.restoreHistoryScroll?.(scrollSnapshot);
           if (rendered) _streamTurnMarker.remove();
           return rendered;
@@ -4056,7 +4060,8 @@ import { invalidateSettings } from './appConfig.js';
                 try {
                   window.dispatchEvent(new CustomEvent('odysseus:agent-final-response', { detail: json }));
                 } catch (_) {}
-                const finalText = String(json.content || json.delta || '');
+                // Fork: leave out the rounds already shown (static/js/forkRoundFlow.js)
+                const finalText = withoutShownRounds(String(json.content || json.delta || ''), json.replacement_scope === 'turn' ? [] : _forkShownRounds);
                 if (!finalText.trim()) continue;
                 if (!_isDirectEmailListingPrompt(msg) && _isIntermediateEmailListDump(finalText)) {
                   console.debug('[chat] suppressed intermediate email list final_response for non-list prompt');
@@ -5122,6 +5127,7 @@ import { invalidateSettings } from './appConfig.js';
                   _cancelLiveThinkingWork();
                 }
                 _finalizeRoundRender();
+                _forkShownRounds.push(roundText); // Fork: static/js/forkRoundFlow.js
                 // Mark thread as connected to bubble below
                 const _activeThread = document.querySelector('.agent-thread.streaming');
                 if (_activeThread) {

@@ -148,6 +148,7 @@ the link goes to its details (what it does, its files, whether it can go upstrea
 - [Open an event or note from a link](docs/fork/features/chat-ui.md#open-an-event-or-note-from-a-link): `/#event-<uid>` and `/#open=notes&note=<id>` open on a fresh page load.
 - [Centered chat title in Nobody mode](docs/fork/features/chat-ui.md#centered-chat-title-in-nobody-mode): the chat title no longer shifts when the Nobody eye appears.
 - [A run that ended while the page was away shows its answer](docs/fork/features/chat-ui.md#a-run-that-ended-while-the-page-was-away-shows-its-answer): the chat reloads a run that ended while the page was away.
+- [An agent answer reads as one flow](docs/fork/features/chat-ui.md#an-agent-answer-reads-as-one-flow): text, tool step, then only the new part of the answer; the text before the tool call no longer shows twice.
 
 ### The brain (chat agent loop)
 
@@ -260,6 +261,9 @@ to be offered) upstream, "with discussion" a change upstream may want in another
 | `static/js/admin.js` | `_TOKEN_SCOPES` | `fork/athena/urls.py` | `athena:*` in the token scope list, and `sound:*` marked "(old name)" | no |
 | `static/js/calendar.js` | `_showEventForm` | `static/js/forkMeetingAutoJoin.js` | Send Athena toggle (lazy import) | no |
 | `static/js/chat.js` | `_tryAutoRecover` | `static/js/forkResumeFallback.js` | reload a run that ended while away | yes |
+| `static/js/chat.js` | imports, round tracking, `agent_step` | `static/js/forkRoundFlow.js` | remember the text of each finished round | yes |
+| `static/js/chat.js` | `final_response`, `_replaceLiveTurnWithSavedAssistantMessage` | `static/js/forkRoundFlow.js` | the final answer leaves out the rounds already shown | yes |
+| `static/js/chatRenderer.js` | imports, `addMessage` round rebuild | `static/js/forkRoundFlow.js` | the same on history reload | yes |
 | `static/js/keyboard-shortcuts.js` | imports | `static/js/forkModuleShortcuts.js` | import the fork's shortcut tables | no |
 | `static/js/keyboard-shortcuts.js` | `_defaultKeybinds` | `static/js/forkModuleShortcuts.js` | Open Records / Today / … (unbound) | no |
 | `static/js/keyboard-shortcuts.js` | `initKeyboardShortcuts`, window triggers | `static/js/forkModuleShortcuts.js` | "Toggle Window" includes the module windows | no |

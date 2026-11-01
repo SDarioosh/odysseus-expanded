@@ -282,6 +282,7 @@ is an old path of a module that moved into `fork/`; it only aliases the new modu
 - `static/js/forkPageTheme.js`
 - `static/js/forkPhonePairing.js`
 - `static/js/forkResumeFallback.js`
+- `static/js/forkRoundFlow.js`
 - `static/js/forkShareRecord.js`
 - `static/js/forkVoiceEnroll.js`
 - `static/js/forkWhisperVocabulary.js`
@@ -391,6 +392,7 @@ is an old path of a module that moved into `fork/`; it only aliases the new modu
 - `tests/fork/test_fork_override_env.py`
 - `tests/fork/test_fork_package_shims.py`
 - `tests/fork/test_fork_resume_fallback.py`
+- `tests/fork/test_fork_round_flow.py`
 - `tests/fork/test_fork_routes_mount.py`
 - `tests/fork/test_fork_settings.py`
 - `tests/fork/test_fork_task_registry.py`
