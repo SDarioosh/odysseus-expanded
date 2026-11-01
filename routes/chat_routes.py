@@ -214,6 +214,8 @@ class _AgentRenderState:
                 self.owner = "streamed"
                 event["replacement_scope"] = "turn"
             self.content += event["delta"]
+            from fork.hub.round_flow import note_delta  # Fork: each round's text (fork/hub/round_flow.py)
+            note_delta(self, event)
         if "delta" in event or event.get("type") == "final_response":
             event["render_owner"] = self.owner
         return event
@@ -223,7 +225,8 @@ class _AgentRenderState:
         result["render_owner"] = self.owner
         if self.replaced_turn:
             result["replacement_scope"] = "turn"
-        return result
+        from fork.hub.round_flow import round_texts  # Fork: save the text each round showed (fork/hub/round_flow.py)
+        return round_texts(self, result)
 
     def message_saved(self, message_id):
         return self.metadata({"type": "message_saved", "id": message_id})

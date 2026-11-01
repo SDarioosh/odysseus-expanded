@@ -71,11 +71,94 @@ def test_never_leaves_the_bubble_empty():
     assert _strip(_ROUND_1, [_ROUND_1]) == _ROUND_1
 
 
+def _flow(steps):
+    """Run createRoundFlow over `steps` with a stub DOM and markdown."""
+    js = f"""
+    import {{ createRoundFlow }} from {json.dumps(_MODULE)};
+    const bubble = (name) => {{
+      const body = {{ innerHTML: '' }};
+      return {{ name, style: {{ display: '' }}, isConnected: true, querySelector: () => body, body }};
+    }};
+    const markdown = {{ normalizeThinkingMarkup: (t) => t, squashOutsideCode: (t) => t, processWithThinking: (t) => t }};
+    const flow = createRoundFlow({{ markdown, displayText: (t) => t }});
+    const bubbles = {{}};
+    const out = [];
+    for (const [kind, a, b] of {json.dumps(steps)}) {{
+      if (kind === 'end') {{ bubbles[a] = bubbles[a] || bubble(a); flow.endRound(bubbles[a], b.text, b.next); }}
+      if (kind === 'delta') out.push(flow.place({{ delta: a, round: b }}));
+      if (kind === 'reset') flow.reset();
+    }}
+    const shown = Object.fromEntries(Object.entries(bubbles).map(([k, v]) => [k, [v.body.innerHTML, v.style.display]]));
+    process.stdout.write(JSON.stringify({{ placed: out, shown, rounds: flow.shown() }}));
+    """
+    out = subprocess.run(["node", "--input-type=module", "-e", js], capture_output=True, text=True, check=True, timeout=30)
+    return json.loads(out.stdout)
+
+
+def test_late_text_goes_back_to_its_round():
+    # The completion gate releases round 1's text after round 2 started.
+    r = _flow([
+        ["end", "bubble1", {"text": "", "next": 2}],
+        ["delta", "The moon has eight phases. ", 1],
+        ["delta", "Let me check today.", 1],
+        ["delta", "Today it is a Waning Gibbous.", 2],
+    ])
+    assert r["placed"] == [True, True, False]  # round 2's text stays in the current bubble
+    assert r["shown"]["bubble1"] == ["The moon has eight phases. Let me check today.", ""]
+    assert r["rounds"] == ["The moon has eight phases. Let me check today."]
+
+
+def test_two_tool_calls_with_text_each():
+    r = _flow([
+        ["end", "bubble1", {"text": "", "next": 2}],
+        ["end", "bubble2", {"text": "", "next": 3}],
+        ["delta", "First I'll look it up.", 1],
+        ["delta", "Now let me check the time.", 2],
+        ["delta", "Pasta needs 14 minutes.", 3],
+    ])
+    assert r["placed"] == [True, True, False]
+    assert r["shown"]["bubble1"][0] == "First I'll look it up."
+    assert r["shown"]["bubble2"][0] == "Now let me check the time."
+    assert r["rounds"] == ["First I'll look it up.", "Now let me check the time."]
+
+
+def test_text_already_streamed_live_is_kept():
+    r = _flow([
+        ["end", "bubble1", {"text": "Let me check", "next": 2}],
+        ["delta", " today.", 1],
+    ])
+    assert r["shown"]["bubble1"][0] == "Let me check today."
+
+
+def test_an_empty_round_stays_hidden_and_unknown_rounds_are_not_placed():
+    r = _flow([
+        ["end", "bubble1", {"text": "", "next": 2}],
+        ["delta", "", 1],
+        ["delta", "no such round", 0],
+        ["delta", "no round", None],
+    ])
+    assert r["placed"] == [True, False, False]
+    assert r["shown"]["bubble1"] == ["", "none"]
+
+
+def test_a_teacher_takeover_starts_its_own_rounds():
+    r = _flow([
+        ["end", "bubble1", {"text": "Student text.", "next": 2}],
+        ["reset"],
+        ["delta", "Teacher text.", 1],
+    ])
+    assert r["placed"] == [False]
+    assert r["rounds"] == []
+
+
 def test_hooks_are_in_place():
     chat = (_REPO / "static" / "js" / "chat.js").read_text()
     renderer = (_REPO / "static" / "js" / "chatRenderer.js").read_text()
-    assert "import { withoutShownRounds } from './forkRoundFlow.js';" in chat
-    assert "_forkShownRounds.push(roundText);" in chat
+    assert "import { withoutShownRounds, createRoundFlow } from './forkRoundFlow.js';" in chat
+    assert "_forkRounds.endRound(roundHolder, roundText, json.round);" in chat
+    assert "_forkRounds.place(json)" in chat
+    assert "_forkRounds.reset();" in chat
     assert chat.count("withoutShownRounds(") == 2
+    assert chat.count("_forkRounds.shown()") == 2
     assert "import { withoutShownRounds } from './forkRoundFlow.js';" in renderer
     assert "withoutShownRounds(textRaw, roundTexts.slice(0, lastTextIdx))" in renderer

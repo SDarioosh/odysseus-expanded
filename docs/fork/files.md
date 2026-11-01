@@ -129,6 +129,7 @@ is an old path of a module that moved into `fork/`; it only aliases the new modu
 - `fork/hub/codex_todos_json.py`
 - `fork/hub/log_redact.py`
 - `fork/hub/private_endpoint_thinking.py`
+- `fork/hub/round_flow.py`
 - `fork/hub/vision_auto_detect.py`
 - `fork/ink/__init__.py`
 - `fork/ink/athena.py`
@@ -444,6 +445,7 @@ is an old path of a module that moved into `fork/`; it only aliases the new modu
 - `tests/fork/test_personal_store_escalation.py`
 - `tests/fork/test_private_endpoint_thinking.py`
 - `tests/fork/test_record_share.py`
+- `tests/fork/test_round_flow_saved.py`
 - `tests/fork/test_settings_readers.py`
 - `tests/fork/test_skill_mcp_toolsets.py`
 - `tests/fork/test_sound_module_view.py`

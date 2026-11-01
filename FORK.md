@@ -148,7 +148,7 @@ the link goes to its details (what it does, its files, whether it can go upstrea
 - [Open an event or note from a link](docs/fork/features/chat-ui.md#open-an-event-or-note-from-a-link): `/#event-<uid>` and `/#open=notes&note=<id>` open on a fresh page load.
 - [Centered chat title in Nobody mode](docs/fork/features/chat-ui.md#centered-chat-title-in-nobody-mode): the chat title no longer shifts when the Nobody eye appears.
 - [A run that ended while the page was away shows its answer](docs/fork/features/chat-ui.md#a-run-that-ended-while-the-page-was-away-shows-its-answer): the chat reloads a run that ended while the page was away.
-- [An agent answer reads as one flow](docs/fork/features/chat-ui.md#an-agent-answer-reads-as-one-flow): text, tool step, then only the new part of the answer; the text before the tool call no longer shows twice.
+- [An agent answer reads as one flow](docs/fork/features/chat-ui.md#an-agent-answer-reads-as-one-flow): text, tool step, then only the new part of the answer, for any number of tool steps, live and after a reload; text before a tool call no longer shows twice or below the tool step.
 
 ### The brain (chat agent loop)
 
@@ -203,6 +203,7 @@ to be offered) upstream, "with discussion" a change upstream may want in another
 | `routes/chat_routes.py` | after `_successful_session_tool_names` | `fork/mcp/trust.py` | follow-ups keep a used module's tools | yes |
 | `routes/chat_routes.py` | after `resolve_turn_contract` | `fork/routing/turn_policy.py` (`extend_contract`: a slash skill's tools, `fork/routing/skill_invocation.py`, or a module question's, `fork/routing/module_turn_scope.py`; then the calculator in Auto, `fork/routing/auto_mode.py`) | pin a slash skill's tools, offer module tools and the calculator | yes (calculator: no) |
 | `routes/chat_routes.py` | after the final turn policy | `fork/routing/turn_policy.py` (`admit_offered_reads`: `fork/routing/offered_reads.py`) | read grants for every offered personal store | yes, with discussion |
+| `routes/chat_routes.py` | `_AgentRenderState.consume`, `metadata` | `fork/hub/round_flow.py` | save the text each agent round showed in `round_texts` | yes |
 | `routes/codex_routes.py` | `list_todos` | `fork/hub/codex_todos_json.py` | `format=json` | yes |
 | `scripts/verify_frontend_runtime.py` | folders copied into the isolated runtime | none | copy `fork/` too | no |
 | `scripts/verify_notes_browser_runtime.py` | folders copied into the isolated runtime | none | copy `fork/` too | no |
@@ -261,7 +262,8 @@ to be offered) upstream, "with discussion" a change upstream may want in another
 | `static/js/admin.js` | `_TOKEN_SCOPES` | `fork/athena/urls.py` | `athena:*` in the token scope list, and `sound:*` marked "(old name)" | no |
 | `static/js/calendar.js` | `_showEventForm` | `static/js/forkMeetingAutoJoin.js` | Send Athena toggle (lazy import) | no |
 | `static/js/chat.js` | `_tryAutoRecover` | `static/js/forkResumeFallback.js` | reload a run that ended while away | yes |
-| `static/js/chat.js` | imports, round tracking, `agent_step` | `static/js/forkRoundFlow.js` | remember the text of each finished round | yes |
+| `static/js/chat.js` | imports, stream setup, `agent_step`, `teacher_takeover` | `static/js/forkRoundFlow.js` | remember each finished round's bubble and text | yes |
+| `static/js/chat.js` | text deltas | `static/js/forkRoundFlow.js` | a held-back delta of an earlier round goes to its own bubble | yes |
 | `static/js/chat.js` | `final_response`, `_replaceLiveTurnWithSavedAssistantMessage` | `static/js/forkRoundFlow.js` | the final answer leaves out the rounds already shown | yes |
 | `static/js/chatRenderer.js` | imports, `addMessage` round rebuild | `static/js/forkRoundFlow.js` | the same on history reload | yes |
 | `static/js/keyboard-shortcuts.js` | imports | `static/js/forkModuleShortcuts.js` | import the fork's shortcut tables | no |
