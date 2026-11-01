@@ -37,3 +37,17 @@ Upstreamable: yes
 Files: `static/js/forkResumeFallback.js` (new); hook in `static/js/chat.js` (`_tryAutoRecover`); test `tests/fork/test_fork_resume_fallback.py` (new)
 
 Upstreamable: yes
+
+## An agent answer reads as one flow
+
+**An agent answer reads as one flow.** When the model writes some text, calls a tool and then answers, the chat shows that text, the tool step, then the answer below it, and the same for two or more tool steps with text before each. Three things broke that flow (for example: the list of moon phases, the search, then the same list again with today's phase):
+
+- The final answer the server sends and saves is the text of every round joined, and the page drew it into the last bubble, so earlier rounds showed a second time. The last bubble now leaves out what the earlier rounds already showed, live and after a reload (`withoutShownRounds`). A final answer that doesn't start with the earlier rounds' text (a summary written from scratch, or a turn the server replaces whole) is shown as it is.
+- Upstream's completion gate (`src/agent_runtime/completion.py`) can hold every text delta until the run ends and release them all, each tagged with its round. The page then put the first round's text below the tool step. A held-back delta of an earlier round now goes back to its own bubble (`createRoundFlow`).
+- The agent loop sometimes reports a round's text as empty (text ending in "Let me check ..." counts as a preamble) or puts the whole joined answer in the last round, while the page still shows each round's text. The chat route now saves the text each round showed in `round_texts` (`fork/hub/round_flow.py`), so a reload shows the same flow. The saved message itself (`content`) is unchanged.
+
+Checked end to end in the sandbox (the app, a scripted model, a browser) for: text, one tool, answer; two and three tool steps with text before each; no text before the tool; a short "I'll search the web." line; two tools in one step.
+
+Files: `static/js/forkRoundFlow.js` (new), `fork/hub/round_flow.py` (new); hooks in `static/js/chat.js` (import, stream setup, text deltas, `agent_step`, `teacher_takeover`, `final_response`, `_replaceLiveTurnWithSavedAssistantMessage`), `static/js/chatRenderer.js` (import, `addMessage`) and `routes/chat_routes.py` (`_AgentRenderState.consume`, `metadata`); tests `tests/fork/test_fork_round_flow.py`, `tests/fork/test_round_flow_saved.py` (new)
+
+Upstreamable: yes

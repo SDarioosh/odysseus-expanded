@@ -38,6 +38,8 @@ import {
 import { createTerminalStreamError, isRecoverableStreamError } from './chatStreamErrors.js';
 import { loadPanel } from './panels.js?v=20260909movepicklayer1';
 import { invalidateSettings } from './appConfig.js';
+// Fork: the final answer leaves out the rounds already shown (static/js/forkRoundFlow.js)
+import { withoutShownRounds, createRoundFlow } from './forkRoundFlow.js';
 
   const RESEARCH_TIMEOUT_MS = 360000;
   const DEFAULT_TIMEOUT_MS = 120000;
@@ -2913,6 +2915,7 @@ import { invalidateSettings } from './appConfig.js';
       // Multi-bubble agent tracking
       let roundHolder = holder;       // Current AI text bubble (changes per round)
       let roundText = '';             // Text accumulated for current round
+      const _forkRounds = createRoundFlow({ markdown: markdownModule, displayText: _streamDisplayText }); // Fork: each round's bubble and text (static/js/forkRoundFlow.js)
       let roundReplyText = null;      // Reply-only text after a thinking transition
       let currentToolBubble = null;   // Current tool execution bubble
       let lastToolThread = null;      // Visible tool timeline for tool-only turns
@@ -3021,7 +3024,8 @@ import { invalidateSettings } from './appConfig.js';
           }
           if (!saved || !String(saved.content || '').trim()) return false;
           const scrollSnapshot = uiModule.captureHistoryScroll?.();
-          const rendered = _renderTerminalAnswer(saved.content, _savedAssistantMessageId, saved.metadata?.render_owner, saved.metadata?.replacement_scope);
+          // Fork: leave out the rounds already shown (static/js/forkRoundFlow.js)
+          const rendered = _renderTerminalAnswer(withoutShownRounds(saved.content, saved.metadata?.replacement_scope === 'turn' ? [] : _forkRounds.shown()), _savedAssistantMessageId, saved.metadata?.render_owner, saved.metadata?.replacement_scope);
           uiModule.restoreHistoryScroll?.(scrollSnapshot);
           if (rendered) _streamTurnMarker.remove();
           return rendered;
@@ -4056,7 +4060,8 @@ import { invalidateSettings } from './appConfig.js';
                 try {
                   window.dispatchEvent(new CustomEvent('odysseus:agent-final-response', { detail: json }));
                 } catch (_) {}
-                const finalText = String(json.content || json.delta || '');
+                // Fork: leave out the rounds already shown (static/js/forkRoundFlow.js)
+                const finalText = withoutShownRounds(String(json.content || json.delta || ''), json.replacement_scope === 'turn' ? [] : _forkRounds.shown());
                 if (!finalText.trim()) continue;
                 if (!_isDirectEmailListingPrompt(msg) && _isIntermediateEmailListDump(finalText)) {
                   console.debug('[chat] suppressed intermediate email list final_response for non-list prompt');
@@ -4150,6 +4155,11 @@ import { invalidateSettings } from './appConfig.js';
                   var bgEntry = _backgroundStreams.get(streamSessionId);
 	                  if (bgEntry) bgEntry.accumulated = accumulated;
 	                  continue; // Skip all DOM writes
+	                }
+	                // Fork: a held-back delta of an earlier round goes to its own bubble (static/js/forkRoundFlow.js)
+	                if (!json.thinking && _delta.endsWith(json.delta) && _forkRounds.place(json)) {
+	                  if (_delta === json.delta) continue;
+	                  _delta = _delta.slice(0, -json.delta.length); // only the </think> stays here
 	                }
 	                _ensureVisibleRoundForDelta();
 	                roundText += _delta;
@@ -5122,6 +5132,7 @@ import { invalidateSettings } from './appConfig.js';
                   _cancelLiveThinkingWork();
                 }
                 _finalizeRoundRender();
+                _forkRounds.endRound(roundHolder, roundText, json.round); // Fork: static/js/forkRoundFlow.js
                 // Mark thread as connected to bubble below
                 const _activeThread = document.querySelector('.agent-thread.streaming');
                 if (_activeThread) {
@@ -5219,6 +5230,7 @@ import { invalidateSettings } from './appConfig.js';
                 banner.innerHTML = `<strong>Teacher takeover:</strong> escalating to <code>${esc(teacherName)}</code>${why}`;
                 chatBox.appendChild(banner);
                 // Reset round bubble state so the teacher's first text starts a new bubble
+                _forkRounds.reset(); // Fork: static/js/forkRoundFlow.js
                 roundHolder = null;
                 roundText = '';
                 roundFinalized = false;

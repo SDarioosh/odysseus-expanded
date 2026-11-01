@@ -14,6 +14,8 @@ import { loadPanel } from './panels.js?v=20260909movepicklayer1';
 import { matchModelKey } from './model/matchKey.js';
 import { getTools } from './appConfig.js';
 import { getShowPersonaName } from './presets.js?v=20260908personaname1';
+// Fork: the final answer leaves out the rounds already shown (static/js/forkRoundFlow.js)
+import { withoutShownRounds } from './forkRoundFlow.js';
 
 const SEARCH_ICON = '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><circle cx="11" cy="11" r="8"/><path d="M21 21l-4.35-4.35"/></svg>';
 const REPORT_ICON = '<svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M14 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V8z"/><polyline points="14 2 14 8 20 8"/><line x1="16" y1="13" x2="8" y2="13"/><line x1="16" y1="17" x2="8" y2="17"/><line x1="10" y1="9" x2="8" y2="9"/></svg>';
@@ -3255,7 +3257,8 @@ export function addMessage(role, content, modelName, metadata) {
           }
         }
         if (lastTextIdx >= 0) {
-          roundTexts[lastTextIdx] = textRaw;
+          // Fork: leave out the rounds already shown (static/js/forkRoundFlow.js); typeof: tests copy addMessage alone
+          roundTexts[lastTextIdx] = typeof withoutShownRounds === 'function' ? withoutShownRounds(textRaw, roundTexts.slice(0, lastTextIdx)) : textRaw;
         } else {
           roundTexts.push(textRaw);
         }
