@@ -489,10 +489,13 @@ html.fm-page body { background: var(--bg); color: var(--fg); margin: 0; display:
 .fm-root .nb-cat { display: grid; grid-template-columns: auto 1fr 2fr 4.5em auto; gap: 6px;
                    align-items: center; padding: 4px 0; }
 .fm-root .nb-cat-actions { display: flex; gap: 4px; }
+.fm-root textarea.nb-feeds { grid-column: 1 / -1; height: auto; min-height: 2.6em; resize: vertical;
+                             font-size: 12px; line-height: 1.4; padding-top: 4px; padding-bottom: 4px; }
 .fm-root .nb-time-row { flex-wrap: wrap; gap: 8px; margin-bottom: 8px; }
 .fm-root .nb-time-label { display: inline-flex; align-items: center; gap: 6px; font-size: 12px; }
 @media (max-width: 640px) {
   .fm-root .nb-cat { grid-template-columns: auto 1fr 4em auto; }
   .fm-root .nb-cat .nb-query { grid-column: 1 / -1; order: 5; }
+  .fm-root .nb-cat textarea.nb-feeds { order: 6; height: auto; }
 }
 /* end News */

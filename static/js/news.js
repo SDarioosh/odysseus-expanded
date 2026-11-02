@@ -3,6 +3,9 @@
 // (static/js/forkModuleWindows.js) and by the standalone page (static/news.html). Data:
 // fork/routes/news_routes.py. Contract: docs/fork/news-brief.md.
 //
+// Each category can have RSS/Atom feeds (one URL per line); the server checks them
+// (http(s), at most MAX_FEEDS) and reads them only through its public-address guard.
+//
 // Every text from the brief (titles, summaries, sources) comes from web pages or the model
 // and is set as text, never as HTML; links are kept only when they are http(s).
 
@@ -14,6 +17,12 @@ const $ = (sel) => root.querySelector(sel);
 const POLL_MS = 4000;
 const POLL_LIMIT_MS = 15 * 60 * 1000;
 const MAX_CATEGORIES = 20;
+const MAX_FEEDS = 10;
+
+/** The feed URLs typed in a category's box: one per line (any whitespace splits). */
+export function feedList(text) {
+  return String(text || '').split(/\s+/).map(s => s.trim()).filter(Boolean);
+}
 
 function sendJSON(path, method, body) {
   return api(path, {
@@ -89,7 +98,7 @@ function render(brief) {
   if (!cats.length) parts.push(el('div', { className: 'bs-status' }, 'No stories today.'));
   if (errors.length) {
     parts.push(el('div', { className: 'bs-meta nb-errors' },
-      'Nothing from: ' + errors.map(e => `${e.category} (${e.error || 'no results'})`).join(', ')));
+      'Problems: ' + errors.map(e => `${e.category} (${e.error || 'no results'})`).join(', ')));
   }
   $('.nb-main').replaceChildren(...parts);
 }
@@ -165,12 +174,16 @@ function categoryEditor(cat, index, count) {
                              placeholder: 'Name, e.g. Formula 1', 'aria-label': 'Category name',
                              value: cat.name || '' });
   const query = el('input', { className: 'bs-input nb-query', type: 'text', maxlength: '200',
-                              placeholder: 'Search query (optional; the name is used otherwise)',
+                              placeholder: 'Search query (optional; the name is used otherwise, or feeds only)',
                               'aria-label': 'Search query', value: cat.query || '' });
   const stories = el('input', { className: 'bs-input nb-stories', type: 'number', min: '1', max: '10',
                                 placeholder: String(config.default_stories || 5),
                                 title: 'Stories (empty: the default)', 'aria-label': 'Stories',
                                 value: cat.stories ? String(cat.stories) : '' });
+  const feeds = el('textarea', { className: 'bs-input nb-feeds', rows: '2', spellcheck: 'false',
+                                 placeholder: `RSS or Atom feeds (optional), one URL per line, at most ${MAX_FEEDS}`,
+                                 'aria-label': 'RSS or Atom feeds' });
+  feeds.value = (Array.isArray(cat.feeds) ? cat.feeds : []).join('\n');
   const on = el('input', { type: 'checkbox', 'aria-label': 'On' });
   on.checked = cat.enabled !== false;
   const sync = () => {
@@ -178,8 +191,9 @@ function categoryEditor(cat, index, count) {
     cat.query = query.value;
     cat.stories = stories.value ? Number(stories.value) : null;
     cat.enabled = on.checked;
+    cat.feeds = feedList(feeds.value);
   };
-  for (const input of [name, query, stories, on]) input.addEventListener('input', sync);
+  for (const input of [name, query, stories, on, feeds]) input.addEventListener('input', sync);
   on.addEventListener('change', sync);
   const move = (delta) => {
     sync();
@@ -201,7 +215,8 @@ function categoryEditor(cat, index, count) {
       el('button', { type: 'button', className: 'bs-btn bs-icon-btn', title: 'Move down',
                      'aria-label': 'Move down', disabled: index === count - 1, onclick: () => move(1) }, '↓'),
       el('button', { type: 'button', className: 'bs-btn bs-icon-btn', title: 'Delete',
-                     'aria-label': `Delete ${cat.name || 'category'}`, onclick: remove }, '✕')));
+                     'aria-label': `Delete ${cat.name || 'category'}`, onclick: remove }, '✕')),
+    feeds);
 }
 
 function renderEditor() {
@@ -227,8 +242,9 @@ async function save() {
       delivery_time: $('.nb-time').value || '07:00',
       categories: config.categories
         .map(c => ({ name: (c.name || '').trim(), query: (c.query || '').trim(),
-                     enabled: c.enabled !== false, stories: c.stories || null }))
-        .filter(c => c.name || c.query),
+                     enabled: c.enabled !== false, stories: c.stories || null,
+                     feeds: Array.isArray(c.feeds) ? c.feeds : [] }))
+        .filter(c => c.name || c.query || c.feeds.length),
     };
     applyConfig(await sendJSON('/api/news/config', 'PUT', body));
     editorMsg('Saved.');
@@ -242,7 +258,8 @@ async function save() {
 function applyConfig(data) {
   config = {
     ...data,
-    categories: (Array.isArray(data.categories) ? data.categories : []).map(c => ({ ...c })),
+    categories: (Array.isArray(data.categories) ? data.categories : [])
+      .map(c => ({ ...c, feeds: Array.isArray(c.feeds) ? [...c.feeds] : [] })),
   };
   $('.nb-time').value = toTimeInput(config.delivery_time);
   $('.nb-tz').textContent = config.timezone ? `(${config.timezone})` : '';
@@ -254,7 +271,7 @@ function settingsPanel() {
   const time = el('input', { className: 'bs-input nb-time', type: 'time', step: '60',
                              'aria-label': 'Delivery time' });
   const add = el('button', { type: 'button', className: 'bs-btn nb-add', onclick: () => {
-    config.categories.push({ name: '', query: '', enabled: true, stories: null });
+    config.categories.push({ name: '', query: '', enabled: true, stories: null, feeds: [] });
     renderEditor();
     const names = root.querySelectorAll('.nb-name');
     if (names.length) names[names.length - 1].focus();
@@ -265,8 +282,9 @@ function settingsPanel() {
       el('div', { className: 'bs-status nb-off', hidden: true },
         'The news brief is turned off on this server (NEWS_BRIEF_ENABLED=off).'),
       el('div', { className: 'bs-meta' },
-        'Only these names or queries are searched, through the hub\'s own SearXNG. ' +
-        'Stories per category: empty means the default.'),
+        'Only these names or queries are searched, through the hub\'s own SearXNG; ' +
+        'feeds are read directly (public addresses only). A category with feeds and no ' +
+        'query uses its feeds only. Stories per category: empty means the default.'),
       el('div', { className: 'nb-cats' }),
       el('div', { className: 'bs-row nb-time-row' },
         add,

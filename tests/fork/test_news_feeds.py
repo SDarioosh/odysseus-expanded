@@ -376,3 +376,24 @@ def test_config_route_answers_400_for_a_bad_feed(data_dir, monkeypatch):
         assert r.status_code == 400 and "http(s) URL" in r.json()["detail"]
         assert store.load_config("alice")["categories"][0]["feeds"] == [
             "http://example.org/atom.xml"]
+
+
+# ------------------------------------------------------------------ page
+@pytest.mark.skipif(__import__("shutil").which("node") is None, reason="node binary not on PATH")
+def test_page_splits_the_feeds_box_into_urls():
+    import json
+    import subprocess
+    from pathlib import Path
+
+    js = (Path(__file__).resolve().parents[2] / "static" / "js" / "news.js").as_posix()
+    proc = subprocess.run(["node", "--input-type=module"], capture_output=True, text=True,
+                          timeout=30, input=f"""
+        const {{ feedList }} = await import('{js}');
+        console.log(JSON.stringify(feedList(" https://example.com/rss\\n\\n  http://example.org/a.xml  ")));
+        console.log(JSON.stringify(feedList("")));""")
+    assert proc.returncode == 0, proc.stderr
+    first, second = proc.stdout.splitlines()
+    assert json.loads(first) == ["https://example.com/rss", "http://example.org/a.xml"]
+    assert json.loads(second) == []
+    text = Path(js).read_text()
+    assert "feeds.value =" in text and "innerHTML" not in text  # set as text, never HTML
