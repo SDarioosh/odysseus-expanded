@@ -23,6 +23,7 @@ ACTIONS = [
     ("today_insight", "fork.insight.today", "action_today_insight"),
     ("notes_evidence", "fork.beliefs.notes_evidence", "action_notes_evidence"),
     ("belief_structure", "fork.beliefs.structure", "action_belief_structure"),
+    ("news_brief", "fork.news.brief", "action_news_brief"),
     ("meeting_auto_join", "fork.athena.meeting_auto_join", "action_meeting_auto_join"),
 ]
 
@@ -40,11 +41,13 @@ HOUSEKEEPING = {
                        "cron_expression": "0 3 * * *"},
     "belief_structure": {"name": "Belief Structure", "schedule": "cron",
                          "scheduled_time": None, "cron_expression": "15 * * * *"},
+    "news_brief": {"name": "News Brief", "schedule": "cron", "scheduled_time": None,
+                   "cron_expression": "*/15 * * * *"},
 }
 
 SILENT = {"barvis_sync_action_items", "module_sync_facts", "today_insight",
-          "notes_evidence", "belief_structure"}
-MODEL_BACKED = {"today_insight", "notes_evidence", "belief_structure"}
+          "notes_evidence", "belief_structure", "news_brief"}
+MODEL_BACKED = {"today_insight", "notes_evidence", "belief_structure", "news_brief"}
 
 
 def _upstream_class_set(name: str) -> set[str]:
@@ -124,13 +127,13 @@ def test_scheduler_decisions_per_action(monkeypatch):
         silent[action] = not posted
     assert silent == {
         "barvis_sync_action_items": True, "module_sync_facts": True, "today_insight": True,
-        "notes_evidence": True, "belief_structure": True, "meeting_auto_join": False,
-        "tidy_sessions": True, "unknown_action": False,
+        "notes_evidence": True, "belief_structure": True, "news_brief": True,
+        "meeting_auto_join": False, "tidy_sessions": True, "unknown_action": False,
     }
 
     model = {a: a in TaskScheduler._MODEL_BACKED_ACTIONS for a in table}
     assert model == {
         "barvis_sync_action_items": False, "module_sync_facts": False, "today_insight": True,
-        "notes_evidence": True, "belief_structure": True, "meeting_auto_join": False,
-        "tidy_sessions": False, "unknown_action": False,
+        "notes_evidence": True, "belief_structure": True, "news_brief": True,
+        "meeting_auto_join": False, "tidy_sessions": False, "unknown_action": False,
     }

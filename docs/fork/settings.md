@@ -34,6 +34,9 @@ that are off by default are on for `1`, `true`, `yes` or `on` (any case).
 | `TODAY_INSIGHT_ENABLED` | - | on/off | `on` | Write the daily insight. | `fork/insight/today.py` |
 | `TODAY_INSIGHT_SKIP_LISTS` | - | comma-separated list titles | `Shopping,Groceries,Grocery` | Lists left out of the insight unless the note has a due date; empty: none. An empty value is a value of its own. | `fork/insight/today_candidates.py` |
 | `TODAY_INSIGHT_PUSH` | - | on/off | `off` | Push the daily insight to the phone. | `fork/insight/push.py` |
+| `NEWS_BRIEF_ENABLED` | - | on/off | `on` | Write the morning news brief; off: every run, Refresh included, is a no-op. | `fork/news/brief.py` |
+| `NEWS_BRIEF_STORIES` | - | integer 1-10 | `5` | Stories per news category unless the category sets its own; clamped to 1-10. | `fork/news/brief.py` |
+| `NEWS_BRIEF_KEEP_DAYS` | - | integer >= 1 | `30` | Days of news briefs kept on disk. | `fork/news/brief.py` |
 | `ODYSSEUS_PERSONAL_READ_GRANTS` | - | on/off | `1` | Grant read-only access to the owner's personal stores on every turn. | `fork/routing/personal_read_grants.py` |
 | `ODYSSEUS_PERSONAL_STORE_ESCALATION` | - | on/off | `1` | Run chat-mode lookups in the owner's personal stores in agent mode. | `fork/routing/personal_store_escalation.py` |
 | `ODYSSEUS_TRUSTED_READONLY_MCP` | - | comma-separated server names or ids | (empty) | MCP servers whose readOnlyHint tools run without approval. Production sets `convo` in the override. | `fork/mcp/trust.py` |
