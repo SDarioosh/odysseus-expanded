@@ -354,7 +354,8 @@ const POLL_LIMIT_MS = 15 * 60 * 1000;
 function note(text, error = false) {
   const n = $('.ti-note');
   n.textContent = text || '';
-  n.className = error ? 'bs-status error' : 'bs-status';
+  // keep ti-note: the next note() (a second Refresh) finds the element by it
+  n.className = error ? 'bs-status error ti-note' : 'bs-status ti-note';
   n.hidden = !text;
 }
 
