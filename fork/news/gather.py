@@ -7,41 +7,60 @@ Per enabled category, in parallel with a time budget (``CATEGORY_BUDGET`` second
    has one, :func:`searxng_source`: the self-hosted SearXNG only
    (``services/search/providers.searxng_search_api``, news category, last day), never
    ``comprehensive_web_search`` (its fallback chain can reach other search APIs). The
-   query is the category's query field, else its name, and nothing else. Phase 2 adds an
-   RSS source to the tuple.
+   query is the category's query field, else its name, and nothing else (a category with
+   feeds and no query is not searched: feeds only). :func:`feeds_source` reads the
+   category's RSS/Atom feeds (standard library ``xml.etree``; DOCTYPE and ENTITY
+   declarations refused, at most ``MAX_FEED_BYTES``), fetched through the hub's
+   public-address guard (``services/search/content._public_http_url`` and
+   ``_get_public_url``, the same as page fetches) with ``FEED_TIMEOUT``. A feed that fails
+   is reported in the brief's ``errors`` and leaves the other feeds and the search.
 2. **Clean-up**: results without a title or an http(s) URL, and results older than
-   ``LOOKBACK_HOURS`` (when the date is known), are dropped; URLs are made canonical
+   ``LOOKBACK_HOURS`` or than the previous brief, whichever is earlier (at most
+   ``MAX_SINCE_HOURS``; when the date is known), are dropped; URLs are made canonical
    (tracking parameters, fragments and AMP paths removed) and deduplicated; near-duplicate
    titles (token overlap) become one story with several sources (``also``).
-3. Across categories (:func:`gather`), a story stays in the first category that has it;
-   at most ``MAX_PER_CATEGORY`` stories each, newest first.
+3. **Seen** (:func:`seen_index`, :func:`already_seen`): a story whose canonical URL was in
+   one of the last ``SEEN_BRIEFS`` briefs is dropped, unless it has a source that the
+   earlier story didn't have. Across categories (:func:`gather`), a story stays in the
+   first category that has it; at most ``MAX_PER_CATEGORY`` stories each, newest first.
 4. **Read**: the first ``READ_PER_CATEGORY`` stories' pages through
    ``services/search/content.fetch_webpage_content`` (the hub's SSRF-guarded fetch), the
    text cut to ``TEXT_CHARS``; a page that fails keeps its search snippet.
 
-Page text is untrusted: it only goes into the model's prompt as data (``prompt.py``).
+Page and feed text is untrusted: it only goes into the model's prompt as data
+(``prompt.py``).
 """
 
 from __future__ import annotations
 
 import asyncio
+import html
 import logging
 import re
-from collections.abc import Callable
+import xml.etree.ElementTree as ET
+from collections.abc import Callable, Iterable
+from concurrent.futures import ThreadPoolExecutor
 from datetime import datetime, timedelta, timezone
 from typing import Any
-from urllib.parse import parse_qsl, urlencode, urlsplit, urlunsplit
+from urllib.parse import parse_qsl, urlencode, urljoin, urlsplit, urlunsplit
+from xml.parsers import expat
 
 logger = logging.getLogger(__name__)
 
 SEARCH_COUNT = 15
 LOOKBACK_HOURS = 24
+MAX_SINCE_HOURS = 72
+SEEN_BRIEFS = 3
 MAX_PER_CATEGORY = 12
 READ_PER_CATEGORY = 6
 TEXT_CHARS = 1500
 SNIPPET_CHARS = 400
 CATEGORY_BUDGET = 60.0
 READ_TIMEOUT = 8
+FEED_TIMEOUT = 10
+MAX_FEED_BYTES = 2_000_000
+MAX_FEED_ITEMS = 50
+FEED_WORKERS = 4
 
 Candidate = dict[str, Any]
 Source = Callable[[dict, datetime], list[Candidate]]
@@ -145,10 +164,20 @@ def similar_titles(a: frozenset[str], b: frozenset[str]) -> bool:
 
 
 # ------------------------------------------------------------------ clean-up
-def clean(results: list[dict], now: datetime) -> list[Candidate]:
-    """Usable candidates in result order: title and http(s) URL present, canonical URL,
-    not older than the lookback, deduplicated by URL."""
+def cutoff_time(now: datetime, since: datetime | None = None) -> datetime:
+    """The oldest date kept: ``LOOKBACK_HOURS`` ago, or the previous brief when that is
+    earlier (at most ``MAX_SINCE_HOURS`` ago)."""
     cutoff = now - timedelta(hours=LOOKBACK_HOURS)
+    if since is not None and since < cutoff:
+        cutoff = max(since, now - timedelta(hours=MAX_SINCE_HOURS))
+    return cutoff
+
+
+def clean(results: list[dict], now: datetime, since: datetime | None = None
+          ) -> list[Candidate]:
+    """Usable candidates in result order: title and http(s) URL present, canonical URL,
+    not older than the lookback (:func:`cutoff_time`), deduplicated by URL."""
+    cutoff = cutoff_time(now, since)
     out, seen = [], set()
     for r in results or []:
         if not isinstance(r, dict):
@@ -209,6 +238,41 @@ def public_story(story: dict) -> dict:
     return {k: v for k, v in story.items() if not k.startswith("_")}
 
 
+def story_sources(story: dict) -> set[str]:
+    return {str(story.get("source") or ""),
+            *(str(a.get("source") or "") for a in story.get("also") or [] if isinstance(a, dict))
+            } - {""}
+
+
+# ------------------------------------------------------------------ seen before
+def seen_index(briefs: Iterable[dict]) -> dict[str, set[str]]:
+    """``url_key`` of every story link (its own and its ``also``) in ``briefs`` -> the
+    sources that story had."""
+    index: dict[str, set[str]] = {}
+    for brief in briefs or []:
+        for cat in (brief or {}).get("categories") or []:
+            for story in (cat or {}).get("stories") or []:
+                if not isinstance(story, dict):
+                    continue
+                urls = [story.get("url"), *(a.get("url") for a in story.get("also") or []
+                                            if isinstance(a, dict))]
+                sources = story_sources(story)
+                for url in urls:
+                    canonical = canonical_url(url)
+                    if canonical:
+                        index.setdefault(url_key(canonical), set()).update(sources)
+    return index
+
+
+def already_seen(story: dict, index: dict[str, set[str]]) -> bool:
+    """The story's link was in a recent brief and it brings no source that story lacked."""
+    matched = [index[k] for k in story.get("_keys") or () if k in index]
+    if not matched:
+        return False
+    before = set().union(*matched)
+    return not (story_sources(story) - before)
+
+
 # ------------------------------------------------------------------ sources
 def searxng_search(query: str) -> list[dict]:
     """SearXNG's news category for the last day (the hub's own SearXNG, nothing else)."""
@@ -223,40 +287,211 @@ def category_query(category: dict) -> str:
 
 
 def searxng_source(category: dict, now: datetime) -> list[Candidate]:
+    if category.get("feeds") and not (category.get("query") or "").strip():
+        return []  # feeds only
     query = category_query(category)
     return searxng_search(query) if query else []
 
 
-# Phase 2 appends an RSS source here (docs/fork/news-brief.md).
-SOURCES: tuple[Source, ...] = (searxng_source,)
+# ------------------------------------------------------------------ RSS / Atom feeds
+class FeedError(Exception):
+    """A feed that couldn't be used; the message is shown in the brief's errors."""
 
 
-async def _from_sources(category: dict, now: datetime,
-                        sources: tuple[Source, ...]) -> tuple[list[Candidate], list[str]]:
-    raw, errors = [], []
+class Found(list):
+    """A source's candidates plus the problems it met without failing (a feed that
+    couldn't be read); those are reported even when the category has stories."""
+
+    def __init__(self, items: Iterable[Candidate] = (), errors: Iterable[str] = ()):
+        super().__init__(items)
+        self.errors = list(errors)
+
+
+FEED_ROOTS = frozenset({"rss", "feed", "rdf"})
+TAG = re.compile(r"<[^>]*>")
+
+
+def _local(tag: Any) -> str:
+    return tag.rsplit("}", 1)[-1].lower() if isinstance(tag, str) else ""
+
+
+def _child(element: ET.Element, *names: str) -> ET.Element | None:
+    """The first direct child with one of ``names`` (local names, in that order)."""
+    for name in names:
+        for child in element:
+            if _local(child.tag) == name:
+                return child
+    return None
+
+
+def _text(element: ET.Element | None) -> str:
+    return "".join(element.itertext()) if element is not None else ""
+
+
+def plain(text: str) -> str:
+    """Feed text (often escaped HTML) as plain text."""
+    return " ".join(html.unescape(TAG.sub(" ", html.unescape(text or ""))).split())
+
+
+def _no_declarations(body: bytes) -> None:
+    """Refuse DOCTYPE and ENTITY declarations before ElementTree sees the body (entity
+    expansion attacks). Expat reads the encoding itself, so UTF-16 can't hide one."""
+    def refuse(*_args):
+        raise FeedError("has a DOCTYPE or ENTITY declaration (refused)")
+
+    parser = expat.ParserCreate()
+    parser.StartDoctypeDeclHandler = refuse
+    parser.EntityDeclHandler = refuse
+    try:
+        parser.Parse(body, True)
+    except expat.ExpatError as e:
+        raise FeedError(f"is not valid XML ({e})") from None
+
+
+def _atom_link(entry: ET.Element) -> str:
+    links = [c for c in entry if _local(c.tag) == "link" and c.get("href")]
+    for link in links:
+        if (link.get("rel") or "alternate") == "alternate":
+            return link.get("href") or ""
+    return (links[0].get("href") or "") if links else ""
+
+
+def _rss_link(item: ET.Element) -> str:
+    link = _text(_child(item, "link")).strip()
+    if link:
+        return link
+    guid = _child(item, "guid")
+    if guid is not None and (guid.get("isPermaLink") or "true").lower() != "false":
+        return _text(guid).strip()
+    return ""
+
+
+def parse_feed(body: bytes, base_url: str = "") -> list[Candidate]:
+    """RSS 2.0, RSS 1.0 or Atom -> ``[{title, url, published, snippet}]`` (at most
+    ``MAX_FEED_ITEMS``; ``published`` None when the item has no date). FeedError when the
+    body is too big, declares a DOCTYPE or ENTITY, isn't XML or isn't a feed."""
+    if len(body) > MAX_FEED_BYTES:
+        raise FeedError(f"is larger than {MAX_FEED_BYTES // 1_000_000} MB")
+    _no_declarations(body)
+    try:
+        root = ET.fromstring(body)
+    except ET.ParseError as e:
+        raise FeedError(f"is not valid XML ({e})") from None
+    if _local(root.tag) not in FEED_ROOTS:
+        raise FeedError("is not an RSS or Atom feed")
+    items: list[Candidate] = []
+    for element in root.iter():
+        kind = _local(element.tag)
+        if kind not in ("item", "entry"):
+            continue
+        if kind == "entry":
+            link = _atom_link(element)
+            published = _text(_child(element, "published", "updated", "issued")).strip()
+            summary = _text(_child(element, "summary", "content"))
+        else:
+            link = _rss_link(element)
+            published = _text(_child(element, "pubdate", "date", "published")).strip()
+            summary = _text(_child(element, "description", "encoded", "summary"))
+        items.append({"title": plain(_text(_child(element, "title"))),
+                      "url": urljoin(base_url, link.strip()) if link else "",
+                      "published": published or None,
+                      "snippet": plain(summary)[:SNIPPET_CHARS]})
+        if len(items) >= MAX_FEED_ITEMS:
+            break
+    return items
+
+
+FEED_HEADERS = {"Accept": "application/rss+xml, application/atom+xml, application/xml;q=0.9, "
+                          "text/xml;q=0.9, */*;q=0.5"}
+
+
+def fetch_feed(url: str) -> bytes:
+    """The feed's body, through the hub's public-address guard (the same as page fetches:
+    no LAN, loopback or metadata address, DNS-pinned redirects), at most
+    ``MAX_FEED_BYTES``."""
+    from services.search import content
+    from src.constants import WEB_FETCH_USER_AGENT
+
+    if not content._public_http_url(url):
+        raise FeedError("is not a public http(s) address")
+    try:
+        response = content._get_public_url(
+            url, headers={"User-Agent": WEB_FETCH_USER_AGENT, **FEED_HEADERS},
+            timeout=FEED_TIMEOUT, max_bytes=MAX_FEED_BYTES)
+    except content.BodyTooLargeError:
+        raise FeedError(f"is larger than {MAX_FEED_BYTES // 1_000_000} MB") from None
+    response.raise_for_status()
+    if getattr(response, "truncated", False):
+        raise FeedError(f"is larger than {MAX_FEED_BYTES // 1_000_000} MB")
+    return bytes(response.content)
+
+
+def _feed_label(url: str) -> str:
+    return (f"{source_name(url)}{urlsplit(url).path}" or url)[:80]
+
+
+def read_feed(url: str) -> tuple[list[Candidate], str | None]:
+    """One feed's items, or ``([], "feed <site/path> <problem>")``."""
+    try:
+        return parse_feed(fetch_feed(url), base_url=url), None
+    except FeedError as e:
+        problem = str(e)
+    except Exception as e:  # noqa: BLE001 -- network errors, HTTP status
+        problem = f"couldn't be read ({(str(e) or type(e).__name__)[:160]})"
+    logger.info("news brief: feed %s %s", url, problem)
+    return [], f"feed {_feed_label(url)} {problem}"
+
+
+def feeds_source(category: dict, now: datetime) -> Found:
+    """The category's feeds, read in parallel; a feed that fails is reported in
+    ``Found.errors`` and leaves the others."""
+    feeds = [u for u in category.get("feeds") or [] if isinstance(u, str) and u.strip()]
+    found = Found()
+    if not feeds:
+        return found
+    with ThreadPoolExecutor(max_workers=min(FEED_WORKERS, len(feeds))) as pool:
+        for items, error in pool.map(read_feed, feeds):
+            found.extend(items)
+            if error:
+                found.errors.append(error)
+    return found
+
+
+SOURCES: tuple[Source, ...] = (searxng_source, feeds_source)
+
+
+async def _from_sources(category: dict, now: datetime, sources: tuple[Source, ...]
+                        ) -> tuple[list[Candidate], list[str], list[str]]:
+    """(candidates, errors of sources that failed, problems of sources that didn't)."""
+    raw, errors, problems = [], [], []
     for source in sources:
         try:
-            raw.extend(await asyncio.to_thread(source, category, now) or [])
+            result = await asyncio.to_thread(source, category, now)
         except Exception as e:  # noqa: BLE001 -- one source failing leaves the others
             logger.warning("news brief: %s failed for %r: %s",
                            getattr(source, "__name__", "source"), category.get("name"), e)
             errors.append(str(e) or type(e).__name__)
-    return raw, errors
+            continue
+        raw.extend(result or [])
+        problems.extend(getattr(result, "errors", None) or [])
+    return raw, errors, problems
 
 
 async def collect(category: dict, now: datetime,
                   sources: tuple[Source, ...] | None = None,
-                  budget: float = CATEGORY_BUDGET) -> tuple[list[dict], str | None]:
-    """One category's grouped stories (not yet capped) and its error, if any."""
+                  budget: float = CATEGORY_BUDGET, since: datetime | None = None,
+                  ) -> tuple[list[dict], str | None]:
+    """One category's grouped stories (not yet capped) and its error, if any: why it has
+    no story, else the feeds that couldn't be read."""
     try:
-        raw, errors = await asyncio.wait_for(
+        raw, errors, problems = await asyncio.wait_for(
             _from_sources(category, now, SOURCES if sources is None else sources), budget)
     except asyncio.TimeoutError:
         return [], "timed out"
-    stories = group(clean(raw, now))
+    stories = group(clean(raw, now, since))
     if not stories:
-        return [], "; ".join(errors) or "no results"
-    return stories, None
+        return [], "; ".join(errors + problems) or "no results"
+    return stories, "; ".join(problems) or None
 
 
 # ------------------------------------------------------------------ reading
@@ -293,16 +528,24 @@ async def read_texts(stories: list[dict], count: int = READ_PER_CATEGORY,
 async def gather(categories: list[dict], *, now: datetime | None = None,
                  sources: tuple[Source, ...] | None = None,
                  fetch: Callable[[str], str] | None = None,
-                 budget: float = CATEGORY_BUDGET) -> list[dict]:
+                 budget: float = CATEGORY_BUDGET, since: datetime | None = None,
+                 seen: dict[str, set[str]] | None = None) -> list[dict]:
     """``[{"category": <config row>, "stories": [...], "error": str | None}]`` for the
-    enabled categories, in their order. A story in more than one category stays in the
-    first; at most ``MAX_PER_CATEGORY`` each, newest first; the first
-    ``READ_PER_CATEGORY`` have ``text``."""
+    enabled categories, in their order. ``since``: the previous brief's time (older
+    results are kept back to it, :func:`cutoff_time`); ``seen``: :func:`seen_index` of
+    the last briefs (stories already shown are dropped, :func:`already_seen`). A story in
+    more than one category stays in the first; at most ``MAX_PER_CATEGORY`` each, newest
+    first; the first ``READ_PER_CATEGORY`` have ``text``."""
     now = now or datetime.now(timezone.utc)
     enabled = [c for c in categories if c.get("enabled", True)]
-    found = await asyncio.gather(*(collect(c, now, sources, budget) for c in enabled))
+    found = await asyncio.gather(*(collect(c, now, sources, budget, since) for c in enabled))
     out, kept = [], []
     for category, (stories, error) in zip(enabled, found):
+        if seen:
+            fresh = [s for s in stories if not already_seen(s, seen)]
+            if stories and not fresh:
+                error = error or f"every story was in one of the last {SEEN_BRIEFS} briefs"
+            stories = fresh
         mine = [s for s in stories if not any(same_story(s, k) for k in kept)]
         kept.extend(mine)
         mine = newest_first(mine)[:MAX_PER_CATEGORY]
