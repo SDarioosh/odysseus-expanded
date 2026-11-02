@@ -158,6 +158,7 @@ is an old path of a module that moved into `fork/`; it only aliases the new modu
 - `fork/news/brief.py`
 - `fork/news/gather.py`
 - `fork/news/prompt.py`
+- `fork/news/push.py`
 - `fork/news/store.py`
 - `fork/routes/__init__.py`
 - `fork/routes/auto_mode_routes.py`
@@ -449,7 +450,9 @@ is an old path of a module that moved into `fork/`; it only aliases the new modu
 - `tests/fork/test_module_turn_scope.py`
 - `tests/fork/test_modules_setup.py`
 - `tests/fork/test_news_brief.py`
+- `tests/fork/test_news_feeds.py`
 - `tests/fork/test_news_gather.py`
+- `tests/fork/test_news_push.py`
 - `tests/fork/test_notes_evidence.py`
 - `tests/fork/test_offered_reads.py`
 - `tests/fork/test_personal_read_grants.py`

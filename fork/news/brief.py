@@ -10,9 +10,9 @@ summary and links to the articles.
   pass is a no-op (no Activity entry). With ``NEWS_BRIEF_ENABLED=off``, or no enabled
   category, every pass is a no-op.
 * Gathering is code (``gather.py``: SearXNG and the category's RSS/Atom feeds, clean-up,
-  dedupe, grouping, the "seen in the last 3 briefs" filter, reading the top pages); the hub's local background model writes one section per category
-  (``prompt.py``: labels, validation, the headlines-only fallback); the files are
-  ``store.py``.
+  dedupe, grouping, the "seen in the last 3 briefs" filter, reading the top pages); the
+  hub's local background model writes one section per category (``prompt.py``: labels,
+  validation, the headlines-only fallback); the files are ``store.py``.
 * After a brief is written, old briefs are pruned (``NEWS_BRIEF_KEEP_DAYS``) and each
   function in :data:`AFTER_RUN` is called (the phone push, ``push.py``); a later pass
   that finds today's brief written calls each in :data:`ON_EXISTING` (the push again, so
@@ -48,8 +48,8 @@ HOUSEKEEPING_DEFAULT = {
              "cron_expression": CRON},
 }
 INFO = ("Write the morning news brief: for each category on the News page, the day's main "
-        "stories from the hub's SearXNG, summarised by the local model. Runs once a day "
-        "after the delivery time set on the News page.")
+        "stories from the hub's SearXNG and the category's RSS feeds, summarised by the "
+        "local model. Runs once a day after the delivery time set on the News page.")
 
 Llm = Callable[[list[dict]], Awaitable[str]]
 AfterRun = Callable[..., Any]

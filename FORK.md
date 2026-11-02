@@ -33,7 +33,7 @@ fork changes. More:
 - [docs/fork/today-insight.md](docs/fork/today-insight.md): the daily Today insight (job,
   routes, page, chat).
 - [docs/fork/news-brief.md](docs/fork/news-brief.md): the morning news brief (task,
-  gathering, page; phases 2 and 3 planned).
+  gathering, feeds, push, page; phase 3 planned).
 - [docs/fork/beliefs.md](docs/fork/beliefs.md): the belief ledger between sources and
   memory (evidence, confirmation rule, decay, forgetting).
 - [docs/fork/handwritten-notes.md](docs/fork/handwritten-notes.md): handwritten notes
@@ -129,7 +129,7 @@ the link goes to its details (what it does, its files, whether it can go upstrea
 
 ### News brief
 
-- [Morning news brief (phase 1)](docs/fork/news-brief.md#morning-news-brief): the "News Brief" task (SearXNG only, local-model summaries, links only from the search results), the `/news` page and News window with the category editor, delivery time and Refresh.
+- [Morning news brief (phases 1 and 2)](docs/fork/news-brief.md#morning-news-brief): the "News Brief" task (SearXNG and optional RSS/Atom feeds per category through the public-address guard, the "seen in the last 3 briefs" filter, local-model summaries, links only from the candidates), the `/news` page and News window with the category and feeds editor, delivery time and Refresh, and an optional phone push (`NEWS_BRIEF_PUSH`).
 
 ### Handwritten notes
 

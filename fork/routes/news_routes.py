@@ -7,7 +7,7 @@
 * ``POST /api/news/refresh``: write a new brief now. Starts the work in the background
   and answers 202 ``{"status": "started"|"running", "generated": <current or null>}`` at
   once (a run outlasts the request timeout); the page polls ``GET /api/news/today``.
-* ``GET``/``PUT /api/news/config``: the categories (name, query, enabled, stories) and the
+* ``GET``/``PUT /api/news/config``: the categories (name, query, enabled, stories, feeds) and the
   delivery time (``H:MM``, the owner's local time); also ``default_stories``,
   ``enabled`` (``NEWS_BRIEF_ENABLED``) and ``timezone`` (read-only). A PUT answers 400
   with the reason when the config is invalid.

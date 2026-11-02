@@ -6,11 +6,11 @@ a 2–3 sentence summary and links to the articles. It runs as a built-in schedu
 like the [Today insight](today-insight.md), at a time the owner picks (default 07:00 in
 the owner's timezone).
 
-Status: **phase 1 built** (task, gathering from SearXNG, summaries, the `/news` page and
-window with the category editor, delivery time and Refresh; 2026-11-02). Phase 2 (RSS feeds,
-the "seen in the last 3 briefs" filter, push) and phase 3 (chat, Today window) are planned.
-This page is the work order for those PRs; where phase 1 differs from the first plan, the
-text below says what was built and why.
+Status: **phases 1 and 2 built** (phase 1: task, gathering from SearXNG, summaries, the
+`/news` page and window with the category editor, delivery time and Refresh; phase 2: RSS/Atom
+feeds per category, the "seen in the last 3 briefs" filter, the phone push; 2026-11-02).
+Phase 3 (chat, Today window) is planned. This page is the work order for that PR; where
+what was built differs from the first plan, the text below says what was built and why.
 
 ## What the owner gets
 
@@ -18,11 +18,11 @@ text below says what was built and why.
   per category, a one-line overview of the category, then 3–5 stories. Each story has a
   title, a short summary, its sources and the time it was published. Every story links to
   the article; a story reported by several sites lists each one ("Also: Reuters, BBC").
-- (Phase 2) An optional phone push (ntfy) when the brief is ready: "News: 5 categories, 19
-  stories", the top headline of each category, and a link to `/news`.
+- An optional phone push (ntfy or browser) when the brief is ready: title "News", the top
+  headline of each category, one line each (see [Push](#push)).
 - **Settings on the page:** the categories (add, rename, reorder, turn off, delete), per
-  category an optional search query, stories per category (and, phase 2, optional RSS
-  feeds), and the delivery time. **Refresh** writes a new brief now.
+  category an optional search query, stories per category and optional RSS/Atom feeds (one
+  URL per line), and the delivery time. **Refresh** writes a new brief now.
 - Later (phase 3), in the Odysseus web app: "what's in the news today?" in chat is
   answered from the stored brief, and the Today window shows the top headline of each
   category with a link to the News window. The brief does not go to the T5 PDA (owner's
@@ -57,8 +57,16 @@ Rules the code keeps:
   (Brave, Tavily, Serper) when a key is set.
 - Summaries use the hub's local background model only. No cloud model, no fallback.
 
+- Feeds are fetched only from the URLs the owner typed, with no cookies or account,
+  through the same public-address guard as page fetches (`services/search/content.py`
+  `_public_http_url` and `_get_public_url`: no LAN, loopback or metadata address,
+  DNS-pinned redirects).
+
 **Owner's decision (2026-11-02):** sending the category names through SearXNG every
-morning is fine. RSS feeds (phase 2) are an extra source, not a replacement.
+morning is fine. RSS feeds are an extra source, not a replacement: a category with feeds is
+still searched when it has a query. Only a category with feeds and an empty query field is
+feeds only (its name is then not searched), so a category like "Blogs I follow" doesn't
+send its name to SearXNG.
 
 ## How it works
 
@@ -94,22 +102,32 @@ therefore shows `*/15 * * * *`, and the delivery time is set on the News page on
 
 1. **Gather**, per enabled category, in parallel with a time budget (60 s per category):
    - SearXNG: `searxng_search_api(query, categories="news", time_filter="day")`, about 15
-     results. The query is the category's query field, else its name.
-   - (Phase 2) RSS/Atom feeds of the category, if any: items published in the last 24 hours (or
-     since the previous brief), parsed with the standard library (`xml.etree`; no new
-     dependency). Feed URLs go through the same public-address check as page fetches
-     (`services/search/content.py` `_public_http_url`), so a feed can't point at the LAN.
+     results. The query is the category's query field, else its name; a category with
+     feeds and no query is not searched (feeds only).
+   - RSS/Atom feeds of the category, if any (at most 10): read in parallel, each with a
+     10 s timeout, inside the category's time budget. Parsed with the standard library
+     (`xml.etree`; no new dependency): RSS 2.0, RSS 1.0 and Atom; a body with a DOCTYPE or
+     ENTITY declaration is refused (entity expansion), and so is one over 2 MB. Feed URLs go
+     through the same public-address guard as page fetches (`services/search/content.py`
+     `_public_http_url` and `_get_public_url`, reused, not copied), so a feed can't point
+     at the LAN. At most 50 items per feed. A feed that fails (refused, unreachable, not a
+     feed) is recorded in the brief's `errors` (`feed example.com/rss.xml couldn't be read
+     (...)`) and leaves the other feeds and the search.
    - Each candidate is `{title, url, source, published, snippet}`. Sources are a tuple
-     in `fork/news/gather.py` (`SOURCES`, each `source(category, now)`); phase 2 adds the
-     RSS source there. A failing source is logged and leaves the others.
+     in `fork/news/gather.py` (`SOURCES`: `searxng_source`, `feeds_source`, each
+     `source(category, now)`). A failing source is logged and leaves the others.
 2. **Clean up in code** (no model):
    - Drop results without a URL or title, non-http(s) URLs, and results older than the
-     lookback (when the date is known).
+     lookback (when the date is known): the last 24 hours, or since the previous brief
+     when that is earlier (a server that was off), at most 3 days. Items without a date
+     are kept and ranked after the dated ones.
    - Canonical URL (strip `utm_*`, `fbclid`, fragments, `amp` paths) and dedupe by it.
    - Group near-duplicate titles (token overlap) into one story with several sources.
-   - (Phase 2) Drop stories already shown in the last 3 briefs (by canonical URL), so a
-     story that trends for days isn't repeated, unless it has a new source
-     (`store.recent_briefs` reads them).
+   - Drop stories already shown in the last 3 briefs before today (by canonical URL, the
+     story's own link or one of its "also" links), so a story that trends for days isn't
+     repeated, unless the story now has a source (site) the earlier story didn't have
+     (`store.recent_briefs`, `gather.seen_index`, `gather.already_seen`). A Refresh on the
+     same day doesn't count today's own brief as seen.
    - A story that fits two categories stays in the first one only.
    - Keep at most 12 candidates per category, newest first after grouping.
 3. **Read** the top candidates: `fetch_webpage_content(url)` (existing, SSRF-guarded) for
@@ -136,13 +154,17 @@ therefore shows `*/15 * * * *`, and the delivery time is set on the News page on
    that raises (a timeout, a cancelled run) stores nothing; the next pass tries again.
    When no category found any story, nothing is stored either.
 6. **Store**, delete briefs older than `NEWS_BRIEF_KEEP_DAYS`, then call each function in
-   `fork/news/brief.py` `AFTER_RUN` (`hook(owner, brief, now=now)`; phase 2 adds the push).
+   `fork/news/brief.py` `AFTER_RUN` (`hook(owner, brief, now=now)`: the push). A later
+   pass that finds today's brief written calls each function in `ON_EXISTING` (the push
+   again, so a failed send is retried).
 
 ### Stored JSON
 
 One file per owner and day: `<DATA_DIR>/news_brief/<owner>/<YYYY-MM-DD>.json` (owner folder
 names as in [today-insight.md](today-insight.md#owner-folder-names)). Categories in
-`<DATA_DIR>/news_brief/<owner>/config.json`. Example (fictional):
+`<DATA_DIR>/news_brief/<owner>/config.json` (each `name`, `query`, `enabled`, `stories`,
+`feeds`). The day's push state in `push-<YYYY-MM-DD>.json` (`pushed`: UTC stamp or null,
+`tries`), deleted with the brief. Example (fictional):
 
 ```json
 {
@@ -161,20 +183,30 @@ names as in [today-insight.md](today-insight.md#owner-folder-names)). Categories
      "also": [{"url": "https://example.org/...", "source": "example.org"}]}
    ]}
  ],
- "errors": [{"category": "Markets", "error": "no results"}]
+ "errors": [{"category": "Markets", "error": "no results"},
+            {"category": "Formula 1", "error": "feed example.net/rss couldn't be read (HTTP 503)"}]
 }
 ```
 
 Old days stay on disk for 30 days (`NEWS_BRIEF_KEEP_DAYS`), then are deleted by the task.
 
-### Push (phase 2)
+An entry in `errors` doesn't always mean the category is empty: a feed that failed is
+listed there while the category still has stories (the page shows them under "Problems").
 
-After a successful run, once a day, when `NEWS_BRIEF_PUSH=on` (default `off`) and
-`MODULE_NOTIFY_CHANNEL` isn't `off`: through the module notify channel
-(`fork/athena/action_items_push.push`, Odysseus' reminder dispatcher, ntfy or browser).
-Title `News`, body the top headline per category (≤ 600 characters), key
-`news-brief:<date>`. Unlike the Today push it doesn't wait for `MODULE_DIGEST_HOUR`: the
-task's own time is the delivery time.
+### Push
+
+`fork/news/push.py`. After a successful run, once a day, when `NEWS_BRIEF_PUSH=on`
+(default `off`) and `MODULE_NOTIFY_CHANNEL` isn't `off`, and the brief is today's and has at
+least one story: through the module notify channel (`fork/athena/action_items_push.push`,
+Odysseus' reminder dispatcher, ntfy or browser). Title `News`, body the top headline per
+category, one line each (`Formula 1: Team X tops final test day`), whole lines up to 600
+characters, plain text from the stored titles (no model rewrite); key `news-brief:<date>`.
+Unlike the Today push it doesn't wait for `MODULE_DIGEST_HOUR`: the task's own time is the
+delivery time. The day's push file records the tries and the `pushed` stamp; the day is
+marked pushed only when the send succeeded, and a failed send is tried again on the next
+pass (every 15 minutes), at most 3 tries a day. The first plan's "5 categories, 19 stories"
+line and link to `/news` were left out: the notify channel has no link field, and the
+headlines say more in the space.
 
 ### Routes
 
@@ -182,7 +214,7 @@ task's own time is the delivery time.
 |---|---|---|
 | `GET /api/news/today` | admin session | today's brief, plus `refreshing` and `refresh_error`; 404 when none |
 | `POST /api/news/refresh` | admin session | 202, writes a new brief in the background (a run outlasts the request timeout) |
-| `GET`/`PUT /api/news/config` | admin session | categories (`name`, `query`, `enabled`, `stories` or null), `delivery_time` (H:MM); GET also gives `default_stories`, `enabled` (the setting) and `timezone`; 400 with the reason when invalid (empty or repeated name, more than 20 categories, stories outside 1–10, a bad time) |
+| `GET`/`PUT /api/news/config` | admin session | categories (`name`, `query`, `enabled`, `stories` or null, `feeds`: a list of URLs), `delivery_time` (H:MM); GET also gives `default_stories`, `enabled` (the setting) and `timezone`; 400 with the reason when invalid (empty or repeated name, more than 20 categories, stories outside 1–10, a bad time, a feed that isn't an http(s) URL with a host and no user or password, a feed longer than 500 characters, more than 10 feeds in a category) |
 | `GET /news` | session | the page |
 
 ### Settings
@@ -190,7 +222,7 @@ task's own time is the delivery time.
 | Setting | Default | Meaning |
 |---|---|---|
 | `NEWS_BRIEF_ENABLED` | `on` | `off`: every run is a no-op |
-| `NEWS_BRIEF_PUSH` | `off` | (phase 2) `on`: phone push when the brief is ready |
+| `NEWS_BRIEF_PUSH` | `off` | `on`: phone push when the brief is ready ([Push](#push)) |
 | `NEWS_BRIEF_STORIES` | `5` | default stories per category (1–10; each category can override it) |
 | `NEWS_BRIEF_KEEP_DAYS` | `30` | days of briefs kept |
 | delivery time | 7:00 | on the News page, in `config.json` (not the task's cron, see [The task](#the-task)) |
@@ -204,16 +236,17 @@ fork table):
 
 | File | What |
 |---|---|
-| `fork/news/brief.py` | the task: `INFO`, `HOUSEKEEPING_DEFAULT`, `action_news_brief`, `run`, `generate_now` (Refresh), `AFTER_RUN` |
-| `fork/news/gather.py` | sources (`SOURCES`: SearXNG; RSS in phase 2), canonical URLs, dedupe, grouping, reading pages |
+| `fork/news/brief.py` | the task: `INFO`, `HOUSEKEEPING_DEFAULT`, `action_news_brief`, `run`, `generate_now` (Refresh), `AFTER_RUN`, `ON_EXISTING` |
+| `fork/news/gather.py` | sources (`SOURCES`: SearXNG, RSS/Atom feeds), feed parsing, canonical URLs, dedupe, grouping, the seen filter, reading pages |
 | `fork/news/prompt.py` | prompt, labels, answer validation, the headlines-only fallback |
-| `fork/news/store.py` | config and daily files, pruning, `latest_brief` and `recent_briefs` for phases 2 and 3 |
+| `fork/news/push.py` | the phone push (`maybe_push`) |
+| `fork/news/store.py` | config (with feeds) and daily files, push files, pruning, `latest_brief` and `recent_briefs` |
 | `fork/routes/news_routes.py` | routes above; one row in `fork/routes/__init__.py` `ROUTERS` |
 | `static/news.html`, `static/js/news.js` | the page and window; entry in `static/js/forkModuleWindows.js` (in Tools after Notes, not in the Athena group), `/open news` and "Open News" in `static/js/forkModuleShortcuts.js`; styles under `nb-` in `static/css/fork-modules.css` |
-| `tests/fork/test_news_brief.py`, `tests/fork/test_news_gather.py` | tests on fictional data, fake SearXNG and fake model |
+| `tests/fork/test_news_brief.py`, `tests/fork/test_news_gather.py`, `tests/fork/test_news_feeds.py`, `tests/fork/test_news_push.py` | tests on fictional data, fake SearXNG, fake feeds, fake model and fake notify channel |
 
 Settings rows are in `fork/common/settings.py` (passed by `docker/fork.override.yml`).
-No upstream file was changed in phase 1.
+No upstream file was changed in phases 1 and 2.
 
 Phase 3 adds the chat block (in the existing `build_context_preface` hook) and a News
 section in the Today window (`static/js/today.js`, a fork file). Each lands in [FORK.md](../../FORK.md) when built.
@@ -225,8 +258,13 @@ section in the Today window (`static/js/today.js`, a fork file). Each lands in [
    and dedupe, label validation, made-up links dropped, garbage answer twice → headlines
    only, empty category, no categories → no-op, the delivery time in the owner's zone
    (`tests/fork/test_news_brief.py`, `tests/fork/test_news_gather.py`).
-2. **RSS feeds and push.** Feeds per category, feed URL checks, "seen in the last 3
-   briefs" filter, ntfy push.
+2. **RSS feeds and push** (built). Feeds per category with the feeds editor, feed URL
+   checks, "seen in the last 3 briefs" filter, the push. Tests: RSS, Atom, malformed,
+   DOCTYPE refused, oversize, private-address URL refused, undated items; feeds merged
+   and deduplicated with search results, a feeds-only category, a failing feed recorded;
+   the seen filter (dropped, kept with a new source); feed config validation; the push
+   (off, channel off, sent once, failed send retried, at most 3 tries, empty brief not
+   pushed) (`tests/fork/test_news_feeds.py`, `tests/fork/test_news_push.py`).
 3. **Chat and the Today window.** "What's in the news?" answered from the stored brief
    (added only on news questions, like the Today block), and a News section in the Today
    window: the top headline per category, each linking to its story in the News window.
@@ -246,7 +284,10 @@ section in the Today window (`static/js/today.js`, a fork file). Each lands in [
 
 - **SearXNG's news engines** vary by install; some return little. `searxng_search_api`
   already falls back to the general category when the news category is empty. RSS feeds
-  (phase 2) are the steady source for a category that searches badly.
+  are the steady source for a category that searches badly.
+- **Feeds without dates** are kept every day; the "seen" filter is what keeps their old
+  items from coming back (they come back after 3 briefs if still in the feed and the
+  model picks them again).
 - **Model time.** One call per category on the local model; six categories take a few
   minutes, so the brief is ready a few minutes after the delivery time.
 - **Cancellation.** Upstream cancels a running model-backed task on a non-passive request
