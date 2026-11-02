@@ -1,4 +1,4 @@
-# Morning news brief (planned)
+# Morning news brief
 
 A short news brief written by Odysseus every morning: for each category the owner sets
 (for example "AI", "Formula 1", "Toronto", "Markets"), the day's main stories, each with
@@ -6,7 +6,11 @@ a 2–3 sentence summary and links to the articles. It runs as a built-in schedu
 like the [Today insight](today-insight.md), at a time the owner picks (default 07:00 in
 the owner's timezone).
 
-Status: **scoped, not built.** This page is the work order for the PRs that build it.
+Status: **phase 1 built** (task, gathering from SearXNG, summaries, the `/news` page and
+window with the category editor, delivery time and Refresh; 2026-11-02). Phase 2 (RSS feeds,
+the "seen in the last 3 briefs" filter, push) and phase 3 (chat, Today window) are planned.
+This page is the work order for those PRs; where phase 1 differs from the first plan, the
+text below says what was built and why.
 
 ## What the owner gets
 
@@ -14,11 +18,11 @@ Status: **scoped, not built.** This page is the work order for the PRs that buil
   per category, a one-line overview of the category, then 3–5 stories. Each story has a
   title, a short summary, its sources and the time it was published. Every story links to
   the article; a story reported by several sites lists each one ("Also: Reuters, BBC").
-- An optional phone push (ntfy) when the brief is ready: "News: 5 categories, 19
+- (Phase 2) An optional phone push (ntfy) when the brief is ready: "News: 5 categories, 19
   stories", the top headline of each category, and a link to `/news`.
 - **Settings on the page:** the categories (add, rename, reorder, turn off, delete), per
-  category an optional search query and optional RSS feeds, stories per category, and the
-  delivery time. **Refresh** writes a new brief now.
+  category an optional search query, stories per category (and, phase 2, optional RSS
+  feeds), and the delivery time. **Refresh** writes a new brief now.
 - Later (phase 3), in the Odysseus web app: "what's in the news today?" in chat is
   answered from the stored brief, and the Today window shows the top headline of each
   category with a link to the News window. The brief does not go to the T5 PDA (owner's
@@ -65,33 +69,49 @@ reads their feed), at the cost of the owner picking feeds per category.
 Built-in task **News Brief** (action `news_brief`), one row in `fork/tasks.py` `TASKS`:
 `housekeeping=True` (seeded for every owner), `silent=True` (posts nothing to the
 assistant chat), `model_backed=True` (waits for the local model slot like the other
-model-backed tasks). Default schedule `*/15 7-8 * * *` (07:00, then every 15 minutes
-until 08:45), in the task's timezone (`_resolve_task_timezone`: the task's crew, else the
-owner's assistant, else the server). The 07:00 run writes the brief; the later passes are
-no-ops once today's brief exists and only catch a run that failed or was cancelled.
+model-backed tasks). Schedule `*/15 * * * *`, like the Today insight.
 
-The delivery time on the page (hour and minute, H:MM) writes the task's cron
-(`M/15 H-(H+1) * * *`) through upstream's task route, so
-the time shown on `/news` and in Tasks is always the same setting. With
-`NEWS_BRIEF_ENABLED=off`, or no categories, a run is a no-op.
+The **delivery time** (H:MM, default 7:00) is stored in the owner's `config.json` and
+checked in code: a pass writes the brief once the owner's local time has reached it and
+there is no brief for today yet. The owner's time is the task's crew timezone, else the
+owner's assistant's, else the server's (the Today insight's rule). Every other pass is a
+no-op that leaves no Activity entry, so a run that failed or was cancelled is tried again
+15 minutes later. With `NEWS_BRIEF_ENABLED=off`, or no enabled category, every pass (and
+Refresh) is a no-op.
+
+Built differently from the first plan, which wrote the delivery time into the task's cron
+(`M/15 H-(H+1) * * *`) through upstream's task route:
+
+- upstream's `TaskScheduler.ensure_defaults` (run at startup and each time the Tasks list
+  is opened) puts every housekeeping task's cron back to its default, so an owner's cron
+  would not survive;
+- a housekeeping task has no crew, and upstream reads the cron of a task without a crew
+  in UTC (`compute_next_run` gets no `tz_name`), so `0/15 7-8` would run at 07:00 UTC, not
+  07:00 for the owner, and move by an hour at each DST change.
+
+Both would need upstream hooks; checking the time in code needs none. The Tasks list
+therefore shows `*/15 * * * *`, and the delivery time is set on the News page only.
 
 ### Steps of one run
 
 1. **Gather**, per enabled category, in parallel with a time budget (60 s per category):
    - SearXNG: `searxng_search_api(query, categories="news", time_filter="day")`, about 15
      results. The query is the category's query field, else its name.
-   - RSS/Atom feeds of the category, if any: items published in the last 24 hours (or
+   - (Phase 2) RSS/Atom feeds of the category, if any: items published in the last 24 hours (or
      since the previous brief), parsed with the standard library (`xml.etree`; no new
      dependency). Feed URLs go through the same public-address check as page fetches
      (`services/search/content.py` `_public_http_url`), so a feed can't point at the LAN.
-   - Each candidate is `{title, url, source, published, snippet}`.
+   - Each candidate is `{title, url, source, published, snippet}`. Sources are a tuple
+     in `fork/news/gather.py` (`SOURCES`, each `source(category, now)`); phase 2 adds the
+     RSS source there. A failing source is logged and leaves the others.
 2. **Clean up in code** (no model):
    - Drop results without a URL or title, non-http(s) URLs, and results older than the
      lookback (when the date is known).
    - Canonical URL (strip `utm_*`, `fbclid`, fragments, `amp` paths) and dedupe by it.
    - Group near-duplicate titles (token overlap) into one story with several sources.
-   - Drop stories already shown in the last 3 briefs (by canonical URL), so a story that
-     trends for days isn't repeated, unless it has a new source.
+   - (Phase 2) Drop stories already shown in the last 3 briefs (by canonical URL), so a
+     story that trends for days isn't repeated, unless it has a new source
+     (`store.recent_briefs` reads them).
    - A story that fits two categories stays in the first one only.
    - Keep at most 12 candidates per category, newest first after grouping.
 3. **Read** the top candidates: `fetch_webpage_content(url)` (existing, SSRF-guarded) for
@@ -114,7 +134,11 @@ the time shown on `/news` and in Tasks is always the same setting. With
    candidates, never from the model's text**, so a link can't be made up. A bad answer is
    retried once with a corrective message; if that fails, the category is stored with its
    top headlines and snippets and no summaries (still useful, marked "not summarised").
-6. **Store** and, if on, **push** once (below).
+   With no model endpoint configured every category is stored that way. A model call
+   that raises (a timeout, a cancelled run) stores nothing; the next pass tries again.
+   When no category found any story, nothing is stored either.
+6. **Store**, delete briefs older than `NEWS_BRIEF_KEEP_DAYS`, then call each function in
+   `fork/news/brief.py` `AFTER_RUN` (`hook(owner, brief, now=now)`; phase 2 adds the push).
 
 ### Stored JSON
 
@@ -145,7 +169,7 @@ names as in [today-insight.md](today-insight.md#owner-folder-names)). Categories
 
 Old days stay on disk for 30 days (`NEWS_BRIEF_KEEP_DAYS`), then are deleted by the task.
 
-### Push
+### Push (phase 2)
 
 After a successful run, once a day, when `NEWS_BRIEF_PUSH=on` (default `off`) and
 `MODULE_NOTIFY_CHANNEL` isn't `off`: through the module notify channel
@@ -160,7 +184,7 @@ task's own time is the delivery time.
 |---|---|---|
 | `GET /api/news/today` | admin session | today's brief, plus `refreshing` and `refresh_error`; 404 when none |
 | `POST /api/news/refresh` | admin session | 202, writes a new brief in the background (a run outlasts the request timeout) |
-| `GET`/`PUT /api/news/config` | admin session | categories, stories per category, delivery time (writes the task's cron) |
+| `GET`/`PUT /api/news/config` | admin session | categories (`name`, `query`, `enabled`, `stories` or null), `delivery_time` (H:MM); GET also gives `default_stories`, `enabled` (the setting) and `timezone`; 400 with the reason when invalid (empty or repeated name, more than 20 categories, stories outside 1–10, a bad time) |
 | `GET /news` | session | the page |
 
 ### Settings
@@ -168,10 +192,10 @@ task's own time is the delivery time.
 | Setting | Default | Meaning |
 |---|---|---|
 | `NEWS_BRIEF_ENABLED` | `on` | `off`: every run is a no-op |
-| `NEWS_BRIEF_PUSH` | `off` | `on`: phone push when the brief is ready |
+| `NEWS_BRIEF_PUSH` | `off` | (phase 2) `on`: phone push when the brief is ready |
 | `NEWS_BRIEF_STORIES` | `5` | default stories per category (1–10; each category can override it) |
 | `NEWS_BRIEF_KEEP_DAYS` | `30` | days of briefs kept |
-| delivery time | 07:00 | the task's schedule (page or Tasks) |
+| delivery time | 7:00 | on the News page, in `config.json` (not the task's cron, see [The task](#the-task)) |
 
 Settings go in the `fork/common/settings.py` table, so `docs/fork/settings.md` is generated.
 
@@ -182,23 +206,27 @@ fork table):
 
 | File | What |
 |---|---|
-| `fork/news/brief.py` | the task: `INFO`, `HOUSEKEEPING_DEFAULT`, `action_news_brief`, the run |
-| `fork/news/gather.py` | SearXNG and RSS gathering, canonical URLs, dedupe, grouping |
-| `fork/news/prompt.py` | prompt, labels, answer validation |
-| `fork/news/store.py` | config and daily files, pruning |
+| `fork/news/brief.py` | the task: `INFO`, `HOUSEKEEPING_DEFAULT`, `action_news_brief`, `run`, `generate_now` (Refresh), `AFTER_RUN` |
+| `fork/news/gather.py` | sources (`SOURCES`: SearXNG; RSS in phase 2), canonical URLs, dedupe, grouping, reading pages |
+| `fork/news/prompt.py` | prompt, labels, answer validation, the headlines-only fallback |
+| `fork/news/store.py` | config and daily files, pruning, `latest_brief` and `recent_briefs` for phases 2 and 3 |
 | `fork/routes/news_routes.py` | routes above; one row in `fork/routes/__init__.py` `ROUTERS` |
-| `static/news.html`, `static/js/news.js` | the page and window; entry in `static/js/forkModuleWindows.js`, `/open news` in `static/js/forkModuleShortcuts.js` |
+| `static/news.html`, `static/js/news.js` | the page and window; entry in `static/js/forkModuleWindows.js` (in Tools after Notes, not in the Athena group), `/open news` and "Open News" in `static/js/forkModuleShortcuts.js`; styles under `nb-` in `static/css/fork-modules.css` |
 | `tests/fork/test_news_brief.py`, `tests/fork/test_news_gather.py` | tests on fictional data, fake SearXNG and fake model |
+
+Settings rows are in `fork/common/settings.py` (passed by `docker/fork.override.yml`).
+No upstream file was changed in phase 1.
 
 Phase 3 adds the chat block (in the existing `build_context_preface` hook) and a News
 section in the Today window (`static/js/today.js`, a fork file). Each lands in [FORK.md](../../FORK.md) when built.
 
 ## Phases (one PR each)
 
-1. **Task and page.** Config file, gather (SearXNG only), clean-up, summarise, validate,
+1. **Task and page** (built). Config file, gather (SearXNG only), clean-up, summarise, validate,
    store, `/news` page with categories editor and Refresh, delivery time. Tests: clean-up
    and dedupe, label validation, made-up links dropped, garbage answer twice → headlines
-   only, empty category, no categories → no-op, timezone of the cron.
+   only, empty category, no categories → no-op, the delivery time in the owner's zone
+   (`tests/fork/test_news_brief.py`, `tests/fork/test_news_gather.py`).
 2. **RSS feeds and push.** Feeds per category, feed URL checks, "seen in the last 3
    briefs" filter, ntfy push.
 3. **Chat and the Today window.** "What's in the news?" answered from the stored brief
@@ -224,7 +252,9 @@ section in the Today window (`static/js/today.js`, a fork file). Each lands in [
 - **Model time.** One call per category on the local model; six categories take a few
   minutes, so the brief is ready a few minutes after the delivery time.
 - **Cancellation.** Upstream cancels a running model-backed task on a non-passive request
-  (see [today-insight.md](today-insight.md#known-limits)). That is why the schedule
-  repeats every 15 minutes for two hours after the delivery time: a cancelled run is
-  tried again at the next pass, and passes after a written brief are no-ops.
+  (see [today-insight.md](today-insight.md#known-limits)). That is why the task runs every
+  15 minutes: a cancelled run is tried again at the next pass after the delivery time,
+  and passes after a written brief are no-ops.
+- **Late server.** A server that was off at the delivery time writes the brief at the
+  first pass after it comes back (the same day, any hour).
 - **Paywalls.** Paywalled articles keep their search snippet; the summary is thinner.
