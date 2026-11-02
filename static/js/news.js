@@ -3,6 +3,11 @@
 // (static/js/forkModuleWindows.js) and by the standalone page (static/news.html). Data:
 // fork/routes/news_routes.py. Contract: docs/fork/news-brief.md.
 //
+// `/#open=news&story=<category>-<story>` (both indexes in today's brief, from 0) opens
+// the News window scrolled to that story: the Today window's News section links there
+// (static/js/today.js); forkModuleWindows.js handles the click, forkEntityHash.js a fresh
+// load. `parseNewsHash` and `storyHash` are the one place the scheme is written.
+//
 // Every text from the brief (titles, summaries, sources) comes from web pages or the model
 // and is set as text, never as HTML; links are kept only when they are http(s).
 
@@ -33,6 +38,21 @@ function note(text, error = false) {
   n.hidden = !text;
 }
 
+const NEWS_HASH = /^#open=news(?:&story=(\d{1,2})-(\d{1,2}))?$/;
+
+/** `#open=news[&story=<c>-<s>]` -> { story: [c, s] | null }; anything else -> null. */
+export function parseNewsHash(hash) {
+  const m = NEWS_HASH.exec(String(hash || ''));
+  if (!m) return null;
+  return { story: m[1] === undefined ? null : [Number(m[1]), Number(m[2])] };
+}
+
+/** The hash that opens the News window at story `s` of category `c` (indexes from 0). */
+export function storyHash(c, s) {
+  return Number.isInteger(c) && Number.isInteger(s) && c >= 0 && s >= 0 && c < 100 && s < 100
+    ? `#open=news&story=${c}-${s}` : '#open=news';
+}
+
 /** An article link: only http(s) URLs; anything else is no link. */
 export function safeUrl(href) {
   const text = String(href || '').trim();
@@ -54,19 +74,19 @@ function timeLabel(iso) {
   return sameDay ? time : `${d.toLocaleDateString([], { month: 'short', day: 'numeric' })} ${time}`;
 }
 
-function storyRow(story) {
+function storyRow(story, ci, si) {
   const also = Array.isArray(story.also) ? story.also.filter(a => a && a.source) : [];
   const meta = [story.source, timeLabel(story.published)].filter(Boolean).join(' · ');
   const alsoLine = also.length ? el('div', { className: 'bs-meta nb-also' }, 'Also: ',
     ...also.flatMap((a, i) => [i ? ', ' : null, outLink(a.url, a.source, 'nb-src')])) : null;
-  return el('li', { className: 'nb-story' },
+  return el('li', { className: 'nb-story', 'data-story': `${ci}-${si}` },
     outLink(story.url, story.title || story.source || 'Untitled', 'bs-title'),
     story.summary ? el('div', { className: 'nb-summary' }, story.summary) : null,
     meta ? el('div', { className: 'bs-meta' }, meta) : null,
     alsoLine);
 }
 
-function categoryBlock(cat) {
+function categoryBlock(cat, ci) {
   const stories = Array.isArray(cat.stories) ? cat.stories : [];
   return [
     el('div', { className: 'bs-section' }, cat.name || ''),
@@ -74,7 +94,7 @@ function categoryBlock(cat) {
       cat.overview ? el('p', { className: 'nb-overview' }, cat.overview) : null,
       cat.summarised === false
         ? el('div', { className: 'bs-meta nb-flag' }, 'Not summarised: headlines and snippets only.') : null,
-      stories.length ? el('ul', { className: 'bs-items' }, ...stories.map(storyRow))
+      stories.length ? el('ul', { className: 'bs-items' }, ...stories.map((st, si) => storyRow(st, ci, si)))
         : el('div', { className: 'bs-empty' }, 'No stories.')),
   ];
 }
@@ -85,7 +105,7 @@ function render(brief) {
   const written = timeLabel(brief.generated);
   const parts = [el('div', { className: 'bs-meta nb-date' },
     [brief.date, written ? `Written ${written}` : ''].filter(Boolean).join(' · '))];
-  for (const cat of cats) parts.push(...categoryBlock(cat));
+  cats.forEach((cat, ci) => parts.push(...categoryBlock(cat, ci)));
   if (!cats.length) parts.push(el('div', { className: 'bs-status' }, 'No stories today.'));
   if (errors.length) {
     parts.push(el('div', { className: 'bs-meta nb-errors' },
@@ -104,7 +124,15 @@ async function fetchToday() {
   }
 }
 
-async function load() {
+// The last load(), so showStory() scrolls once the brief is on the page.
+let loading = Promise.resolve();
+
+function load() {
+  loading = loadBrief();
+  return loading;
+}
+
+async function loadBrief() {
   try {
     const brief = await fetchToday();
     if (brief.missing) {
@@ -287,7 +315,19 @@ async function loadConfig() {
   }
 }
 
-/** Builds the view into `target` and loads it. Returns { refresh } (reloads the stored brief). */
+/** Scrolls to story `s` of category `c` (indexes from 0) and marks it for a moment. */
+async function showStory(c, s) {
+  await loading;
+  const row = root && root.querySelector(`.nb-story[data-story="${Number(c)}-${Number(s)}"]`);
+  if (!row) return false;
+  row.scrollIntoView({ block: 'center', behavior: 'smooth' });
+  row.classList.add('nb-target');
+  setTimeout(() => row.classList.remove('nb-target'), 2500);
+  return true;
+}
+
+/** Builds the view into `target` and loads it. Returns { refresh } (reloads the stored
+ *  brief) and { showStory(c, s) } (scrolls to a story, see `storyHash`). */
 export function mountNews(target) {
   if (root) throw new Error('the News view is already mounted');
   root = target;
@@ -300,6 +340,6 @@ export function mountNews(target) {
     el('div', { className: 'nb-main' }, el('div', { className: 'bs-status' }, 'Loading…')),
     settingsPanel());
   button.addEventListener('click', refresh);
-  loadConfig().then(load);
-  return { refresh: load };
+  loading = loadConfig().then(load); // showStory() waits for the first brief too
+  return { refresh: load, showStory };
 }
