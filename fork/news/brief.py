@@ -9,15 +9,17 @@ summary and links to the articles.
   the delivery time from the News page and there is no brief for today yet. Every other
   pass is a no-op (no Activity entry). With ``NEWS_BRIEF_ENABLED=off``, or no enabled
   category, every pass is a no-op.
-* Gathering is code (``gather.py``: SearXNG only, clean-up, dedupe, grouping, reading the
-  top pages); the hub's local background model writes one section per category
-  (``prompt.py``: labels, validation, the headlines-only fallback); the files are
-  ``store.py``.
-* After a brief is written, each function in :data:`AFTER_RUN` is called (phase 2: the
-  phone push), and old briefs are pruned (``NEWS_BRIEF_KEEP_DAYS``).
+* Gathering is code (``gather.py``: SearXNG and the category's RSS/Atom feeds, clean-up,
+  dedupe, grouping, the "seen in the last 3 briefs" filter, reading the top pages); the
+  hub's local background model writes one section per category (``prompt.py``: labels,
+  validation, the headlines-only fallback); the files are ``store.py``.
+* After a brief is written, old briefs are pruned (``NEWS_BRIEF_KEEP_DAYS``) and each
+  function in :data:`AFTER_RUN` is called (the phone push, ``push.py``); a later pass
+  that finds today's brief written calls each in :data:`ON_EXISTING` (the push again, so
+  a failed send is retried).
 
 Settings: ``NEWS_BRIEF_ENABLED`` (on), ``NEWS_BRIEF_STORIES`` (5, 1-10; per category it
-can be overridden on the page), ``NEWS_BRIEF_KEEP_DAYS`` (30).
+can be overridden on the page), ``NEWS_BRIEF_KEEP_DAYS`` (30), ``NEWS_BRIEF_PUSH`` (off).
 
 Read by ``fork/routes/news_routes.py`` (page, Refresh, config).
 """
@@ -46,13 +48,24 @@ HOUSEKEEPING_DEFAULT = {
              "cron_expression": CRON},
 }
 INFO = ("Write the morning news brief: for each category on the News page, the day's main "
-        "stories from the hub's SearXNG, summarised by the local model. Runs once a day "
-        "after the delivery time set on the News page.")
+        "stories from the hub's SearXNG and the category's RSS feeds, summarised by the "
+        "local model. Runs once a day after the delivery time set on the News page.")
 
 Llm = Callable[[list[dict]], Awaitable[str]]
-# After a brief is written: hook(owner, brief, now=now); sync or async; failures are logged.
 AfterRun = Callable[..., Any]
-AFTER_RUN: list[AfterRun] = []
+
+
+async def push_hook(owner: str | None, brief: dict, *, now: datetime | None = None) -> None:
+    """The phone push (``push.py``; it checks ``NEWS_BRIEF_PUSH`` and sends once a day)."""
+    from fork.news import push as news_push
+
+    await news_push.maybe_push(owner, brief, now=now)
+
+
+# After a brief is written: hook(owner, brief, now=now); sync or async; failures are logged.
+AFTER_RUN: list[AfterRun] = [push_hook]
+# On a later scheduled pass that finds today's brief written: hook(owner, brief, now=now).
+ON_EXISTING: list[AfterRun] = [push_hook]
 
 
 # ----------------------------------------------------------------------- settings
@@ -174,8 +187,11 @@ async def build(owner: str | None, config: dict, day, *, llm: Llm | None = None,
                 sources: tuple | None = None, fetch: Callable | None = None) -> dict | None:
     """Gather and summarise every enabled category; the brief, or None when no category
     found any story (nothing is stored then; the next pass tries again)."""
+    previous = store.recent_briefs(owner, news_gather.SEEN_BRIEFS, before=day.isoformat())
+    since = news_gather.parse_published(previous[0].get("generated")) if previous else None
     rows = await news_gather.gather(config["categories"], now=now, sources=sources,
-                                    fetch=fetch)
+                                    fetch=fetch, since=since,
+                                    seen=news_gather.seen_index(previous))
     if not any(r["stories"] for r in rows):
         return None
     model = await _model(owner, llm, wait_quiet)
@@ -192,8 +208,9 @@ async def build(owner: str | None, config: dict, day, *, llm: Llm | None = None,
     return store.make_brief(day, categories, errors, now=now)
 
 
-async def _after_run(owner: str | None, brief: dict, now: datetime | None) -> None:
-    for hook in list(AFTER_RUN):
+async def _after_run(owner: str | None, brief: dict, now: datetime | None,
+                     hooks: list[AfterRun] | None = None) -> None:
+    for hook in list(AFTER_RUN if hooks is None else hooks):
         try:
             result = hook(owner, brief, now=now)
             if inspect.isawaitable(result):
@@ -220,20 +237,23 @@ async def run(owner: str | None, *, force: bool = False, llm: Llm | None = None,
         now_local = local_now(owner, now)
         day = now_local.date()
         existing = store.load(owner, day.isoformat())
-        if not force:
-            if existing is not None:
-                return "exists", existing
-            if not due(config, now_local):
-                return "not_yet", None
-        brief = await build(owner, config, day, llm=llm, now=now, wait_quiet=wait_quiet,
-                            sources=sources, fetch=fetch)
-        if brief is None:
-            return "empty", existing
-        store.save(owner, brief)
-        try:
-            store.prune(owner, keep_days(), day)
-        except Exception as e:  # noqa: BLE001
-            logger.warning("news brief: pruning failed: %s", e)
+        if not force and existing is None and not due(config, now_local):
+            return "not_yet", None
+        if not force and existing is not None:
+            brief = None
+        else:
+            brief = await build(owner, config, day, llm=llm, now=now, wait_quiet=wait_quiet,
+                                sources=sources, fetch=fetch)
+            if brief is None:
+                return "empty", existing
+            store.save(owner, brief)
+            try:
+                store.prune(owner, keep_days(), day)
+            except Exception as e:  # noqa: BLE001
+                logger.warning("news brief: pruning failed: %s", e)
+    if brief is None:  # today's brief was already written
+        await _after_run(owner, existing, now, ON_EXISTING)
+        return "exists", existing
     await _after_run(owner, brief, now)
     return "written", brief
 

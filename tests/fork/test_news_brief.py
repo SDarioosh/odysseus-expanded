@@ -133,8 +133,9 @@ def test_config_validation_and_defaults(data_dir):
         {"name": "Markets", "query": "TSX stocks", "enabled": False, "stories": "3"},
     ]})
     assert saved == {"delivery_time": "6:45", "categories": [
-        {"name": "Formula 1", "query": "", "enabled": True, "stories": None},
-        {"name": "Markets", "query": "TSX stocks", "enabled": False, "stories": 3}]}
+        {"name": "Formula 1", "query": "", "enabled": True, "stories": None, "feeds": []},
+        {"name": "Markets", "query": "TSX stocks", "enabled": False, "stories": 3,
+         "feeds": []}]}
     assert store.load_config("alice") == saved
     for bad in ({"categories": [{"name": ""}]},
                 {"categories": [{"name": "A"}, {"name": "a"}]},
@@ -180,6 +181,7 @@ def owner(data_dir, monkeypatch):
     monkeypatch.setattr(nb, "owner_timezone", lambda owner: TZ)
     monkeypatch.setattr(nb, "_RUN_LOCKS", {})
     monkeypatch.setattr(nb, "AFTER_RUN", [])
+    monkeypatch.setattr(nb, "ON_EXISTING", [])
     store.save_config("alice", {"delivery_time": "7:15", "categories": [
         {"name": "Formula 1"}, {"name": "Markets"}, {"name": "Off", "enabled": False}]})
     return "alice"

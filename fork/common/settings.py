@@ -184,6 +184,10 @@ NEWS_BRIEF_STORIES = _setting(
 NEWS_BRIEF_KEEP_DAYS = _setting(
     "NEWS_BRIEF_KEEP_DAYS", "30", "integer >= 1",
     "Days of news briefs kept on disk.", used_in=("fork/news/brief.py",))
+NEWS_BRIEF_PUSH = _setting(
+    "NEWS_BRIEF_PUSH", "off", "on/off",
+    "Push the morning news brief's top headlines to the phone once a day.",
+    used_in=("fork/news/push.py",))
 # Agent turns (docs/fork/personal-context.md, docs/fork/features/notes-and-tasks.md)
 PERSONAL_READ_GRANTS = _setting(
     "ODYSSEUS_PERSONAL_READ_GRANTS", "1", "on/off",
@@ -345,6 +349,10 @@ def news_brief_stories() -> int:
 
 def news_brief_keep_days() -> int:
     return _int(NEWS_BRIEF_KEEP_DAYS, 1)
+
+
+def news_brief_push() -> bool:
+    return flag(NEWS_BRIEF_PUSH.value(), False)
 
 
 def personal_read_grants() -> bool:

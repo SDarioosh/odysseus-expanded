@@ -3,12 +3,14 @@
 Per owner, under ``<DATA_DIR>/news_brief/<owner>/`` (owner folder names as the Today
 insight's, ``fork.common.state.owner_slug``):
 
-* ``config.json``: the categories (name, optional query, enabled, optional stories) and
-  the delivery time (``H:MM``, the owner's local time);
-* ``<YYYY-MM-DD>.json``: one brief per day, deleted after ``NEWS_BRIEF_KEEP_DAYS``.
+* ``config.json``: the categories (name, optional query, enabled, optional stories,
+  optional RSS/Atom ``feeds``) and the delivery time (``H:MM``, the owner's local time);
+* ``<YYYY-MM-DD>.json``: one brief per day, deleted after ``NEWS_BRIEF_KEEP_DAYS``;
+* ``push-<YYYY-MM-DD>.json``: that day's phone push (``pushed`` stamp, ``tries``;
+  ``fork/news/push.py``), deleted with the brief.
 
-:func:`latest_brief` and :func:`recent_briefs` are the read side for later phases (the
-chat block and the Today window, the "seen in the last briefs" filter).
+:func:`latest_brief` and :func:`recent_briefs` are the read side (the "seen in the last
+briefs" filter; phase 3: the chat block and the Today window).
 """
 
 from __future__ import annotations
@@ -18,6 +20,7 @@ from datetime import date as Date
 from datetime import datetime, timedelta, timezone
 from pathlib import Path
 from typing import Any
+from urllib.parse import urlsplit
 
 FOLDER = "news_brief"
 CONFIG = "config.json"
@@ -29,6 +32,9 @@ MAX_CATEGORIES = 20
 MAX_NAME = 60
 MAX_QUERY = 200
 MIN_STORIES, MAX_STORIES = 1, 10
+MAX_FEEDS = 10
+MAX_FEED_URL = 500
+PUSH_PREFIX = "push-"
 
 
 def owner_dir(owner: str | None) -> Path:
@@ -72,6 +78,38 @@ def _text(value: Any, limit: int, what: str) -> str:
     return text
 
 
+def normalize_feeds(raw: Any, name: str) -> list[str]:
+    """The category's feed URLs: http(s) with a host, no user or password, at most
+    ``MAX_FEEDS``, each once. Whether the address is public is checked when it is read
+    (``fork/news/gather.fetch_feed``)."""
+    if raw in (None, ""):
+        return []
+    if not isinstance(raw, list):
+        raise ValueError(f"feeds of {name!r} must be a list of URLs")
+    out: list[str] = []
+    for item in raw:
+        url = str(item or "").strip() if isinstance(item, str) else None
+        if url is None:
+            raise ValueError(f"feeds of {name!r} must be a list of URLs")
+        if not url:
+            continue
+        if len(url) > MAX_FEED_URL:
+            raise ValueError(f"a feed of {name!r} is longer than {MAX_FEED_URL} characters")
+        try:
+            parts = urlsplit(url)
+            host = parts.hostname
+        except ValueError:
+            parts, host = None, None
+        if (parts is None or parts.scheme.lower() not in ("http", "https") or not host
+                or parts.username is not None or any(c.isspace() for c in url)):
+            raise ValueError(f"the feed {url[:80]!r} of {name!r} must be an http(s) URL")
+        if url not in out:
+            out.append(url)
+    if len(out) > MAX_FEEDS:
+        raise ValueError(f"at most {MAX_FEEDS} feeds per category ({name!r} has {len(out)})")
+    return out
+
+
 def normalize_category(raw: Any) -> dict:
     if not isinstance(raw, dict):
         raise ValueError("each category must be an object")
@@ -89,7 +127,8 @@ def normalize_category(raw: Any) -> dict:
         if not MIN_STORIES <= stories <= MAX_STORIES:
             raise ValueError(f"stories of {name!r} must be {MIN_STORIES} to {MAX_STORIES}")
     return {"name": name, "query": _text(raw.get("query"), MAX_QUERY, "a query"),
-            "enabled": raw.get("enabled", True) is not False, "stories": stories}
+            "enabled": raw.get("enabled", True) is not False, "stories": stories,
+            "feeds": normalize_feeds(raw.get("feeds"), name)}
 
 
 def normalize_config(raw: Any) -> dict:
@@ -186,8 +225,35 @@ def latest_brief(owner: str | None) -> dict | None:
     return found[0] if found else None
 
 
+def push_path(owner: str | None, day: str) -> Path:
+    if not DAY.fullmatch(day or ""):
+        raise ValueError("day must be YYYY-MM-DD")
+    return owner_dir(owner) / f"{PUSH_PREFIX}{day}.json"
+
+
+def load_push_state(owner: str | None, day: str) -> dict:
+    """That day's push state: ``{"pushed": <UTC stamp or null>, "tries": n}``."""
+    from fork.common.state import read_json
+
+    data = read_json(push_path(owner, day))
+    data = data if isinstance(data, dict) else {}
+    try:
+        tries = max(0, int(data.get("tries") or 0))
+    except (TypeError, ValueError):
+        tries = 0
+    return {"pushed": data.get("pushed") or None, "tries": tries}
+
+
+def save_push_state(owner: str | None, day: str, state: dict) -> None:
+    from fork.common.state import write_json
+
+    write_json(push_path(owner, day), {"pushed": state.get("pushed") or None,
+                                       "tries": int(state.get("tries") or 0)})
+
+
 def prune(owner: str | None, keep_days: int, today: Date) -> list[str]:
-    """Delete briefs older than ``keep_days`` days before ``today``; the days deleted."""
+    """Delete briefs (and their push files) older than ``keep_days`` days before
+    ``today``; the days of the briefs deleted."""
     cutoff = (today - timedelta(days=max(1, keep_days))).isoformat()
     gone = []
     for day in brief_days(owner):
@@ -197,4 +263,13 @@ def prune(owner: str | None, keep_days: int, today: Date) -> list[str]:
                 gone.append(day)
             except OSError:
                 pass
+    folder = owner_dir(owner)
+    if folder.is_dir():
+        for path in folder.glob(f"{PUSH_PREFIX}*.json"):
+            day = path.stem.removeprefix(PUSH_PREFIX)
+            if DAY.fullmatch(day) and day < cutoff:
+                try:
+                    path.unlink()
+                except OSError:
+                    pass
     return gone
