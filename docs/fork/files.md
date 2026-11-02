@@ -56,6 +56,7 @@ is an old path of a module that moved into `fork/`; it only aliases the new modu
 - `docs/fork/modules.md`
 - `docs/fork/modules/athena.md`
 - `docs/fork/modules/odysseus-sound.md`
+- `docs/fork/news-brief.md`
 - `docs/fork/people-context.md`
 - `docs/fork/personal-context-prior-art.md`
 - `docs/fork/personal-context.md`
@@ -153,6 +154,13 @@ is an old path of a module that moved into `fork/`; it only aliases the new modu
 - `fork/mcp/session_recovery.py`
 - `fork/mcp/stdio_owner.py`
 - `fork/mcp/trust.py`
+- `fork/news/__init__.py`
+- `fork/news/brief.py`
+- `fork/news/context.py`
+- `fork/news/gather.py`
+- `fork/news/prompt.py`
+- `fork/news/push.py`
+- `fork/news/store.py`
 - `fork/routes/__init__.py`
 - `fork/routes/auto_mode_routes.py`
 - `fork/routes/belief_search_routes.py`
@@ -161,6 +169,7 @@ is an old path of a module that moved into `fork/`; it only aliases the new modu
 - `fork/routes/insight_outcome_routes.py`
 - `fork/routes/insight_trends_routes.py`
 - `fork/routes/insight_weights_routes.py`
+- `fork/routes/news_routes.py`
 - `fork/routes/today_insight_routes.py`
 - `fork/routing/__init__.py`
 - `fork/routing/auto_mode.py`
@@ -288,11 +297,13 @@ is an old path of a module that moved into `fork/`; it only aliases the new modu
 - `static/js/forkVoiceEnroll.js`
 - `static/js/forkWhisperVocabulary.js`
 - `static/js/meetingBot.js`
+- `static/js/news.js`
 - `static/js/phonePairing.js`
 - `static/js/soundModule.js`
 - `static/js/today.js`
 - `static/js/todayTrends.js`
 - `static/js/todayWeights.js`
+- `static/news.html`
 - `static/phone-pairing.html`
 - `static/sound-module.html`
 - `static/today.html`
@@ -439,6 +450,11 @@ is an old path of a module that moved into `fork/`; it only aliases the new modu
 - `tests/fork/test_module_slash_eval.py`
 - `tests/fork/test_module_turn_scope.py`
 - `tests/fork/test_modules_setup.py`
+- `tests/fork/test_news_brief.py`
+- `tests/fork/test_news_context.py`
+- `tests/fork/test_news_feeds.py`
+- `tests/fork/test_news_gather.py`
+- `tests/fork/test_news_push.py`
 - `tests/fork/test_notes_evidence.py`
 - `tests/fork/test_offered_reads.py`
 - `tests/fork/test_personal_read_grants.py`

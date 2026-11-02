@@ -3,7 +3,7 @@
 fork-specific status. Upstream's own plans are in [../../ROADMAP.md](../../ROADMAP.md);
 don't edit that file.
 
-_Last updated: 2026-10-29_
+_Last updated: 2026-11-02_
 
 ## Status
 
@@ -39,6 +39,7 @@ branches) are kept in [status-history.md](status-history.md).
 | 23 | Personal context 4.1: provenance-aware consolidation | in `barvis` | [beliefs.md](beliefs.md#consolidation-41) |
 | 24 | Personal context 4.2: complete forget and export | in `barvis` | [beliefs.md](beliefs.md#complete-forget-42) |
 | 25 | Better beliefs (fact kinds, source lines) | in `barvis` | [beliefs.md](beliefs.md#the-athena-facts-job) |
+| 26 | Morning news brief | built (PR #163): phase 1 (task, SearXNG, summaries, `/news` page and window), phase 2 (RSS/Atom feeds, "seen in the last 3 briefs" filter, push), phase 3 (chat block, News in the Today window) | [news-brief.md](news-brief.md) |
 
 ## Next
 

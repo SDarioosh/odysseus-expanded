@@ -70,19 +70,20 @@ def test_shortcut_data_matches_the_windows():
     console.log(JSON.stringify(s));
     """)
     assert got["FORK_SHORTCUT_ACTIONS"] == [
-        "open_conversations", "open_meetings", "open_today", "open_write", "open_beliefs"]
+        "open_conversations", "open_meetings", "open_today", "open_write", "open_beliefs",
+        "open_news"]
     # unbound by default, like upstream's other open-tool shortcuts
     assert got["FORK_SHORTCUT_DEFAULTS"] == {
         "open_conversations": "", "open_meetings": "", "open_today": "", "open_write": "",
-        "open_beliefs": ""}
+        "open_beliefs": "", "open_news": ""}
     assert got["FORK_SHORTCUT_BUTTONS"] == {
         "open_conversations": "tool-sound-module-btn", "open_meetings": "tool-meetings-btn",
         "open_today": "tool-today-insight-btn", "open_write": "tool-ink-btn",
-        "open_beliefs": "tool-beliefs-btn"}
+        "open_beliefs": "tool-beliefs-btn", "open_news": "tool-news-btn"}
     assert got["FORK_WINDOW_TRIGGERS"] == {
         "fork-sound-modal": "tool-sound-module-btn", "fork-meetings-modal": "tool-meetings-btn",
         "fork-today-modal": "tool-today-insight-btn", "fork-ink-modal": "tool-ink-btn",
-        "fork-beliefs-modal": "tool-beliefs-btn"}
+        "fork-beliefs-modal": "tool-beliefs-btn", "fork-news-modal": "tool-news-btn"}
     assert got["FORK_OPEN_TARGETS"] == {
         "records": ["tool-sound-module-btn", "rail-sound-module"],
         "conversations": ["tool-sound-module-btn", "rail-sound-module"],
@@ -94,6 +95,7 @@ def test_shortcut_data_matches_the_windows():
         "handwriting": ["tool-ink-btn", "rail-ink"],
         "wisdom": ["tool-beliefs-btn", "rail-beliefs"],
         "beliefs": ["tool-beliefs-btn", "rail-beliefs"],
+        "news": ["tool-news-btn", "rail-news"],
     }
     windows = (_JS / "forkModuleWindows.js").read_text()
     index = (_REPO / "static" / "index.html").read_text()
@@ -121,7 +123,8 @@ def test_hooks_are_in_place():
 
 
 def test_standalone_pages_mount_the_shared_views():
-    for page, fn in (("sound-module.html", "mountSoundModule"), ("today.html", "mountToday")):
+    for page, fn in (("sound-module.html", "mountSoundModule"), ("today.html", "mountToday"),
+                     ("news.html", "mountNews")):
         html = (_REPO / "static" / page).read_text()
         assert '<link rel="stylesheet" href="/static/css/fork-modules.css">' in html
         assert f"{fn}(document.getElementById('fm-view'))" in html
@@ -241,3 +244,60 @@ def test_fork_styles_stay_under_fork_classes():
     assert len(selectors) > 200
     fork = re.compile(r"^(html\.fm-page\b|\.fm-[\w-]+|#fork-[\w-]+|\.fork-athena-[\w-]+)")
     assert [s for s in selectors if not fork.match(s)] == []
+
+
+@pytest.mark.skipif(not _HAS_NODE, reason="node binary not on PATH")
+def test_news_story_anchor():
+    # The Today window's News section links to `/#open=news&story=<c>-<s>`; the News window
+    # opens at that story (static/js/news.js, the one place the scheme is written).
+    got = _node(f"""
+    const n = await import('{(_JS / "news.js").as_posix()}');
+    console.log(JSON.stringify({{
+      parsed: ['#open=news&story=2-0', '#open=news', '#open=news&story=x-1',
+               '#open=news&story=1-2&x=1', '#open=notes&note=a', ''].map(n.parseNewsHash),
+      hashes: [n.storyHash(2, 0), n.storyHash(-1, 0), n.storyHash(1.5, 0), n.storyHash(100, 0)],
+    }}));
+    """)
+    assert got["parsed"] == [{"story": [2, 0]}, {"story": None}, None, None, None, None]
+    assert got["hashes"] == ["#open=news&story=2-0", "#open=news", "#open=news", "#open=news"]
+    windows = (_JS / "forkModuleWindows.js").read_text()
+    assert "import { parseNewsHash } from './news.js';" in windows
+    assert "view.showStory(ref.story[0], ref.story[1])" in windows
+    hash_js = (_JS / "forkEntityHash.js").read_text()
+    assert r"open=news(?:&story=\d{1,2}-\d{1,2})?" in hash_js
+
+
+@pytest.mark.skipif(not _HAS_NODE, reason="node binary not on PATH")
+def test_today_news_section_links_each_top_story():
+    # A bare DOM: enough for forkDom.js `el`, so the section's nodes can be read back.
+    got = _node(f"""
+    class Node {{
+      constructor(tag) {{ this.tag = tag; this.attrs = {{}}; this.children = []; this.className = ''; }}
+      setAttribute(k, v) {{ this.attrs[k] = String(v); }}
+      addEventListener() {{}}
+      append(...c) {{ this.children.push(...c); }}
+      set innerHTML(v) {{ throw new Error('no innerHTML'); }}
+    }}
+    globalThis.Node = Node;
+    globalThis.document = {{ createElement: (t) => new Node(t) }};
+    globalThis.window = {{ location: {{ href: 'http://hub.example/' }} }};
+    const t = await import('{(_JS / "today.js").as_posix()}');
+    const brief = {{ categories: [
+      {{ name: 'Formula 1', stories: [{{ title: '<b>Team X</b> wins', source: 'example.com' }}] }},
+      {{ name: 'Empty', stories: [] }},
+      {{ name: 'Markets', stories: [{{ title: 'Index up', source: 'example.org' }}] }},
+    ] }};
+    const links = [];
+    const walk = (n) => {{
+      if (!n || typeof n !== 'object') return;
+      if (n.tag === 'a') links.push([n.attrs.href, n.children.join('')]);
+      (n.children || []).forEach(walk);
+    }};
+    t.newsSection(brief).forEach(walk);
+    console.log(JSON.stringify({{ links, none: t.newsSection(null).length,
+                                  empty: t.newsSection({{ categories: [] }}).length }}));
+    """)
+    assert got["links"] == [["/#open=news&story=0-0", "<b>Team X</b> wins"],
+                            ["/#open=news&story=2-0", "Index up"],
+                            ["/#open=news", "Open News"]]
+    assert got["none"] == 0 and got["empty"] == 0

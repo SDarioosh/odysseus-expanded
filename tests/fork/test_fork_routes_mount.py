@@ -7,7 +7,7 @@ from fork import routes
 
 ROOT = Path(__file__).resolve().parents[2]
 
-# the order app.py included them in before the hooks became one call
+# the order app.py included them in before the hooks became one call, then the new ones
 ORDER = [
     "setup_sound_module_routes",
     "setup_today_insight_routes",
@@ -19,6 +19,7 @@ ORDER = [
     "setup_voice_enroll_routes",
     "setup_auto_mode_routes",
     "setup_ink_routes",
+    "setup_news_routes",
 ]
 
 

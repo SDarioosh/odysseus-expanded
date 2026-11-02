@@ -67,5 +67,5 @@ def test_app_mounts_the_fork_routers_from_the_package() -> None:
     app = (REPO / "app.py").read_text(encoding="utf-8")
     assert "from fork.routes import mount as _fork_mount_routes  # noqa: E402" in app
     hooks = [module for module, _ in ROUTERS]
-    assert len(hooks) == 10 and all(h.startswith("fork.") for h in hooks)
+    assert len(hooks) == 11 and all(h.startswith("fork.") for h in hooks)
     assert not [h for h in hooks if h in SHIMS], "a fork router is mounted by its old path"

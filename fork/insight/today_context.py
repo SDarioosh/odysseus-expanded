@@ -2,7 +2,9 @@
 
 :func:`context_block` is what the chat memory context gets from the fork: today's
 insight as a short text when the message is about today's plan (:func:`wants_insight`),
-and the ledger's "What I know (confirmed)" block when it asks about someone.
+the ledger's "What I know (confirmed)" block when it asks about someone, and the stored
+news brief when it asks about the news (``fork/news/context.py``: it rides this hook, so
+no upstream line of its own).
 """
 
 from __future__ import annotations
@@ -60,7 +62,9 @@ def context_block(owner: str | None, now: datetime | None = None,
     ``limit``; with ``message``, only when it is about today's plan, see
     ``wants_insight``) and, when ``message`` asks what the hub knows about someone, the
     "What I know (confirmed)" block of the belief ledger (``belief_search.chat_block``,
-    at most 1200 characters). "" when neither applies."""
+    at most 1200 characters) and, when it asks about the news, the stored news brief
+    (``fork.news.context.context_block``, at most 1200 characters). "" when none
+    applies."""
     parts = []
     if message is None or wants_insight(message):
         parts.append(_insight_block(owner, now, limit))
@@ -71,6 +75,12 @@ def context_block(owner: str | None, now: datetime | None = None,
             parts.append(belief_search.chat_block(owner, message))
         except Exception as e:  # noqa: BLE001 -- chat must never fail on this
             logger.debug("today insight: belief block unavailable: %s", e)
+        try:
+            from fork.news.context import context_block as news_block
+
+            parts.append(news_block(owner, message=message, now=now))
+        except Exception as e:  # noqa: BLE001 -- chat must never fail on this
+            logger.debug("today insight: news block unavailable: %s", e)
     return "\n\n".join(p for p in parts if p)
 
 

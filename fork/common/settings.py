@@ -172,6 +172,22 @@ SKIP_LISTS = _setting(
 INSIGHT_PUSH = _setting(
     "TODAY_INSIGHT_PUSH", "off", "on/off",
     "Push the daily insight to the phone.", used_in=("fork/insight/push.py",))
+# News brief (docs/fork/news-brief.md)
+NEWS_BRIEF = _setting(
+    "NEWS_BRIEF_ENABLED", "on", "on/off",
+    "Write the morning news brief; off: every run, Refresh included, is a no-op.",
+    used_in=("fork/news/brief.py",))
+NEWS_BRIEF_STORIES = _setting(
+    "NEWS_BRIEF_STORIES", "5", "integer 1-10",
+    "Stories per news category unless the category sets its own; clamped to 1-10.",
+    used_in=("fork/news/brief.py",))
+NEWS_BRIEF_KEEP_DAYS = _setting(
+    "NEWS_BRIEF_KEEP_DAYS", "30", "integer >= 1",
+    "Days of news briefs kept on disk.", used_in=("fork/news/brief.py",))
+NEWS_BRIEF_PUSH = _setting(
+    "NEWS_BRIEF_PUSH", "off", "on/off",
+    "Push the morning news brief's top headlines to the phone once a day.",
+    used_in=("fork/news/push.py",))
 # Agent turns (docs/fork/personal-context.md, docs/fork/features/notes-and-tasks.md)
 PERSONAL_READ_GRANTS = _setting(
     "ODYSSEUS_PERSONAL_READ_GRANTS", "1", "on/off",
@@ -321,6 +337,22 @@ def today_insight_skip_lists() -> str:
 
 def today_insight_push() -> bool:
     return flag(INSIGHT_PUSH.value(), False)
+
+
+def news_brief() -> bool:
+    return flag(NEWS_BRIEF.value(), True)
+
+
+def news_brief_stories() -> int:
+    return _int(NEWS_BRIEF_STORIES, 1, 10)
+
+
+def news_brief_keep_days() -> int:
+    return _int(NEWS_BRIEF_KEEP_DAYS, 1)
+
+
+def news_brief_push() -> bool:
+    return flag(NEWS_BRIEF_PUSH.value(), False)
 
 
 def personal_read_grants() -> bool:

@@ -6,11 +6,13 @@
 // link is clicked inside the app (document-level click handler in
 // chatRenderer.js). On a fresh load the hash is ignored. This script waits for
 // the app to start, then clicks a hidden link with the same hash, so upstream's
-// own handler opens the event or note. Only these two read-only views.
+// own handler opens the event or note. Only these two read-only views, and the
+// fork's News window (`#open=news[&story=<c>-<s>]`, opened by forkModuleWindows.js's
+// click handler; static/js/news.js `storyHash`).
 
 const READY_TIMEOUT_MS = 20000;
 const POLL_MS = 100;
-const ENTITY_HASH = /^#(?:event-[A-Za-z0-9._:@-]{1,200}|open=notes&note=[A-Za-z0-9-]{1,80})$/;
+const ENTITY_HASH = /^#(?:event-[A-Za-z0-9._:@-]{1,200}|open=notes&note=[A-Za-z0-9-]{1,80}|open=news(?:&story=\d{1,2}-\d{1,2})?)$/;
 
 function _sleep(ms) { return new Promise(resolve => setTimeout(resolve, ms)); }
 

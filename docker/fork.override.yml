@@ -51,6 +51,11 @@ services:
       # No "=": an empty value means "skip no lists", unlike unset (the default lists),
       # so Compose passes it only when .env sets it.
       - TODAY_INSIGHT_SKIP_LISTS
+      # News brief (docs/fork/news-brief.md): fork/news/brief.py, fork/news/push.py.
+      - NEWS_BRIEF_ENABLED=${NEWS_BRIEF_ENABLED:-}
+      - NEWS_BRIEF_STORIES=${NEWS_BRIEF_STORIES:-}
+      - NEWS_BRIEF_KEEP_DAYS=${NEWS_BRIEF_KEEP_DAYS:-}
+      - NEWS_BRIEF_PUSH=${NEWS_BRIEF_PUSH:-}
       # Agent turns: fork/routing/personal_read_grants.py, fork/routing/personal_store_escalation.py (on
       # unless 0/false/no/off), fork/hub/checklist_auto_archive.py.
       - ODYSSEUS_PERSONAL_READ_GRANTS=${ODYSSEUS_PERSONAL_READ_GRANTS:-}

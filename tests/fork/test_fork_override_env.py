@@ -216,6 +216,8 @@ def test_empty_value_means_unset_for_every_dollar_default_setting(monkeypatch):
         today_insight,
     )
     from fork.brain import settings as brain_settings
+    from fork.news import brief as news_brief
+    from fork.news import push as news_push
 
     mai = module_action_items
     readers = {
@@ -243,6 +245,10 @@ def test_empty_value_means_unset_for_every_dollar_default_setting(monkeypatch):
         "FORK_BRAIN": brain_settings.enabled,
         "FORK_BRAIN_MAX_ROUNDS": brain_settings.max_rounds,
         "FORK_BRAIN_TOOL_GROUPS": brain_settings.tool_groups,
+        "NEWS_BRIEF_ENABLED": news_brief.enabled,
+        "NEWS_BRIEF_STORIES": news_brief.default_stories,
+        "NEWS_BRIEF_KEEP_DAYS": news_brief.keep_days,
+        "NEWS_BRIEF_PUSH": news_push.enabled,
     }
     # Former names: read only when the new name is unset or empty.
     legacy = {f"BARVIS_{n.removeprefix('MODULE_')}": n for n in readers if n.startswith("MODULE_")}

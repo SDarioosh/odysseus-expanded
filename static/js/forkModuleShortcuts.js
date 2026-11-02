@@ -1,5 +1,5 @@
 // Fork: the fork windows' shortcuts ("Open Records", "Open Meetings", "Open Today",
-// "Open Write", "Open Wisdom" in
+// "Open Write", "Open Wisdom", "Open News" in
 // Settings → Shortcuts) and their `/open` targets. Data only (no side effects), spread
 // into upstream's tables by small hooks in static/js/settings.js,
 // static/js/keyboard-shortcuts.js and static/js/slashCommands.js. Unbound by default,
@@ -23,6 +23,9 @@ const SUN = '<svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke=
 const PEN = '<svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" '
   + 'stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M12 20h9"/>'
   + '<path d="M16.5 3.5a2.1 2.1 0 0 1 3 3L7 19l-4 1 1-4z"/></svg>';
+const NEWS = '<svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" '
+  + 'stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M4 4h13v16H6a2 2 0 0 1-2-2z"/>'
+  + '<path d="M17 8h3v10a2 2 0 0 1-2 2"/><path d="M8 8h5M8 12h5M8 16h3"/></svg>';
 
 const SHORTCUTS = {
   open_conversations: { button: 'tool-sound-module-btn', rail: 'rail-sound-module',
@@ -36,6 +39,8 @@ const SHORTCUTS = {
                 label: 'Open Write', icon: PEN, open: ['write', 'ink', 'handwriting'] },
   open_beliefs: { button: 'tool-beliefs-btn', rail: 'rail-beliefs', window: 'fork-beliefs-modal',
                   label: 'Open Wisdom', icon: PERSON, open: ['wisdom', 'beliefs'] },
+  open_news: { button: 'tool-news-btn', rail: 'rail-news', window: 'fork-news-modal',
+               label: 'Open News', icon: NEWS, open: ['news'] },
 };
 
 const pick = (field) => Object.fromEntries(
