@@ -39,7 +39,7 @@ branches) are kept in [status-history.md](status-history.md).
 | 23 | Personal context 4.1: provenance-aware consolidation | in `barvis` | [beliefs.md](beliefs.md#consolidation-41) |
 | 24 | Personal context 4.2: complete forget and export | in `barvis` | [beliefs.md](beliefs.md#complete-forget-42) |
 | 25 | Better beliefs (fact kinds, source lines) | in `barvis` | [beliefs.md](beliefs.md#the-athena-facts-job) |
-| 26 | Morning news brief | phase 1 built (task, SearXNG, summaries, `/news` page and window; PR #163); phases 2 (RSS, push) and 3 (chat, Today window) planned | [news-brief.md](news-brief.md) |
+| 26 | Morning news brief | phase 1 built (task, SearXNG, summaries, `/news` page and window; PR #163); phase 3 built (chat block, News in the Today window); phase 2 (RSS, push) planned | [news-brief.md](news-brief.md) |
 
 ## Next
 
