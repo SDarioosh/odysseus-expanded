@@ -136,7 +136,14 @@ built-in windows (`static/css/fork-modules.css`, shared with Conversations).
   series' first day).
 - 👍/👎 store a vote and show the latest one. **Refresh** starts a new insight and shows
   "Writing…" while it polls `GET /api/insight/today` every 4 s until `generated` changes
-  (then shows it) or `refreshing` turns false (then shows `refresh_error`).
+  (then shows it) or `refreshing` turns false (then shows `refresh_error`). The note under
+  the button keeps its `ti-note` class (until 2026-11-02 the first message dropped it, so
+  a second Refresh threw and the button stayed on "Writing…").
+- **News** (after the insight's sections, before the weights): the top story of each
+  category of today's [news brief](news-brief.md#the-today-window) with its category and
+  source, each linking to the story in the News window
+  (`/#open=news&story=<category>-<story>`), and an "Open News" link. Read from
+  `GET /api/news/today` at each load; hidden when there is no brief for today.
 
 ## In chat
 
@@ -165,6 +172,11 @@ Also: 1. …
 
 At most 800 characters. Nothing is added when there is no insight for today (or memory is
 off, as in incognito).
+
+The same hook also carries the [news brief's chat block](news-brief.md#in-chat) on news
+questions (`fork/news/context.py`, called from `today_context.context_block`), so it
+needs no upstream line of its own; both blocks go in the one untrusted context message
+the hook adds.
 
 ## Settings
 

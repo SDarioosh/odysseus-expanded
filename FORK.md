@@ -32,6 +32,8 @@ fork changes. More:
 - [docs/fork/roadmap.md](docs/fork/roadmap.md): status and next work.
 - [docs/fork/today-insight.md](docs/fork/today-insight.md): the daily Today insight (job,
   routes, page, chat).
+- [docs/fork/news-brief.md](docs/fork/news-brief.md): the morning news brief (task,
+  gathering, feeds, push, page; phase 3 planned).
 - [docs/fork/beliefs.md](docs/fork/beliefs.md): the belief ledger between sources and
   memory (evidence, confirmation rule, decay, forgetting).
 - [docs/fork/handwritten-notes.md](docs/fork/handwritten-notes.md): handwritten notes
@@ -125,6 +127,11 @@ the link goes to its details (what it does, its files, whether it can go upstrea
 - [Today insight learns from outcomes (Phase 3)](docs/fork/today-insight.md#today-insight-learns-from-outcomes-phase-3): outcome log, learned rule weights, push, routines, open loops and trends.
 - [Owner folder names](docs/fork/today-insight.md#owner-folder-names): an owner named `.` or `..` gets a hashed folder (`_<12 hex>`), so no per-owner state file lands outside its feature folder; every other owner keeps its folder.
 
+### News brief
+
+- [Morning news brief (phases 1 and 2)](docs/fork/news-brief.md#morning-news-brief): the "News Brief" task (SearXNG and optional RSS/Atom feeds per category through the public-address guard, the "seen in the last 3 briefs" filter, local-model summaries, links only from the candidates), the `/news` page and News window with the category and feeds editor, delivery time and Refresh, and an optional phone push (`NEWS_BRIEF_PUSH`).
+- [News brief in chat and the Today window (phase 3)](docs/fork/news-brief.md#chat-and-the-today-window): news questions in chat get the stored brief (through the Today insight's chat hook, only on news questions), and the Today window shows the top story of each category, linking to it in the News window (`/#open=news&story=<c>-<s>`).
+
 ### Handwritten notes
 
 - [Handwritten notes, stage H1: Write (pen capture)](docs/fork/handwritten-notes.md#handwritten-notes-stage-h1-write-pen-capture): the Write window: pen capture, palm rejection, autosave and offline sync.
@@ -183,7 +190,7 @@ to be offered) upstream, "with discussion" a change upstream may want in another
 |---|---|---|---|---|
 | `app.py` | after the logging handlers | `fork/hub/log_redact.py` | log formatters write token query values as `***` | yes |
 | `app.py` | `AUTH_EXEMPT_EXACT` | `fork/athena/relay_routes.py` | `/api/pair/redeem` needs no session (rate limited) | no |
-| `app.py` | routers, after the MCP routes | `fork/routes/__init__.py` (`mount`, table `ROUTERS`) | the fork's ten routers in one call, in order: Athena page, Today, belief search (before the review page's `/api/beliefs/{id}`), belief review, phone relay and pairing, summary model, transcription vocabulary, Enroll My Voice, auto mode default, handwritten notes | no |
+| `app.py` | routers, after the MCP routes | `fork/routes/__init__.py` (`mount`, table `ROUTERS`) | the fork's eleven routers in one call, in order: Athena page, Today, belief search (before the review page's `/api/beliefs/{id}`), belief review, phone relay and pairing, summary model, transcription vocabulary, Enroll My Voice, auto mode default, handwritten notes, news brief | no |
 | `app.py` | `_startup_event` | `fork/hub/checklist_auto_archive.py` | start the checklist archiver | with discussion |
 | `.github/workflows/ci.yml` | byte-compile step | none | compile `fork/` too | no |
 | `frontend/src/features/notes/application/workflows.js` | `_fetchNotes` | none (a filter; Write is `static/js/forkInk.js`) | handwritten notes left out of the Notes window | no |
@@ -226,7 +233,7 @@ to be offered) upstream, "with discussion" a change upstream may want in another
 | `src/agent_runtime/effect_adapters.py` | `classify` | `fork/mcp/trust.py` | a trusted read-only call is an admitted read | yes |
 | `src/agent_tools/__init__.py` | `TOOL_HANDLERS` | `fork/routing/auto_mode.py` | `calculate` handler | no |
 | `src/builtin_actions.py` | `action_consolidate_memory` | `fork/beliefs/consolidation.py` | Memory Tidy skips sourced memories | no |
-| `src/builtin_actions.py` | action registry, end of file | `fork/tasks.py` (`register_actions`, table `TASKS`) | the fork's actions: Module Action Items, Module Facts, Today Insight, Notes Evidence, Belief Structure, `meeting_auto_join` | no |
+| `src/builtin_actions.py` | action registry, end of file | `fork/tasks.py` (`register_actions`, table `TASKS`) | the fork's actions: Module Action Items, Module Facts, Today Insight, Notes Evidence, Belief Structure, News Brief, `meeting_auto_join` | no |
 | `src/caldav_sync.py` | `sync_caldav`, after the pull | `fork/athena/meeting_auto_join.py` | Send Athena tasks follow moved or deleted events | no |
 | `src/chat_processor.py` | `ChatProcessor.build_context_preface`, memory context | `fork/insight/today.py` | Today and beliefs block on plan questions | no |
 | `src/document_processor.py` | `_resolve_vl_model` | `fork/hub/vision_auto_detect.py` | auto-detect the owner's vision models | yes |
@@ -239,7 +246,7 @@ to be offered) upstream, "with discussion" a change upstream may want in another
 | `src/mcp_manager.py` | `call_tool`, the error branch | `fork/mcp/session_recovery.py` | reconnect a lost HTTP/SSE session and retry once | yes |
 | `src/task_scheduler.py` | `_check_due_tasks` (two places) | `fork/athena/meeting_auto_join.py` | Send Athena joins are not deferred and skip the model slot | no |
 | `src/task_scheduler.py` | `_execute_action` | `fork/hub/builtin_task_authority.py` | re-seal a built-in task's broken authority, else say why | yes |
-| `src/task_scheduler.py` | end of file | `fork/tasks.py` (`register_scheduler`, table `TASKS`) | seed the fork's housekeeping tasks (`HOUSEKEEPING_DEFAULTS`); `barvis_sync_action_items`, `module_sync_facts` post nothing to chat; `today_insight`, `notes_evidence`, `belief_structure` post nothing and queue for the model (`_SILENT_ACTIONS`, `_MODEL_BACKED_ACTIONS`) | no |
+| `src/task_scheduler.py` | end of file | `fork/tasks.py` (`register_scheduler`, table `TASKS`) | seed the fork's housekeeping tasks (`HOUSEKEEPING_DEFAULTS`); `barvis_sync_action_items`, `module_sync_facts` post nothing to chat; `today_insight`, `notes_evidence`, `belief_structure`, `news_brief` post nothing and queue for the model (`_SILENT_ACTIONS`, `_MODEL_BACKED_ACTIONS`) | no |
 | `src/tool_capabilities.py` | capability registry (`_register`) | `fork/routing/auto_mode.py` | `calculate` is a public read | no |
 | `src/tool_capabilities.py` | `ToolRunSecurityContext.observe_messages` | `fork/routing/auto_mode.py` | note URLs the owner wrote | no |
 | `src/tool_capabilities.py` | `ToolRunSecurityContext.decision_for` | `fork/mcp/trust.py` | trusted read-only tools pass the gate | yes |
@@ -251,8 +258,8 @@ to be offered) upstream, "with discussion" a change upstream may want in another
 | `src/turn_contract.py` | `selected_tools_for_request`, model-discovery rule | `fork/routing/web_turn_scope.py` | comparisons and web lookups are web questions | yes, with discussion |
 | `static/css/01-agent-chat.css` | `.chat-meta-overlay` with the Nobody eye | none | the chat title stays centered | yes |
 | `static/index.html` | script tags, end of body | `static/js/forkChatAsk.js` | `/?ask=` prefills a new chat | yes, with discussion |
-| `static/index.html` | script tags | `static/js/forkEntityHash.js` | open `#event-…` / `#open=notes&note=…` on load | yes |
-| `static/index.html` | script tags | `static/js/forkModuleWindows.js` | the five Athena sidebar entries, module windows, rail buttons, transcript links | no |
+| `static/index.html` | script tags | `static/js/forkEntityHash.js` | open `#event-…` / `#open=notes&note=…` on load (and the fork's `#open=news…`, opened by `forkModuleWindows.js`) | yes |
+| `static/index.html` | script tags | `static/js/forkModuleWindows.js` | the five Athena sidebar entries and News, module windows, rail buttons, transcript links | no |
 | `static/index.html` | script tags | `static/js/forkBackgroundModels.js` | Background & Summaries card | no |
 | `static/index.html` | script tags | `static/js/forkWhisperVocabulary.js` | Transcription Vocabulary card | no |
 | `static/index.html` | script tags | `static/js/forkVoiceEnroll.js` | Enroll My Voice card | no |
@@ -267,7 +274,7 @@ to be offered) upstream, "with discussion" a change upstream may want in another
 | `static/js/chat.js` | `final_response`, `_replaceLiveTurnWithSavedAssistantMessage` | `static/js/forkRoundFlow.js` | the final answer leaves out the rounds already shown | yes |
 | `static/js/chatRenderer.js` | imports, `addMessage` round rebuild | `static/js/forkRoundFlow.js` | the same on history reload | yes |
 | `static/js/keyboard-shortcuts.js` | imports | `static/js/forkModuleShortcuts.js` | import the fork's shortcut tables | no |
-| `static/js/keyboard-shortcuts.js` | `_defaultKeybinds` | `static/js/forkModuleShortcuts.js` | Open Records / Today / … (unbound) | no |
+| `static/js/keyboard-shortcuts.js` | `_defaultKeybinds` | `static/js/forkModuleShortcuts.js` | Open Records / Today / News / … (unbound) | no |
 | `static/js/keyboard-shortcuts.js` | `initKeyboardShortcuts`, window triggers | `static/js/forkModuleShortcuts.js` | "Toggle Window" includes the module windows | no |
 | `static/js/keyboard-shortcuts.js` | `initKeyboardShortcuts`, `_toolBtns` | `static/js/forkModuleShortcuts.js` | shortcut buttons | no |
 | `static/js/settings.js` | imports | `static/js/forkModuleShortcuts.js` | import the fork's shortcut tables | no |
@@ -276,7 +283,7 @@ to be offered) upstream, "with discussion" a change upstream may want in another
 | `static/js/settings.js` | `SHORTCUT_LABELS` | `static/js/forkModuleShortcuts.js` | labels | no |
 | `static/js/settings.js` | `SHORTCUT_CATEGORIES` | `static/js/forkModuleShortcuts.js` | the module windows under Open Tools | no |
 | `static/js/slashCommands.js` | imports | `static/js/forkModuleShortcuts.js` | import `FORK_OPEN_TARGETS` | no |
-| `static/js/slashCommands.js` | `_cmdOpen`, targets | `static/js/forkModuleShortcuts.js` | `/open records`, `meetings`, `today`, `write`, `wisdom` and their aliases | no |
+| `static/js/slashCommands.js` | `_cmdOpen`, targets | `static/js/forkModuleShortcuts.js` | `/open records`, `meetings`, `today`, `write`, `wisdom`, `news` and their aliases | no |
 | `tests/helpers/test_settings_shell_coordinator.mjs` | `REAL_MODULES` | `static/js/forkModuleShortcuts.js` | the settings.js import loads in the test shell | no |
 | `tests/test_reserved_username_admin_escalation.py` | `test_legacy_reserved_username_session_cannot_pass_admin_gate` | none | evict the fresh `core.middleware` with `monkeypatch` | yes |
 
@@ -293,7 +300,7 @@ The fork's Python code lives in the `fork/` package, apart from upstream's `src/
 granted; `turn_policy.py` is what the chat route's hooks call), `fork/athena/` (the
 Athena module in the hub, its routes included; `fork/athena/client.py` is the one way the
 fork calls Athena, MCP tools and HTTP routes alike),
-`fork/beliefs/`, `fork/insight/`, `fork/ink/`, `fork/brain/` (the brain, a chat agent loop of the fork's own;
+`fork/beliefs/`, `fork/insight/`, `fork/news/` (the morning news brief), `fork/ink/`, `fork/brain/` (the brain, a chat agent loop of the fork's own;
 [docs/fork/brain.md](docs/fork/brain.md)), `fork/hub/` (fixes to upstream's own
 features), `fork/routes/` (the other route files; `fork.routes.mount` includes all the
 fork's routers) and `fork/common/` (shared helpers). `fork/tasks.py` is the table of the

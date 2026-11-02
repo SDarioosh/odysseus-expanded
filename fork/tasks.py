@@ -47,6 +47,9 @@ TASKS: tuple[ForkTask, ...] = (
     # Belief Structure
     ForkTask("belief_structure", "fork.beliefs.structure", "action_belief_structure",
              housekeeping=True, silent=True, model_backed=True),
+    # News Brief: the morning news brief (docs/fork/news-brief.md)
+    ForkTask("news_brief", "fork.news.brief", "action_news_brief",
+             housekeeping=True, silent=True, model_backed=True),
     # Send Athena to toggled calendar meetings (one task per event, never seeded)
     ForkTask("meeting_auto_join", "fork.athena.meeting_auto_join", "action_meeting_auto_join"),
 )
