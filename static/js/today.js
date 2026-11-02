@@ -11,9 +11,16 @@
 
 // Phase 3: the weights table and "why is this first?" (todayWeights.js), weekly trends
 // (todayTrends.js). Contract: docs/fork/today-insight.md.
+// News (docs/fork/news-brief.md, phase 3): after the insight, the top story of each
+// category of today's news brief (GET /api/news/today), each linking to it in the News
+// window (static/js/news.js `storyHash`); hidden when there is no brief for today. Its
+// text comes from web pages and the model: set as text only.
 import { mountWeights, renderWhy } from './todayWeights.js';
 import { mountTrends } from './todayTrends.js';
 import { el, api } from './forkDom.js';
+// `/#open=news&story=<c>-<s>` opens the News window at that story (forkModuleWindows.js in
+// the app, forkEntityHash.js on a fresh load, e.g. from the /today page).
+import { storyHash } from './news.js';
 
 let root = null; // one mount per document
 const $ = (sel) => root.querySelector(sel);
@@ -340,6 +347,7 @@ function render(insight) {
 }
 
 async function load() {
+  loadNews();
   try {
     render(await api('/api/insight/today'));
   } catch (e) {
@@ -350,6 +358,37 @@ async function load() {
 
 const POLL_MS = 4000;
 const POLL_LIMIT_MS = 15 * 60 * 1000;
+
+// "News": the top story per category of today's brief, or nothing.
+export function newsSection(brief) {
+  const cats = (brief && Array.isArray(brief.categories)) ? brief.categories : [];
+  const rows = [];
+  cats.forEach((cat, ci) => {
+    const story = cat && Array.isArray(cat.stories) ? cat.stories[0] : null;
+    if (!story || typeof story !== 'object') return;
+    const meta = [cat.name, story.source].filter(Boolean).map(String).join(' · ');
+    rows.push(el('li', { className: 'ti-item' }, el('div', { className: 'bs-body' },
+      el('a', { className: 'bs-title', href: `/${storyHash(ci, 0)}`, title: 'Open in News' },
+         String(story.title || story.source || 'Untitled')),
+      meta ? el('div', { className: 'bs-meta' }, meta) : null)));
+  });
+  if (!rows.length) return [];
+  return [
+    el('div', { className: 'bs-section' }, 'News'),
+    el('div', { className: 'bs-card' }, el('ul', { className: 'bs-items' }, ...rows),
+      el('div', { className: 'bs-row ti-news-more' },
+        el('a', { className: 'bs-meta', href: '/#open=news' }, 'Open News'))),
+  ];
+}
+
+async function loadNews() {
+  const box = $('.ti-news');
+  let brief = null;
+  try {
+    brief = await api('/api/news/today');
+  } catch (e) { /* no brief today (404), or news off: no section */ }
+  box.replaceChildren(...newsSection(brief));
+}
 
 function note(text, error = false) {
   const n = $('.ti-note');
@@ -413,6 +452,7 @@ export function mountToday(target) {
     el('div', { className: 'bs-row', style: 'justify-content:flex-end;margin:0 0 8px' }, button),
     el('div', { className: 'bs-status ti-note', hidden: true }),
     el('div', { className: 'ti-main' }, el('div', { className: 'bs-status' }, 'Loading…')),
+    el('div', { className: 'ti-news' }),
     el('div', { className: 'ti-weights' }),
     el('div', { className: 'ti-trends' }));
   button.addEventListener('click', refresh);

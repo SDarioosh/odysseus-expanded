@@ -209,6 +209,10 @@ html.fm-page body { background: var(--bg); color: var(--fg); margin: 0; display:
 .fm-root .ti-why { margin-top: 4px; font-size: 12px; line-height: 1.45; }
 .fm-root .ti-dismissed > summary { cursor: pointer; list-style: revert; }
 .fm-root .ti-dismissed .bs-title { opacity: 0.7; }
+.fm-root .ti-news-more { margin-top: 4px; }
+.fm-root .ti-news-more a { color: inherit; }
+.fm-root .nb-story.nb-target { background: color-mix(in srgb, var(--fg) 10%, transparent);
+  border-radius: 6px; transition: background 0.4s; }
 @media (pointer: coarse) {
   .fm-root .ti-actions .ti-act { height: 32px; padding: 0 10px; font-size: 12px; }
 }
