@@ -172,9 +172,11 @@ def test_athena_group_holds_the_module_entries():
     assert "import { buildAthenaMenu } from './forkAthenaMenu.js';" in windows
     assert ("buildAthenaMenu([WINDOWS.sound.sidebarBtn, WINDOWS.meetings.sidebarBtn, "
             "WINDOWS.today.sidebarBtn,\n                   WINDOWS.ink.sidebarBtn, "
-            "WINDOWS.beliefs.sidebarBtn]);") in windows
-    # built after the entries it moves are added
+            "WINDOWS.beliefs.sidebarBtn, WINDOWS.news.sidebarBtn]);") in windows
+    # built after the entries it moves are added; News is last in the group
     assert windows.index("addSidebarEntry(WINDOWS.ink") < windows.index("buildAthenaMenu([")
+    assert ("addSidebarEntry(WINDOWS.news, WINDOWS.beliefs.sidebarBtn);" in windows
+            and windows.index("addSidebarEntry(WINDOWS.news") < windows.index("buildAthenaMenu(["))
     index = (_REPO / "static" / "index.html").read_text()
     assert 'id="tools-section"' in index
 

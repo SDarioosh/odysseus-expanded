@@ -15,7 +15,7 @@ from the first plan, the text below says what was built and why.
 
 ## What the owner gets
 
-- A **News** window (sidebar, icon rail, `/open news`) and a `/news` page: one section
+- A **News** window (sidebar: the Athena group, last; icon rail; `/open news`) and a `/news` page: one section
   per category, a one-line overview of the category, then 3–5 stories. Each story has a
   title, a short summary, its sources and the time it was published. Every story links to
   the article; a story reported by several sites lists each one ("Also: Reuters, BBC").
@@ -310,7 +310,7 @@ fork table):
 | `fork/news/push.py` | the phone push (`maybe_push`) |
 | `fork/news/store.py` | config (with feeds) and daily files, push files, pruning, `latest_brief` and `recent_briefs` |
 | `fork/routes/news_routes.py` | routes above; one row in `fork/routes/__init__.py` `ROUTERS` |
-| `static/news.html`, `static/js/news.js` | the page and window; entry in `static/js/forkModuleWindows.js` (in Tools after Notes, not in the Athena group), `/open news` and "Open News" in `static/js/forkModuleShortcuts.js`; styles under `nb-` in `static/css/fork-modules.css` |
+| `static/news.html`, `static/js/news.js` | the page and window; entry in `static/js/forkModuleWindows.js` (last in the Athena group, after Wisdom), `/open news` and "Open News" in `static/js/forkModuleShortcuts.js`; styles under `nb-` in `static/css/fork-modules.css` |
 | `tests/fork/test_news_brief.py`, `tests/fork/test_news_gather.py`, `tests/fork/test_news_feeds.py`, `tests/fork/test_news_push.py` | tests on fictional data, fake SearXNG, fake feeds, fake model and fake notify channel |
 
 Settings rows are in `fork/common/settings.py` (passed by `docker/fork.override.yml`).

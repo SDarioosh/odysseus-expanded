@@ -259,7 +259,7 @@ to be offered) upstream, "with discussion" a change upstream may want in another
 | `static/css/01-agent-chat.css` | `.chat-meta-overlay` with the Nobody eye | none | the chat title stays centered | yes |
 | `static/index.html` | script tags, end of body | `static/js/forkChatAsk.js` | `/?ask=` prefills a new chat | yes, with discussion |
 | `static/index.html` | script tags | `static/js/forkEntityHash.js` | open `#event-…` / `#open=notes&note=…` on load (and the fork's `#open=news…`, opened by `forkModuleWindows.js`) | yes |
-| `static/index.html` | script tags | `static/js/forkModuleWindows.js` | the five Athena sidebar entries and News, module windows, rail buttons, transcript links | no |
+| `static/index.html` | script tags | `static/js/forkModuleWindows.js` | the six Athena sidebar entries (News last), module windows, rail buttons, transcript links | no |
 | `static/index.html` | script tags | `static/js/forkBackgroundModels.js` | Background & Summaries card | no |
 | `static/index.html` | script tags | `static/js/forkWhisperVocabulary.js` | Transcription Vocabulary card | no |
 | `static/index.html` | script tags | `static/js/forkVoiceEnroll.js` | Enroll My Voice card | no |
