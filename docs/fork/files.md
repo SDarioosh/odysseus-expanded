@@ -56,6 +56,7 @@ is an old path of a module that moved into `fork/`; it only aliases the new modu
 - `docs/fork/modules.md`
 - `docs/fork/modules/athena.md`
 - `docs/fork/modules/odysseus-sound.md`
+- `docs/fork/news-brief.md`
 - `docs/fork/people-context.md`
 - `docs/fork/personal-context-prior-art.md`
 - `docs/fork/personal-context.md`
