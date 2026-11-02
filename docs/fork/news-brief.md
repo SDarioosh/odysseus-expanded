@@ -37,7 +37,7 @@ feature with no data of its own to own. If news later grows into a store of its 
 (saved articles, reading history, search across past briefs), that is the time to move it
 into a module.
 
-## Privacy (owner decision needed)
+## Privacy (owner decision: SearXNG is fine)
 
 The brief has to ask the internet for news, so it is not like the Today insight, where
 nothing leaves the network. What leaves, and what never does:
@@ -57,10 +57,8 @@ Rules the code keeps:
   (Brave, Tavily, Serper) when a key is set.
 - Summaries use the hub's local background model only. No cloud model, no fallback.
 
-**Open question for the owner:** is sending the category names through SearXNG every
-morning acceptable (it is what an owner-typed web search does today)? If not, the brief
-can run on RSS feeds only (no queries at all; the feed sites only see that the server
-reads their feed), at the cost of the owner picking feeds per category.
+**Owner's decision (2026-11-02):** sending the category names through SearXNG every
+morning is fine. RSS feeds (phase 2) are an extra source, not a replacement.
 
 ## How it works
 
