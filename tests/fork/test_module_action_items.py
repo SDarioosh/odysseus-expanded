@@ -486,6 +486,29 @@ async def test_file_item_files_a_suggestion(hub, pushes):
 
 
 @pytest.mark.asyncio
+async def test_an_undated_suggestion_goes_to_the_calendar_with_the_day_picked(hub):
+    """The page's Add to calendar on a suggestion with no date: the calendar refuses it
+    until a day is set, and the page sets it with move (kind event, date and time)."""
+    module = JsonModule()
+    await _start(module)
+    module.add(row(22, "Kayaking with Ola", note=False))
+    await bai.sync("alice", module, now=T0)
+    assert events(hub) == [] and notes(hub) == []  # a suggestion: not filed
+    with pytest.raises(ValueError, match="needs a date"):
+        await bai.file_item("alice", module.rows[22], module, target="calendar")
+    assert events(hub) == []
+
+    moved = await bai.move_item("alice", 22, module, kind="event", due_date="2031-10-25",
+                                due_time="12:00")
+    assert module.updates[-1] == {"item_id": 22, "kind": "event",
+                                  "due_date": "2031-10-25", "due_time": "12:00"}
+    (ev,) = events(hub)
+    assert moved["target"] == "calendar" and ev.summary == "Kayaking with Ola"
+    assert ev.dtstart == datetime.datetime(2031, 10, 25, 10, 0)  # 12:00 Berlin
+    assert notes(hub) == [] and (await bai.filed_state("alice"))[22]["ref"] == ev.uid
+
+
+@pytest.mark.asyncio
 async def test_file_items_off_keeps_the_old_behaviour(hub, pushes, monkeypatch):
     monkeypatch.setenv("MODULE_FILE_ITEMS", "off")
     module = FakeModule()
