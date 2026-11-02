@@ -267,6 +267,8 @@ Where a filed item goes:
   explicit, wait on `/modules/athena` with **Add to calendar** / **Add to to-dos** /
   **Dismiss**; nothing is filed until tapped. Conversation items are not pushed;
   voice-note suggestions get one "Suggested from your voice note" push per pass.
+  **Add to calendar** on a suggestion with no date opens the date and time fields first
+  (an event needs a day; no time = all day) and files it with the move route.
 - **Fix or undo** on `/modules/athena`: Move to calendar / Move to to-dos, Change time,
   Undo (removes the Odysseus entry and dismisses the item). An item is filed once: if
   you delete the event or note in Odysseus it is not filed again.

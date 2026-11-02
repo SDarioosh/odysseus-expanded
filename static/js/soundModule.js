@@ -161,13 +161,23 @@ function postJSON(path, body) {
 }
 
 // Inline date + time editor for "Change time"; resolves the move body or null on cancel.
-function timeEditor(it, onSave, onCancel) {
+// ``kind`` 'event' (Add to calendar on an undated suggestion) saves it as an event and
+// needs a date.
+function timeEditor(it, onSave, onCancel, kind = it.kind || 'task') {
   const date = el('input', { className: 'bs-input', type: 'date', 'aria-label': 'Date',
                              value: it.due_date || '' });
   const time = el('input', { className: 'bs-input', type: 'time', 'aria-label': 'Time',
                              value: it.due_time || '' });
+  const hint = el('div', { className: 'bs-meta bs-msg bs-wide' },
+    kind === 'event' && !it.due_date ? 'Pick the day of the event; leave the time empty for all day.' : '');
   const save = el('button', { type: 'button', className: 'bs-btn primary', onclick: () => {
-    const body = { kind: it.kind || 'task' };
+    if (kind === 'event' && !date.value) {
+      hint.classList.add('error');
+      hint.textContent = 'An event needs a date.';
+      date.focus();
+      return;
+    }
+    const body = { kind };
     if (date.value) body.due_date = date.value;
     else if (it.due_date) body.due_date = 'none';
     if (time.value) body.due_time = time.value.slice(0, 5);
@@ -178,7 +188,7 @@ function timeEditor(it, onSave, onCancel) {
   return el('div', { className: 'bs-edit bs-row bs-time-edit' },
     el('label', { className: 'bs-field' }, el('span', { className: 'bs-meta' }, 'Date'), date),
     el('label', { className: 'bs-field' }, el('span', { className: 'bs-meta' }, 'Time'), time),
-    save, cancel,
+    save, cancel, hint,
     it.time_unclear ? el('div', { className: 'bs-meta bs-wide' },
       'The time was unclear in the recording; saving a time clears the warning.') : null);
 }
@@ -295,8 +305,19 @@ function itemCard(it, note = '') {
     if (filed.target === 'todo') listButton();
     btn('Undo', () => run('Undoing', () => postJSON(`${base}/undo`)));
   } else {
-    btn('Add to calendar', () => run('Adding', () => postJSON(`${base}/file`, { target: 'calendar' })),
-      kind === 'event');
+    // an undated suggestion: ask for the day first (the calendar needs one)
+    btn('Add to calendar', () => {
+      if (it.due_date) {
+        run('Adding', () => postJSON(`${base}/file`, { target: 'calendar' }));
+        return;
+      }
+      if (busy || card.querySelector('.bs-time-edit')) return;
+      const editor = timeEditor(it,
+        (body) => run('Adding', () => postJSON(`${base}/move`, body)),
+        () => editor.remove(), 'event');
+      actions.after(editor);
+      editor.querySelector('input').focus();
+    }, kind === 'event');
     btn('Add to to-dos', () => run('Adding', () => postJSON(`${base}/file`, { target: 'todo' })),
       kind !== 'event');
     if (kind !== 'event') listButton();
