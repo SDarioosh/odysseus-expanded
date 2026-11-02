@@ -24,8 +24,8 @@
 // /static/, see open question 4 in docs/fork/handwritten-notes.md). Handwritten notes are
 // left out of the Notes window, so links to one open it in Write (forkInkLinks.js).
 //
-// News (the morning news brief, static/js/news.js, page /news) is not Athena data: its
-// entry stays in Tools, right after Notes, outside the Athena group. A link to
+// News (the morning news brief, static/js/news.js, page /news) comes last in the Athena
+// group, after Wisdom (the owner's choice, though it is not Athena data). A link to
 // `#open=news[&story=<c>-<s>]` (the Today window's News section; on a fresh load,
 // forkEntityHash.js clicks one) opens the News window, scrolled to that story.
 
@@ -394,9 +394,9 @@ function init() {
   addSidebarEntry(WINDOWS.today, WINDOWS.meetings.sidebarBtn);
   addSidebarEntry(WINDOWS.ink, WINDOWS.today.sidebarBtn);
   addSidebarEntry(WINDOWS.beliefs, WINDOWS.ink.sidebarBtn);
+  addSidebarEntry(WINDOWS.news, WINDOWS.beliefs.sidebarBtn);
   buildAthenaMenu([WINDOWS.sound.sidebarBtn, WINDOWS.meetings.sidebarBtn, WINDOWS.today.sidebarBtn,
-                   WINDOWS.ink.sidebarBtn, WINDOWS.beliefs.sidebarBtn]);
-  addSidebarEntry(WINDOWS.news, NOTES_ENTRY); // in Tools, not the Athena group
+                   WINDOWS.ink.sidebarBtn, WINDOWS.beliefs.sidebarBtn, WINDOWS.news.sidebarBtn]);
   for (const win of Object.values(WINDOWS)) wireSidebar(win);
   addRailButton(WINDOWS.sound, 'rail-notes');
   addRailButton(WINDOWS.meetings, WINDOWS.sound.railBtn);
