@@ -19,8 +19,10 @@ Status: **scoped, not built.** This page is the work order for the PRs that buil
 - **Settings on the page:** the categories (add, rename, reorder, turn off, delete), per
   category an optional search query and optional RSS feeds, stories per category, and the
   delivery time. **Refresh** writes a new brief now.
-- Later (phase 3): "what's in the news today?" in chat is answered from the stored brief,
-  and the brief can go to the T5 PDA through the phone relay.
+- Later (phase 3), in the Odysseus web app: "what's in the news today?" in chat is
+  answered from the stored brief, and the Today window shows the top headline of each
+  category with a link to the News window. The brief does not go to the T5 PDA (owner's
+  decision, 2026-11-02).
 
 ## Where it belongs
 
@@ -159,7 +161,6 @@ task's own time is the delivery time.
 | `GET /api/news/today` | admin session | today's brief, plus `refreshing` and `refresh_error`; 404 when none |
 | `POST /api/news/refresh` | admin session | 202, writes a new brief in the background (a run outlasts the request timeout) |
 | `GET`/`PUT /api/news/config` | admin session | categories, stories per category, delivery time (writes the task's cron) |
-| `GET /api/codex/news/today` | token scope `news:read` (phase 3) | the brief, for the phone relay and the T5 |
 | `GET /news` | session | the page |
 
 ### Settings
@@ -189,8 +190,8 @@ fork table):
 | `static/news.html`, `static/js/news.js` | the page and window; entry in `static/js/forkModuleWindows.js`, `/open news` in `static/js/forkModuleShortcuts.js` |
 | `tests/fork/test_news_brief.py`, `tests/fork/test_news_gather.py` | tests on fictional data, fake SearXNG and fake model |
 
-Phase 3 adds the `news:read` scope (in the existing scope hooks) and the chat block (in
-the existing `build_context_preface` hook). Each lands in [FORK.md](../../FORK.md) when built.
+Phase 3 adds the chat block (in the existing `build_context_preface` hook) and a News
+section in the Today window (`static/js/today.js`, a fork file). Each lands in [FORK.md](../../FORK.md) when built.
 
 ## Phases (one PR each)
 
@@ -200,9 +201,10 @@ the existing `build_context_preface` hook). Each lands in [FORK.md](../../FORK.m
    only, empty category, no categories → no-op, timezone of the cron.
 2. **RSS feeds and push.** Feeds per category, feed URL checks, "seen in the last 3
    briefs" filter, ntfy push.
-3. **Chat and devices.** "What's in the news?" answered from the stored brief (asked only
-   on news questions, like the Today block), `GET /api/codex/news/today` for the phone
-   relay, T5 screen (Athena repo, its own PR).
+3. **Chat and the Today window.** "What's in the news?" answered from the stored brief
+   (added only on news questions, like the Today block), and a News section in the Today
+   window: the top headline per category, each linking to its story in the News window.
+   No T5 PDA and no token route (owner's decision, 2026-11-02).
 
 ## Measure
 
