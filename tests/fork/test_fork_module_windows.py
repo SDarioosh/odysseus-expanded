@@ -70,19 +70,20 @@ def test_shortcut_data_matches_the_windows():
     console.log(JSON.stringify(s));
     """)
     assert got["FORK_SHORTCUT_ACTIONS"] == [
-        "open_conversations", "open_meetings", "open_today", "open_write", "open_beliefs"]
+        "open_conversations", "open_meetings", "open_today", "open_write", "open_beliefs",
+        "open_news"]
     # unbound by default, like upstream's other open-tool shortcuts
     assert got["FORK_SHORTCUT_DEFAULTS"] == {
         "open_conversations": "", "open_meetings": "", "open_today": "", "open_write": "",
-        "open_beliefs": ""}
+        "open_beliefs": "", "open_news": ""}
     assert got["FORK_SHORTCUT_BUTTONS"] == {
         "open_conversations": "tool-sound-module-btn", "open_meetings": "tool-meetings-btn",
         "open_today": "tool-today-insight-btn", "open_write": "tool-ink-btn",
-        "open_beliefs": "tool-beliefs-btn"}
+        "open_beliefs": "tool-beliefs-btn", "open_news": "tool-news-btn"}
     assert got["FORK_WINDOW_TRIGGERS"] == {
         "fork-sound-modal": "tool-sound-module-btn", "fork-meetings-modal": "tool-meetings-btn",
         "fork-today-modal": "tool-today-insight-btn", "fork-ink-modal": "tool-ink-btn",
-        "fork-beliefs-modal": "tool-beliefs-btn"}
+        "fork-beliefs-modal": "tool-beliefs-btn", "fork-news-modal": "tool-news-btn"}
     assert got["FORK_OPEN_TARGETS"] == {
         "records": ["tool-sound-module-btn", "rail-sound-module"],
         "conversations": ["tool-sound-module-btn", "rail-sound-module"],
@@ -94,6 +95,7 @@ def test_shortcut_data_matches_the_windows():
         "handwriting": ["tool-ink-btn", "rail-ink"],
         "wisdom": ["tool-beliefs-btn", "rail-beliefs"],
         "beliefs": ["tool-beliefs-btn", "rail-beliefs"],
+        "news": ["tool-news-btn", "rail-news"],
     }
     windows = (_JS / "forkModuleWindows.js").read_text()
     index = (_REPO / "static" / "index.html").read_text()
@@ -121,7 +123,8 @@ def test_hooks_are_in_place():
 
 
 def test_standalone_pages_mount_the_shared_views():
-    for page, fn in (("sound-module.html", "mountSoundModule"), ("today.html", "mountToday")):
+    for page, fn in (("sound-module.html", "mountSoundModule"), ("today.html", "mountToday"),
+                     ("news.html", "mountNews")):
         html = (_REPO / "static" / page).read_text()
         assert '<link rel="stylesheet" href="/static/css/fork-modules.css">' in html
         assert f"{fn}(document.getElementById('fm-view'))" in html

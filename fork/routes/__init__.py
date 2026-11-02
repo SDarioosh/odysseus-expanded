@@ -21,6 +21,7 @@ ROUTERS: tuple[tuple[str, str], ...] = (
     ("fork.athena.voice_enroll_routes", "setup_voice_enroll_routes"),  # Enroll My Voice
     ("fork.routes.auto_mode_routes", "setup_auto_mode_routes"),  # auto mode default
     ("fork.routes.ink_routes", "setup_ink_routes"),  # handwritten notes
+    ("fork.routes.news_routes", "setup_news_routes"),  # morning news brief
 )
 
 

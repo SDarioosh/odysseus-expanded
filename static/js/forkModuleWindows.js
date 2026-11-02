@@ -23,6 +23,9 @@
 // page caches them for an offline start (static/sw.js is left alone; today its scope is
 // /static/, see open question 4 in docs/fork/handwritten-notes.md). Handwritten notes are
 // left out of the Notes window, so links to one open it in Write (forkInkLinks.js).
+//
+// News (the morning news brief, static/js/news.js, page /news) is not Athena data: its
+// entry stays in Tools, right after Notes, outside the Athena group.
 
 import * as Modals from './modalManager.js';
 import { makeWindowDraggable } from './windowDrag.js';
@@ -91,6 +94,18 @@ const WINDOWS = {
     async mount(body) {
       const { mountBeliefs } = await import('./beliefs.js');
       return mountBeliefs(body, { inApp: true });
+    },
+  },
+  news: {
+    id: 'fork-news-modal',
+    title: 'News',
+    sidebarBtn: 'tool-news-btn',
+    railBtn: 'rail-news',
+    href: '/news',
+    icon: FORK_SHORTCUT_ICONS.open_news,
+    async mount(body) {
+      const { mountNews } = await import('./news.js');
+      return mountNews(body);
     },
   },
   ink: {
@@ -207,8 +222,8 @@ async function open(win) {
       win.body.textContent = `Could not load ${win.title}: ${e.message}`;
       throw e;
     });
-  } else if (win.view && (win.id === WINDOWS.today.id || win.id === WINDOWS.ink.id)) {
-    win.view.refresh(); // the stored insight / the notes list may be newer
+  } else if (win.view && [WINDOWS.today.id, WINDOWS.ink.id, WINDOWS.news.id].includes(win.id)) {
+    win.view.refresh(); // the stored insight / the notes list / the brief may be newer
   }
   return win.mounting;
 }
@@ -359,12 +374,14 @@ function init() {
   addSidebarEntry(WINDOWS.beliefs, WINDOWS.ink.sidebarBtn);
   buildAthenaMenu([WINDOWS.sound.sidebarBtn, WINDOWS.meetings.sidebarBtn, WINDOWS.today.sidebarBtn,
                    WINDOWS.ink.sidebarBtn, WINDOWS.beliefs.sidebarBtn]);
+  addSidebarEntry(WINDOWS.news, NOTES_ENTRY); // in Tools, not the Athena group
   for (const win of Object.values(WINDOWS)) wireSidebar(win);
   addRailButton(WINDOWS.sound, 'rail-notes');
   addRailButton(WINDOWS.meetings, WINDOWS.sound.railBtn);
   addRailButton(WINDOWS.today, WINDOWS.meetings.railBtn);
   addRailButton(WINDOWS.ink, WINDOWS.today.railBtn);
   addRailButton(WINDOWS.beliefs, WINDOWS.ink.railBtn);
+  addRailButton(WINDOWS.news, WINDOWS.beliefs.railBtn);
   for (const win of Object.values(WINDOWS)) mirrorVisibility(win);
   preloadParser();
   wireTranscriptLinks();

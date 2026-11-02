@@ -1,0 +1,32 @@
+<!DOCTYPE html>
+<html lang="en" class="fm-page">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <title>News — Odysseus</title>
+  <meta name="theme-color" content="#282c34">
+  <link rel="icon" href="/static/icon.ico">
+  <!-- Fork: the theme the owner picked in Odysseus (static/js/forkPageTheme.js) -->
+  <script src="/static/js/forkPageTheme.js"></script>
+  <link rel="stylesheet" href="/static/css/00-tokens.css?v=20260929csssplit">
+  <!-- Fork: same look as the News window in the main app (static/js/forkModuleWindows.js) -->
+  <link rel="stylesheet" href="/static/css/fork-modules.css">
+</head>
+<body>
+  <div class="fm-page-wrap">
+    <div class="fm-page-top">
+      <a href="/" title="Back to Odysseus" aria-label="Back to Odysseus">
+        <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"
+          stroke-linecap="round" stroke-linejoin="round"><polyline points="15 18 9 12 15 6"/></svg>
+      </a>
+      <h1><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"
+        stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M4 4h13v16H6a2 2 0 0 1-2-2z"/><path d="M17 8h3v10a2 2 0 0 1-2 2"/><path d="M8 8h5M8 12h5M8 16h3"/></svg>News</h1>
+    </div>
+    <div id="fm-view"></div>
+  </div>
+  <script type="module" nonce="{{CSP_NONCE}}">
+    import { mountNews } from '/static/js/news.js';
+    mountNews(document.getElementById('fm-view'));
+  </script>
+</body>
+</html>

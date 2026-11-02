@@ -175,7 +175,8 @@
 /* ---- the Odysseus windows (static/js/forkModuleWindows.js) */
 @media (min-width: 769px) {
   /* centered in the chat area, like the built-in tool windows */
-  #fork-sound-modal, #fork-meetings-modal, #fork-today-modal, #fork-ink-modal, #fork-beliefs-modal {
+  #fork-sound-modal, #fork-meetings-modal, #fork-today-modal, #fork-ink-modal, #fork-beliefs-modal,
+  #fork-news-modal {
     left: calc(var(--icon-rail-w, 48px) + var(--sidebar-w, 0px));
     width: calc(100% - (var(--icon-rail-w, 48px) + var(--sidebar-w, 0px)));
     box-sizing: border-box;
@@ -472,3 +473,26 @@ html.fm-page body { background: var(--bg); color: var(--fg); margin: 0; display:
 .fm-pairing-page .pp-link { font-size: 0.75rem; word-break: break-all; opacity: 0.8; user-select: all; }
 .fm-pairing-page .pp-state { font-weight: 600; }
 /* end Meetings and phone pairing pages */
+/* News (static/js/news.js): the morning news brief, in the Today window's style */
+.fm-root .nb-date { margin: 0 0 4px; }
+.fm-root .nb-overview { font-size: 13px; line-height: 1.5; margin: 0 0 4px; }
+.fm-root .nb-flag { margin: 0 0 4px; font-style: italic; }
+.fm-root .nb-story { padding: 8px 0; overflow-wrap: anywhere; }
+.fm-root .nb-story + .nb-story { border-top: 1px solid color-mix(in srgb, var(--border) 40%, transparent); }
+.fm-root .nb-summary { font-size: 12px; line-height: 1.45; margin: 2px 0;
+                       color: color-mix(in srgb, var(--fg) 80%, transparent); }
+.fm-root .nb-also a, .fm-root .nb-src { color: inherit; }
+.fm-root .nb-errors { margin-top: 10px; }
+.fm-root .nb-settings { margin-top: 16px; }
+.fm-root .nb-settings > summary { cursor: pointer; list-style-position: inside; }
+.fm-root .nb-cats { margin: 8px 0; }
+.fm-root .nb-cat { display: grid; grid-template-columns: auto 1fr 2fr 4.5em auto; gap: 6px;
+                   align-items: center; padding: 4px 0; }
+.fm-root .nb-cat-actions { display: flex; gap: 4px; }
+.fm-root .nb-time-row { flex-wrap: wrap; gap: 8px; margin-bottom: 8px; }
+.fm-root .nb-time-label { display: inline-flex; align-items: center; gap: 6px; font-size: 12px; }
+@media (max-width: 640px) {
+  .fm-root .nb-cat { grid-template-columns: auto 1fr 4em auto; }
+  .fm-root .nb-cat .nb-query { grid-column: 1 / -1; order: 5; }
+}
+/* end News */
