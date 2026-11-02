@@ -25,13 +25,16 @@
 // left out of the Notes window, so links to one open it in Write (forkInkLinks.js).
 //
 // News (the morning news brief, static/js/news.js, page /news) is not Athena data: its
-// entry stays in Tools, right after Notes, outside the Athena group.
+// entry stays in Tools, right after Notes, outside the Athena group. A link to
+// `#open=news[&story=<c>-<s>]` (the Today window's News section; on a fresh load,
+// forkEntityHash.js clicks one) opens the News window, scrolled to that story.
 
 import * as Modals from './modalManager.js';
 import { makeWindowDraggable } from './windowDrag.js';
 import { FORK_SHORTCUT_ICONS } from './forkModuleShortcuts.js';
 import { buildAthenaMenu } from './forkAthenaMenu.js';
 import { wireHandwrittenNoteLinks } from './forkInkLinks.js';
+import { parseNewsHash } from './news.js';
 
 const STYLESHEET = '/static/css/fork-modules.css';
 const INK_SCRIPT = './forkInk.js';
@@ -365,6 +368,25 @@ function wireTranscriptLinks() {
   }, true);
 }
 
+// `#open=news[&story=<c>-<s>]` links (static/js/news.js `storyHash`) open the News window.
+function wireNewsLinks() {
+  document.addEventListener('click', (e) => {
+    if (e.defaultPrevented || !plainClick(e)) return;
+    const a = e.target && e.target.closest && e.target.closest('a[href]');
+    if (!a) return;
+    const href = a.getAttribute('href') || '';
+    const at = href.indexOf('#');
+    if (at < 0 || !/^\/?$/.test(href.slice(0, at))) return; // "#…" or "/#…" only
+    const ref = parseNewsHash(href.slice(at));
+    if (!ref) return;
+    e.preventDefault();
+    e.stopPropagation();
+    open(WINDOWS.news).then((view) => {
+      if (view && ref.story) view.showStory(ref.story[0], ref.story[1]);
+    }).catch(() => {});
+  }, true);
+}
+
 function init() {
   loadStylesheet();
   addSidebarEntry(WINDOWS.sound, NOTES_ENTRY);
@@ -385,6 +407,7 @@ function init() {
   for (const win of Object.values(WINDOWS)) mirrorVisibility(win);
   preloadParser();
   wireTranscriptLinks();
+  wireNewsLinks();
   wireHandwrittenNoteLinks({
     offered: () => {
       const entry = document.getElementById(WINDOWS.ink.sidebarBtn);

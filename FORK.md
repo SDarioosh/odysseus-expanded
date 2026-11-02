@@ -130,6 +130,7 @@ the link goes to its details (what it does, its files, whether it can go upstrea
 ### News brief
 
 - [Morning news brief (phases 1 and 2)](docs/fork/news-brief.md#morning-news-brief): the "News Brief" task (SearXNG and optional RSS/Atom feeds per category through the public-address guard, the "seen in the last 3 briefs" filter, local-model summaries, links only from the candidates), the `/news` page and News window with the category and feeds editor, delivery time and Refresh, and an optional phone push (`NEWS_BRIEF_PUSH`).
+- [News brief in chat and the Today window (phase 3)](docs/fork/news-brief.md#chat-and-the-today-window): news questions in chat get the stored brief (through the Today insight's chat hook, only on news questions), and the Today window shows the top story of each category, linking to it in the News window (`/#open=news&story=<c>-<s>`).
 
 ### Handwritten notes
 
@@ -257,7 +258,7 @@ to be offered) upstream, "with discussion" a change upstream may want in another
 | `src/turn_contract.py` | `selected_tools_for_request`, model-discovery rule | `fork/routing/web_turn_scope.py` | comparisons and web lookups are web questions | yes, with discussion |
 | `static/css/01-agent-chat.css` | `.chat-meta-overlay` with the Nobody eye | none | the chat title stays centered | yes |
 | `static/index.html` | script tags, end of body | `static/js/forkChatAsk.js` | `/?ask=` prefills a new chat | yes, with discussion |
-| `static/index.html` | script tags | `static/js/forkEntityHash.js` | open `#event-…` / `#open=notes&note=…` on load | yes |
+| `static/index.html` | script tags | `static/js/forkEntityHash.js` | open `#event-…` / `#open=notes&note=…` on load (and the fork's `#open=news…`, opened by `forkModuleWindows.js`) | yes |
 | `static/index.html` | script tags | `static/js/forkModuleWindows.js` | the five Athena sidebar entries and News, module windows, rail buttons, transcript links | no |
 | `static/index.html` | script tags | `static/js/forkBackgroundModels.js` | Background & Summaries card | no |
 | `static/index.html` | script tags | `static/js/forkWhisperVocabulary.js` | Transcription Vocabulary card | no |

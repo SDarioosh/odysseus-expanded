@@ -156,6 +156,7 @@ is an old path of a module that moved into `fork/`; it only aliases the new modu
 - `fork/mcp/trust.py`
 - `fork/news/__init__.py`
 - `fork/news/brief.py`
+- `fork/news/context.py`
 - `fork/news/gather.py`
 - `fork/news/prompt.py`
 - `fork/news/push.py`
@@ -450,6 +451,7 @@ is an old path of a module that moved into `fork/`; it only aliases the new modu
 - `tests/fork/test_module_turn_scope.py`
 - `tests/fork/test_modules_setup.py`
 - `tests/fork/test_news_brief.py`
+- `tests/fork/test_news_context.py`
 - `tests/fork/test_news_feeds.py`
 - `tests/fork/test_news_gather.py`
 - `tests/fork/test_news_push.py`
