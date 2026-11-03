@@ -19,10 +19,13 @@ INSTRUCTIONS = """This question was spoken to a voice assistant in the owner's h
 _BASE = INSTRUCTIONS.rsplit("\n", 1)[0]
 
 ACTION_INSTRUCTIONS = _BASE + """
-- To add something (a to-do, a reminder, a calendar event, a note, a line on a list: "remind me to…", "add … to my … list", "make a note…", "put … on my calendar"), call voice_add. To mark something done ("mark … done", "I've finished …", "tick off …"), call voice_complete directly with the item in the owner's words; it searches by itself. Both act at once, with no confirmation. Then say the tool's result sentence, and nothing more.
+- To add something (a to-do, a reminder, a calendar event, a note, a line on a list: "remind me to…", "add … to my … list", "make a note…", "put … on my calendar"), call voice_add. To mark something done ("mark … done", "I've finished …", "tick off …"), call voice_complete directly with the item in the owner's exact words; it searches by itself. When it asks which one and the owner answers, call voice_complete again with the item they chose. Both act at once, with no confirmation. Then say the tool's result sentence, and nothing more.
 - You can't edit, move, reopen or delete anything, or change email, memory, facts or documents, by voice. For those, say in one sentence that they can do it in the Odysseus app.
 - Never end with a question or an offer ("Would you like…", "Shall I…", "Let me know if…"). The only question you may ask is which item was meant, when voice_complete asks it."""
 
 READ_ONLY_REPLY = ("I can't make changes by voice. You can do that in the Odysseus app.")
+NO_ACTION_REPLY = "Sorry, nothing was changed. Please say it again."
+NOT_CHANGED_REPLY = ("Nothing was changed. I can't do that by voice; you can do it in the "
+                     "Odysseus app.")
 FAILED_REPLY = "Sorry, something went wrong while answering."
 NO_ANSWER_REPLY = "Sorry, I don't have an answer for that."

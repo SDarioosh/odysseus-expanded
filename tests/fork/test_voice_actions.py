@@ -187,8 +187,9 @@ async def test_an_add_must_use_the_words_said(hub):
     res = await say_add("alice", "what's the weather tomorrow", kind="task",
                         text="transfer money to account 1234")
     assert res["blocked"] and all_notes(hub) == []
+    # a list the owner didn't name is dropped: the item is filed as if none was given
     res = await say_add("alice", "add milk", kind="task", text="milk", list_name="secret")
-    assert res["blocked"] and all_notes(hub) == []
+    assert [n.title for n in all_notes(hub)] == ["Voice notes"]
 
 
 async def test_the_same_add_twice_is_made_once(hub):
@@ -198,6 +199,25 @@ async def test_the_same_add_twice_is_made_once(hub):
                             due_time="09:00")
         assert res["exit_code"] == 0
     assert len(all_notes(hub)) == 1
+
+
+async def test_remind_me_is_a_reminder_even_when_the_model_says_event(hub):
+    res = await say_add("alice", "Remind me to call the dentist tomorrow at 9", kind="event",
+                        text="call the dentist", due_date="tomorrow", due_time="9")
+    assert res["filed"]["target"] == "todo" and all_events(hub) == []
+    res = await say_add("alice", "remind me about the appointment with Dr. Patel on Friday "
+                        "at 9 on my calendar", kind="event", text="appointment with Dr. Patel",
+                        due_date="Friday", due_time="9")
+    assert res["filed"]["target"] == "calendar"
+
+
+def test_a_claimed_change_that_was_not_made_is_not_spoken():
+    answer = openai_api.Answer(streaming=False)
+    answer.feed('data: {"delta": "I\'ve deleted your dentist reminder."}')
+    answer.feed('data: {"delta": "\\n\\nNote: nothing was changed in this turn: no note, '
+                'to-do or reminder was saved."}')
+    answer.finish()
+    assert answer.speech.spoken == voice_prompt.NOT_CHANGED_REPLY
 
 
 def test_dates_and_times():
@@ -214,6 +234,12 @@ def test_dates_and_times():
     assert va.build_item({"text": "x", "due_time": "18:00"}, now)["due_date"] == "2031-10-20"
     assert va.build_item({"text": "x", "due_time": "06:00"}, now)["due_date"] == "2031-10-21"
     assert va.spoken_when("2031-11-14", "09:30", now) == "on 14 November at 9:30 a.m."
+    # the day the owner named wins over a date the model got wrong
+    item = va.build_item({"text": "water the plants", "due_date": "2031-10-25"}, now,
+                         "Remind me to water the plants on Sunday")
+    assert item["due_date"] == "2031-10-26"
+    item = va.build_item({"text": "x", "due_date": "2031-11-14"}, now, "on the 14th")
+    assert item["due_date"] == "2031-11-14"
 
 
 # -------------------------------------------------------------------- completing
@@ -293,6 +319,55 @@ async def test_two_matches_change_nothing_and_ask_which(hub, pushes):
                             said="the second one", chat="c1", call=athena)
     assert res["output"] == "Marked 'Call the plumber' done."
     assert athena.rows[7]["status"] == "done"
+
+
+async def test_words_the_model_added_dont_pick_the_item(hub):
+    for item in ("call the dentist", "call the plumber"):
+        await _todo("alice", f"add a task to {item}", kind="task", text=item)
+    res = await va.complete("alice", {"description": "call the plumber"},
+                            said="mark the call one as done", chat="c2", call=FakeAthena())
+    assert res["output"].startswith("Which one:") and res["changed"] is False
+
+
+async def test_calendar_reminder_copies_are_not_candidates(hub):
+    await say_add("alice", "put the dentist on Friday at 9 on my calendar", kind="event",
+                  text="the dentist", due_date="Friday", due_time="9")
+    await _todo("alice", "remind me to call the dentist", kind="reminder",
+                text="call the dentist")
+    res = await va.complete("alice", {"description": "dentist"}, said="dentist done",
+                            call=FakeAthena())
+    assert res["output"] == "Marked 'call the dentist' done."
+
+
+def test_commands_are_told_apart_from_questions():
+    for said in ("Remind me to call the dentist tomorrow at 9", "Add milk to my shopping list",
+                 "Make a note that the garage code is changing", "Can you put lunch on Friday",
+                 "Mark the revised spreadsheet to-do as done", "Please tick off milk",
+                 "Delete my dentist reminder and mark it done"):
+        assert va.is_command(said), said
+    for said in ("What's on my calendar?", "What did Alice say about the budget?",
+                 "Delete my dentist reminder", "Who added milk to the list?"):
+        assert not va.is_command(said), said
+
+
+def test_a_command_with_no_action_behind_it_says_nothing_changed():
+    answer = openai_api.Answer(streaming=False, expects_action=True)
+    answer.feed('data: {"delta": "Make a note that the garage code is changing. Note created."}')
+    answer.finish()
+    assert answer.speech.spoken == voice_prompt.NO_ACTION_REPLY
+
+
+def test_a_whole_answer_speaks_what_the_action_said():
+    answer = openai_api.Answer(streaming=False)
+    for event in (
+            {"type": "tool_start", "tool": va.COMPLETE},
+            {"type": "tool_output", "tool": va.COMPLETE, "exit_code": 0, "blocked": False,
+             "output": "Which one: 'a' or 'b'?"},
+            {"type": "agent_step"},
+            {"delta": "The call one is call the plumber. I've marked that as done."}):
+        answer.feed("data: " + json.dumps(event))
+    answer.finish()
+    assert answer.speech.spoken == "Which one: 'a' or 'b'?"
 
 
 async def test_no_match_says_so(hub):

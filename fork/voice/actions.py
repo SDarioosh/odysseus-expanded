@@ -20,7 +20,8 @@ tools here, offered only while the owner setting "Voice can add and complete ite
 Nothing else is allowed: every other write stays refused (``fork/brain/tools.py``,
 ``read_only_refusal``). Each call must be grounded in what was said (:func:`grounded`):
 the item's words, or the description, must come from the spoken request, so text in a
-transcript or note the turn has read can't add or tick anything. A clarification's
+transcript or note the turn has read can't add or tick anything (a list name that wasn't
+said is dropped; the item is filed as if none was given). A clarification's
 options (kept for :data:`CLARIFY_SECONDS`) count as said for the next turn of that chat.
 
 Each action is pushed to the owner's phone through the action-items job's reminder
@@ -66,15 +67,19 @@ ADD_SCHEMA = {
             "type": "object",
             "properties": {
                 "kind": {"type": "string", "enum": list(KINDS),
-                         "description": "task (a to-do or a list line), reminder, event "
-                                        "(calendar), or note."},
+                         "description": "task (a to-do or a list line); reminder for "
+                                        "\"remind me to…\" (a to-do due at a time); "
+                                        "event only for the calendar (\"put … on my "
+                                        "calendar\", an appointment); note."},
                 "text": {"type": "string",
                          "description": "What to do or note, in the owner's words, "
                                         "without the date, time or list "
                                         "(\"call the dentist\", \"milk\")."},
                 "title": {"type": "string", "description": "Optional short title."},
                 "due_date": {"type": "string",
-                             "description": "YYYY-MM-DD, or today, tomorrow, or a weekday."},
+                             "description": "The day as the owner said it: today, "
+                                            "tomorrow or a weekday (\"Sunday\"); "
+                                            "YYYY-MM-DD only for other dates."},
                 "due_time": {"type": "string",
                              "description": "HH:MM (24-hour), or \"9am\", \"noon\"."},
                 "list_name": {"type": "string",
@@ -215,6 +220,18 @@ def parse_date(value: Any, now: datetime) -> str | None:
     return None
 
 
+_SAID_DAY = re.compile(r"\b(?:next\s+)?(?:today|tonight|tomorrow|" + "|".join(_DAYS) + r")\b",
+                       re.IGNORECASE)
+
+
+def said_day(said: str, now: datetime) -> str | None:
+    """The one day the request names ("tomorrow", "on Sunday", "next Monday"), or None
+    when it names none or several."""
+    days = {parse_date(m.group(0), now) for m in _SAID_DAY.finditer(said or "")}
+    days.discard(None)
+    return days.pop() if len(days) == 1 else None
+
+
 def parse_time(value: Any) -> str | None:
     """HH:MM from "09:00", "9", "9am", "9:30 pm", "21:15", "noon", "midnight"."""
     text = re.sub(r"[\s.]+", "", str(value or "").strip().lower())
@@ -266,15 +283,25 @@ def spoken_when(day: str | None, clock: str | None, now: datetime) -> str:
 
 
 # -------------------------------------------------------------------------- adding
-def build_item(args: dict, now: datetime) -> dict:
+_REMIND = re.compile(r"\bremind\s+me\b", re.IGNORECASE)
+_CALENDAR = re.compile(r"\bcalendar\b|\bappointment\b", re.IGNORECASE)
+
+
+def build_item(args: dict, now: datetime, said: str = "") -> dict:
     """The item dict Athena's model makes from a voice note, from ``voice_add``'s
-    arguments. A time without a date is today's, or tomorrow's once it has passed."""
+    arguments. A time without a date is today's, or tomorrow's once it has passed.
+    "Remind me to…" is a reminder (a to-do), as in a voice note, unless the owner named
+    the calendar or an appointment, whatever kind the model chose."""
     kind = str(args.get("kind") or "task").strip().lower()
     kind = {"todo": "task", "to-do": "task", "calendar": "event"}.get(kind, kind)
     if kind not in KINDS:
         kind = "task"
+    if kind == "event" and _REMIND.search(said or "") and not _CALENDAR.search(said or ""):
+        kind = "reminder"
     text = re.sub(r"\s+", " ", str(args.get("text") or "")).strip()
     day, clock = parse_date(args.get("due_date"), now), parse_time(args.get("due_time"))
+    if day:  # a day the owner named wins over the model's arithmetic
+        day = said_day(said, now) or day
     if clock and not day:
         passed = clock <= now.strftime("%H:%M")
         day = (now.date() + timedelta(days=1 if passed else 0)).isoformat()
@@ -316,12 +343,13 @@ async def add(owner: str, args: dict, *, said: str, now: datetime | None = None)
     from fork.athena.action_items_filing import create_item, default_target
 
     now = _today(now)
-    item = build_item(args, now)
+    item = build_item(args, now, said)
     if not item["text"]:
         return _failed("Say what to add.")
-    if not grounded(item["text"], said) or (
-            item.get("list_name") and not grounded(item["list_name"], said)):
+    if not grounded(item["text"], said):
         return _failed("Not run: the item's words must be the ones the owner just said.")
+    if item.get("list_name") and not grounded(item["list_name"], said):
+        item.pop("list_name")  # a list the owner didn't name: filed as if none was given
     target = default_target(item)
     key = (owner, json.dumps([target, _norm(item["text"]), item.get("due_date"),
                               item.get("due_time"), _norm(item.get("list_name"))]))
@@ -363,8 +391,12 @@ def hub_candidates(owner: str) -> list[Candidate]:
     """Every unticked line of the owner's open to-dos and lists."""
     from fork.athena.action_items_lists import _lists, _note_items, _ticked
 
+    from fork.beliefs.notes_evidence import is_calendar_reminder
+
     out = []
     for note in _lists(owner):
+        if is_calendar_reminder(note):  # upstream's copy of a calendar event's reminder
+            continue
         items = _note_items(note)
         title = (note.title or "").strip()
         for it in items:
@@ -417,14 +449,16 @@ def _score(want: set[str], cand: Candidate) -> float:
     return len(want & have) / len(want) if want else 0.0
 
 
-def match(description: str, candidates: list[Candidate]) -> list[Candidate]:
+def match(description: str, candidates: list[Candidate], *,
+          want: set[str] | None = None) -> list[Candidate]:
     """The candidates ``description`` means: an exact text first; else those with the
-    best share of its words (at least half), the full share beating a partial one."""
+    best share of its words (at least half; ``want``: only these words), the full share
+    beating a partial one."""
     exact = [c for c in candidates if _norm(c.text) == _norm(description)
              or _norm(c.label()) == _norm(description)]
     if exact:
         return exact
-    want = words(description)
+    want = words(description) if want is None else want
     scored = [(s, c) for c in candidates if (s := _score(want, c)) >= 0.5]
     if not scored:
         return []
@@ -462,7 +496,11 @@ async def complete(owner: str, args: dict, *, said: str, chat: str = "",
     description = re.sub(r"\s+", " ", str(args.get("description") or "")).strip()
     if not words(description):
         return _failed("Say which item to mark done.")
-    if not (grounded(description, said, share=0.01) or _offered(owner, chat, description)):
+    offered = _offered(owner, chat, description)
+    # Only the words the owner said count (or a clarification's option, in full): a
+    # model that adds words ("the call one" -> "call the plumber") doesn't get to pick.
+    said_words = words(description) & words(said)
+    if not (said_words or offered):
         return _failed("Not run: the description must be in the owner's words.")
     hub = hub_candidates(owner)
     filed = _filed_lines(owner)
@@ -472,7 +510,10 @@ async def complete(owner: str, args: dict, *, said: str, chat: str = "",
         if c.item_id is not None:
             filed_ids.add(c.item_id)
     athena = [c for c in await athena_candidates(call) if c.item_id not in filed_ids]
-    found = match(description, hub + athena)
+    if offered or words(description) <= said_words:
+        found = match(description, hub + athena)
+    else:
+        found = match(" ".join(sorted(said_words)), hub + athena, want=said_words)
     if not found:
         return _done(f"I couldn't find an open to-do matching '{description}'.", changed=False)
     if len(found) > 1 and not _same(found):
@@ -516,6 +557,21 @@ async def _athena_done(call: Any, item_id: int | None, *, quiet: bool = False) -
             return False
         raise
     return str(res).startswith("Action item")
+
+
+# A spoken command to add or complete something (not a question about one)
+_COMMAND = re.compile(
+    r"^\s*(?:(?:hey|ok|okay)\s+\w+[,!]?\s+)?(?:(?:please|can you|could you|would you)\s+)?"
+    r"(?:remind\s+me|add|put|make\s+a\s+note|take\s+a\s+note|note\s+(?:that|down)|"
+    r"create|schedule|mark|tick\s+off|cross\s+off|check\s+off)\b"
+    r"|\bmark\b.*\b(?:done|complete|completed|finished)\b",
+    re.IGNORECASE)
+
+
+def is_command(text: str) -> bool:
+    """Is this request a command to add or complete something? Then an answer with no
+    voice action behind it changed nothing, whatever the model says (``openai_api``)."""
+    return bool(_COMMAND.search(str(text or "")))
 
 
 # ------------------------------------------------------------------------ results
