@@ -222,6 +222,25 @@ BRAIN_TOOL_GROUPS = _setting(
     "Tool groups the brain offers (web, athena, workspace, documents, beliefs, chats, "
     "email, images); unknown names are ignored.",
     used_in=("fork/brain/settings.py",))
+# Voice assistant (docs/fork/voice-assistant.md)
+VOICE_PRIVATE = _setting(
+    "FORK_VOICE_PRIVATE", "off", "off or owner",
+    "Personal voice answers: off answers anyone near a satellite; owner only when Athena "
+    "recognised the owner's voice (anything else means off).",
+    used_in=("fork/voice/satellite.py",))
+HA_URL = _setting(
+    "FORK_HA_URL", "", "URL",
+    "Home Assistant's address for spoken announcements; only a local, private-network or "
+    "Tailscale host is used (unset: no announcements).",
+    used_in=("fork/voice/announce.py",))
+HA_TOKEN = _setting(
+    "FORK_HA_TOKEN", "", "secret",
+    "A Home Assistant long-lived access token for announcements.",
+    used_in=("fork/voice/announce.py",))
+VOICE_ANNOUNCE_ENTITIES = _setting(
+    "FORK_VOICE_ANNOUNCE_ENTITIES", "", "comma-separated entity ids",
+    "The assist_satellite entities announcements are spoken on (unset: none).",
+    used_in=("fork/voice/announce.py",))
 # Handwritten notes (docs/fork/handwritten-notes.md)
 INK_AUTO_SEND = _setting(
     "INK_AUTO_SEND", "", "on/off",
@@ -407,3 +426,25 @@ def ink_auto_send() -> bool:
 
 def app_public_url() -> str:
     return APP_PUBLIC_URL.value() or ""
+
+
+VOICE_PRIVATE_MODES = frozenset({"off", "owner"})
+
+
+def voice_private() -> str:
+    """``off`` (the default) or ``owner``; any other value means ``off``."""
+    raw = (VOICE_PRIVATE.value() or "").strip().lower()
+    return raw if raw in VOICE_PRIVATE_MODES else "off"
+
+
+def ha_url() -> str:
+    return (HA_URL.value() or "").strip()
+
+
+def ha_token() -> str:
+    return (HA_TOKEN.value() or "").strip()
+
+
+def voice_announce_entities() -> tuple[str, ...]:
+    raw = VOICE_ANNOUNCE_ENTITIES.value() or ""
+    return tuple(dict.fromkeys(p.strip() for p in raw.split(",") if p.strip()))
