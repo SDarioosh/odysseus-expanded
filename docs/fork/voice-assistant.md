@@ -158,7 +158,11 @@ spoken sentence is filed exactly as the same sentence in a voice note:
 
 The voice-specific parts: dates may also be `today`, `tomorrow` or a weekday ("next
 Monday" is a week on), times `9am`, `9:30 pm`, `noon` (`parse_date`, `parse_time`); a
-time without a date is today's, or tomorrow's once it has passed. A voice item is not an
+time without a date is today's, or tomorrow's once it has passed. When the request names
+exactly one day ("tomorrow", "on Sunday"), that day is used, whatever date the model
+passed (the sandbox's small model filed "on Sunday" as a Saturday). "Remind me to…" is a
+reminder (a to-do), as in a voice note, even when the model says event, unless the
+calendar or an appointment is named. A voice item is not an
 Athena item: its calendar uid is `voice:<random>` (never one of Athena's
 `odysseus-sound:item:convo:<id>` uids), new notes and lists it makes carry the label
 `voice` (not `athena`, so the beliefs job reads its notes as the owner's own), the source
@@ -180,8 +184,10 @@ the description's words (at least half).
 - None: "I couldn't find an open to-do matching '…'."
 
 **Grounding.** An action runs only on what was said: at least half of the item's words
-(and of its list name) must be in the spoken request, and one word of a completion's
-description (or a clarification option). So an instruction written in a transcript,
+must be in the spoken request (a list name that wasn't said is dropped, and the item filed
+as if none was given); a completion matches only on the words of its description that
+were said, so a model that adds words ("the call one" -> "call the plumber") doesn't get
+to pick, or on a clarification's option. So an instruction written in a transcript,
 note or web page the turn has read can't add or tick anything off. A refused action
 tells the model "Not run: …".
 
@@ -215,6 +221,15 @@ us. `speech.py` drops such a sentence too (below).
 
 The brain's check for invented actions (`fork/brain/claims.py`) counts `voice_add` as a
 calendar or notes write and `voice_complete` as a notes or action-items write.
+
+**What is spoken** (a whole answer, `openai_api.Answer`; Home Assistant's agent doesn't
+stream): when a voice action ran, its own result sentences, not the model's retelling of
+them; when the request was a command to add or complete something (`actions.is_command`:
+"remind me…", "add…", "make a note…", "put…", "mark… done") and no action ran, "Sorry,
+nothing was changed. Please say it again."; when the answer claims a change the brain's
+check says wasn't made, "Nothing was changed. I can't do that by voice; you can do it in
+the Odysseus app." So a voice answer never says something changed that didn't. A
+streamed answer is spoken as the model writes it.
 
 Routes: `GET`/`PUT /api/fork/voice/settings` (admin) `{"actions": bool, "push": bool}`.
 
@@ -279,6 +294,49 @@ Notes from the run:
   Chat had the same failure. On the server's GPU this doesn't arise.
 - Each voice chat landed in the Voice folder, named "Voice: <question>", owned by the
   token's owner.
+
+## Sandbox results, voice actions (2026-11-03)
+
+Same stack as above (Qwen3-4B on 4 CPUs, Athena's demo data, `curl` to the endpoint
+without `stream`, as Extended OpenAI Conversation sends it), voice actions on. Final
+code; each sentence a new conversation unless noted. Times include the model's tool
+round; the first question after a restart took ~2 min (cold prompt).
+
+| Said | Spoken answer | Made | Time |
+|---|---|---|---|
+| "Remind me to call the dentist tomorrow at 9" | "Added 'call the dentist' to your to-dos, due tomorrow at 9 a.m." | to-do, due 09:00 next day, label `voice` | 128 s (cold) |
+| "Add milk to my shopping list" | "Added 'milk' to your Shopping list." | line on a new list "Shopping" | 26 s |
+| "Make a note that the bike lock code is 4711" | "Made a note: 'the bike lock code is 4711'." (when the model called the tool; see the open point below) | a note "Bike Lock Code" | 24–31 s |
+| "Put lunch with Sam on Friday at noon on my calendar" | "Put 'lunch with Sam' on your calendar for Friday at noon." | event 12:00–13:00, uid `voice:…`, 30-min reminder | 78 s |
+| "Mark the revised spreadsheet to-do as done" | "Marked 'Send revised spreadsheet to Alice' done." | Athena item #2 done (`update_action_item`); #1 "Rework the spreadsheet…" left open | 24 s |
+| "Mark the call one as done" (after "Add call the plumber to my to-dos") | "Which one: 'call the plumber' on Voice notes or 'call the dentist'?" | nothing | 24 s |
+| "The plumber one" (same conversation) | "Marked 'call the plumber' done." | that line ticked | 28 s |
+| "Delete my dentist reminder" | "Nothing was changed. I can't do that by voice; you can do it in the Odysseus app." | nothing | 12 s |
+| "Mark the tax return as done" | "I couldn't find an open to-do matching 'the tax return'." | nothing | 27 s |
+| "Remind me to water the plants on Sunday" | "Added 'water the plants' to your to-dos, due Sunday." | to-do due Sunday | 29 s |
+| "What did Alice say about the Q4 budget?" | right (15% cut, revised to 10%, Berlin move) | nothing (reads still work) | 124 s (cold) |
+
+What the run changed in the code:
+
+- The model retold the tools' results wrongly: after "Which one: …?" it said "I've marked
+  that as done", and it repeated "Remind me to call the dentist…" back. A whole answer now
+  speaks the voice actions' own sentences (`openai_api.Answer.acted`).
+- The model completed "the call one" by putting "call the plumber" into the description
+  itself. Only the words the owner said now count for matching.
+- Upstream's own "Calendar reminder: …" to-dos (the copy of an event's reminder) were
+  offered as matches; they are left out now.
+- It filed "remind me…" as a calendar event, "on Sunday" as a Saturday, and invented a
+  list ("household chores"). Now "remind me" is a reminder unless the calendar is named,
+  the day said wins, and a list that wasn't said is dropped.
+- "Delete my dentist reminder" changed nothing (as it should) but was answered "I've
+  deleted your dentist reminder" plus the brain's correction note. Now: "Nothing was
+  changed. I can't do that by voice; …".
+- **Open:** for "make a note…", the 4B model often answers "I've made a note" without
+  calling `voice_add` (made 3 of 8 times). The answer is then replaced by "Sorry, nothing
+  was changed. Please say it again." (`NO_ACTION_REPLY`: a command to add or complete,
+  `actions.is_command`, with no action behind it), so it never claims a note that wasn't
+  made. A prompt line against it made it worse (0 of 5) and was taken out. The owner's
+  `qwen3.5-35b` needs checking on the server (Server verification).
 
 ## Setup (owner)
 
