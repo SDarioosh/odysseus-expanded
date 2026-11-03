@@ -48,6 +48,9 @@ for chat streams, and a voice answer can take longer (minutes on the sandbox's C
 | `POST /api/chat/voice/v1/chat/completions` | API token with the `voice` scope | one voice question; OpenAI's chat-completion request and response, `stream: true` supported |
 | `GET /api/chat/voice/v1/models` | the same | `{"data": [{"id": "odysseus", …}]}`, for clients that list models when set up |
 | `POST /api/fork/voice/token` | signed-in admin (browser) | makes a token with only the `voice` scope (the Settings card) |
+| `GET /api/fork/voice/ha` | the same | the saved Home Assistant address and the last setup's report |
+| `POST /api/fork/voice/ha/connect` | the same, same-origin | starts "Set up Home Assistant": answers HA's login address ([Setup](#setup-owner)) |
+| `GET /api/fork/voice/ha/callback` | the same | Home Assistant's redirect after the login: runs the setup, revokes the login, shows the steps |
 
 Only a bearer token with the `voice` scope may call the first two: a browser login may
 not, and a token with only other scopes (`chat`, …) may not. The token is listed under
@@ -177,6 +180,73 @@ Notes from the run:
 
 ## Setup (owner)
 
+### One click: Set up Home Assistant
+
+Settings → Integrations → **Voice assistant** → **Set up Home Assistant**
+(`fork/voice/ha_routes.py`, `fork/voice/ha_setup.py`). First, in Home Assistant: install
+the **Whisper** and **Piper** add-ons (and add both under Settings → Devices & services,
+Wyoming Protocol) and **Extended OpenAI Conversation** (HACS, version 3), then restart
+Home Assistant. In Odysseus, `ODYSSEUS_TRUSTED_READONLY_MCP` must name Athena's server
+(`convo` or `athena`), as it already does for chat; without it Athena's tools aren't
+offered to voice.
+
+1. Enter the **Home Assistant address** (`http://homeassistant.local:8123`) and the
+   **Odysseus address as Home Assistant reaches it** (prefilled with the address the
+   browser uses, e.g. `https://odysseus.<tailnet>.ts.net`), and press **Set up Home
+   Assistant**.
+2. Home Assistant's login page opens: sign in with an **administrator** account. Open
+   Odysseus by its name (or a home-network IP) for this: Home Assistant refuses a
+   sign-in for an app on a Tailscale IP (`100.x`).
+3. Back in Odysseus, a page lists each step and its result:
+
+| Step | What Odysseus does in Home Assistant |
+|---|---|
+| Home Assistant | checks the sign-in is an administrator |
+| Speech | finds the Wyoming speech-to-text (Whisper) and text-to-speech (Piper) entities, with English, and Piper's first English voice. Only Wyoming ones: never cloud speech. Missing: "Install the Whisper and Piper add-ons …", and nothing is changed |
+| Conversation agent | a new Extended OpenAI Conversation entry "Odysseus": API key a new voice token "Home Assistant <date>", base URL `<odysseus>/api/chat/voice/v1` (checked by Home Assistant: it lists the models with the key), one conversation agent "Odysseus" (`conversation.odysseus`): model `odysseus`, no tools (`functions: []`), a one-line prompt (ignored by Odysseus). The integration's default GPT agent and AI task are removed. Older entries named "Odysseus" are removed after the new one works (the integration can't change an entry's key) |
+| Assist pipeline | "Odysseus": that speech-to-text, agent and text-to-speech, language `en`, **prefer handling commands locally** on (so "turn off the lights" stays in Home Assistant). An existing "Odysseus" pipeline is updated in place (its wake word fields are kept) |
+| Preferred assistant | makes it Home Assistant's preferred assistant, which the Echos use |
+
+What happens to the Home Assistant login: Odysseus uses it for this one run and then
+revokes it (`POST /auth/revoke`), whether the run worked or not; it is never stored. The
+Home Assistant address is saved (`fork/voice/ha_settings.py`, key `fork_voice_ha_url` in
+`data/settings.json`) and handed to each Echo set up afterwards. The voice token is
+listed under Settings → API tokens as "Home Assistant <date>". A rerun makes a new one
+and deletes the earlier "Home Assistant <date>" tokens (voice scope only) once Home
+Assistant uses the new one; a token Home Assistant never got is deleted at once.
+Tokens made by hand ("Voice assistant <date>") are left alone. The card shows the last
+run's steps.
+
+Security of the flow: only a signed-in admin's browser session may start it (no API
+token), and only by a same-origin POST, so another site can't start a run toward a Home
+Assistant of its choosing (which would hand it a voice token). The OAuth `state` is
+random, single use, bound to that admin and valid 10 minutes; `client_id` is the origin
+the browser uses and `redirect_uri` the callback on it, which Home Assistant accepts
+(same host).
+
+**Without the browser** (Odysseus can't open Home Assistant's login page), in the
+Odysseus checkout or container, with a long-lived token of a Home Assistant
+administrator (HA profile → Security):
+
+```bash
+HA_TOKEN=… python scripts/ha_voice_setup.py --ha-url http://homeassistant.local:8123 \
+  --odysseus-url https://odysseus.<tailnet>.ts.net --owner <odysseus admin>
+```
+
+The same steps; the long-lived token is only used, never revoked or stored (delete it in
+Home Assistant afterwards). A running Odysseus only notices API tokens made by another
+process when its token list changes or it restarts, so the token the script makes is
+given to Home Assistant unchecked (`skip_authentication`) and the script says to
+restart Odysseus. To avoid the restart, make a token in Settings (**Make a voice
+token**) and pass it as `VOICE_TOKEN=…`: then the script makes none and Home Assistant
+checks it.
+
+Then pick the Odysseus assistant on the satellite (it is the preferred one already). An
+optional second wake word, for example "Hey Athena", is a second assistant with the same
+agent, chosen by that wake word on the satellite.
+
+### By hand (fallback)
+
 1. **Token:** Settings → Integrations → **Voice assistant** → **Make a voice token**.
    Copy the API key (shown once), the base URL (`https://<odysseus>/api/chat/voice/v1`) and the model
    (`odysseus`).
@@ -190,7 +260,8 @@ Notes from the run:
    OpenAI-compatible server with a base URL of your choice, such as Extended OpenAI
    Conversation (HACS). Base URL: the one from step 1; API key: the voice token; model:
    `odysseus`. Turn off its own tool or function calling if it has the option (Odysseus
-   ignores the tools it sends).
+   ignores the tools it sends); in Extended OpenAI Conversation set Functions to `[]`
+   (empty brings back its default tools).
 5. **Home Assistant, pipeline:** Settings → Voice assistants → Add assistant: the
    speech-to-text and text-to-speech of step 3, the conversation agent of step 4, and
    **Prefer handling commands locally** on, so "turn off the lights" stays in Home
@@ -206,9 +277,40 @@ curl -s https://<odysseus>/api/chat/voice/v1/chat/completions \
   -d '{"model":"odysseus","messages":[{"role":"user","content":"What did I talk about yesterday?"}]}'
 ```
 
-To check (not verified in the sandbox): which field Home Assistant's agent sends the
-conversation id in. If it sends neither `user` nor earlier turns, every question starts a
-new chat and follow-ups lose their context.
+Checked in the sandbox (Home Assistant 2026.2.3, Extended OpenAI Conversation 3.0.0, a
+fake Odysseus): the agent sends no `user` field, `stream: true`, model `odysseus`, no
+tools, and a follow-up in the same Home Assistant conversation carries the earlier
+turns, so Odysseus continues the chat by its first question.
+
+## Linking an Echo
+
+An Echo Show running our VACA fork ([odysseus-echo](https://github.com/SDarioosh/odysseus-echo),
+`docs/odysseus/setup.md`) is set up from the owner's phone with one QR code, with no typing
+on the Echo. The Odysseus part is `fork/voice/echo_link.py`. The Echo's setup page sends the
+phone to `GET /echo/link?return=<Echo URL>&name=<name>`. The signed-in admin sees "Link Echo
+'Kitchen' at <host>:10801?" and taps **Approve**. Odysseus then makes a token with only the
+`voice` scope, named `Echo <name> <YYYY-MM-DD>` (revoke it in Settings → API tokens like any
+other). It sends the phone back to the Echo with `token`, `base_url` (`<the address you
+opened Odysseus at>/api/chat/voice/v1`) and `ha_url` (the Home Assistant address saved by
+**Set up Home Assistant**, or empty) in the URL fragment (`<Echo URL>#token=…`). The Echo's
+page passes them on to the Echo and clears them from the address bar. The Echo then sends
+the phone to Home Assistant's sign-in, and adds itself to Home Assistant.
+
+- A fragment never reaches a server or a referrer: it stays only in the phone's browser,
+  and the jump replaces the page, so it isn't in the back history either. It is a plain
+  link, not a form, so the browser shows no "form isn't secure" warning for the Echo's
+  http address.
+- The Echo's address must be `http://<host>:10801/setup/<code>/odysseus` on a private
+  (10/8, 172.16/12, 192.168/16) or Tailscale (100.64/10) address, or a name that is one
+  label or ends in `.ts.net`, `.local`, `.lan` or `.home.arpa`. `localhost` and anything
+  else are refused.
+- When the Echo isn't reached over Tailscale, the page says the token crosses the home
+  network unencrypted on its way to the Echo.
+- Approve works only from that page (same-origin POST, admin session; API tokens can't),
+  at most 10 times per 10 minutes. Neither page is cached, sends a referrer or can be
+  framed.
+- If Odysseus asks you to sign in first, it opens its home page afterwards: go back to the
+  Echo's page and tap Continue again.
 
 ## Later
 
@@ -223,7 +325,12 @@ new chat and follow-ups lose their context.
 - `fork/voice/routes.py`, `openai_api.py`, `sessions.py`, `speech.py`, `prompt.py`.
 - In the brain: `read_only_turn` (`fork/brain/turn.py`), `read_only_refusal`
   (`fork/brain/tools.py`), `can_read` and `read_only` (`fork/brain/toolset.py`).
-- `static/js/forkVoiceAssistant.js`: the Settings card.
+- `fork/voice/ha_setup.py` (Home Assistant client and the setup run), `ha_routes.py`
+  (sign-in and callback), `ha_settings.py` (the saved address);
+  `scripts/ha_voice_setup.py` (the same without a browser); `echo_link.py` (Link this Echo).
+- `static/js/forkVoiceAssistant.js`: the Settings card, with "Set up Home Assistant".
 - Hooks: `routes/api_token_routes.py` (scope `voice`), `static/index.html` (the card's
-  script tag); the router is in `fork/routes/__init__.py`.
-- Tests: `tests/fork/test_voice_assistant.py`.
+  script tag), `requirements.txt` (`websockets`, for Home Assistant's websocket API); the
+  routers are in `fork/routes/__init__.py`.
+- Tests: `tests/fork/test_voice_assistant.py`, `tests/fork/test_ha_voice_setup.py` (a fake
+  Home Assistant), `tests/fork/test_echo_link.py`.

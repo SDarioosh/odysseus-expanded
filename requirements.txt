@@ -66,3 +66,5 @@ httpx2
 # create_engine() and raises ModuleNotFoundError if missing. -binary avoids
 # needing libpq-dev/pg_config on the host/image to compile it.
 psycopg2-binary
+# Fork: Home Assistant's websocket API, for "Set up Home Assistant" (fork/voice/ha_setup.py)
+websockets>=15

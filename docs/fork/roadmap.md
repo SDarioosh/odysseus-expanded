@@ -46,9 +46,10 @@ branches) are kept in [status-history.md](status-history.md).
 - **Voice assistant** ([voice-assistant.md](voice-assistant.md)): wake-word questions to
   Odysseus and Athena from a Home Assistant voice satellite (the Echo Show 5, 2nd gen, on
   LineageOS). Hub side built: the OpenAI-compatible `/api/chat/voice/v1/chat/completions` for `voice`
-  tokens, read-only brain turns, spoken answers, the Settings card. Next: the device and
-  Home Assistant setup (separate work), the owner's test with the real satellite, then
-  voice changes with a spoken confirmation.
+  tokens, read-only brain turns, spoken answers, the Settings card. Setup built: **Set up
+  Home Assistant** (one sign-in creates the agent and the preferred pipeline) and one-QR Echo
+  setup (`/echo/link` plus the Echo app's phone setup). Next: the owner's test with a real
+  Echo and Home Assistant, then voice changes with a spoken confirmation.
 
 - **The brain** ([brain.md](brain.md)): a small fork-owned agent loop that answers chat
   turns as a general personal assistant (web, Athena, workspace), streaming and with a
