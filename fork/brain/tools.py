@@ -29,6 +29,9 @@ What the brain adds is which calls run without asking and which ask:
   the consumed ``ExactToolApproval`` (exact admission in ``execute_tool_block``, which
   takes one only for an armed run: the approval is filed armed and the loop arms the run
   before the approved call; arming only adds gates).
+- **Read-only turns never ask:** a turn built with ``read_only`` (a voice request,
+  ``fork/voice/``) refuses every call that would ask, and every write, without running it
+  (:func:`read_only_refusal`); nobody can approve by voice.
 - **Outside content arms the gate:** the run's security context is armed when the route
   says the turn follows outside content, when an earlier exchange put back into the
   prompt was untrusted (``history.py``'s flag; the replayed results carry upstream's
@@ -86,6 +89,9 @@ class ToolRun:
     tainted: bool = False  # a result of this turn was untrusted
     search_hits: set[str] = field(default_factory=set)  # ranked hits of this turn
     rag: Any = None  # the document library's rag_manager, when there is one
+    # A read-only turn (a voice request, fork/voice/): a call that would change anything,
+    # or that upstream's gate or the fetch rule would ask about, is refused, never asked.
+    read_only: bool = False
 
 
 def turn_disabled_tools(request: Any, owner: Any, *, privileges: dict | None = None,
@@ -176,7 +182,8 @@ def _with_read_grants(authority: Any, offered: tuple[str, ...]) -> Any:
 def build_run(*, request_text: str, owner: Any, session_id: str, history: list,
               offered: tuple[str, ...], disabled: set[str], delegated: bool = False,
               prompt_messages: list[dict] | None = None, authority: Any = None,
-              external_seen: bool = False, chat_search_hits=(), rag: Any = None) -> ToolRun:
+              external_seen: bool = False, chat_search_hits=(), rag: Any = None,
+              read_only: bool = False) -> ToolRun:
     """The authority, security context and policy for one brain turn.
 
     ``authority``: the sealed authority of a paused turn (an approval resume); otherwise
@@ -184,7 +191,8 @@ def build_run(*, request_text: str, owner: Any, session_id: str, history: list,
     outside content (the route's flag, an untrusted earlier exchange): the security
     context starts armed. ``chat_search_hits``: the ranked web-search hits of this
     chat's earlier turns, which ``web_fetch`` may read. ``rag``: the document library
-    ``search_documents`` reads.
+    ``search_documents`` reads. ``read_only``: a turn that may only read
+    (:func:`read_only_refusal`).
     """
     from src.agent_runtime.authority import create_request_authority
     from src.tool_capabilities import ToolRunSecurityContext
@@ -208,7 +216,8 @@ def build_run(*, request_text: str, owner: Any, session_id: str, history: list,
                    security=security, policy=policy, disabled=frozenset(policy.all_disabled_names()),
                    offered=tuple(offered), request_text=request_text,
                    external_seen=bool(security.external_untrusted_context_seen),
-                   owner_urls=frozenset(_urls_in(request_text or "", bare=True)), rag=rag)
+                   owner_urls=frozenset(_urls_in(request_text or "", bare=True)), rag=rag,
+                   read_only=bool(read_only))
 
 
 def _seed_search_hits(security: Any, hits) -> None:
@@ -283,10 +292,36 @@ def _with_fetch_grant(authority: Any, content: str) -> Any:
 
 
 # ------------------------------------------------------------------ deciding to ask
+READ_ONLY_REFUSED = ("Not run: this request can only read. Nothing was changed; the "
+                     "owner can make this change in the Odysseus app.")
+
+
+def read_only_refusal(run: ToolRun, name: str, content: str) -> str | None:
+    """For a read-only turn: why this call is refused, or None when it may run. Refused:
+    a write (:func:`toolset.is_read` says no), a call upstream's gate wouldn't let through
+    without asking, and a ``web_fetch`` of an address that isn't known
+    (:func:`fetch_known`). Always None for other turns."""
+    if not run.read_only:
+        return None
+    try:
+        if not toolset.is_read(name, content):
+            return READ_ONLY_REFUSED
+        if name == "web_fetch" and not fetch_known(run, content):
+            return READ_ONLY_REFUSED
+        if not run.security.decision_for(name, content).allowed:
+            return READ_ONLY_REFUSED
+    except Exception:  # noqa: BLE001 -- can't tell: refused
+        logger.warning("brain: read-only check failed", exc_info=True)
+        return READ_ONLY_REFUSED
+    return None
+
+
 def needs_approval(run: ToolRun, name: str, content: str) -> str | None:
     """Why this call must ask the owner first, or None when it runs directly."""
     if name not in run.offered or brain_documents.refusal(name, content):
         return None  # refused by execute(), never asked
+    if run.read_only:
+        return None  # a read-only turn never asks: execute() refuses what it can't run
     if name == "web_fetch" and not run.security.delegated_credential \
             and not fetch_known(run, content):
         # Checked before upstream's gate, so neither "allow for this task" nor an
@@ -423,6 +458,7 @@ async def execute(run: ToolRun, name: str, content: str, *, exact_approval: Any 
 
     refused = None if name in run.offered else f"Tool '{name}' is not available here."
     refused = refused or brain_documents.refusal(name, content)
+    refused = refused or read_only_refusal(run, name, content)
     if refused:
         desc, result = _blocked(name, refused)
         return content, desc, result

@@ -20,6 +20,7 @@ ORDER = [
     "setup_auto_mode_routes",
     "setup_ink_routes",
     "setup_news_routes",
+    "setup_voice_routes",
 ]
 
 

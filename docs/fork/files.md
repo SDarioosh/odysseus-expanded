@@ -67,6 +67,7 @@ is an old path of a module that moved into `fork/`; it only aliases the new modu
 - `docs/fork/status-history.md`
 - `docs/fork/today-insight.md`
 - `docs/fork/upstream-sync.md`
+- `docs/fork/voice-assistant.md`
 
 ## fork/
 
@@ -185,6 +186,12 @@ is an old path of a module that moved into `fork/`; it only aliases the new modu
 - `fork/routing/web_turn_scope.py`
 - `fork/tasks.py`
 - `fork/upstream.py`
+- `fork/voice/__init__.py`
+- `fork/voice/openai_api.py`
+- `fork/voice/prompt.py`
+- `fork/voice/routes.py`
+- `fork/voice/sessions.py`
+- `fork/voice/speech.py`
 
 ## routes/
 
@@ -294,6 +301,7 @@ is an old path of a module that moved into `fork/`; it only aliases the new modu
 - `static/js/forkResumeFallback.js`
 - `static/js/forkRoundFlow.js`
 - `static/js/forkShareRecord.js`
+- `static/js/forkVoiceAssistant.js`
 - `static/js/forkVoiceEnroll.js`
 - `static/js/forkWhisperVocabulary.js`
 - `static/js/meetingBot.js`
@@ -475,6 +483,7 @@ is an old path of a module that moved into `fork/`; it only aliases the new modu
 - `tests/fork/test_turn_policy_characterization.py`
 - `tests/fork/test_upstream_drift.py`
 - `tests/fork/test_vision_auto_detect.py`
+- `tests/fork/test_voice_assistant.py`
 - `tests/fork/test_voice_enroll_routes.py`
 - `tests/fork/test_web_read_recovery.py`
 - `tests/fork/test_web_turn_scope.py`

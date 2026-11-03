@@ -21,6 +21,8 @@ endpoints, tokens, MCP, settings, webhooks, ``api_call``, ``app_api``; deep rese
 Read or write (:func:`is_read`) reuses upstream's and the fork's classification: the read
 actions of the personal-store tools (``fork/routing/personal_read_grants.py``, upstream's
 ``_PRIVATE_ACTION_READS``) and the trusted read-only MCP tools (``fork/mcp/trust.py``).
+A read-only turn (a voice request) is offered only the tools that can read
+(:func:`read_only`); ``fork/brain/tools.py`` refuses its writes.
 """
 from __future__ import annotations
 
@@ -292,6 +294,25 @@ def _action(name: str, content: Any) -> str | None:
         return ExactOperation.normalize(name, content if isinstance(content, str) else "{}").action
     except (ValueError, TypeError):
         return None
+
+
+def can_read(name: str) -> bool:
+    """True when some call of this tool only reads: a read tool, a personal store with
+    read actions, a trusted read-only MCP tool. A read-only turn is offered only these."""
+    if name in READ_TOOLS:
+        return True
+    if name in ACTION_TOOLS:
+        from fork.routing.personal_read_grants import store_read_actions
+        return bool(store_read_actions(name))
+    if name.startswith("mcp__"):
+        from fork.mcp.trust import is_trusted_readonly_mcp_tool
+        return is_trusted_readonly_mcp_tool(name)
+    return False
+
+
+def read_only(schemas) -> tuple[dict, ...]:
+    """``schemas`` without the tools that can only write (:func:`can_read`)."""
+    return tuple(s for s in schemas if can_read(s["function"]["name"]))
 
 
 def is_read(name: str, content: Any = "{}") -> bool:
