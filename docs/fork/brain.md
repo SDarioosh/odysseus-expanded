@@ -601,6 +601,20 @@ files upstream reads as text (`fork/brain/attachments.py`; tests
 
 The hook line is unchanged (it already passed `attachments=att_ids`).
 
+### Read-only turns (2026-11-03)
+
+`read_only_turn` (`fork/brain/turn.py`) runs a turn that may only read, for a caller
+nobody can approve from: the voice assistant ([voice-assistant.md](voice-assistant.md)).
+It is the same loop with three differences. Only the tools that can read are offered
+(`toolset.read_only`: read tools, personal stores with read actions, trusted read-only
+MCP tools), minus the caller's `disabled` list. Every write, every call upstream's gate
+would ask about and every fetch of an unknown address is refused with "Not run: this
+request can only read", never asked, so the turn never pauses
+(`tools.read_only_refusal`). And no memories are extracted after it. It runs as the
+owner even when an API token sent it: upstream's cap on token runs
+(`delegated_tool_is_blocked`) would leave out exactly the tools a voice question needs,
+and the read-only rule takes its place. Ordinary chat turns are unchanged.
+
 ## Sandbox results (2026-10-31)
 
 Qwen3-4B on 4 CPUs, `seed_demo.py`, one config at a time, llama-server and Odysseus

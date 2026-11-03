@@ -167,6 +167,10 @@ the link goes to its details (what it does, its files, whether it can go upstrea
 - [Web query guard](docs/fork/brain.md#web-search): the brain's web searches leave out the owner's contact names, upcoming event titles, emails, phone numbers and street addresses.
 - [General eval](docs/fork/brain.md#evaluation): `scripts/brain_eval.py` with a fake SearXNG of fictional pages (`scripts/brain_fake_searxng.py`): knowledge, web, mixed, follow-up, privacy and documents questions, with time to first text.
 
+### Voice assistant
+
+- [Voice assistant through Home Assistant](docs/fork/voice-assistant.md): `POST /v1/chat/completions` (OpenAI's shape) for a Home Assistant conversation agent, for API tokens with the `voice` scope only. Each question is a read-only brain turn of the token's owner (`read_only_turn`): Athena, calendar, notes, contacts, memory, beliefs, documents and the web are read, nothing is changed or asked, no email; answers are short spoken text with the links apart, and each conversation is a chat in the Voice folder. Settings → Integrations → Voice assistant makes the token.
+
 ### Logs and tests
 
 - [Test isolation: a fresh `core.middleware` no longer leaks](docs/fork/features/logs-and-tests.md#test-isolation-a-fresh-coremiddleware-no-longer-leaks): an upstream test no longer leaves a fresh `core.middleware` in `sys.modules`.
@@ -190,7 +194,7 @@ to be offered) upstream, "with discussion" a change upstream may want in another
 |---|---|---|---|---|
 | `app.py` | after the logging handlers | `fork/hub/log_redact.py` | log formatters write token query values as `***` | yes |
 | `app.py` | `AUTH_EXEMPT_EXACT` | `fork/athena/relay_routes.py` | `/api/pair/redeem` needs no session (rate limited) | no |
-| `app.py` | routers, after the MCP routes | `fork/routes/__init__.py` (`mount`, table `ROUTERS`) | the fork's eleven routers in one call, in order: Athena page, Today, belief search (before the review page's `/api/beliefs/{id}`), belief review, phone relay and pairing, summary model, transcription vocabulary, Enroll My Voice, auto mode default, handwritten notes, news brief | no |
+| `app.py` | routers, after the MCP routes | `fork/routes/__init__.py` (`mount`, table `ROUTERS`) | the fork's twelve routers in one call, in order: Athena page, Today, belief search (before the review page's `/api/beliefs/{id}`), belief review, phone relay and pairing, summary model, transcription vocabulary, Enroll My Voice, auto mode default, handwritten notes, news brief, voice assistant | no |
 | `app.py` | `_startup_event` | `fork/hub/checklist_auto_archive.py` | start the checklist archiver | with discussion |
 | `.github/workflows/ci.yml` | byte-compile step | none | compile `fork/` too | no |
 | `frontend/src/features/notes/application/workflows.js` | `_fetchNotes` | none (a filter; Write is `static/js/forkInk.js`) | handwritten notes left out of the Notes window | no |
@@ -198,6 +202,7 @@ to be offered) upstream, "with discussion" a change upstream may want in another
 | `routes/api_token_routes.py` | `ALLOWED_SCOPES` | `fork/routes/today_insight_routes.py` | scope `insight:read` | no |
 | `routes/api_token_routes.py` | `ALLOWED_SCOPES` | `fork/athena/relay_routes.py` | scopes `sound:ingest`, `sound:read`, `sound:write` (old names, kept) | no |
 | `routes/api_token_routes.py` | `ALLOWED_SCOPES` | `fork/athena/urls.py` | scopes `athena:ingest`, `athena:read`, `athena:write` | no |
+| `routes/api_token_routes.py` | `ALLOWED_SCOPES` | `fork/voice/routes.py` | scope `voice` | no |
 | `routes/calendar_routes.py` | `update_event`, before the success return | `fork/athena/meeting_auto_join.py` | Send Athena tasks follow the event | no |
 | `routes/calendar_routes.py` | `delete_event`, one occurrence | `fork/athena/meeting_auto_join.py` | same | no |
 | `routes/calendar_routes.py` | `delete_event`, whole event | `fork/athena/meeting_auto_join.py` | same | no |
@@ -264,6 +269,7 @@ to be offered) upstream, "with discussion" a change upstream may want in another
 | `static/index.html` | script tags | `static/js/forkWhisperVocabulary.js` | Transcription Vocabulary card | no |
 | `static/index.html` | script tags | `static/js/forkVoiceEnroll.js` | Enroll My Voice card | no |
 | `static/index.html` | script tags | `static/js/forkPhonePairing.js` | Pair a phone card | no |
+| `static/index.html` | script tags | `static/js/forkVoiceAssistant.js` | Voice assistant card | no |
 | `static/index.html` | script tags | `static/js/forkAutoMode.js` | Auto/Ask button and its default | no |
 | `static/js/admin.js` | `_TOKEN_SCOPES` | `fork/routes/today_insight_routes.py` | `insight:read` in the token scope list | no |
 | `static/js/admin.js` | `_TOKEN_SCOPES` | `fork/athena/urls.py` | `athena:*` in the token scope list, and `sound:*` marked "(old name)" | no |
@@ -301,7 +307,8 @@ granted; `turn_policy.py` is what the chat route's hooks call), `fork/athena/` (
 Athena module in the hub, its routes included; `fork/athena/client.py` is the one way the
 fork calls Athena, MCP tools and HTTP routes alike),
 `fork/beliefs/`, `fork/insight/`, `fork/news/` (the morning news brief), `fork/ink/`, `fork/brain/` (the brain, a chat agent loop of the fork's own;
-[docs/fork/brain.md](docs/fork/brain.md)), `fork/hub/` (fixes to upstream's own
+[docs/fork/brain.md](docs/fork/brain.md)), `fork/voice/` (the voice assistant endpoint;
+[docs/fork/voice-assistant.md](docs/fork/voice-assistant.md)), `fork/hub/` (fixes to upstream's own
 features), `fork/routes/` (the other route files; `fork.routes.mount` includes all the
 fork's routers) and `fork/common/` (shared helpers). `fork/tasks.py` is the table of the
 fork's scheduled tasks; `fork/upstream.py` is the one place that reads upstream's private
