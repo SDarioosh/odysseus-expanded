@@ -47,6 +47,49 @@ LINK_LIST = re.compile(
     r"(?:\s*(?:,|;|and)\s*)?)+)\s*\.?")
 
 
+# The same with any short lead-in that names links, sources or transcripts and starts a
+# sentence ("Links to the conversations: [Q4 Budget Cut](u) and [Office move](v).")
+LEAD_IN_LIST = re.compile(
+    r"(?im)(?:^|(?<=[.!?]))[ \t]*[^.!?:\n\[\]()]{0,60}?"
+    r"\b(?:links?|sources?|transcripts?|references?|recordings?)\b[^.!?:\n\[\]()]{0,40}?:\s*"
+    r"((?:(?:\[[^\]\n]*\]\([^)\s]+\)|<?https?://[^\s<>()\[\]]+>?)"
+    r"(?:\s*(?:,|;|and)\s*)?)+)\s*\.?")
+# Parentheses left holding only a link's name once its link went: "(Web )", "(source)"
+LABEL_WORDS = frozenset({"web", "website", "site", "page", "article", "see", "via", "at",
+                         "more", "info", "details", "full", "the", "a", "on", "in"})
+PARENS = re.compile(r"\(([^()\n]{0,40})\)")
+# A trailing offer or question: Extended OpenAI Conversation keeps the microphone open
+# (Home Assistant's continue_conversation) when an answer ends in one
+OFFER = re.compile(
+    r"(?i)^(?:would you like|do you want|did you want|shall i|should i|want me to|"
+    r"let me know|if you(?:'d| would)? (?:like|want|need)|is there anything|"
+    r"anything else|can i help|how can i help|feel free|just let me know|"
+    r"i can also|i could also|need anything)")
+CLARIFY = re.compile(r"(?i)^(?:which one|which|did you mean|do you mean)\b")
+SENTENCE_SPLIT = re.compile(r"(?<=[.!?…])\s+")
+
+
+def _label_only(m: re.Match) -> str:
+    inner = m.group(1)
+    words = [w for w in re.findall(r"[\w']+", inner.lower())]
+    if all(w in LABEL_WORDS or w in LINK_WORDS for w in words):
+        return ""
+    return m.group(0)
+
+
+def strip_offers(text: str) -> str:
+    """``text`` without a trailing offer ("Would you like…", "Let me know if…") or a
+    trailing question, unless the question asks which item was meant; never empty."""
+    sentences = [p for p in SENTENCE_SPLIT.split((text or "").strip()) if p]
+    while len(sentences) > 1:
+        last = sentences[-1].strip()
+        if OFFER.match(last) or (last.endswith("?") and not CLARIFY.match(last)):
+            sentences.pop()
+            continue
+        break
+    return " ".join(sentences)
+
+
 def _link_label(label: str, url: str) -> str:
     text = label.strip()
     if text.lower() in LINK_WORDS or text == url or URL.fullmatch(text):
@@ -80,6 +123,7 @@ def to_speech(text: str) -> tuple[str, list[str]]:
             _add(links, url.group(0))
         return ""
 
+    out = LEAD_IN_LIST.sub(link_list, out)
     out = LINK_LIST.sub(link_list, out)
     out = MD_LINK.sub(md_link, out)
     out = URL.sub(bare, out)
@@ -103,6 +147,8 @@ def to_speech(text: str) -> tuple[str, list[str]]:
     # each line is a sentence of its own: a heading or a list item has no full stop
     joined = " ".join(l if LINE_END.search(l) else l + "." for l in lines)
     for _ in range(2):
+        if links:
+            joined = PARENS.sub(_label_only, joined)
         joined = EMPTY_BRACKETS.sub("", joined)
         joined = SPACE_BEFORE_PUNCT.sub(r"\1", joined)
         joined = REPEATED_PUNCT.sub("", joined)
@@ -128,17 +174,25 @@ def _safe(text: str) -> bool:
 class SpeechStream:
     """Streamed answer text in, speakable pieces out: :meth:`feed` returns the finished
     sentences not yet returned ("" while a sentence is still being written), and
-    :meth:`finish` the rest. :attr:`links` collects the links of both."""
+    :meth:`finish` the rest, without a trailing offer or question there
+    (:func:`strip_offers`; a model's last sentence has nothing after it, so it is still
+    unfinished when the stream ends). :attr:`links` collects the links of both."""
 
     def __init__(self) -> None:
         self._buf = ""
         self.links: list[str] = []
         self.spoken = ""
 
-    def _say(self, raw: str) -> str:
+    def _say(self, raw: str, *, last: bool = False) -> str:
         text, links = to_speech(raw)
         for url in links:
             _add(self.links, url)
+        if last and text:
+            if self.spoken:  # the rest follows spoken sentences: it may go entirely
+                kept = strip_offers("x. " + text)
+                text = kept[3:] if kept.startswith("x. ") else ""
+            else:
+                text = strip_offers(text)
         if not text:
             return ""
         piece = (" " if self.spoken else "") + text
@@ -158,4 +212,4 @@ class SpeechStream:
 
     def finish(self) -> str:
         raw, self._buf = self._buf, ""
-        return self._say(raw)
+        return self._say(raw, last=True)

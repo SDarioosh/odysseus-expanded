@@ -152,6 +152,9 @@ class Answer:
             self.speech.feed("\n\n".join(answer))
             self.rounds = [["", False]]
         rest = self.speech.finish()
+        if not self.streaming:  # a whole answer: no offer or question at its end at all
+            from fork.voice.speech import strip_offers
+            self.speech.spoken = strip_offers(self.speech.spoken)
         if self.refused and not self.speech.spoken:
             # a read-only turn never pauses (fork/brain/tools.py); if one did, say so
             return self.speech.feed(voice_prompt.READ_ONLY_REPLY) + self.speech.finish()
