@@ -22,6 +22,7 @@ ROUTERS: tuple[tuple[str, str], ...] = (
     ("fork.routes.auto_mode_routes", "setup_auto_mode_routes"),  # auto mode default
     ("fork.routes.ink_routes", "setup_ink_routes"),  # handwritten notes
     ("fork.routes.news_routes", "setup_news_routes"),  # morning news brief
+    ("fork.voice.routes", "setup_voice_routes"),  # voice assistant (Home Assistant)
 )
 
 
