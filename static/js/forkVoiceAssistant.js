@@ -2,7 +2,9 @@
 // in static/index.html. Makes an API token with only the `voice` scope for a Home Assistant
 // conversation agent (fork/voice/routes.py, POST /api/fork/voice/token) and shows what to
 // enter in Home Assistant. The token is shown once; it is listed with the other tokens
-// above the card as "Voice assistant <date>", where it is revoked.
+// above the card as "Voice assistant <date>", where it is revoked. Two switches
+// (GET/PUT /api/fork/voice/settings): "Voice can add and complete items"
+// (fork/voice/actions.py) and "Push voice actions to my phone".
 
 import { el } from './forkDom.js';
 
@@ -22,18 +24,71 @@ function buildCard() {
   card.append(el('h2', {}, 'Voice assistant'));
   const sub = el('div', { class: 'admin-toggle-sub' },
     'Ask Odysseus and Athena by voice through Home Assistant: make a voice token and enter '
-    + 'it in an OpenAI-compatible conversation agent there. Voice answers can only look '
-    + 'things up (no changes, no email). Each voice conversation is saved as a chat in the '
-    + '"Voice" folder. The token is listed above as "Voice assistant <date>"; delete it '
-    + 'there to disconnect Home Assistant.');
+    + 'it in an OpenAI-compatible conversation agent there. Voice can look things up and, '
+    + 'with the switch below, add to-dos, reminders, notes, events and list items and mark '
+    + 'items done; nothing else changes by voice, and email is never read. Each voice '
+    + 'conversation is saved as a chat in the "Voice" folder. The token is listed above as '
+    + '"Voice assistant <date>"; delete it there to disconnect Home Assistant.');
   sub.style.marginBottom = '8px';
+  const actionsSwitch = switchRow('Voice can add and complete items',
+    'Acts at once, without asking: anyone in the room can add and tick off items.');
+  const pushSwitch = switchRow('Push voice actions to my phone',
+    'One notification per item added or marked done by voice.');
   const result = el('div', { style: 'display:none;font-size:12px;margin:6px 0;' });
   const msg = el('div', { style: 'font-size:11px;margin-top:4px;' });
   const actions = el('div', { style: 'text-align:right;padding:8px 0;' });
   const make = el('button', { type: 'button', class: 'admin-btn-add' }, 'Make a voice token');
   actions.append(make);
-  card.append(sub, result, actions, msg);
-  return { card, make, result, msg };
+  card.append(sub, actionsSwitch.row, pushSwitch.row, result, actions, msg);
+  return { card, make, result, msg, actionsInput: actionsSwitch.input,
+           pushInput: pushSwitch.input };
+}
+
+function switchRow(label, hint) {
+  const row = el('div', { style: 'display:flex;align-items:center;gap:8px;margin:6px 0;' });
+  const sw = el('label', { class: 'admin-switch', title: label });
+  const input = el('input', { type: 'checkbox', 'aria-label': label });
+  sw.append(input, el('span', { class: 'admin-slider' }));
+  const text = el('div', {});
+  text.append(el('div', {}, label), el('div', { class: 'admin-toggle-sub' }, hint));
+  row.append(sw, text);
+  return { row, input };
+}
+
+/** The body PUT /api/fork/voice/settings takes for one switch (exported for tests). */
+export function settingsBody(name, checked) {
+  return name === 'push' ? { push: !!checked } : { actions: !!checked };
+}
+
+async function loadSettings(ui) {
+  try {
+    const res = await fetch('/api/fork/voice/settings', { credentials: 'same-origin' });
+    if (!res.ok) return;
+    const s = await res.json();
+    ui.actionsInput.checked = s.actions !== false;
+    ui.pushInput.checked = s.push !== false;
+  } catch (_) { /* the switches stay as drawn */ }
+}
+
+function wireSwitch(ui, input, name) {
+  input.addEventListener('change', async () => {
+    const want = input.checked;
+    ui.msg.textContent = '';
+    try {
+      const res = await fetch('/api/fork/voice/settings', {
+        method: 'PUT', credentials: 'same-origin',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify(settingsBody(name, want)),
+      });
+      if (!res.ok) throw new Error(`HTTP ${res.status}`);
+      ui.msg.textContent = 'Saved';
+      ui.msg.style.color = 'var(--fg)';
+    } catch (e) {
+      input.checked = !want;
+      ui.msg.textContent = e.message || 'Failed';
+      ui.msg.style.color = 'var(--red)';
+    }
+  });
 }
 
 function showResult(ui, answer) {
@@ -79,6 +134,11 @@ function init() {
   const ui = buildCard();
   panel.append(ui.card);
   wire(ui);
+  wireSwitch(ui, ui.actionsInput, 'actions');
+  wireSwitch(ui, ui.pushInput, 'push');
+  ui.actionsInput.checked = true;  // the defaults, until the settings are read
+  ui.pushInput.checked = true;
+  loadSettings(ui);
 }
 
 if (typeof document !== 'undefined') {

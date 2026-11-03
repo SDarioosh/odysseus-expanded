@@ -92,6 +92,9 @@ class ToolRun:
     # A read-only turn (a voice request, fork/voice/): a call that would change anything,
     # or that upstream's gate or the fetch rule would ask about, is refused, never asked.
     read_only: bool = False
+    # The writes a read-only turn may still make (fork/voice/actions.py): ``.names`` and
+    # ``async .run(run, name, content) -> (description, result)``; None: no writes.
+    actions: Any = None
 
 
 def turn_disabled_tools(request: Any, owner: Any, *, privileges: dict | None = None,
@@ -183,7 +186,7 @@ def build_run(*, request_text: str, owner: Any, session_id: str, history: list,
               offered: tuple[str, ...], disabled: set[str], delegated: bool = False,
               prompt_messages: list[dict] | None = None, authority: Any = None,
               external_seen: bool = False, chat_search_hits=(), rag: Any = None,
-              read_only: bool = False) -> ToolRun:
+              read_only: bool = False, actions: Any = None) -> ToolRun:
     """The authority, security context and policy for one brain turn.
 
     ``authority``: the sealed authority of a paused turn (an approval resume); otherwise
@@ -192,7 +195,8 @@ def build_run(*, request_text: str, owner: Any, session_id: str, history: list,
     context starts armed. ``chat_search_hits``: the ranked web-search hits of this
     chat's earlier turns, which ``web_fetch`` may read. ``rag``: the document library
     ``search_documents`` reads. ``read_only``: a turn that may only read
-    (:func:`read_only_refusal`).
+    (:func:`read_only_refusal`); ``actions``: the writes it may still make, by name
+    (a voice turn's, ``fork/voice/actions.py``).
     """
     from src.agent_runtime.authority import create_request_authority
     from src.tool_capabilities import ToolRunSecurityContext
@@ -217,7 +221,7 @@ def build_run(*, request_text: str, owner: Any, session_id: str, history: list,
                    offered=tuple(offered), request_text=request_text,
                    external_seen=bool(security.external_untrusted_context_seen),
                    owner_urls=frozenset(_urls_in(request_text or "", bare=True)), rag=rag,
-                   read_only=bool(read_only))
+                   read_only=bool(read_only), actions=actions if read_only else None)
 
 
 def _seed_search_hits(security: Any, hits) -> None:
@@ -300,8 +304,11 @@ def read_only_refusal(run: ToolRun, name: str, content: str) -> str | None:
     """For a read-only turn: why this call is refused, or None when it may run. Refused:
     a write (:func:`toolset.is_read` says no), a call upstream's gate wouldn't let through
     without asking, and a ``web_fetch`` of an address that isn't known
-    (:func:`fetch_known`). Always None for other turns."""
+    (:func:`fetch_known`). Always None for other turns. The turn's own ``actions``
+    (:func:`is_action`) are allowed by name; they check their own arguments."""
     if not run.read_only:
+        return None
+    if is_action(run, name):
         return None
     try:
         if not toolset.is_read(name, content):
@@ -314,6 +321,13 @@ def read_only_refusal(run: ToolRun, name: str, content: str) -> str | None:
         logger.warning("brain: read-only check failed", exc_info=True)
         return READ_ONLY_REFUSED
     return None
+
+
+def is_action(run: ToolRun, name: str) -> bool:
+    """One of the writes a read-only turn was given (a voice action), offered this turn."""
+    actions = getattr(run, "actions", None)
+    return bool(run.read_only and actions is not None and name in actions.names
+                and name in run.offered)
 
 
 def needs_approval(run: ToolRun, name: str, content: str) -> str | None:
@@ -461,6 +475,9 @@ async def execute(run: ToolRun, name: str, content: str, *, exact_approval: Any 
     refused = refused or read_only_refusal(run, name, content)
     if refused:
         desc, result = _blocked(name, refused)
+        return content, desc, result
+    if is_action(run, name):  # a voice action: runs in fork/voice/actions.py
+        desc, result = await run.actions.run(run, name, content)
         return content, desc, result
     if name in toolset.FORK_TOOLS:
         if name == toolset.SEARCH_BELIEFS:

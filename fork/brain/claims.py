@@ -46,13 +46,15 @@ from typing import Iterable
 
 # store -> the write tools that change it
 DOMAIN_TOOLS: dict[str, frozenset[str]] = {
-    "calendar": frozenset({"manage_calendar"}),
-    "notes": frozenset({"manage_notes", "manage_tasks"}),
+    # voice_add / voice_complete: a voice turn's actions (fork/voice/actions.py)
+    "calendar": frozenset({"manage_calendar", "voice_add"}),
+    "notes": frozenset({"manage_notes", "manage_tasks", "voice_add", "voice_complete"}),
     "email": frozenset({"draft_email", "draft_email_reply", "send_email", "reply_to_email"}),
     "contacts": frozenset({"manage_contact"}),
     "memory": frozenset({"manage_memory"}),
     "documents": frozenset({"create_document", "manage_documents"}),
-    "action_items": frozenset(),  # mcp__<server>__update_action_item (tool_domain)
+    # mcp__<server>__update_action_item (tool_domain)
+    "action_items": frozenset({"voice_complete"}),
 }
 # store -> what the note says wasn't done; in this order
 NOT_DONE: dict[str, str] = {
@@ -188,6 +190,13 @@ def tool_domain(name: str) -> str | None:
     return None
 
 
+def tool_domains(name: str) -> set[str]:
+    """Every store a write tool can change (a voice action can change more than one)."""
+    out = {domain for domain, tools in DOMAIN_TOOLS.items() if name in tools}
+    first = tool_domain(name)
+    return out | ({first} if first else set())
+
+
 def _blank(match: re.Match) -> str:
     return re.sub(r"[^\n]", " ", match.group())
 
@@ -321,7 +330,7 @@ def correction(text: str, writes: Iterable[tuple[str, bool]]) -> str:
         return ""
     writes = list(writes)
     done = [name for name, ok in writes if ok]
-    done_stores = {tool_domain(name) for name in done}
+    done_stores = set().union(*(tool_domains(name) for name in done)) if done else set()
     missing: set[str] = set()
     for stores in found:
         if stores == {LATE_DONE}:

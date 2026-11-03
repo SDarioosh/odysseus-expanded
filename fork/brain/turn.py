@@ -223,7 +223,7 @@ async def brain_response(request: Any, *, sess: Any, session_id: str, message: A
 
 def read_only_turn(request: Any, *, sess: Any, session_id: str, message: Any, owner: Any,
                    instructions: str = "", disabled=frozenset(),
-                   services: tuple = ()) -> AsyncGenerator[str, None] | None:
+                   services: tuple = (), actions: Any = None) -> AsyncGenerator[str, None] | None:
     """A turn that may only read, for a caller nobody can approve from: a voice request
     (``fork/voice/``). Returns the turn's events (the chat window's, not detached: the
     turn ends with its caller), or None when the brain is off or doesn't take the turn.
@@ -236,6 +236,9 @@ def read_only_turn(request: Any, *, sess: Any, session_id: str, message: Any, ow
     never asked (``tools.read_only_refusal``). ``instructions`` stands where a preset's
     text goes. The owner's message and the answer are saved in ``sess`` like a chat turn;
     no memories are extracted from it (anyone near a voice satellite can speak).
+    ``actions``: the only writes it may make, offered with the read tools and run
+    without asking (the voice actions, ``fork/voice/actions.py``): ``.schemas``,
+    ``.names`` and ``async .run(run, name, content)``.
     """
     _sweep_soon()
     if not brain_settings.enabled():
@@ -251,7 +254,7 @@ def read_only_turn(request: Any, *, sess: Any, session_id: str, message: Any, ow
                        owner=owner, preset_id=None, deps=deps)
     turn.read_only = True
     turn.prep.update(preset_text=str(instructions or ""), read_only=True,
-                     disabled=frozenset(disabled or ()))
+                     disabled=frozenset(disabled or ()), actions=actions)
     return _run_new_turn(turn)
 
 
@@ -551,8 +554,13 @@ async def _prepare(turn: _Turn) -> None:
     disabled |= set(prep.get("disabled") or ())
     schemas = toolset.for_chat(turn.session_id, owner=owner, disabled=disabled)
     schemas = toolset.with_skill_tools(schemas, message, owner=owner, disabled=disabled)
+    actions = prep.get("actions") if read_only else None
     if read_only:
         schemas = toolset.read_only(schemas)
+        if actions is not None:  # the writes this turn may make, after the reads
+            have = set(toolset.names(schemas))
+            schemas = tuple(schemas) + tuple(s for s in actions.schemas
+                                             if s["function"]["name"] not in have)
 
     keep_ids = [brain_prompt.message_id(m) for m in rows if brain_prompt.message_id(m)]
     try:
@@ -578,7 +586,8 @@ async def _prepare(turn: _Turn) -> None:
         offered=tuple(toolset.names(schemas)), disabled=disabled, delegated=delegated,
         prompt_messages=messages,
         external_seen=bool(prep["external_seen"] or tainted or files_seen),
-        chat_search_hits=hits, rag=rag, read_only=read_only)
+        chat_search_hits=hits, rag=rag, read_only=read_only,
+        **({"actions": actions} if actions is not None else {}))
     if attached:
         brain_tools.distrust(run, brain_attachments.SOURCE)
     selected = [brain_selection.notes_item(prep.get("selected_notes")),
