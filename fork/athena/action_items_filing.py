@@ -130,20 +130,39 @@ def open_url(target: str, ref: str) -> str:
 
 async def _file_one(owner: str, item: dict, target: str, *, rev: int = 0,
                     now_utc: datetime | None = None) -> dict:
-    """Create the Odysseus calendar event, to-do or note for ``item``; the ``filed``
-    entry."""
+    """Create the Odysseus calendar event, to-do or note for Athena's ``item``; the
+    ``filed`` entry. The event's uid is Athena's (``_event_uid``), the source line names
+    the voice note or conversation, notes carry Athena's label."""
+    placed = _placed(item, target)
+    return await create_item(
+        owner, item, target, rev=rev, now_utc=now_utc, source=_source_line(placed),
+        event_uid=_event_uid(item["id"], rev) if target == "calendar" else None)
+
+
+async def create_item(owner: str, item: dict, target: str, *, source: str,
+                      event_uid: str | None, label: str | None = None, rev: int = 0,
+                      now_utc: datetime | None = None) -> dict:
+    """Create the calendar event, to-do, list line or note for ``item`` (an item dict in
+    Athena's shape); the ``filed`` entry. Shared by Athena's items (:func:`_file_one`) and
+    the voice assistant's (``fork/voice/actions.py``), so both file the same sentence the
+    same way. ``source``: the line under the event, to-do or note; ``event_uid``: the
+    calendar uid (needed for ``calendar``); ``label``: the label new notes get (Athena's
+    when None)."""
     from src.tools.calendar import do_manage_calendar
     from src.tools.notes import do_manage_notes
 
+    label = LABEL if label is None else label
     item = _placed(item, target)
-    text = str(item.get("text") or "").strip() or f"Action item #{item['id']}"
+    text = str(item.get("text") or "").strip() or f"Action item #{item.get('id')}"
     day, clock = _ymd(item.get("due_date")), _hhmm(item.get("due_time"))
     zone_name = _valid_zone(item.get("timezone"))
     if target == "calendar":
         if not day:
             raise ValueError("an event needs a date; add it to to-dos or set a date first")
+        if not event_uid:
+            raise ValueError("an event needs a uid")
         args: dict[str, Any] = {"action": "create_event", "summary": text,
-                                "description": _source_line(item)}
+                                "description": source}
         if item.get("location"):
             args["location"] = str(item["location"])
         if clock:
@@ -157,7 +176,7 @@ async def _file_one(owner: str, item: dict, target: str, *, rev: int = 0,
         else:
             args.update(all_day=True, local_start={"date": day})
         res = await do_manage_calendar(json.dumps(args), owner=owner or None,
-                                       import_event_uid=_event_uid(item["id"], rev))
+                                       import_event_uid=event_uid)
         if res.get("error") or not res.get("uid"):
             raise RuntimeError(f"calendar: {res.get('error') or 'no event created'}")
         ref = res["uid"]
@@ -165,14 +184,14 @@ async def _file_one(owner: str, item: dict, target: str, *, rev: int = 0,
         line = item_title(item) if list_key(item["list_name"]) == list_key(VOICE_LIST) \
             else text
         return {"kind": str(item.get("kind") or "task"), "target": target,
-                **await _add_to_list(owner, item, line),
+                **await _add_to_list(owner, item, line, label=label),
                 "at": _aware_utc(now_utc).isoformat(timespec="seconds"), "rev": rev,
                 "module": "open", "hub": "open"}
     elif target == "todo":
         # short title, the full text as its one line
         args = {"action": "add", "note_type": "todo", "title": item_title(item),
-                "checklist_items": [{"text": text, "done": False}], "label": LABEL,
-                "content": _source_line(item)}
+                "checklist_items": [{"text": text, "done": False}], "label": label,
+                "content": source}
         if day:
             hour = digest_hour()
             at = clock or f"{8 if hour is None else hour:02d}:00"
@@ -184,14 +203,14 @@ async def _file_one(owner: str, item: dict, target: str, *, rev: int = 0,
         ref = res["note_id"]
     elif target == "note" and notes_title(item.get("list_name")):
         return {"kind": str(item.get("kind") or NOTE_KIND), "target": target,
-                **await _add_to_notes(owner, item, text),
+                **await _add_to_notes(owner, item, text, label=label),
                 "at": _aware_utc(now_utc).isoformat(timespec="seconds"), "rev": rev,
                 "module": "open", "hub": "open"}
     elif target == "note":
         title = _note_title(item, text)
         res = await do_manage_notes(json.dumps({
-            "action": "add", "note_type": "note", "title": title, "label": LABEL,
-            "content": _note_content(item, text)}), owner=owner or None)
+            "action": "add", "note_type": "note", "title": title, "label": label,
+            "content": _note_content(item, text, source)}), owner=owner or None)
         if res.get("error") or not res.get("note_id"):
             raise RuntimeError(f"notes: {res.get('error') or 'no note created'}")
         ref = res["note_id"]
@@ -202,15 +221,16 @@ async def _file_one(owner: str, item: dict, target: str, *, rev: int = 0,
             "module": "open", "hub": "open"}
 
 
-def _note_content(item: dict, text: str) -> str:
+def _note_content(item: dict, text: str, source: str | None = None) -> str:
     """A filed note: its text, the voice note's key points as a list when the module sends
     them (MCP 0.15.0: the note is the whole voice note, its text the summary), and the
-    source line with the transcript link last."""
+    source line (``source``, else Athena's, with the transcript link) last."""
     points = item.get("key_points")
     points = [str(p).strip() for p in points if str(p).strip()] \
         if isinstance(points, list) else []
     parts = [text] + (["\n".join(f"- {p}" for p in points)] if points else [])
-    return "\n\n".join(parts + [_source_line(item)])
+    source = _source_line(item) if source is None else source
+    return "\n\n".join(parts + ([source] if source else []))
 
 
 def _note_title(item: dict, text: str) -> str:

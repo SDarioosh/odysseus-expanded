@@ -70,18 +70,19 @@ def _block_index(content: Any, block: str) -> int | None:
     return next((i for i, ln in enumerate(lines) if _norm_line(ln) == want), None)
 
 
-async def _add_to_notes(owner: str, item: dict, text: str) -> dict:
+async def _add_to_notes(owner: str, item: dict, text: str, *, label: str | None = None) -> dict:
     """Add ``item`` as a line to its named notes (made if missing); the entry's ``ref``
     (note id), ``block`` (the line) and ``notes`` (title). The same line isn't added
     twice."""
     from src.tools.notes import do_manage_notes
 
+    label = LABEL if label is None else label
     name = notes_title(item.get("list_name"))
     block = f"- {text}"
     note = find_notes(owner, name)
     if note is None:
         res = await do_manage_notes(json.dumps({
-            "action": "add", "note_type": "note", "title": name, "label": LABEL,
+            "action": "add", "note_type": "note", "title": name, "label": label,
             "content": block}), owner=owner or None)
         if res.get("error") or not res.get("note_id"):
             raise RuntimeError(f"notes: {res.get('error') or 'no note created'}")
@@ -209,18 +210,19 @@ def _line_text(item: dict, text: str) -> str:
     return f"{text} (due {when})" if when else text
 
 
-async def _add_to_list(owner: str, item: dict, text: str) -> dict:
+async def _add_to_list(owner: str, item: dict, text: str, *, label: str | None = None) -> dict:
     """Add ``item`` as a line to its named list (made if missing); the entry's
     ``ref`` (note id), ``line`` and ``list`` (title). An open line with the same text
     is reused, not repeated."""
     from src.tools.notes import do_manage_notes
 
+    label = LABEL if label is None else label
     name = list_title(item.get("list_name"))
     line = _line_text(item, text)
     note = find_list(owner, name)
     if note is None:
         res = await do_manage_notes(json.dumps({
-            "action": "add", "note_type": "todo", "title": name, "label": LABEL,
+            "action": "add", "note_type": "todo", "title": name, "label": label,
             "checklist_items": [{"text": line, "done": False}]}), owner=owner or None)
         if res.get("error") or not res.get("note_id"):
             raise RuntimeError(f"to-dos: {res.get('error') or 'no list created'}")
