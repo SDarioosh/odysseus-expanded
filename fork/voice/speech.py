@@ -159,3 +159,43 @@ class SpeechStream:
     def finish(self) -> str:
         raw, self._buf = self._buf, ""
         return self._say(raw)
+
+
+# ------------------------------------------------------------ the final question mark
+# Home Assistant keeps the microphone open (and skips its own commands) only when an
+# answer ends with "?", so only a confirmation question may end with one.
+LAST_SENTENCE = re.compile(r"(?:^|(?<=[.!?…]))\s*([^.!?…]*[?])\s*$")
+OFFER = re.compile(
+    r"(?i)^\s*(?:is there\s+)?(?:anything else|something else|can i help|how (?:else )?can i"
+    r"|would you like (?:to know|more|anything)|do you (?:want|need) (?:anything|more)"
+    r"|shall i (?:look|check|search)|want me to (?:look|check|search)|need anything)\b")
+
+
+def end_without_question(text: str) -> str:
+    """``text`` without a question at the end: a trailing offer ("Anything else?") is
+    dropped, any other last "?" becomes "."."""
+    out = (text or "").rstrip()
+    for _ in range(3):
+        m = LAST_SENTENCE.search(out)
+        if not m:
+            return out
+        sentence = m.group(1)
+        if OFFER.search(sentence) and out[:m.start(1)].strip():
+            out = out[:m.start(1)].rstrip()
+            continue
+        return out[:m.end(1) - 1].rstrip() + "."
+    return out
+
+
+def end_with_question(text: str, question: str) -> str:
+    """``text`` ending in a confirmation question: its own last question when it ends
+    with one, else ``question`` added."""
+    out = (text or "").rstrip()
+    if out.endswith("?"):
+        return out
+    q = (question or "").strip()
+    if not q:
+        return out
+    if not q.endswith("?"):
+        q = q.rstrip(".!") + "?"
+    return (out + " " + q).strip()
