@@ -169,7 +169,7 @@ the link goes to its details (what it does, its files, whether it can go upstrea
 
 ### Voice assistant
 
-- [Voice assistant through Home Assistant](docs/fork/voice-assistant.md): `POST /api/chat/voice/v1/chat/completions` (OpenAI's shape) for a Home Assistant conversation agent, for API tokens with the `voice` scope only. Each question is a read-only brain turn of the token's owner (`read_only_turn`): Athena, calendar, notes, contacts, memory, beliefs, documents and the web are read, nothing is changed or asked, no email; answers are short spoken text with the links apart, and each conversation is a chat in the Voice folder. Settings → Integrations → Voice assistant makes the token.
+- [Voice assistant through Home Assistant](docs/fork/voice-assistant.md): `POST /api/chat/voice/v1/chat/completions` (OpenAI's shape) for a Home Assistant conversation agent, for API tokens with the `voice` scope only. Each question is a brain turn of the token's owner (`read_only_turn`, `shared_prefix`) whose prompt starts exactly like a chat's (same system prompt, preset and tools, so the model server's chat cache is reused); Athena, calendar, notes, contacts, memory, beliefs, documents and the web are read, email is never run, and an allow-listed change (to-do, reminder, list item, note, calendar event, Athena action item done) runs only after a spoken "yes" (`fork/voice/confirm.py`), everything else that writes is refused; answers are short spoken text with the links apart, ending in "?" only for a confirmation, and each conversation is a chat in the Voice folder. The turn ledger (`fork/voice/ledger.py`) feeds the satellite's screen: `GET …/actions`, `GET …/turns/latest`. Settings → Integrations → Voice assistant makes the token.
 
 ### Logs and tests
 
