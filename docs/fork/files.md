@@ -187,7 +187,11 @@ is an old path of a module that moved into `fork/`; it only aliases the new modu
 - `fork/tasks.py`
 - `fork/upstream.py`
 - `fork/voice/__init__.py`
+- `fork/voice/chat_prefix.py`
+- `fork/voice/confirm.py`
+- `fork/voice/ledger.py`
 - `fork/voice/openai_api.py`
+- `fork/voice/policy.py`
 - `fork/voice/prompt.py`
 - `fork/voice/routes.py`
 - `fork/voice/sessions.py`

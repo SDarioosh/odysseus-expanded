@@ -15,12 +15,12 @@ import json
 import logging
 import time
 import uuid
-from collections.abc import AsyncIterator
+from collections.abc import AsyncIterator, Callable
 from dataclasses import dataclass, field
 from typing import Any
 
 from fork.voice import prompt as voice_prompt
-from fork.voice.speech import SpeechStream
+from fork.voice.speech import SpeechStream, end_with_question, end_without_question
 
 logger = logging.getLogger(__name__)
 
@@ -100,6 +100,25 @@ class Answer:
     refused: bool = False  # the turn wanted an approval: nobody can give one by voice
     failed: bool = False
     tokens: tuple[int, int] = (0, 0)
+    # the confirmation question while a proposal of this turn waits for a yes, or None
+    # (fork/voice/confirm.py); only then may the spoken answer end with "?"
+    confirmation: Callable[[], str | None] | None = None
+    awaiting: str | None = None  # the question the answer ended with, once finished
+    held: str = ""  # streamed text ending in "?", held until more comes or the end
+    sent: str = ""  # what the client got so far, while streaming
+
+    def _out(self, piece: str) -> str:
+        """A spoken piece out while streaming; one that ends with "?" is held back, so
+        a last question can still be changed (:meth:`finish`)."""
+        if not piece:
+            return ""
+        text = self.held + piece
+        if text.rstrip().endswith("?"):
+            self.held = text
+            return ""
+        self.held = ""
+        self.sent += text
+        return text
 
     def feed(self, chunk: str) -> str:
         """One SSE chunk of the brain's turn in; the text to speak now out (or "")."""
@@ -122,7 +141,7 @@ class Answer:
             if not self.streaming:
                 self.rounds[-1][0] += data["delta"]
                 return ""
-            return self.speech.feed(data["delta"])
+            return self._out(self.speech.feed(data["delta"]))
         kind = data.get("type")
         if kind == "tool_start":
             self.rounds[-1][1] = True
@@ -134,7 +153,7 @@ class Answer:
             if not self.streaming:
                 self.rounds[-1][0] += str(data.get("content") or "")
                 return ""
-            return self.speech.feed(str(data.get("content") or ""))
+            return self._out(self.speech.feed(str(data.get("content") or "")))
         if kind == "ask_user" or (kind == "tool_output" and isinstance(data.get("ask_user"), dict)):
             self.refused = True
         elif kind == "metrics":
@@ -145,23 +164,46 @@ class Answer:
             self.failed = True
         return ""
 
-    def finish(self) -> str:
-        """The rest to speak once the turn is over."""
+    def _body(self) -> None:
         if not self.streaming:
             answer = [text for text, called in self.rounds if text.strip() and not called]
             self.speech.feed("\n\n".join(answer))
             self.rounds = [["", False]]
-        rest = self.speech.finish()
-        if self.refused and not self.speech.spoken:
-            # a read-only turn never pauses (fork/brain/tools.py); if one did, say so
-            return self.speech.feed(voice_prompt.READ_ONLY_REPLY) + self.speech.finish()
+        self.speech.finish()
         if self.speech.spoken:
-            return rest
-        reply = voice_prompt.FAILED_REPLY if self.failed else voice_prompt.NO_ANSWER_REPLY
-        return self.speech.feed(reply) + self.speech.finish()
+            return
+        if self.refused:
+            # a read-only turn never pauses (fork/brain/tools.py); if one did, say so
+            self.speech.feed(voice_prompt.READ_ONLY_REPLY)
+        elif self.failed:
+            self.speech.feed(voice_prompt.FAILED_REPLY)
+        elif self.confirmation is None or not self.confirmation():
+            self.speech.feed(voice_prompt.NO_ANSWER_REPLY)
+        self.speech.finish()
 
-    def extra(self, session_id: str) -> dict:
-        return {"session_id": session_id, "links": list(self.speech.links)}
+    def finish(self) -> str:
+        """The rest to speak once the turn is over. The answer ends with "?" only when
+        it asks to confirm a kept change; then :attr:`awaiting` is that question."""
+        self._body()
+        spoken = self.speech.spoken
+        question = self.confirmation() if self.confirmation is not None else None
+        final = end_with_question(spoken, question) if question else end_without_question(spoken)
+        if not final.startswith(self.sent.rstrip()):
+            final = spoken  # never: only the held tail changes; then left as it is
+        if question and final.endswith("?"):
+            cut = max(final.rfind(". ", 0, len(final) - 1), final.rfind("! ", 0, len(final) - 1))
+            self.awaiting = final[cut + 2:] if cut >= 0 else final
+        self.speech.spoken = final
+        rest = final[len(self.sent):]
+        self.sent = final
+        self.held = ""
+        return rest
+
+    def extra(self, session_id: str, turn_id: str | None = None) -> dict:
+        out = {"session_id": session_id, "links": list(self.speech.links)}
+        if turn_id:
+            out["turn_id"] = turn_id
+        return out
 
 
 def _usage(answer: Answer) -> dict:
@@ -177,13 +219,14 @@ async def collect(events: AsyncIterator[str], answer: Answer) -> str:
     return answer.speech.spoken
 
 
-def completion_body(question: Question, answer: Answer, session_id: str) -> dict:
+def completion_body(question: Question, answer: Answer, session_id: str,
+                    turn_id: str | None = None) -> dict:
     return {
         "id": "chatcmpl-" + uuid.uuid4().hex, "object": "chat.completion",
         "created": int(time.time()), "model": question.model,
         "choices": [{"index": 0, "finish_reason": "stop",
                      "message": {"role": "assistant", "content": answer.speech.spoken}}],
-        "usage": _usage(answer), "odysseus": answer.extra(session_id),
+        "usage": _usage(answer), "odysseus": answer.extra(session_id, turn_id),
     }
 
 
@@ -196,8 +239,10 @@ def _chunk(cid: str, created: int, model: str, delta: dict, finish: str | None =
 
 
 async def stream(events: AsyncIterator[str], question: Question, answer: Answer,
-                 session_id: str) -> AsyncIterator[str]:
-    """The answer as OpenAI stream chunks, one finished sentence at a time."""
+                 session_id: str, turn_id: str | None = None,
+                 on_done: Callable[[Answer], None] | None = None) -> AsyncIterator[str]:
+    """The answer as OpenAI stream chunks, one finished sentence at a time.
+    ``on_done(answer)`` runs once the answer is complete (the turn ledger)."""
     cid, created = "chatcmpl-" + uuid.uuid4().hex, int(time.time())
     yield _chunk(cid, created, question.model, {"role": "assistant", "content": ""})
     try:
@@ -211,6 +256,11 @@ async def stream(events: AsyncIterator[str], question: Question, answer: Answer,
     piece = answer.finish()
     if piece:
         yield _chunk(cid, created, question.model, {"content": piece})
+    if on_done is not None:
+        try:
+            on_done(answer)
+        except Exception:  # noqa: BLE001 -- the answer still ends
+            logger.exception("voice: recording the turn failed")
     yield _chunk(cid, created, question.model, {}, "stop", usage=_usage(answer),
-                 odysseus=answer.extra(session_id))
+                 odysseus=answer.extra(session_id, turn_id))
     yield "data: [DONE]\n\n"

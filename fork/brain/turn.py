@@ -223,7 +223,9 @@ async def brain_response(request: Any, *, sess: Any, session_id: str, message: A
 
 def read_only_turn(request: Any, *, sess: Any, session_id: str, message: Any, owner: Any,
                    instructions: str = "", disabled=frozenset(),
-                   services: tuple = ()) -> AsyncGenerator[str, None] | None:
+                   services: tuple = (), preset: Any = None, gate: Any = None,
+                   shared_prefix: bool = False, context_lines=(),
+                   no_memory: bool = False) -> AsyncGenerator[str, None] | None:
     """A turn that may only read, for a caller nobody can approve from: a voice request
     (``fork/voice/``). Returns the turn's events (the chat window's, not detached: the
     turn ends with its caller), or None when the brain is off or doesn't take the turn.
@@ -236,6 +238,14 @@ def read_only_turn(request: Any, *, sess: Any, session_id: str, message: Any, ow
     never asked (``tools.read_only_refusal``). ``instructions`` stands where a preset's
     text goes. The owner's message and the answer are saved in ``sess`` like a chat turn;
     no memories are extracted from it (anyone near a voice satellite can speak).
+
+    ``shared_prefix``: the prompt starts exactly like a chat turn of ``owner`` (so the
+    model server reuses the chat's cached prefix): the system prompt with ``preset``'s
+    text (the owner's default chat preset, ``fork/voice/chat_prefix.py``), and every tool
+    a chat turn is offered, in the same order, writes too; ``instructions`` then go
+    in the question's message, before the question, and ``gate`` (``ToolRun.gate``) decides at
+    execution what runs. ``context_lines``: plain lines for the context message (the
+    device asked from). ``no_memory``: nothing recalled into the context message.
     """
     _sweep_soon()
     if not brain_settings.enabled():
@@ -248,10 +258,15 @@ def read_only_turn(request: Any, *, sess: Any, session_id: str, message: Any, ow
     deps = _Deps(*services) if services else _Deps()
     drop_pending_for_chat(owner=owner, session_id=session_id)
     turn = _start_turn(request, sess=sess, session_id=session_id, message=message,
-                       owner=owner, preset_id=None, deps=deps)
+                       owner=owner, preset_id=None, deps=deps, preset=preset,
+                       no_memory=bool(no_memory))
     turn.read_only = True
-    turn.prep.update(preset_text=str(instructions or ""), read_only=True,
-                     disabled=frozenset(disabled or ()))
+    turn.prep.update(read_only=True, disabled=frozenset(disabled or ()), gate=gate,
+                     context_lines=tuple(str(x) for x in context_lines or () if x))
+    if shared_prefix:
+        turn.prep.update(question_note=str(instructions or ""), filter_read=False)
+    else:
+        turn.prep.update(preset_text=str(instructions or ""))
     return _run_new_turn(turn)
 
 
@@ -494,12 +509,13 @@ def _start_turn(request: Any, *, sess: Any, session_id: str, message: str, owner
                 preset_id: Any, deps: _Deps, external_seen: bool = False,
                 no_memory: bool = False, use_rag: Any = None,
                 selected_notes: Any = None, active_email: Any = None,
-                attached: Any = None) -> _Turn:
+                attached: Any = None, preset: Any = None) -> _Turn:
     """Save the owner's message and set the turn up; the tool set, the history and the
     authority are built by :func:`_prepare` when the stream starts, so a failure there
     ends the turn with an answer instead of an HTTP error. ``attached``: the turn's
-    attachments, already read (``attachments.read``)."""
-    preset = _preset(deps.chat_handler, preset_id)
+    attachments, already read (``attachments.read``). ``preset``: the preset already
+    resolved (its ``system_prompt``, ``temperature``, ...), in place of ``preset_id``."""
+    preset = preset if preset is not None else _preset(deps.chat_handler, preset_id)
     rows = list(getattr(sess, "history", None) or ())
     _save_user_message(sess, deps, request, session_id, message, attached)
     temperature = getattr(sess, "temperature_override", None)
@@ -551,7 +567,7 @@ async def _prepare(turn: _Turn) -> None:
     disabled |= set(prep.get("disabled") or ())
     schemas = toolset.for_chat(turn.session_id, owner=owner, disabled=disabled)
     schemas = toolset.with_skill_tools(schemas, message, owner=owner, disabled=disabled)
-    if read_only:
+    if read_only and prep.get("filter_read", True):
         schemas = toolset.read_only(schemas)
 
     keep_ids = [brain_prompt.message_id(m) for m in rows if brain_prompt.message_id(m)]
@@ -570,20 +586,23 @@ async def _prepare(turn: _Turn) -> None:
                                           no_memory=prep["no_memory"])
     recalled = await asyncio.to_thread(brain_prompt.recalled_items, owner, message,
                                        turn.deps.memory_manager, enabled=consent)
+    question = attached.content(message) if attached else message
+    if prep.get("question_note"):
+        # after the cached prefix: the voice instructions go with the question
+        question = prep["question_note"].strip() + "\n\n" + question
     messages = brain_prompt.build_messages(
-        preset_text=prep["preset_text"], history=hist, recalled=recalled,
-        message=attached.content(message) if attached else message)
+        preset_text=prep["preset_text"], history=hist, recalled=recalled, message=question)
     run = brain_tools.build_run(
         request_text=message, owner=owner, session_id=turn.session_id, history=rows,
         offered=tuple(toolset.names(schemas)), disabled=disabled, delegated=delegated,
         prompt_messages=messages,
         external_seen=bool(prep["external_seen"] or tainted or files_seen),
-        chat_search_hits=hits, rag=rag, read_only=read_only)
+        chat_search_hits=hits, rag=rag, read_only=read_only, gate=prep.get("gate"))
     if attached:
         brain_tools.distrust(run, brain_attachments.SOURCE)
     selected = [brain_selection.notes_item(prep.get("selected_notes")),
                 await brain_selection.email_text(run, prep.get("active_email"))]
-    selected = [item for item in selected if item]
+    selected = [item for item in selected if item] + list(prep.get("context_lines") or ())
     if selected:
         # Only the context message changes; the selection arms the run (upstream's
         # marking, read by observe_messages) and the exchange is kept untrusted.

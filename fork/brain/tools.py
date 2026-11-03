@@ -31,7 +31,10 @@ What the brain adds is which calls run without asking and which ask:
   before the approved call; arming only adds gates).
 - **Read-only turns never ask:** a turn built with ``read_only`` (a voice request,
   ``fork/voice/``) refuses every call that would ask, and every write, without running it
-  (:func:`read_only_refusal`); nobody can approve by voice.
+  (:func:`read_only_refusal`); nobody can approve on a card by voice. Its ``gate``
+  (``ToolRun.gate``, ``fork/voice/policy.py``) is asked first: it refuses email and,
+  for a voice that isn't the owner's, personal tools, and keeps an allowed change for a
+  spoken yes (``fork/voice/confirm.py``, which then runs it with an exact approval).
 - **Outside content arms the gate:** the run's security context is armed when the route
   says the turn follows outside content, when an earlier exchange put back into the
   prompt was untrusted (``history.py``'s flag; the replayed results carry upstream's
@@ -92,6 +95,11 @@ class ToolRun:
     # A read-only turn (a voice request, fork/voice/): a call that would change anything,
     # or that upstream's gate or the fetch rule would ask about, is refused, never asked.
     read_only: bool = False
+    # Called before the read-only refusal: ``await gate(run, name, content)`` returns a
+    # refusal (str), a result that stands for the call (dict, not run), or None to go
+    # on. A voice turn's VoiceGate (fork/voice/policy.py): email, private answers and
+    # changes kept for a spoken yes.
+    gate: Any = None
 
 
 def turn_disabled_tools(request: Any, owner: Any, *, privileges: dict | None = None,
@@ -183,7 +191,7 @@ def build_run(*, request_text: str, owner: Any, session_id: str, history: list,
               offered: tuple[str, ...], disabled: set[str], delegated: bool = False,
               prompt_messages: list[dict] | None = None, authority: Any = None,
               external_seen: bool = False, chat_search_hits=(), rag: Any = None,
-              read_only: bool = False) -> ToolRun:
+              read_only: bool = False, gate: Any = None) -> ToolRun:
     """The authority, security context and policy for one brain turn.
 
     ``authority``: the sealed authority of a paused turn (an approval resume); otherwise
@@ -192,7 +200,7 @@ def build_run(*, request_text: str, owner: Any, session_id: str, history: list,
     context starts armed. ``chat_search_hits``: the ranked web-search hits of this
     chat's earlier turns, which ``web_fetch`` may read. ``rag``: the document library
     ``search_documents`` reads. ``read_only``: a turn that may only read
-    (:func:`read_only_refusal`).
+    (:func:`read_only_refusal`). ``gate``: :attr:`ToolRun.gate`.
     """
     from src.agent_runtime.authority import create_request_authority
     from src.tool_capabilities import ToolRunSecurityContext
@@ -217,7 +225,7 @@ def build_run(*, request_text: str, owner: Any, session_id: str, history: list,
                    offered=tuple(offered), request_text=request_text,
                    external_seen=bool(security.external_untrusted_context_seen),
                    owner_urls=frozenset(_urls_in(request_text or "", bare=True)), rag=rag,
-                   read_only=bool(read_only))
+                   read_only=bool(read_only), gate=gate)
 
 
 def _seed_search_hits(security: Any, hits) -> None:
@@ -458,6 +466,15 @@ async def execute(run: ToolRun, name: str, content: str, *, exact_approval: Any 
 
     refused = None if name in run.offered else f"Tool '{name}' is not available here."
     refused = refused or brain_documents.refusal(name, content)
+    if not refused and run.gate is not None:
+        try:
+            gated = await run.gate(run, name, content)
+        except Exception:  # noqa: BLE001 -- can't tell: refused
+            logger.warning("brain: tool gate failed", exc_info=True)
+            gated = READ_ONLY_REFUSED
+        if isinstance(gated, dict):
+            return content, f"{name}: NOT RUN", dict(gated)
+        refused = gated
     refused = refused or read_only_refusal(run, name, content)
     if refused:
         desc, result = _blocked(name, refused)
