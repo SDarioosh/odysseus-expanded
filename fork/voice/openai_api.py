@@ -88,8 +88,14 @@ def models_body() -> dict:
 # ------------------------------------------------------------------ brain events in
 @dataclass
 class Answer:
-    """What a voice turn said: fed the brain's events, gives the spoken pieces."""
+    """What a voice turn said: fed the brain's events, gives the spoken pieces.
+
+    ``streaming``: speak each finished sentence at once. Otherwise (a whole answer) only
+    the text of the rounds that ended without a tool call is spoken, so a model's "Let
+    me search…" before its tool calls isn't read out."""
+    streaming: bool = True
     speech: SpeechStream = field(default_factory=SpeechStream)
+    rounds: list = field(default_factory=lambda: [["", False]])  # [text, called a tool]
     heard_text: bool = False  # the brain streamed any answer text
     refused: bool = False  # the turn wanted an approval: nobody can give one by voice
     failed: bool = False
@@ -113,11 +119,21 @@ class Answer:
             return ""
         if isinstance(data.get("delta"), str) and not data.get("thinking"):
             self.heard_text = True
+            if not self.streaming:
+                self.rounds[-1][0] += data["delta"]
+                return ""
             return self.speech.feed(data["delta"])
         kind = data.get("type")
+        if kind == "tool_start":
+            self.rounds[-1][1] = True
+        elif kind == "agent_step":
+            self.rounds.append(["", False])
         if kind == "final_response" and not self.heard_text:
             # the brain's replacement answer (a fixed reply, an approval question)
             self.heard_text = True
+            if not self.streaming:
+                self.rounds[-1][0] += str(data.get("content") or "")
+                return ""
             return self.speech.feed(str(data.get("content") or ""))
         if kind == "ask_user" or (kind == "tool_output" and isinstance(data.get("ask_user"), dict)):
             self.refused = True
@@ -131,6 +147,10 @@ class Answer:
 
     def finish(self) -> str:
         """The rest to speak once the turn is over."""
+        if not self.streaming:
+            answer = [text for text, called in self.rounds if text.strip() and not called]
+            self.speech.feed("\n\n".join(answer))
+            self.rounds = [["", False]]
         rest = self.speech.finish()
         if self.refused and not self.speech.spoken:
             # a read-only turn never pauses (fork/brain/tools.py); if one did, say so

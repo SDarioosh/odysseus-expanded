@@ -121,7 +121,7 @@ def setup_voice_routes() -> APIRouter:
         if events is None:
             return _error(503, "Voice answers need the brain (FORK_BRAIN) and an owner "
                                "allowed to use the agent.", "server_error")
-        answer = openai_api.Answer()
+        answer = openai_api.Answer(streaming=question.stream)
         if question.stream:
             return StreamingResponse(
                 openai_api.stream(events, question, answer, str(sess.id)),

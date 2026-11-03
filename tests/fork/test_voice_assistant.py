@@ -40,6 +40,26 @@ def test_a_link_with_a_real_name_keeps_the_name():
     assert links == ["https://cafe.example.test/"]
 
 
+def test_a_list_of_links_at_the_end_is_not_read_out():
+    spoken, links = to_speech(
+        f"Alice moves to Berlin in January. Links: [Q4 Budget Cut]({LINK}), "
+        "[Office Move](https://athena.example.test/view/9?sig=x).")
+    assert spoken == "Alice moves to Berlin in January."
+    assert links == [LINK, "https://athena.example.test/view/9?sig=x"]
+    spoken, links = to_speech("It rains today.\nSources: https://weather.example.test/x")
+    assert spoken == "It rains today." and links == ["https://weather.example.test/x"]
+
+
+def test_link_names_left_hanging_are_not_read_out():
+    # what the sandbox's small model wrote (fictional data)
+    spoken, links = to_speech(
+        "This was later revised to a 10% cut. Links to the conversations: Initial budget "
+        f"cut and office move: {LINK} Revised budget cut: https://athena.example.test/view/9")
+    assert spoken == "This was later revised to a 10% cut."
+    assert len(links) == 2
+    assert to_speech("She said: yes.")[0] == "She said: yes."  # no links: untouched
+
+
 def test_code_and_tables_are_left_out_or_flattened():
     spoken, _ = to_speech("Here:\n```\nrm -rf /\n```\n| Day | Time |\n|---|---|\n| Tue | 3 pm |")
     assert "rm" not in spoken and "|" not in spoken and "---" not in spoken
@@ -223,6 +243,7 @@ def api(monkeypatch):
 
         async def events():
             yield 'data: {"type": "tool_start", "tool": "x"}\n\n'
+            yield 'data: {"type": "agent_step", "round": 2}\n\n'
             yield 'data: {"delta": "**Priya** brings the cake. "}\n\n'
             yield 'data: {"delta": "' + f"[transcript]({LINK})" + '"}\n\n'
             yield 'data: {"type": "metrics", "data": {"input_tokens": 9, "output_tokens": 4}}\n\n'
@@ -308,6 +329,17 @@ def test_a_conversation_goes_stale_after_the_follow_up_window():
     assert voice_sessions.remembered("bob", "id:x", now=1000.0 + 60) is None
     late = 1000.0 + voice_sessions.FOLLOW_UP_SECONDS + 61
     assert voice_sessions.remembered("alice", "id:x", now=late) is None
+
+
+def test_a_whole_answer_leaves_out_what_was_said_before_a_tool_call():
+    answer = openai_api.Answer(streaming=False)
+    for chunk in ('data: {"delta": "Let me search for that."}\n\n',
+                  'data: {"type": "tool_start", "tool": "x"}\n\n',
+                  'data: {"type": "agent_step", "round": 2}\n\n',
+                  'data: {"delta": "Priya brings the cake."}\n\n'):
+        assert answer.feed(chunk) == ""
+    answer.finish()
+    assert answer.speech.spoken == "Priya brings the cake."
 
 
 def test_no_answer_and_failures_are_spoken():

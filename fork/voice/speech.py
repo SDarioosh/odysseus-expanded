@@ -32,8 +32,19 @@ LINE_END = re.compile(r"[.!?:;,]$")
 LINK_WORDS = frozenset({"", "link", "links", "source", "sources", "transcript", "here",
                         "view", "listen", "open", "open transcript", "view transcript",
                         "transcript link", "recording"})
+# What is left at the end after the links of "Links: Title: <url> Other: <url>" went:
+# phrases that end in a colon with nothing after them
+TRAILING_LABELS = re.compile(r"(?:\s*[^.!?:\n]{1,80}:)+\s*\.?\s*$")
 # Where a streamed answer may be cut: after a sentence end and a space, or a line break
 SENTENCE_END = re.compile(r"[.!?…][\"')\]]*\s+|\n+")
+
+
+# "Links: [a](u), [b](v)." or "Sources: https://…": the links are kept, the lead-in and
+# the link names (conversation titles) are not read out
+LINK_LIST = re.compile(
+    r"(?i)\b(?:transcript\s+links?|links?|sources?|transcripts?)\s*:\s*"
+    r"((?:(?:\[[^\]\n]*\]\([^)\s]+\)|<?https?://[^\s<>()\[\]]+>?)"
+    r"(?:\s*(?:,|;|and)\s*)?)+)\s*\.?")
 
 
 def _link_label(label: str, url: str) -> str:
@@ -62,6 +73,14 @@ def to_speech(text: str) -> tuple[str, list[str]]:
         _add(links, m.group(0))
         return ""
 
+    def link_list(m: re.Match) -> str:
+        for link in MD_LINK.finditer(m.group(1)):
+            _add(links, link.group(2))
+        for url in URL.finditer(MD_LINK.sub("", m.group(1))):
+            _add(links, url.group(0))
+        return ""
+
+    out = LINK_LIST.sub(link_list, out)
     out = MD_LINK.sub(md_link, out)
     out = URL.sub(bare, out)
     out = INLINE_CODE.sub(lambda m: m.group(1), out)
@@ -88,6 +107,8 @@ def to_speech(text: str) -> tuple[str, list[str]]:
         joined = SPACE_BEFORE_PUNCT.sub(r"\1", joined)
         joined = REPEATED_PUNCT.sub("", joined)
     joined = SPACES.sub(" ", joined).strip()
+    if links:
+        joined = TRAILING_LABELS.sub("", joined).strip()
     if joined in {".", ",", ":", ";"}:
         joined = ""
     return joined, links

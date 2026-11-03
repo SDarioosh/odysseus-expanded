@@ -102,9 +102,12 @@ differences:
   nor a search hit. The model is told "Not run: this request can only read", and the turn
   never pauses for an approval.
 - **The voice instructions** (`fork/voice/prompt.py`) stand where a chat's preset text
-  goes: one to three spoken sentences, answer first, no markdown, numbers and times as
-  spoken, links at the end, "I can't make changes by voice" for change requests, "I
-  don't know" over a guess.
+  goes: the owner's tools first for questions about their life (as in chat), then one to
+  three spoken sentences, no markdown, numbers and times as spoken, links at the end, "I
+  can't make changes by voice" for change requests. A first version that also asked for
+  "the answer first" and "I don't know when the tools return nothing" made the sandbox's
+  small model skip the tools and answer "I don't know"; the instructions now say tools
+  come first.
 - **Model:** the owner's default chat model (Settings → default model). The brain's
   local-only rule applies: an outside API answers "The assistant runs only on local
   models."
@@ -134,9 +137,43 @@ New chats are named "Voice: <question>" and filed in the **Voice** folder.
 `fork/voice/speech.py`. Markdown is removed (headings, bold, lists, tables, quotes, code
 blocks); each list item or heading becomes a sentence; `[label](url)` keeps the label
 unless it only names the link ("transcript", "source", …); bare URLs and `[1]` citations
-are removed. The links are collected, once each, in order, into `odysseus.links`. While
-streaming, text is sent one finished sentence at a time and never cut inside an open
-link or code block, so text-to-speech can start before the answer is done.
+are removed, and so is a list of links with its lead-in ("Links: …", "Sources: …") and
+link names left hanging at the end ("Office move: <url>"). The links are collected, once
+each, in order, into `odysseus.links`.
+
+A whole answer (no `stream`) speaks only the text of the rounds that ended without a
+tool call, so a model's "Let me search for that" before its tool calls isn't read out.
+While streaming, text is sent one finished sentence at a time and never cut inside an
+open link or code block, so text-to-speech can start before the answer is done; there a
+preamble is spoken, since it is sent before the model's tool calls are known.
+
+## Sandbox results (2026-11-03)
+
+The sandbox stack ([sandbox.md](sandbox.md)): Qwen3-4B on 4 CPUs, Athena's fictional demo
+data, Odysseus on port 7010, the voice token from the Settings route, `curl` to the
+endpoint. Small-model results only compare with other sandbox runs.
+
+| Check | Result |
+|---|---|
+| `GET …/models` with the voice token | `odysseus` |
+| no token / a `chat`-only token / the voice token on the token route | 401 / 403 / 403 |
+| "What did Alice say about the Q4 budget?" | right (15% cut, revised to 10%, from two conversations), two Athena searches, 2 links apart, no markdown; ~2.5 min |
+| follow-up "And when is the spreadsheet due?" (same `user`) | same chat continued; right (Friday after the September 15 conversation); ~1.5 min |
+| "Mark the revised spreadsheet action item as done." | nothing changed (the write tools aren't offered); the small model's reply doesn't always use the voice wording; ~20–30 s |
+| "Who is moving to Berlin, and when?" (streamed) | chunks arrive as OpenAI `chat.completion.chunk` events; wrong: the small model called no tool and said it didn't know. Chat with the same model searched and answered (Alice, January 12) after a wobble |
+| "What is the capital of France?" | "Paris." |
+
+Notes from the run:
+
+- The tool set a voice turn sends the model (seen through a logging proxy): web search,
+  fetch and weather, Athena's eight read tools, calendar, notes, contacts, memory,
+  documents, beliefs and chat search; not `update_action_item`, `erase_fact`, email or
+  image generation.
+- The first question after a restart can fail with upstream's "no first stream event"
+  read timeout: on CPU, the ~7k-token prompt takes about two minutes to process cold.
+  Chat had the same failure. On the server's GPU this doesn't arise.
+- Each voice chat landed in the Voice folder, named "Voice: <question>", owned by the
+  token's owner.
 
 ## Setup (owner)
 
