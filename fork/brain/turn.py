@@ -221,6 +221,40 @@ async def brain_response(request: Any, *, sess: Any, session_id: str, message: A
     return _response(session_id, _run_new_turn(turn))
 
 
+def read_only_turn(request: Any, *, sess: Any, session_id: str, message: Any, owner: Any,
+                   instructions: str = "", disabled=frozenset(),
+                   services: tuple = ()) -> AsyncGenerator[str, None] | None:
+    """A turn that may only read, for a caller nobody can approve from: a voice request
+    (``fork/voice/``). Returns the turn's events (the chat window's, not detached: the
+    turn ends with its caller), or None when the brain is off or doesn't take the turn.
+
+    It runs as ``owner`` even when a bearer token sent it: upstream keeps token runs
+    away from MCP and the personal stores (``delegated_tool_is_blocked``), and a voice
+    question is about exactly those. In their place: only the tools that can read are
+    offered (``toolset.read_only``), minus ``disabled``, and every write, every call
+    upstream's gate would ask about and every fetch of an unknown address is refused,
+    never asked (``tools.read_only_refusal``). ``instructions`` stands where a preset's
+    text goes. The owner's message and the answer are saved in ``sess`` like a chat turn;
+    no memories are extracted from it (anyone near a voice satellite can speak).
+    """
+    _sweep_soon()
+    if not brain_settings.enabled():
+        return None
+    if not takes_turn(message=message, upstream_turn=False, request=request):
+        return None
+    if not agent_permitted(request, owner):
+        return None
+    expire_pending()
+    deps = _Deps(*services) if services else _Deps()
+    drop_pending_for_chat(owner=owner, session_id=session_id)
+    turn = _start_turn(request, sess=sess, session_id=session_id, message=message,
+                       owner=owner, preset_id=None, deps=deps)
+    turn.read_only = True
+    turn.prep.update(preset_text=str(instructions or ""), read_only=True,
+                     disabled=frozenset(disabled or ()))
+    return _run_new_turn(turn)
+
+
 def _response(session_id: str, stream: AsyncGenerator[str, None]) -> Any:
     """Detached like upstream's chat turns: it survives a closed tab and
     ``/api/chat/resume`` reconnects to it. Same media type and headers."""
@@ -293,6 +327,7 @@ class _Turn:
     timer: Any = None
     prep: dict | None = None  # what _prepare() still needs; None once prepared
     attachments: tuple = ()  # upstream's attachment_meta of the owner's message
+    read_only: bool = False  # read_only_turn: no writes, and no memories taken from it
 
 
 _PENDING: dict[str, _Turn] = {}
@@ -506,13 +541,18 @@ async def _prepare(turn: _Turn) -> None:
     """The tool set, the prompt and the run's authority and security context."""
     prep, turn.prep = turn.prep, None
     request, rows, owner, message = prep["request"], prep["rows"], turn.owner, turn.message
-    delegated = _delegated(request)
+    read_only = bool(prep.get("read_only"))
+    # A read-only turn runs as its owner, not as the token that sent it (read_only_turn)
+    delegated = False if read_only else _delegated(request)
     rag = brain_documents.rag_manager(request)
     disabled = brain_tools.turn_disabled_tools(
         request, owner, privileges=_privileges(request, owner), delegated=delegated,
         rag=rag, use_rag=prep["use_rag"])
+    disabled |= set(prep.get("disabled") or ())
     schemas = toolset.for_chat(turn.session_id, owner=owner, disabled=disabled)
     schemas = toolset.with_skill_tools(schemas, message, owner=owner, disabled=disabled)
+    if read_only:
+        schemas = toolset.read_only(schemas)
 
     keep_ids = [brain_prompt.message_id(m) for m in rows if brain_prompt.message_id(m)]
     try:
@@ -538,7 +578,7 @@ async def _prepare(turn: _Turn) -> None:
         offered=tuple(toolset.names(schemas)), disabled=disabled, delegated=delegated,
         prompt_messages=messages,
         external_seen=bool(prep["external_seen"] or tainted or files_seen),
-        chat_search_hits=hits, rag=rag)
+        chat_search_hits=hits, rag=rag, read_only=read_only)
     if attached:
         brain_tools.distrust(run, brain_attachments.SOURCE)
     selected = [brain_selection.notes_item(prep.get("selected_notes")),
@@ -1043,7 +1083,7 @@ def _save_answer(turn: _Turn, text: str, *, post_tasks: bool = True,
                 deps.webhook_manager, character_name=turn.character_name,
                 agent_rounds=turn.rounds_run, agent_tool_calls=turn.tool_calls,
                 skills_manager=deps.skills_manager, owner=turn.owner, extract_skills=False,
-                allow_background_extraction=extraction)
+                allow_background_extraction=extraction and not turn.read_only)
         except Exception:  # noqa: BLE001
             logger.warning("brain: after-turn jobs failed", exc_info=True)
     return str(message_id) if message_id else None
