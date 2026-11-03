@@ -333,6 +333,108 @@ conversation id in. If it sends neither `user` nor earlier turns, every question
 new chat and follow-ups lose their context; a "yes" then confirms nothing either
 (it must reach the conversation that asked).
 
+## Satellites: owner-only answers and announcements
+
+Status: built hub side (2026-11-03). Needs the Echo app's satellite post and, for the
+speaker check, Athena's `POST /speakers/identify` (MCP 0.22.0); with an older Athena the
+check answers "couldn't check".
+
+### Satellite context
+
+`fork/voice/satellite.py`, `fork/voice/satellite_routes.py`. When the owner stops
+speaking (the pipeline's VOICE_STOPPED), before Home Assistant has asked Odysseus, the
+satellite posts what only it knows:
+
+`POST /api/chat/voice/v1/satellite/turn` (the `voice` token), `multipart/form-data` (a
+urlencoded form works without audio):
+
+| Field | |
+|---|---|
+| `device_id` | required, at most 128 characters |
+| `device_name`, `area`, `wake_word` | optional text (100, 100, 64 characters) |
+| `started_at` | epoch ms of the wake word (default: now) |
+| `audio` | optional WAV (16 kHz mono 16-bit, the spoken command, ≤ 15 s); at most 1 MiB, must start with a RIFF/WAVE header (else 413 / 415) |
+
+The request needs a `Content-Length` (411 without, 413 above ~1.06 MB), so an oversized
+upload is refused before it is read. Answer: `{"ok": true, "context_id": "…",
+"speaker": {"verified", "is_owner", "name", "score"} | null}`; `speaker` is null without
+audio, when Athena couldn't check, or while the check still runs (the route waits at most
+0.5 s for it).
+
+The hub keeps the context **in memory** for 30 s, per token owner (at most 8 per owner, 64
+owners). The voice turn takes it with `claim(owner, wait_seconds=3.0)`: the newest
+unclaimed context of that owner, each claimed once; if its speaker check is still
+running, it waits up to `wait_seconds`. The turn puts device and room in its context
+("Asked from: Kitchen Echo, Kitchen") and on the ledger (HUB-CORE's side, `fork/voice/routes.py`).
+After a restart, or with several workers, a turn may find no context: it is then answered
+as if no satellite had posted.
+
+**The speaker check** runs as a background task: the audio goes to Athena's relay route
+`POST /speakers/identify` (field `audio`) through the MCP server Odysseus has for Athena
+(`SOUND_MODULE_SERVER`, `fork/athena/client.py`, token as `Authorization: Bearer`, 10 s
+timeout). Athena compares it with the enrolled voices ([Enroll My Voice](modules/athena.md#enroll-my-voice)):
+a match gives `verified: true` and its `is_owner` and `name`; no match above Athena's
+threshold gives `verified: true, is_owner: false`; too little speech (< 1 s), a 404 (an
+older Athena), a timeout, a refusal or no Athena set up give `speaker: null`. **The audio
+is never written or logged**: it is held only by that task and dropped when Athena
+answers; only the outcome is logged.
+
+### Owner-only answers
+
+`personal_allowed(ctx)`, setting `FORK_VOICE_PRIVATE`:
+
+- `off` (default, and any value other than `owner`): every voice turn may use personal
+  tools, as before.
+- `owner`: personal tools (Athena, calendar, notes, contacts, memory, beliefs, documents,
+  chat search) run only when the turn's context has a speaker that Athena verified as the
+  owner. Otherwise they answer "I can only answer that for the owner of this assistant."
+  (`PRIVATE_REPLY`); web and weather stay allowed. No context, no audio and "couldn't
+  check" all count as not the owner.
+
+### Announcements
+
+`fork/voice/announce.py`: `await announce(message, entities=None) -> bool` speaks a message
+on the satellites through Home Assistant's `assist_satellite.announce` service
+(`POST <FORK_HA_URL>/api/services/assist_satellite/announce`, `{"entity_id": [...],
+"message": "..."}`, `Authorization: Bearer <FORK_HA_TOKEN>`, 10 s timeout, no redirects).
+Home Assistant speaks it with its own local text-to-speech. It never raises; a refusal is
+logged without the message. Later features (a spoken daily briefing) call it the same way.
+
+- **Reminders:** when a note reminder fires (the note-reminder scanner in
+  `src/builtin_actions.py`, the same dispatch that sends ntfy/email/browser), the hook
+  `announce_reminder(title)` also says "Reminder: <title>", in the background: the
+  reminder itself never waits for or fails on Home Assistant. Off until `FORK_HA_URL`,
+  `FORK_HA_TOKEN` and `FORK_VOICE_ANNOUNCE_ENTITIES` are all set.
+- **Test:** `POST /api/fork/voice/announce` (signed-in admin, browser), `{"message"?: str}`
+  → `{"ok": true|false, "problem": "…"|null}`.
+- **Only a local Home Assistant:** `FORK_HA_URL` must be `http(s)://host[:port][/path]` with
+  a host that is local, on a private network or in Tailscale's range; a name is resolved
+  and every address must be one. A public host, a URL with credentials, a query or a
+  fragment is refused.
+
+### Settings
+
+| Variable | Meaning |
+|---|---|
+| `FORK_VOICE_PRIVATE` | `off` (default) or `owner` |
+| `FORK_HA_URL` | Home Assistant's address, e.g. `http://192.168.1.20:8123` (local hosts only) |
+| `FORK_HA_TOKEN` | a Home Assistant long-lived access token (a secret: `.env` only) |
+| `FORK_VOICE_ANNOUNCE_ENTITIES` | comma list, e.g. `assist_satellite.kitchen_echo` |
+
+### Security trade-offs
+
+- A voiceprint is not a password: a recording of the owner, or a close voice, can pass
+  Athena's threshold. `FORK_VOICE_PRIVATE=owner` keeps casual visitors out of personal
+  answers, nothing more. Without it (the default), anyone near a satellite can ask.
+- Contexts are matched to turns by owner and time only (the newest within 30 s): two
+  satellites of one owner asking at the same moment could swap contexts. Each context is
+  used once, and a missing one never grants more.
+- The voice token can now also send audio to Athena's identify route; Athena only compares
+  it and writes nothing.
+- Announcements speak reminder titles aloud in the room, to whoever is there; the
+  Home Assistant token can control the owner's home, so it stays in `.env` only and is
+  only ever sent to the private host.
+
 ## Later
 
 - The answer's link labels (conversation titles) in `links[].label`.
@@ -346,10 +448,12 @@ new chat and follow-ups lose their context; a "yes" then confirms nothing either
   after a yes), `ledger.py` (turns and actions). The satellite's context and
   announcements are `fork/voice/satellite.py` and `announce.py`, optional here (the routes
   import the satellite module lazily and work without it).
+- Satellites and announcements: `fork/voice/satellite.py`, `satellite_routes.py`,
+  `announce.py`; the hook in `src/builtin_actions.py` (`ping_notes`).
 - In the brain: `read_only_turn` (`fork/brain/turn.py`: `shared_prefix`, `preset`,
   `gate`, `context_lines`, `no_memory`), `ToolRun.gate` and `read_only_refusal`
   (`fork/brain/tools.py`), `can_read` and `read_only` (`fork/brain/toolset.py`).
 - `static/js/forkVoiceAssistant.js`: the Settings card.
 - Hooks: `routes/api_token_routes.py` (scope `voice`), `static/index.html` (the card's
   script tag); the router is in `fork/routes/__init__.py`.
-- Tests: `tests/fork/test_voice_assistant.py`.
+- Tests: `tests/fork/test_voice_assistant.py`, `tests/fork/test_voice_satellite.py`.
