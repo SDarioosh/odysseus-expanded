@@ -95,6 +95,8 @@ complete); a setting left out of `.env` keeps the code's default:
   `FORK_CHECKLIST_ARCHIVE_MINUTES`;
 - the brain: `FORK_BRAIN` (on unless `.env` sets `FORK_BRAIN=off`), `FORK_BRAIN_MAX_ROUNDS`,
   `FORK_BRAIN_TOOL_GROUPS` ([brain.md](brain.md#settings));
+- voice satellites: `FORK_VOICE_PRIVATE`, `FORK_HA_URL`, `FORK_HA_TOKEN` (a secret),
+  `FORK_VOICE_ANNOUNCE_ENTITIES` ([voice-assistant.md](voice-assistant.md#satellites-owner-only-answers-and-announcements));
 - handwritten notes: `INK_AUTO_SEND`, and `APP_PUBLIC_URL` (link base when Settings has no
   public URL; upstream's MCP OAuth redirect reads it too).
 
