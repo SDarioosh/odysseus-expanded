@@ -169,7 +169,7 @@ the link goes to its details (what it does, its files, whether it can go upstrea
 
 ### Voice assistant
 
-- [Voice assistant through Home Assistant](docs/fork/voice-assistant.md): `POST /v1/chat/completions` (OpenAI's shape) for a Home Assistant conversation agent, for API tokens with the `voice` scope only. Each question is a read-only brain turn of the token's owner (`read_only_turn`): Athena, calendar, notes, contacts, memory, beliefs, documents and the web are read, nothing is changed or asked, no email; answers are short spoken text with the links apart, and each conversation is a chat in the Voice folder. Settings → Integrations → Voice assistant makes the token.
+- [Voice assistant through Home Assistant](docs/fork/voice-assistant.md): `POST /api/chat/voice/v1/chat/completions` (OpenAI's shape) for a Home Assistant conversation agent, for API tokens with the `voice` scope only. Each question is a read-only brain turn of the token's owner (`read_only_turn`): Athena, calendar, notes, contacts, memory, beliefs, documents and the web are read, nothing is changed or asked, no email; answers are short spoken text with the links apart, and each conversation is a chat in the Voice folder. Settings → Integrations → Voice assistant makes the token.
 
 ### Logs and tests
 

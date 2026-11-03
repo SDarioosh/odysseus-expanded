@@ -17,7 +17,7 @@ satellite (wake word, mic, speaker)
 Home Assistant Assist pipeline
    1. speech-to-text: local Wyoming faster-whisper (or the server's whisper-server)
    2. conversation agent: HA's own commands first, the rest ──► Odysseus
-                                                               POST /v1/chat/completions
+                                                               POST /api/chat/voice/v1/chat/completions
                                                                a read-only brain turn
                                                                (Athena over MCP, calendar, …)
    3. text-to-speech: local Piper (or Kokoro)
@@ -37,12 +37,16 @@ Nothing leaves the owner's network: every stage is local, and Home Assistant Clo
 
 ## The endpoint
 
-`fork/voice/routes.py`, mounted by `fork.routes.mount`.
+`fork/voice/routes.py`, mounted by `fork.routes.mount`. The OpenAI base URL is
+`https://<odysseus>/api/chat/voice/v1`. It is under `/api/chat` on purpose: `app.py`'s
+45-second request timeout (`REQUEST_HARD_TIMEOUT`) leaves that prefix alone, as it does
+for chat streams, and a voice answer can take longer (minutes on the sandbox's CPU); and a
+`/v1` API of upstream's own later can't clash with it. A test fails if the exemption goes.
 
 | Route | Who | What |
 |---|---|---|
-| `POST /v1/chat/completions` | API token with the `voice` scope | one voice question; OpenAI's chat-completion request and response, `stream: true` supported |
-| `GET /v1/models` | the same | `{"data": [{"id": "odysseus", …}]}`, for clients that list models when set up |
+| `POST /api/chat/voice/v1/chat/completions` | API token with the `voice` scope | one voice question; OpenAI's chat-completion request and response, `stream: true` supported |
+| `GET /api/chat/voice/v1/models` | the same | `{"data": [{"id": "odysseus", …}]}`, for clients that list models when set up |
 | `POST /api/fork/voice/token` | signed-in admin (browser) | makes a token with only the `voice` scope (the Settings card) |
 
 Only a bearer token with the `voice` scope may call the first two: a browser login may
@@ -137,7 +141,7 @@ link or code block, so text-to-speech can start before the answer is done.
 ## Setup (owner)
 
 1. **Token:** Settings → Integrations → **Voice assistant** → **Make a voice token**.
-   Copy the API key (shown once), the base URL (`https://<odysseus>/v1`) and the model
+   Copy the API key (shown once), the base URL (`https://<odysseus>/api/chat/voice/v1`) and the model
    (`odysseus`).
 2. **Trusted Athena reads:** `ODYSSEUS_TRUSTED_READONLY_MCP` must name Athena's server
    (`convo` or `athena`), as it already does for chat. Without it Athena's tools aren't
@@ -160,7 +164,7 @@ link or code block, so text-to-speech can start before the answer is done.
 To check, without the satellite (on the owner's network, with the voice token):
 
 ```bash
-curl -s https://<odysseus>/v1/chat/completions \
+curl -s https://<odysseus>/api/chat/voice/v1/chat/completions \
   -H "Authorization: Bearer $VOICE_TOKEN" -H "Content-Type: application/json" \
   -d '{"model":"odysseus","messages":[{"role":"user","content":"What did I talk about yesterday?"}]}'
 ```

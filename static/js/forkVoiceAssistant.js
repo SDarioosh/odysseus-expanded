@@ -11,7 +11,7 @@ const CARD_ID = 'fork-voice-assistant-card';
 /** What Home Assistant needs, as label/value rows (exported for tests). */
 export function setupRows(origin, answer) {
   return [
-    ['Base URL', `${origin}/v1`],
+    ['Base URL', `${origin}/api/chat/voice/v1`],
     ['API key', answer.token],
     ['Model', answer.model || 'odysseus'],
   ];

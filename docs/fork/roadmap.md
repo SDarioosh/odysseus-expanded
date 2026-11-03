@@ -45,7 +45,7 @@ branches) are kept in [status-history.md](status-history.md).
 
 - **Voice assistant** ([voice-assistant.md](voice-assistant.md)): wake-word questions to
   Odysseus and Athena from a Home Assistant voice satellite (the Echo Show 5, 2nd gen, on
-  LineageOS). Hub side built: the OpenAI-compatible `/v1/chat/completions` for `voice`
+  LineageOS). Hub side built: the OpenAI-compatible `/api/chat/voice/v1/chat/completions` for `voice`
   tokens, read-only brain turns, spoken answers, the Settings card. Next: the device and
   Home Assistant setup (separate work), the owner's test with the real satellite, then
   voice changes with a spoken confirmation.

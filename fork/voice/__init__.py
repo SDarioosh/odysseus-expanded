@@ -5,7 +5,8 @@
 * ``sessions.py``: which Odysseus chat a voice conversation continues.
 * ``prompt.py``: the voice instructions the model gets, and the fixed spoken replies.
 * ``openai_api.py``: the OpenAI chat-completions shapes Home Assistant sends and reads.
-* ``routes.py``: ``POST /v1/chat/completions`` and ``GET /v1/models`` for API tokens with
-  the ``voice`` scope; each question is a read-only brain turn
+* ``routes.py``: ``POST /api/chat/voice/v1/chat/completions`` and ``GET …/v1/models`` for
+  API tokens with
+the ``voice`` scope; each question is a read-only brain turn
   (``fork/brain/turn.py``, ``read_only_turn``).
 """

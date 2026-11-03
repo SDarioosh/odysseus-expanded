@@ -1,6 +1,7 @@
 """Fork: the voice endpoint (docs/fork/voice-assistant.md).
 
-``POST /v1/chat/completions`` and ``GET /v1/models``, OpenAI's shapes
+``POST /api/chat/voice/v1/chat/completions`` and ``GET /api/chat/voice/v1/models``
+(:data:`PREFIX` is the OpenAI base URL a client is given), OpenAI's shapes
 (``fork/voice/openai_api.py``), for a Home Assistant conversation agent. Only an API token
 with the ``voice`` scope may call them (a browser login may not: these routes are for a
 device, and a token can be revoked on its own). Each question is one read-only brain turn
@@ -28,6 +29,10 @@ from fork.voice import sessions as voice_sessions
 logger = logging.getLogger(__name__)
 
 SCOPE = "voice"
+# Under /api/chat: app.py's request timeout (REQUEST_HARD_TIMEOUT, 45 s) leaves that prefix
+# alone, as chat streams do, and an answer can take longer; and a /v1 of upstream's own
+# later can't clash with it. Clients take PREFIX as their OpenAI base URL.
+PREFIX = "/api/chat/voice/v1"
 TOKEN_NAME = "Voice assistant"
 CONVERSATION_HEADER = "x-conversation-id"
 # Never offered by voice, whatever the brain's groups say (see the module doc).
@@ -81,12 +86,12 @@ def setup_voice_routes() -> APIRouter:
         return {"token": token["token"], "id": token["id"], "scopes": [SCOPE],
                 "model": openai_api.MODEL_ID}
 
-    @router.get("/v1/models")
+    @router.get(PREFIX + "/models")
     def list_models(request: Request) -> Any:
         voice_owner(request)
         return openai_api.models_body()
 
-    @router.post("/v1/chat/completions")
+    @router.post(PREFIX + "/chat/completions")
     async def chat_completions(request: Request) -> Any:
         owner = voice_owner(request)
         try:

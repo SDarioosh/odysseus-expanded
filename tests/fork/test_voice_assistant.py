@@ -4,6 +4,7 @@ token. Fake model, tools and sessions (tests/fork/brain_fakes.py); fictional dat
 from __future__ import annotations
 
 import json
+import re
 from types import SimpleNamespace
 
 import pytest
@@ -240,28 +241,30 @@ def api(monkeypatch):
 
 
 VOICE = {"x-test-scopes": "voice"}
+URL = voice_routes.PREFIX + "/chat/completions"
+MODELS = voice_routes.PREFIX + "/models"
 ASK = {"model": "odysseus", "messages": [{"role": "user", "content": "Who brings the cake?"}]}
 
 
 def test_only_a_voice_token_may_ask(api):
-    assert api.post("/v1/chat/completions", json=ASK).status_code == 403  # a browser login
-    assert api.post("/v1/chat/completions", json=ASK,
+    assert api.post(URL, json=ASK).status_code == 403  # a browser login
+    assert api.post(URL, json=ASK,
                     headers={"x-test-scopes": "chat"}).status_code == 403
-    assert api.get("/v1/models").status_code == 403
+    assert api.get(MODELS).status_code == 403
     assert api.turns == []
 
 
 def test_models_lists_odysseus(api):
-    assert api.get("/v1/models", headers=VOICE).json()["data"][0]["id"] == "odysseus"
+    assert api.get(MODELS, headers=VOICE).json()["data"][0]["id"] == "odysseus"
 
 
 def test_a_bad_request_gets_an_openai_error(api):
-    res = api.post("/v1/chat/completions", json={"messages": []}, headers=VOICE)
+    res = api.post(URL, json={"messages": []}, headers=VOICE)
     assert res.status_code == 400 and "messages" in res.json()["error"]["message"]
 
 
 def test_answer_is_spoken_text_with_the_links_apart(api):
-    res = api.post("/v1/chat/completions", json=ASK, headers=VOICE)
+    res = api.post(URL, json=ASK, headers=VOICE)
     body = res.json()
     assert res.status_code == 200 and body["object"] == "chat.completion"
     assert body["choices"][0]["message"] == {"role": "assistant",
@@ -276,7 +279,7 @@ def test_answer_is_spoken_text_with_the_links_apart(api):
 
 
 def test_streamed_answer_is_openai_chunks(api):
-    res = api.post("/v1/chat/completions", json={**ASK, "stream": True}, headers=VOICE)
+    res = api.post(URL, json={**ASK, "stream": True}, headers=VOICE)
     lines = [l[6:] for l in res.text.split("\n\n") if l.startswith("data: ")]
     assert lines[-1] == "[DONE]"
     chunks = [json.loads(l) for l in lines[:-1]]
@@ -290,10 +293,10 @@ def test_streamed_answer_is_openai_chunks(api):
 
 def test_a_follow_up_continues_the_chat_and_a_new_conversation_does_not(api):
     follow = {"user": "ha-conv-1", **ASK}
-    api.post("/v1/chat/completions", json=follow, headers=VOICE)
-    api.post("/v1/chat/completions", json=follow, headers=VOICE)
-    api.post("/v1/chat/completions", json={"user": "ha-conv-2", **ASK}, headers=VOICE)
-    api.post("/v1/chat/completions", json=ASK, headers=VOICE)  # no conversation: new chat
+    api.post(URL, json=follow, headers=VOICE)
+    api.post(URL, json=follow, headers=VOICE)
+    api.post(URL, json={"user": "ha-conv-2", **ASK}, headers=VOICE)
+    api.post(URL, json=ASK, headers=VOICE)  # no conversation: new chat
     sids = [t["sid"] for t in api.turns]
     assert sids[0] == sids[1] and len(set(sids)) == 3
 
@@ -314,6 +317,17 @@ def test_no_answer_and_failures_are_spoken():
     answer = openai_api.Answer()
     answer.feed('data: {"type": "ask_user", "data": {}}\n\n')
     assert answer.finish().startswith("I can't make changes by voice.")
+
+
+def test_the_voice_routes_are_outside_the_request_timeout():
+    """A CPU answer takes minutes: app.py's 45 s timeout must leave the prefix alone."""
+    from pathlib import Path
+
+    app = (Path(__file__).resolve().parents[2] / "app.py").read_text(encoding="utf-8")
+    block = app[app.index("_TIMEOUT_EXEMPT_PREFIXES = ("):]
+    block = block[:block.index(")")]
+    exempt = re.findall(r'"(/[^"]*)"', block)
+    assert any(voice_routes.PREFIX.startswith(p) for p in exempt)
 
 
 # ------------------------------------------------------------------ the voice token
