@@ -28,8 +28,11 @@ satellite
 Nothing leaves the owner's network: every stage is local, and Home Assistant Cloud
 (Nabu Casa) speech is not used.
 
-- **Voice can only look things up.** Every voice question is a read-only turn: no
-  changes, no approvals (nobody can approve by voice), no email.
+- **Voice looks things up, and adds and completes items.** Every voice question is a
+  read-only turn (no approvals: nobody can approve by voice; no email) with two
+  exceptions while the owner setting is on: adding a to-do, reminder, event, note or list
+  line, and marking one item done ([Voice actions](#voice-actions)). Nothing else changes
+  by voice.
 - **Each voice conversation is a chat** in the **Voice** folder, so the owner can read
   what was asked and answered, and continue it in the app.
 - **Answers are spoken text:** short, no markdown, links taken out of the speech and
@@ -100,11 +103,14 @@ differences:
   an offered store (`manage_calendar` `create_event`, …), a call upstream's approval gate
   wouldn't let through, and a `web_fetch` of an address that is neither in the question
   nor a search hit. The model is told "Not run: this request can only read", and the turn
-  never pauses for an approval.
+  never pauses for an approval. The only exceptions are the turn's own actions, by name
+  (`voice_add`, `voice_complete`, [below](#voice-actions)), given to `read_only_turn` as
+  `actions`; with the setting off it gets none.
 - **The voice instructions** (`fork/voice/prompt.py`) stand where a chat's preset text
   goes: the owner's tools first for questions about their life (as in chat), then one to
   three spoken sentences, no markdown, numbers and times as spoken, links at the end, "I
-  can't make changes by voice" for change requests. A first version that also asked for
+  can't make changes by voice" for change requests. With voice actions on, the last rule
+  is replaced (`ACTION_INSTRUCTIONS`), see [below](#voice-actions). A first version that also asked for
   "the answer first" and "I don't know when the tools return nothing" made the sandbox's
   small model skip the tools and answer "I don't know"; the instructions now say tools
   come first.
@@ -117,10 +123,100 @@ differences:
   (`search_beliefs`) and read the memory store (`manage_memory`).
 
 The security trade-off, for the owner to keep in mind: the voice token can read the
-owner's conversations, calendar, notes, contacts and beliefs (not email), but it can't
-change anything or reach anything an ordinary chat couldn't. Whoever holds the token
-(Home Assistant) and anyone who can talk to the satellite can ask. Keep the satellite in
-a private room and the token in Home Assistant only.
+owner's conversations, calendar, notes, contacts and beliefs (not email), and, with voice
+actions on, add items and mark them done; it can't change anything else or reach anything
+an ordinary chat couldn't. Whoever holds the token (Home Assistant) and anyone who can
+talk to the satellite can ask, and add or tick off items without being asked to confirm
+(each one is pushed to the owner's phone, so it doesn't go unnoticed). Keep the satellite
+in a private room and the token in Home Assistant only; turn voice actions off in
+Settings if others use the room.
+
+## Voice actions
+
+`fork/voice/actions.py`. The owner setting **Voice can add and complete items**
+(Settings → Integrations → Voice assistant; stored as `fork_voice_actions` in the
+settings file, default on). Off: voice turns are exactly read-only, as above. On: the
+voice turn is also offered two tools, run at once, without a confirmation, and nothing
+else is allowed: edits, deletes, reopening, email, memory, facts (`erase_fact`,
+`retire_fact`), documents and image generation are still never offered and refused if
+called.
+
+**`voice_add`** (`kind` task / reminder / event / note, `text`, `title`, `due_date`,
+`due_time`, `list_name`, `note_title`) builds the item dict Athena's local model makes from
+a voice note and files it with the same code, `create_item` in
+`fork/athena/action_items_filing.py` (split out of `_file_one`, which now calls it), so a
+spoken sentence is filed exactly as the same sentence in a voice note:
+
+| Said | Filed |
+|---|---|
+| "Remind me to call the dentist tomorrow at 9" | a to-do "call the dentist", due tomorrow 09:00 |
+| "Add milk to my shopping list" | the line "milk" on the to-do list "Shopping" (made if missing) |
+| "Add a task to fix the bike light" (no date, no list) | a line on the "Voice notes" list |
+| "Put lunch with Sam on Friday at noon on my calendar" | a 60-minute event, 30-minute reminder; all-day without a time |
+| "Make a note that the garage code is changing" | an Odysseus note |
+| "Add to my hardware notes that …" | a line "- …" in the note "Hardware notes" |
+
+The voice-specific parts: dates may also be `today`, `tomorrow` or a weekday ("next
+Monday" is a week on), times `9am`, `9:30 pm`, `noon` (`parse_date`, `parse_time`); a
+time without a date is today's, or tomorrow's once it has passed. A voice item is not an
+Athena item: its calendar uid is `voice:<random>` (never one of Athena's
+`odysseus-sound:item:convo:<id>` uids), new notes and lists it makes carry the label
+`voice` (not `athena`, so the beliefs job reads its notes as the owner's own), the source
+line is "Added by voice", and it is not written into the action-items state file, so the
+job never syncs it. The same add again within two minutes (a model or Home Assistant
+retry) is made once.
+
+**`voice_complete`** (`description`) searches the unticked lines of the owner's open
+to-dos and lists, and Athena's open action items (`list_action_items`, JSON). A voice-note
+item the job filed as a to-do is one item, not two: its to-do line is ticked and Athena is
+told at once (`update_action_item`, status done; otherwise the job carries it across on
+its next pass). Matching: an exact text first, else the items with the largest share of
+the description's words (at least half).
+
+- One clear match: marked done ("Marked 'send the spreadsheet to Alice' done.").
+- Several: nothing changes, and the tool asks one short question ("Which one: 'call the
+  dentist' on Voice notes or 'Call the plumber'?"). The options count as said for the
+  next turn of that chat (5 minutes), so "the second one" works.
+- None: "I couldn't find an open to-do matching '…'."
+
+**Grounding.** An action runs only on what was said: at least half of the item's words
+(and of its list name) must be in the spoken request, and one word of a completion's
+description (or a clarification option). So an instruction written in a transcript,
+note or web page the turn has read can't add or tick anything off. A refused action
+tells the model "Not run: …".
+
+**Phone push.** One push per action ("Voice: Marked '…' done."), through the action-items
+job's reminder channel (`MODULE_NOTIFY_CHANNEL`, ntfy by default), so the owner notices
+changes made by someone else in the room. Its own setting, **Push voice actions to my
+phone** (`fork_voice_action_push`, default on). The owner hasn't decided on this default
+yet.
+
+**Prompt** (`ACTION_INSTRUCTIONS` in `fork/voice/prompt.py`): the read-only text, with
+its last rule replaced by:
+
+> - To add something (a to-do, a reminder, a calendar event, a note, a line on a list:
+>   "remind me to…", "add … to my … list", "make a note…", "put … on my calendar"), call
+>   voice_add. To mark something done ("mark … done", "I've finished …", "tick off …"),
+>   call voice_complete directly with the item in the owner's words; it searches by
+>   itself. Both act at once, with no confirmation. Then say the tool's result sentence,
+>   and nothing more.
+> - You can't edit, move, reopen or delete anything, or change email, memory, facts or
+>   documents, by voice. For those, say in one sentence that they can do it in the
+>   Odysseus app.
+> - Never end with a question or an offer ("Would you like…", "Shall I…", "Let me know
+>   if…"). The only question you may ask is which item was meant, when voice_complete
+>   asks it.
+
+Why no trailing questions: Extended OpenAI Conversation sets Home Assistant's
+`continue_conversation` when a reply ends with "?" or offers more. Home Assistant then
+sends the next utterance only to Odysseus and skips its own local commands
+(`_intent_agent_only` in HA's `assist_pipeline`), so "turn off the lights" would come to
+us. `speech.py` drops such a sentence too (below).
+
+The brain's check for invented actions (`fork/brain/claims.py`) counts `voice_add` as a
+calendar or notes write and `voice_complete` as a notes or action-items write.
+
+Routes: `GET`/`PUT /api/fork/voice/settings` (admin) `{"actions": bool, "push": bool}`.
 
 ## Conversations
 
@@ -138,8 +234,17 @@ New chats are named "Voice: <question>" and filed in the **Voice** folder.
 blocks); each list item or heading becomes a sentence; `[label](url)` keeps the label
 unless it only names the link ("transcript", "source", …); bare URLs and `[1]` citations
 are removed, and so is a list of links with its lead-in ("Links: …", "Sources: …") and
-link names left hanging at the end ("Office move: <url>"). The links are collected, once
-each, in order, into `odysseus.links`.
+link names left hanging at the end ("Office move: <url>"). Any short lead-in that names
+links, sources or transcripts at the start of a sentence goes the same way with the link
+names after it ("Links to the conversations: [Q4 Budget Cut](…) and [Office move](…)."),
+and so do parentheses left holding only a link's name ("(Web )"). The links are
+collected, once each, in order, into `odysseus.links`.
+
+A trailing offer or question ("Would you like…", "Let me know if…", "Shall I…?") is
+dropped (`strip_offers`), unless it asks which one was meant ("Which one: …?") or is all
+there is. In a whole answer that is any such sentence at the end; while streaming, the
+last unfinished piece (a model's final sentence has nothing after it, so it is still
+held when the stream ends).
 
 A whole answer (no `stream`) speaks only the text of the rounds that ended without a
 tool call, so a model's "Let me search for that" before its tool calls isn't read out.
@@ -195,6 +300,11 @@ Notes from the run:
    speech-to-text and text-to-speech of step 3, the conversation agent of step 4, and
    **Prefer handling commands locally** on, so "turn off the lights" stays in Home
    Assistant and everything else goes to Odysseus. Pick this assistant on the satellite.
+   Caveat: with this on, Home Assistant's built-in intents answer some phrasings before
+   Odysseus hears them: timers, and, if Home Assistant has a To-do list entity, "add X to
+   my shopping list" and "mark X complete" (they go to Home Assistant's list, not
+   Odysseus'). Remove or rename that To-do entity, or use other words ("put milk on my
+   shopping list"), to reach Odysseus.
 6. **Optional second wake word**, for example "Hey Athena": a second assistant with the
    same agent, chosen by that wake word on the satellite.
 
@@ -212,7 +322,7 @@ new chat and follow-ups lose their context.
 
 ## Later
 
-- Voice changes with a spoken confirmation ("Add the dentist on Tuesday at three?" —
+- Edits and deletes by voice with a spoken confirmation ("Move the dentist to three?" —
   "Yes").
 - Private answers only for the owner's voice: Athena already keeps the owner's voiceprint
   (Enroll My Voice); the satellite's audio could be checked against it.
@@ -220,10 +330,12 @@ new chat and follow-ups lose their context.
 
 ## Files and tests
 
-- `fork/voice/routes.py`, `openai_api.py`, `sessions.py`, `speech.py`, `prompt.py`.
+- `fork/voice/routes.py`, `openai_api.py`, `sessions.py`, `speech.py`, `prompt.py`,
+  `actions.py` (voice actions; filing through `create_item` in
+  `fork/athena/action_items_filing.py`).
 - In the brain: `read_only_turn` (`fork/brain/turn.py`), `read_only_refusal`
   (`fork/brain/tools.py`), `can_read` and `read_only` (`fork/brain/toolset.py`).
 - `static/js/forkVoiceAssistant.js`: the Settings card.
 - Hooks: `routes/api_token_routes.py` (scope `voice`), `static/index.html` (the card's
   script tag); the router is in `fork/routes/__init__.py`.
-- Tests: `tests/fork/test_voice_assistant.py`.
+- Tests: `tests/fork/test_voice_assistant.py`, `tests/fork/test_voice_actions.py`.
