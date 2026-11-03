@@ -170,6 +170,7 @@ the link goes to its details (what it does, its files, whether it can go upstrea
 ### Voice assistant
 
 - [Voice assistant through Home Assistant](docs/fork/voice-assistant.md): `POST /api/chat/voice/v1/chat/completions` (OpenAI's shape) for a Home Assistant conversation agent, for API tokens with the `voice` scope only. Each question is a read-only brain turn of the token's owner (`read_only_turn`): Athena, calendar, notes, contacts, memory, beliefs, documents and the web are read, nothing is changed or asked, no email; answers are short spoken text with the links apart, and each conversation is a chat in the Voice folder. Settings → Integrations → Voice assistant makes the token.
+- [Voice actions](docs/fork/voice-assistant.md#voice-actions): with the owner setting "Voice can add and complete items" (on by default), a voice turn may also add to-dos, reminders, events, notes and list lines (`voice_add`, filed by the same code as voice-note items: `create_item` in `fork/athena/action_items_filing.py`) and mark one open to-do, list line or Athena action item done (`voice_complete`), and nothing else (`fork/voice/actions.py`); one phone push per action (its own setting, on by default).
 
 ### Logs and tests
 

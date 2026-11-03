@@ -237,9 +237,10 @@ def api(monkeypatch):
         return await call_next(request)
 
     def fake_turn(request, *, sess, session_id, message, owner, instructions, disabled,
-                  services):
+                  services, actions=None):
         turns.append({"sid": session_id, "message": message, "owner": owner,
-                      "instructions": instructions, "disabled": disabled})
+                      "instructions": instructions, "disabled": disabled,
+                      "actions": actions})
 
         async def events():
             yield 'data: {"type": "tool_start", "tool": "x"}\n\n'

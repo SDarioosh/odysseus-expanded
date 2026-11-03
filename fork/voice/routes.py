@@ -10,6 +10,11 @@ of the token's owner (``fork/brain/turn.py``, ``read_only_turn``) in a chat of t
 calendar, notes, contacts, memory, beliefs, documents and the web, and it can't change
 anything. Email is left out: a voice assistant answers out loud, to anyone in the room.
 
+While the owner setting "Voice can add and complete items" is on, a voice turn may also
+add and complete items, and nothing else (``fork/voice/actions.py``).
+``GET``/``PUT /api/fork/voice/settings`` (admin) read and change that setting and its
+phone push.
+
 ``POST /api/fork/voice/token`` (admin, browser) makes a token with only the ``voice``
 scope for the Settings card (``static/js/forkVoiceAssistant.js``); it is shown once and
 listed with the other tokens, where it is revoked.
@@ -21,6 +26,7 @@ from typing import Any
 
 from fastapi import APIRouter, Depends, HTTPException, Request
 from fastapi.responses import JSONResponse, StreamingResponse
+from pydantic import BaseModel
 
 from fork.voice import openai_api
 from fork.voice import prompt as voice_prompt
@@ -60,6 +66,11 @@ def _error(status: int, message: str, kind: str = "invalid_request_error") -> JS
     return JSONResponse(status_code=status, content=openai_api.error_body(message, kind))
 
 
+class VoiceSettingsPut(BaseModel):
+    actions: bool | None = None
+    push: bool | None = None
+
+
 def setup_voice_routes() -> APIRouter:
     from core.middleware import require_admin
 
@@ -85,6 +96,16 @@ def setup_voice_routes() -> APIRouter:
             invalidate()
         return {"token": token["token"], "id": token["id"], "scopes": [SCOPE],
                 "model": openai_api.MODEL_ID}
+
+    @router.get("/api/fork/voice/settings", dependencies=[Depends(require_admin)])
+    def get_settings() -> Any:
+        from fork.voice import actions as voice_actions
+        return voice_actions.settings()
+
+    @router.put("/api/fork/voice/settings", dependencies=[Depends(require_admin)])
+    def put_settings(body: VoiceSettingsPut) -> Any:
+        from fork.voice import actions as voice_actions
+        return voice_actions.save(actions=body.actions, push=body.push)
 
     @router.get(PREFIX + "/models")
     def list_models(request: Request) -> Any:
@@ -113,15 +134,21 @@ def setup_voice_routes() -> APIRouter:
         except voice_sessions.NoModel as exc:
             return _error(503, str(exc), "server_error")
         from fork.brain.turn import read_only_turn
+        from fork.voice import actions as voice_actions
 
+        actions = voice_actions.for_turn()  # None: read-only, exactly as before
         events = read_only_turn(
             request, sess=sess, session_id=str(sess.id), message=question.text,
-            owner=owner, instructions=voice_prompt.INSTRUCTIONS, disabled=LEFT_OUT,
-            services=(session_manager,))
+            owner=owner, disabled=LEFT_OUT, services=(session_manager,),
+            instructions=voice_prompt.ACTION_INSTRUCTIONS if actions is not None
+            else voice_prompt.INSTRUCTIONS,
+            **({"actions": actions} if actions is not None else {}))
         if events is None:
             return _error(503, "Voice answers need the brain (FORK_BRAIN) and an owner "
                                "allowed to use the agent.", "server_error")
-        answer = openai_api.Answer(streaming=question.stream)
+        answer = openai_api.Answer(
+            streaming=question.stream,
+            expects_action=actions is not None and voice_actions.is_command(question.text))
         if question.stream:
             return StreamingResponse(
                 openai_api.stream(events, question, answer, str(sess.id)),

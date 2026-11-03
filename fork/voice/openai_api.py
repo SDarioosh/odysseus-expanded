@@ -13,18 +13,22 @@ from __future__ import annotations
 
 import json
 import logging
+import re
 import time
 import uuid
 from collections.abc import AsyncIterator
 from dataclasses import dataclass, field
 from typing import Any
 
+from fork.voice import actions as voice_actions
 from fork.voice import prompt as voice_prompt
 from fork.voice.speech import SpeechStream
 
 logger = logging.getLogger(__name__)
 
 MODEL_ID = "odysseus"
+# The brain's note after an answer that claims a change no write made (fork/brain/claims.py)
+CLAIMS_NOTE = re.compile(r"\n\nNote: [^\n]*\bin this turn\b[^\n]*$")
 MAX_QUESTION_CHARS = 2000
 
 
@@ -100,6 +104,11 @@ class Answer:
     refused: bool = False  # the turn wanted an approval: nobody can give one by voice
     failed: bool = False
     tokens: tuple[int, int] = (0, 0)
+    # what the voice actions that ran said (fork/voice/actions.py): a whole answer
+    # speaks these instead of the model's retelling of them
+    acted: list = field(default_factory=list)
+    # the question was a command to add or complete something (actions.is_command)
+    expects_action: bool = False
 
     def feed(self, chunk: str) -> str:
         """One SSE chunk of the brain's turn in; the text to speak now out (or "")."""
@@ -126,6 +135,11 @@ class Answer:
         kind = data.get("type")
         if kind == "tool_start":
             self.rounds[-1][1] = True
+        elif kind == "tool_output" and data.get("tool") in voice_actions.NAMES \
+                and not data.get("blocked") and data.get("exit_code") == 0:
+            said = " ".join(str(data.get("output") or "").split())
+            if said and said not in self.acted:
+                self.acted.append(said)
         elif kind == "agent_step":
             self.rounds.append(["", False])
         if kind == "final_response" and not self.heard_text:
@@ -149,9 +163,23 @@ class Answer:
         """The rest to speak once the turn is over."""
         if not self.streaming:
             answer = [text for text, called in self.rounds if text.strip() and not called]
+            if self.acted:
+                # what was done (or which one is meant), in the tool's own words: a small
+                # model's retelling can say "marked done" after a "which one?"
+                answer = [" ".join(self.acted)]
+            elif self.expects_action and answer:
+                # a command with no action behind it: nothing changed, whatever the
+                # model says ("Note created.")
+                answer = [voice_prompt.NO_ACTION_REPLY]
+            elif answer and CLAIMS_NOTE.search(answer[-1]):
+                # the answer claims a change that wasn't made: say so, not the claim
+                answer = [voice_prompt.NOT_CHANGED_REPLY]
             self.speech.feed("\n\n".join(answer))
             self.rounds = [["", False]]
         rest = self.speech.finish()
+        if not self.streaming:  # a whole answer: no offer or question at its end at all
+            from fork.voice.speech import strip_offers
+            self.speech.spoken = strip_offers(self.speech.spoken)
         if self.refused and not self.speech.spoken:
             # a read-only turn never pauses (fork/brain/tools.py); if one did, say so
             return self.speech.feed(voice_prompt.READ_ONLY_REPLY) + self.speech.finish()
