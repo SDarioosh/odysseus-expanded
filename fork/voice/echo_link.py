@@ -12,7 +12,7 @@ sends the phone on to the Echo with the fields in the URL *fragment*,
 * ``token``: the voice token, shown nowhere else and never logged;
 * ``base_url``: ``<origin the browser used>/api/chat/voice/v1``;
 * ``ha_url``: the Home Assistant address saved by "Set up Home Assistant"
-  (``fork.voice.ha_settings.get_ha_url``), or empty.
+  (``fork.voice.ha_settings.home_assistant_url``), or empty.
 
 The return URL is checked here (:func:`check_return`): ``http``, port 10801, path
 ``/setup/<code>/odysseus``, nothing else, on a private or Tailscale address or a home
@@ -38,7 +38,7 @@ import secrets
 import threading
 import time
 from dataclasses import dataclass
-from datetime import date
+from datetime import date, datetime
 from typing import Any
 from urllib.parse import quote, urlencode, urlsplit
 
@@ -135,6 +135,33 @@ def token_name(name: str, day: date | None = None) -> str:
     return f"{TOKEN_PREFIX} {name} {stamp}" if name else f"{TOKEN_PREFIX} {stamp}"
 
 
+# Of an Echo's earlier tokens (same name), the newest besides the new one is kept: if the
+# phone never reaches the Echo, the Echo still works with it. Older ones are deleted.
+KEEP_EARLIER = 1
+
+
+def prune_echo_tokens(owner: str, name: str, keep: str) -> int:
+    """Delete this Echo's old voice tokens: ``owner``'s "Echo <name> <date>" tokens with only
+    the ``voice`` scope, except ``keep`` (the new one) and the newest earlier one. Unnamed
+    Echos can't be told apart, so nothing is deleted for them. Returns how many went."""
+    if not name:
+        return 0
+    from core.database import ApiToken, get_db_session
+
+    pattern = re.compile(r"^" + re.escape(f"{TOKEN_PREFIX} {name} ") + r"\d{4}-\d{2}-\d{2}$")
+    removed = 0
+    with get_db_session() as db:
+        rows = [r for r in db.query(ApiToken).filter(ApiToken.owner == owner).all()
+                if r.id != keep and pattern.match(r.name or "")
+                and (r.scopes or "").strip() == SCOPE]
+        rows.sort(key=lambda r: (r.last_used_at or r.created_at or datetime.min,
+                                 r.created_at or datetime.min), reverse=True)
+        for row in rows[KEEP_EARLIER:]:
+            db.delete(row)
+            removed += 1
+    return removed
+
+
 _ORIGIN_RE = re.compile(r"^https?://[A-Za-z0-9.\-]+(?::[0-9]{1,5})?$|^https?://\[[0-9A-Fa-f:.]+\](?::[0-9]{1,5})?$")
 
 
@@ -158,11 +185,11 @@ def ha_origin(url: str) -> str:
 def saved_ha_url() -> str:
     """The HA address "Set up Home Assistant" saved, if it is a plain http(s) address."""
     try:
-        from fork.voice.ha_settings import get_ha_url
+        from fork.voice.ha_settings import home_assistant_url
     except ImportError:
         return ""
     try:
-        url = (get_ha_url() or "").strip()
+        url = (home_assistant_url() or "").strip()
     except Exception:  # noqa: BLE001 -- an unreadable setting is "not set"
         logger.warning("echo link: couldn't read the Home Assistant address", exc_info=True)
         return ""
@@ -392,11 +419,16 @@ def setup_echo_link_routes() -> APIRouter:
 
         label = token_name(name)
         token = create_api_token(owner, label, [SCOPE])
+        try:  # re-linking an Echo doesn't pile up its old tokens
+            removed = prune_echo_tokens(owner, name, token["id"])
+        except Exception:  # noqa: BLE001 -- the link itself still works
+            logger.warning("echo link: couldn't delete old Echo tokens", exc_info=True)
+            removed = 0
         invalidate = getattr(request.app.state, "invalidate_token_cache", None)
         if callable(invalidate):
             invalidate()
-        logger.info("echo link: %s made voice token %s (%r) for %s", owner, token["id"],
-                    label, target.host)
+        logger.info("echo link: %s made voice token %s (%r) for %s; %d old removed", owner,
+                    token["id"], label, target.host, removed)
         fields = {"token": token["token"],
                   "base_url": origin + with_asgi_root_path(request.scope, PREFIX),
                   "ha_url": saved_ha_url()}

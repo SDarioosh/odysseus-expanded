@@ -142,12 +142,15 @@ def echo(monkeypatch):
     monkeypatch.setattr("fork.athena.phone_pairing.create_api_token",
                         lambda owner, name, scopes: made.append((owner, name, scopes))
                         or {"id": "t1", "token": "ody_fake<&\"'>"})
+    pruned = []  # the old-token cleanup, without a database (its own tests are below)
+    monkeypatch.setattr(echo_link, "prune_echo_tokens",
+                        lambda owner, name, keep: pruned.append((owner, name, keep)) or 0)
     monkeypatch.setitem(sys.modules, "fork.voice.ha_settings",
-                        SimpleNamespace(get_ha_url=lambda: "http://homeassistant.local:8123/"))
+                        SimpleNamespace(home_assistant_url=lambda: "http://homeassistant.local:8123/"))
     monkeypatch.setattr(echo_link, "APPROVALS", echo_link._Approvals())
     app.include_router(echo_link.setup_echo_link_routes())
     client = TestClient(app, base_url="https://odysseus.tail1234.ts.net")
-    client.made, client.invalidated = made, invalidated
+    client.made, client.invalidated, client.pruned = made, invalidated, pruned
     return client
 
 
@@ -227,6 +230,7 @@ def test_approve_makes_a_voice_only_token_and_hands_it_to_the_echo(echo):
     owner, name, scopes = echo.made[0]
     assert owner == "alice" and scopes == ["voice"]
     assert name == f"Echo Kitchen {date.today().isoformat()}"
+    assert echo.pruned == [("alice", "Kitchen", "t1")]  # this Echo's old tokens go
     assert echo.invalidated
     url, fields = _handoff(res.text)
     assert url == RET  # the token rides only in the fragment
@@ -261,7 +265,7 @@ def test_a_bad_return_url_makes_no_token(echo):
 @pytest.mark.parametrize("saved", ["", "not a url", "javascript:alert(1)"])
 def test_no_or_a_bad_ha_address_is_sent_empty(echo, monkeypatch, saved):
     monkeypatch.setitem(sys.modules, "fork.voice.ha_settings",
-                        SimpleNamespace(get_ha_url=lambda: saved))
+                        SimpleNamespace(home_assistant_url=lambda: saved))
     res = echo.post(echo_link.PATH, data=FORM, headers=SAME)
     assert _handoff(res.text)[1]["ha_url"] == ""
 
@@ -282,3 +286,65 @@ def test_no_token_in_the_log(echo, caplog):
     caplog.set_level("DEBUG")
     echo.post(echo_link.PATH, data=FORM, headers=SAME)
     assert "ody_fake" not in caplog.text and "Echo Kitchen" in caplog.text
+
+
+@pytest.fixture
+def tokens(monkeypatch):
+    """An in-memory API token table, as Settings → API tokens keeps it."""
+    import contextlib
+    from datetime import datetime
+
+    from sqlalchemy import create_engine
+    from sqlalchemy.orm import sessionmaker
+    from sqlalchemy.pool import StaticPool
+
+    from core.database import ApiToken
+
+    engine = create_engine("sqlite://", poolclass=StaticPool,
+                           connect_args={"check_same_thread": False})
+    ApiToken.__table__.create(engine)
+    Session = sessionmaker(bind=engine)
+
+    @contextlib.contextmanager
+    def session():
+        db = Session()
+        try:
+            yield db
+            db.commit()
+        finally:
+            db.close()
+
+    monkeypatch.setattr("core.database.get_db_session", session)
+
+    def add(id_, name, day, owner="alice", scopes="voice", used=None):
+        with session() as db:
+            db.add(ApiToken(id=id_, owner=owner, name=name, token_hash="x",
+                            token_prefix="ody_x", scopes=scopes, is_active=True,
+                            created_at=datetime(2026, 11, day),
+                            last_used_at=datetime(2026, 11, used) if used else None))
+
+    def ids():
+        with session() as db:
+            return sorted(t.id for t in db.query(ApiToken).all())
+
+    return SimpleNamespace(add=add, ids=ids)
+
+
+def test_relinking_an_echo_keeps_the_new_and_the_previous_token_only(tokens):
+    tokens.add("k1", "Echo Kitchen 2026-11-01", 1)
+    tokens.add("k2", "Echo Kitchen 2026-11-02", 2, used=3)  # the one the Echo uses now
+    tokens.add("k3", "Echo Kitchen 2026-11-02", 2)
+    tokens.add("new", "Echo Kitchen 2026-11-04", 4)
+    tokens.add("b1", "Echo Bedroom 2026-11-01", 1)  # another Echo
+    tokens.add("x1", "Echo Kitchen 2026-11-01", 1, scopes="voice,chat")  # not ours
+    tokens.add("m1", "Echo Kitchen 2026-11-01", 1, owner="bob")
+    tokens.add("h1", "Echo Kitchen extra 2026-11-01", 1)
+    assert echo_link.prune_echo_tokens("alice", "Kitchen", "new") == 2
+    assert tokens.ids() == ["b1", "h1", "k2", "m1", "new", "x1"]
+
+
+def test_unnamed_echos_keep_their_tokens(tokens):
+    tokens.add("u1", "Echo 2026-11-01", 1)
+    tokens.add("u2", "Echo 2026-11-02", 2)
+    assert echo_link.prune_echo_tokens("alice", "", "u3") == 0
+    assert tokens.ids() == ["u1", "u2"]

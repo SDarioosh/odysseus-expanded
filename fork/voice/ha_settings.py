@@ -5,6 +5,10 @@ saves the address it set up, and the Echo link (``fork/voice/echo_link.py``) han
 each new Echo. It is kept in upstream's settings file (``data/settings.json``, through
 ``src.settings``, as ``fork/routing/auto_mode.py`` keeps its setting) under
 :data:`SETTING_KEY`: a runtime choice made in the app, not an environment setting.
+
+:func:`home_assistant_url` is the one address every voice feature uses (the Echo link,
+spoken announcements): ``FORK_HA_URL`` when set, else the saved one. Only a host on the
+owner's network is used (``fork.voice.announce.check_url``).
 """
 from __future__ import annotations
 
@@ -37,3 +41,11 @@ def set_ha_url(url: str) -> str:
     settings[SETTING_KEY] = value
     save_settings(settings)
     return value
+
+
+def home_assistant_url() -> str:
+    """The Home Assistant address voice features use: ``FORK_HA_URL`` (an override) when
+    set, else the one "Set up Home Assistant" saved; "" when neither is."""
+    from fork.common import settings
+
+    return settings.ha_url() or get_ha_url()

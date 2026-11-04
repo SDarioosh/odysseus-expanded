@@ -66,7 +66,7 @@ async def run(args: argparse.Namespace) -> dict:
         if report.get("token_name"):
             report["note"] = ("Restart Odysseus so it accepts the new voice token "
                               f"\"{report['token_name']}\".")
-    if report["steps"][0]["status"] != "error":
+    if report.get("ok"):  # a failed setup's address isn't handed to Echos
         set_ha_url(args.ha_url)
     return report
 
@@ -76,8 +76,11 @@ def main(argv: list[str] | None = None) -> int:
     try:
         from fork.voice.ha_setup import check_ha_url
 
+        from fork.voice.announce import Refused, check_url
+
         check_ha_url(args.ha_url)
-    except ValueError as exc:
+        asyncio.run(check_url(args.ha_url))  # only Home Assistant on the owner's network
+    except (ValueError, Refused) as exc:
         print(exc, file=sys.stderr)
         return 2
     if not os.environ.get("VOICE_TOKEN") and not known_owner(args.owner):

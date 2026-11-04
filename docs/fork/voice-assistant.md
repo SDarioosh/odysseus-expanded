@@ -434,8 +434,10 @@ audio, when Athena couldn't check, or while the check still runs (the route wait
 
 The hub keeps the context **in memory** for 30 s, per token owner (at most 8 per owner, 64
 owners). The voice turn takes it with `claim(owner, wait_seconds=3.0)`: the newest
-unclaimed context of that owner, each claimed once; if its speaker check is still
-running, it waits up to `wait_seconds`. The turn puts device and room in its context
+unclaimed context of that owner posted in the last 10 s (`CLAIM_SECONDS`), each claimed
+once; the owner's older unclaimed contexts are dropped then (they belong to turns Home
+Assistant answered itself), so their speaker never counts for a later turn. If the speaker
+check is still running, it waits up to `wait_seconds`. The turn puts device and room in its context
 ("Asked from: Kitchen Echo, Kitchen") and on the ledger (HUB-CORE's side, `fork/voice/routes.py`).
 After a restart, or with several workers, a turn may find no context: it is then answered
 as if no satellite had posted.
@@ -466,7 +468,7 @@ answers; only the outcome is logged.
 
 `fork/voice/announce.py`: `await announce(message, entities=None) -> bool` speaks a message
 on the satellites through Home Assistant's `assist_satellite.announce` service
-(`POST <FORK_HA_URL>/api/services/assist_satellite/announce`, `{"entity_id": [...],
+(`POST <Home Assistant>/api/services/assist_satellite/announce`, `{"entity_id": [...],
 "message": "..."}`, `Authorization: Bearer <FORK_HA_TOKEN>`, 10 s timeout, no redirects).
 Home Assistant speaks it with its own local text-to-speech. It never raises; a refusal is
 logged without the message. Later features (a spoken daily briefing) call it the same way.
@@ -474,21 +476,26 @@ logged without the message. Later features (a spoken daily briefing) call it the
 - **Reminders:** when a note reminder fires (the note-reminder scanner in
   `src/builtin_actions.py`, the same dispatch that sends ntfy/email/browser), the hook
   `announce_reminder(title)` also says "Reminder: <title>", in the background: the
-  reminder itself never waits for or fails on Home Assistant. Off until `FORK_HA_URL`,
-  `FORK_HA_TOKEN` and `FORK_VOICE_ANNOUNCE_ENTITIES` are all set.
+  reminder itself never waits for or fails on Home Assistant. Off until there is a Home
+  Assistant address, `FORK_HA_TOKEN` and `FORK_VOICE_ANNOUNCE_ENTITIES` are set.
 - **Test:** `POST /api/fork/voice/announce` (signed-in admin, browser), `{"message"?: str}`
   → `{"ok": true|false, "problem": "…"|null}`.
-- **Only a local Home Assistant:** `FORK_HA_URL` must be `http(s)://host[:port][/path]` with
+- **One Home Assistant address:** announcements and the Echo link use
+  `fork/voice/ha_settings.py`'s `home_assistant_url()`: the address **Set up Home
+  Assistant** saved (only after a setup that succeeded), or `FORK_HA_URL` when it is set,
+  which overrides it.
+- **Only a local Home Assistant:** the address must be `http(s)://host[:port][/path]` with
   a host that is local, on a private network or in Tailscale's range; a name is resolved
-  and every address must be one. A public host, a URL with credentials, a query or a
-  fragment is refused.
+  and every address must be one (`announce.check_url`). **Set up Home Assistant** and
+  `scripts/ha_voice_setup.py` apply the same rule before signing in. A public host, a URL
+  with credentials, a query or a fragment is refused.
 
 ### Settings
 
 | Variable | Meaning |
 |---|---|
 | `FORK_VOICE_PRIVATE` | `off` (default) or `owner` |
-| `FORK_HA_URL` | Home Assistant's address, e.g. `http://192.168.1.20:8123` (local hosts only) |
+| `FORK_HA_URL` | optional: overrides the address Set up Home Assistant saved, e.g. `http://192.168.1.20:8123` (local hosts only) |
 | `FORK_HA_TOKEN` | a Home Assistant long-lived access token (a secret: `.env` only) |
 | `FORK_VOICE_ANNOUNCE_ENTITIES` | comma list, e.g. `assist_satellite.kitchen_echo` |
 
@@ -497,9 +504,10 @@ logged without the message. Later features (a spoken daily briefing) call it the
 - A voiceprint is not a password: a recording of the owner, or a close voice, can pass
   Athena's threshold. `FORK_VOICE_PRIVATE=owner` keeps casual visitors out of personal
   answers, nothing more. Without it (the default), anyone near a satellite can ask.
-- Contexts are matched to turns by owner and time only (the newest within 30 s): two
-  satellites of one owner asking at the same moment could swap contexts. Each context is
-  used once, and a missing one never grants more.
+- Contexts are matched to turns by owner and time only (the newest within 10 s; Home
+  Assistant doesn't say which satellite asked): two satellites of one owner asking at the
+  same moment could swap contexts. Each context is used once, an older unclaimed one is
+  dropped rather than used later, and a missing one never grants more.
 - The voice token can now also send audio to Athena's identify route; Athena only compares
   it and writes nothing.
 - Announcements speak reminder titles aloud in the room, to whoever is there; the
@@ -519,9 +527,11 @@ on the Echo. The Odysseus part is `fork/voice/echo_link.py`. The Echo's setup pa
 phone to `GET /echo/link?return=<Echo URL>&name=<name>`. The signed-in admin sees "Link Echo
 'Kitchen' at <host>:10801?" and taps **Approve**. Odysseus then makes a token with only the
 `voice` scope, named `Echo <name> <YYYY-MM-DD>` (revoke it in Settings → API tokens like any
-other). It sends the phone back to the Echo with `token`, `base_url` (`<the address you
+other). Linking a named Echo again deletes its older tokens of that name, keeping the new one
+and the most recently used earlier one (so an Echo the phone never reached still works);
+unnamed Echos keep theirs (`echo_link.prune_echo_tokens`). It sends the phone back to the Echo with `token`, `base_url` (`<the address you
 opened Odysseus at>/api/chat/voice/v1`) and `ha_url` (the Home Assistant address saved by
-**Set up Home Assistant**, or empty) in the URL fragment (`<Echo URL>#token=…`). The Echo's
+**Set up Home Assistant** or set as `FORK_HA_URL`, or empty) in the URL fragment (`<Echo URL>#token=…`). The Echo's
 page passes them on to the Echo and clears them from the address bar. The Echo then sends
 the phone to Home Assistant's sign-in, and adds itself to Home Assistant.
 

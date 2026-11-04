@@ -2,12 +2,14 @@
 (docs/fork/voice-assistant.md#announcements).
 
 :func:`announce` calls Home Assistant's ``assist_satellite.announce`` service
-(``POST <FORK_HA_URL>/api/services/assist_satellite/announce``, ``{"entity_id": [...],
+(``POST <Home Assistant>/api/services/assist_satellite/announce``, ``{"entity_id": [...],
 "message": "..."}``) with the long-lived token ``FORK_HA_TOKEN``, on the entities of
 ``FORK_VOICE_ANNOUNCE_ENTITIES`` (or the ones given). Home Assistant turns the text into
 speech with its own (local) text-to-speech.
 
-``FORK_HA_URL`` must be a local, private-network or Tailscale host: a name is resolved and
+The address is ``fork.voice.ha_settings.home_assistant_url`` (``FORK_HA_URL``, else the
+one "Set up Home Assistant" saved). It must be a local, private-network or Tailscale host
+(:func:`check_url`, also used by the setup): a name is resolved and
 every address it has must be one (``fork.upstream.is_local_or_private_host``), so the
 message never leaves the owner's network. Anything else is refused.
 
@@ -45,7 +47,10 @@ class Refused(Exception):
 def configured() -> bool:
     from fork.common import settings
 
-    return bool(settings.ha_url() and settings.ha_token() and settings.voice_announce_entities())
+    from fork.voice.ha_settings import home_assistant_url
+
+    return bool(home_assistant_url() and settings.ha_token()
+                and settings.voice_announce_entities())
 
 
 def _private_ip(text: str) -> bool:
@@ -72,16 +77,17 @@ async def check_url(url: str) -> str:
     parts = urlsplit((url or "").strip())
     host = (parts.hostname or "").lower()
     if parts.scheme not in ("http", "https") or not host:
-        raise Refused("FORK_HA_URL must be an http(s) URL")
+        raise Refused("The Home Assistant address must be an http(s) URL")
     if parts.username or parts.password or parts.query or parts.fragment:
-        raise Refused("FORK_HA_URL must be a plain base URL")
+        raise Refused("The Home Assistant address must be a plain base URL")
     if not (is_local_or_private_host(host) or _private_ip(host)):
         try:
             addresses = await _resolve(host)
         except (OSError, UnicodeError):
-            raise Refused("FORK_HA_URL's host doesn't resolve") from None
+            raise Refused("The Home Assistant address's host doesn't resolve") from None
         if not addresses or not all(_private_ip(a) for a in addresses):
-            raise Refused("FORK_HA_URL must be a local, private-network or Tailscale host")
+            raise Refused("The Home Assistant address must be a local, private-network or "
+                          "Tailscale host")
     return f"{parts.scheme}://{parts.netloc}{parts.path.rstrip('/')}"
 
 
@@ -98,12 +104,15 @@ async def send(message: str, entities: list[str] | None = None, *,
     targets = list(dict.fromkeys(targets))[:MAX_ENTITIES]
     if not targets:
         raise Refused("No satellites to announce on (FORK_VOICE_ANNOUNCE_ENTITIES)")
-    if not settings.ha_url():
-        raise Refused("FORK_HA_URL is not set")
+    from fork.voice.ha_settings import home_assistant_url
+
+    ha_url = home_assistant_url()
+    if not ha_url:
+        raise Refused("No Home Assistant address (Set up Home Assistant, or FORK_HA_URL)")
     token = settings.ha_token()
     if not token:
         raise Refused("FORK_HA_TOKEN is not set")
-    base = await check_url(settings.ha_url())
+    base = await check_url(ha_url)
     try:
         async with httpx.AsyncClient(timeout=TIMEOUT, transport=transport,
                                      follow_redirects=False) as client:
