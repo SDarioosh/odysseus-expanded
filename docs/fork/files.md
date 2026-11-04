@@ -123,6 +123,7 @@ is an old path of a module that moved into `fork/`; it only aliases the new modu
 - `fork/common/__init__.py`
 - `fork/common/athena_names.py`
 - `fork/common/llm.py`
+- `fork/common/local_time.py`
 - `fork/common/settings.py`
 - `fork/common/state.py`
 - `fork/hub/__init__.py`
@@ -415,6 +416,7 @@ is an old path of a module that moved into `fork/`; it only aliases the new modu
 - `tests/fork/test_brain_toolset.py`
 - `tests/fork/test_brain_turn.py`
 - `tests/fork/test_builtin_task_authority.py`
+- `tests/fork/test_calendar_local_time.py`
 - `tests/fork/test_calendar_reminder_wall_time.py`
 - `tests/fork/test_call_recorder.py`
 - `tests/fork/test_chat_mode_scope.py`

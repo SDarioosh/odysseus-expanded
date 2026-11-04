@@ -418,13 +418,16 @@ async def do_manage_calendar(content: str, owner: Optional[str] = None, *, impor
             events = []
             for ev in rows:
                 events.append(_event_to_dict(ev, db=db, owner=owner))
+            # Fork: times in the user's wall time, not UTC (fork/common/local_time.py)
+            from fork.common import local_time as _lt
+            events = _lt.with_local_times(events)
             if not events:
                 response_text = f"No events between {start_dt.date().isoformat()} and {end_dt.date().isoformat()}."
             else:
                 lines = [f"Found {len(events)} event(s) between {start_dt.date().isoformat()} and {end_dt.date().isoformat()}:"]
+                lines.append(_lt.zone_note())  # Fork: (fork/common/local_time.py)
                 for ev in events:
-                    when = ev["dtstart"]
-                    when_str = f"{when} (all day)" if ev.get("all_day") else f"{when} -> {ev.get('dtend', '')}"
+                    when_str = _lt.event_line_when(ev)  # Fork: (fork/common/local_time.py)
                     # Clickable anchor — opens the calendar on the event's day.
                     line = f"- {when_str}: [{ev['summary']}](#event-{ev['uid']})"
                     if ev.get("event_type"):
