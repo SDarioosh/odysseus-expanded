@@ -324,6 +324,9 @@ def api(monkeypatch, data_dir):
     confirm.forget_all()
     # no satellite module unless a test adds one (the HUB-SATELLITE stream's file)
     monkeypatch.setitem(sys.modules, "fork.voice.satellite", None)
+    # The owner's zone comes from the database; a first import of core.database here
+    # would bind it to this test's empty data_dir for every later test.
+    monkeypatch.setattr("fork.common.local_time.owner_timezone_name", lambda owner: None)
     app = FastAPI()
     app.state.session_manager = FakeSessions()
     turns = []
