@@ -34,6 +34,10 @@ import httpx
 logger = logging.getLogger(__name__)
 
 TTL_SECONDS = 30.0
+# A turn takes only a context posted this recently: the Echo posts when the owner stops
+# speaking and Home Assistant's request follows within seconds, so an older one belongs
+# to a turn Home Assistant answered itself and must not lend its speaker to the next.
+CLAIM_SECONDS = 10.0
 MAX_PER_OWNER = 8
 MAX_OWNERS = 64
 IDENTIFY_PATH = "/speakers/identify"
@@ -206,18 +210,24 @@ async def wait_for_check(entry: _Entry, seconds: float) -> SatelliteContext:
 
 
 async def claim(owner: str, *, wait_seconds: float = 3.0) -> SatelliteContext | None:
-    """The newest unclaimed context of this owner posted in the last 30 s; if its speaker
-    check is still running, wait up to wait_seconds for it. Each context is claimed once."""
+    """The newest unclaimed context of this owner posted in the last CLAIM_SECONDS; if its
+    speaker check is still running, wait up to wait_seconds for it. Each context is claimed
+    once, and the owner's older unclaimed ones are dropped with it: they belong to turns
+    that never reached the hub, and their speaker must not count for a later turn."""
+    now = _now()
     with _lock:
-        entries = _prune(_contexts.get(owner, []), _now())
+        entries = _prune(_contexts.get(owner, []), now)
         if entries:
             _contexts[owner] = entries
         else:
             _contexts.pop(owner, None)
-        entry = next((e for e in reversed(entries) if not e.claimed), None)
+        entry = next((e for e in reversed(entries)
+                      if not e.claimed and now - e.created < CLAIM_SECONDS), None)
+        for e in entries:
+            if not e.claimed and (entry is None or e.created <= entry.created):
+                e.claimed = True
         if entry is None:
             return None
-        entry.claimed = True
     return await wait_for_check(entry, wait_seconds)
 
 

@@ -145,11 +145,25 @@ def test_contexts_are_per_owner(api):
 
 # ----------------------------------------------------------------------- the seam
 async def test_claim_once_newest_first():
+    """The newest is claimed; an older unclaimed one is dropped with it, never used by a
+    later turn (it belongs to a turn Home Assistant answered itself)."""
     satellite.register("alice", device_id="a")
     satellite.register("alice", device_id="b")
     assert (await satellite.claim("alice", wait_seconds=0)).device_id == "b"
-    assert (await satellite.claim("alice", wait_seconds=0)).device_id == "a"
     assert await satellite.claim("alice", wait_seconds=0) is None
+    satellite.register("alice", device_id="c")  # a new turn's context is still taken
+    assert (await satellite.claim("alice", wait_seconds=0)).device_id == "c"
+
+
+async def test_a_leftover_context_lends_its_speaker_to_no_later_turn(monkeypatch):
+    now = [1000.0]
+    monkeypatch.setattr(satellite, "_now", lambda: now[0])
+    satellite.register("alice", device_id="kitchen")  # HA answered this turn itself
+    now[0] += satellite.CLAIM_SECONDS + 0.1  # still within the 30 s it is kept
+    assert await satellite.claim("alice", wait_seconds=0) is None
+    now[0] += 1.0
+    satellite.register("alice", device_id="bedroom")
+    assert (await satellite.claim("alice", wait_seconds=0)).device_id == "bedroom"
 
 
 async def test_contexts_expire_after_30_seconds(monkeypatch):

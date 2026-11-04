@@ -434,8 +434,10 @@ audio, when Athena couldn't check, or while the check still runs (the route wait
 
 The hub keeps the context **in memory** for 30 s, per token owner (at most 8 per owner, 64
 owners). The voice turn takes it with `claim(owner, wait_seconds=3.0)`: the newest
-unclaimed context of that owner, each claimed once; if its speaker check is still
-running, it waits up to `wait_seconds`. The turn puts device and room in its context
+unclaimed context of that owner posted in the last 10 s (`CLAIM_SECONDS`), each claimed
+once; the owner's older unclaimed contexts are dropped then (they belong to turns Home
+Assistant answered itself), so their speaker never counts for a later turn. If the speaker
+check is still running, it waits up to `wait_seconds`. The turn puts device and room in its context
 ("Asked from: Kitchen Echo, Kitchen") and on the ledger (HUB-CORE's side, `fork/voice/routes.py`).
 After a restart, or with several workers, a turn may find no context: it is then answered
 as if no satellite had posted.
@@ -497,9 +499,10 @@ logged without the message. Later features (a spoken daily briefing) call it the
 - A voiceprint is not a password: a recording of the owner, or a close voice, can pass
   Athena's threshold. `FORK_VOICE_PRIVATE=owner` keeps casual visitors out of personal
   answers, nothing more. Without it (the default), anyone near a satellite can ask.
-- Contexts are matched to turns by owner and time only (the newest within 30 s): two
-  satellites of one owner asking at the same moment could swap contexts. Each context is
-  used once, and a missing one never grants more.
+- Contexts are matched to turns by owner and time only (the newest within 10 s; Home
+  Assistant doesn't say which satellite asked): two satellites of one owner asking at the
+  same moment could swap contexts. Each context is used once, an older unclaimed one is
+  dropped rather than used later, and a missing one never grants more.
 - The voice token can now also send audio to Athena's identify route; Athena only compares
   it and writes nothing.
 - Announcements speak reminder titles aloud in the room, to whoever is there; the
