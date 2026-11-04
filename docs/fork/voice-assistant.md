@@ -1,6 +1,7 @@
 # Voice assistant (Home Assistant)
 
-Status: built (2026-11-03), hub side only. Needs the owner's Home Assistant and a voice
+Status: built (2026-11-03), hub side only; changes after a spoken "yes", the screen's
+feeds and the shared prompt cache added the same day. Needs the owner's Home Assistant and a voice
 satellite (the Echo Show 5, 2nd gen, on LineageOS) to be used. Device setup is a separate
 piece of work and is documented with the device.
 
@@ -18,8 +19,8 @@ Home Assistant Assist pipeline
    1. speech-to-text: local Wyoming faster-whisper (or the server's whisper-server)
    2. conversation agent: HA's own commands first, the rest ──► Odysseus
                                                                POST /api/chat/voice/v1/chat/completions
-                                                               a read-only brain turn
-                                                               (Athena over MCP, calendar, …)
+                                                               a brain turn: reads, and
+                                                               changes only after a "yes"
    3. text-to-speech: local Piper (or Kokoro)
    │ reply audio
 satellite
@@ -28,8 +29,15 @@ satellite
 Nothing leaves the owner's network: every stage is local, and Home Assistant Cloud
 (Nabu Casa) speech is not used.
 
-- **Voice can only look things up.** Every voice question is a read-only turn: no
-  changes, no approvals (nobody can approve by voice), no email.
+- **Voice looks things up, and changes a few things after a spoken "yes".** A to-do, a
+  reminder, a list item, a note or a calendar event can be added and an Athena action
+  item marked done: the model's call is kept, Odysseus asks "Add Dentist on Tuesday at
+  three to your calendar?", and only "yes" runs it. Everything else that writes is
+  refused; email is never run.
+- **The device's screen sees what a turn did:** `GET …/actions` and
+  `GET …/turns/latest` (the turn ledger).
+- **Voice shares chat's prompt cache:** a voice prompt starts exactly like a chat
+  prompt (same system prompt and tools), so the model server needs no second cache.
 - **Each voice conversation is a chat** in the **Voice** folder, so the owner can read
   what was asked and answered, and continue it in the app.
 - **Answers are spoken text:** short, no markdown, links taken out of the speech and
@@ -47,9 +55,11 @@ for chat streams, and a voice answer can take longer (minutes on the sandbox's C
 |---|---|---|
 | `POST /api/chat/voice/v1/chat/completions` | API token with the `voice` scope | one voice question; OpenAI's chat-completion request and response, `stream: true` supported |
 | `GET /api/chat/voice/v1/models` | the same | `{"data": [{"id": "odysseus", …}]}`, for clients that list models when set up |
+| `GET /api/chat/voice/v1/actions?since=<ms>&limit=<n>` | the same | the changes voice made (below) |
+| `GET /api/chat/voice/v1/turns/latest?since=<ms>` | the same | the newest finished voice turn (below) |
 | `POST /api/fork/voice/token` | signed-in admin (browser) | makes a token with only the `voice` scope (the Settings card) |
 
-Only a bearer token with the `voice` scope may call the first two: a browser login may
+Only a bearer token with the `voice` scope may call the `/api/chat/voice/v1` routes: a browser login may
 not, and a token with only other scopes (`chat`, …) may not. The token is listed under
 Settings → Integrations as "Voice assistant <date>"; deleting it there disconnects Home
 Assistant.
@@ -72,7 +82,8 @@ chunk with `finish_reason: "stop"` and `usage`, then `data: [DONE]`. Both carry 
 object the OpenAI clients ignore:
 
 ```json
-"odysseus": {"session_id": "<the chat's id>", "links": ["https://…/view/12?sig=…#t=34"]}
+"odysseus": {"session_id": "<the chat's id>", "links": ["https://…/view/12?sig=…#t=34"],
+             "turn_id": "<the ledger's turn id>"}
 ```
 
 Errors are OpenAI's `{"error": {"message", "type"}}`: 400 for a request we can't answer,
@@ -81,46 +92,154 @@ use the agent, or no default chat model is set.
 
 ## How a question is answered
 
-`fork/brain/turn.py`, `read_only_turn`: the same loop as chat (the brain,
-[brain.md](brain.md)), with the same prompt, history, tools and owner checks, and these
-differences:
+`fork/brain/turn.py`, `read_only_turn` with `shared_prefix`: the same loop as chat (the
+brain, [brain.md](brain.md)), with the same prompt, history, tools and owner checks, and
+these differences:
 
 - **It runs as the token's owner.** Upstream keeps every run driven by an API token away
   from MCP and the personal stores (`delegated_tool_is_blocked` in
   `src/tool_capabilities.py`), and a voice question is about exactly those. A voice turn
-  is therefore not a delegated run. In place of that cap:
-- **Only tools that can read are offered** (`toolset.read_only`): the read tools,
-  personal stores that have read actions (calendar, notes, contacts, memory), and
-  Athena's tools that declare `readOnlyHint: true` on a trusted server
-  (`ODYSSEUS_TRUSTED_READONLY_MCP`, see [mcp-servers.md](features/mcp-servers.md)). So
-  `update_action_item`, `erase_fact`, `generate_image`, document writes and the like are
-  never offered. Email tools are left out as well (`LEFT_OUT` in `fork/voice/routes.py`):
-  the answer is read aloud, to anyone in the room.
-- **Every write is refused, never asked** (`tools.read_only_refusal`): a write action of
-  an offered store (`manage_calendar` `create_event`, …), a call upstream's approval gate
-  wouldn't let through, and a `web_fetch` of an address that is neither in the question
-  nor a search hit. The model is told "Not run: this request can only read", and the turn
-  never pauses for an approval.
-- **The voice instructions** (`fork/voice/prompt.py`) stand where a chat's preset text
-  goes: the owner's tools first for questions about their life (as in chat), then one to
-  three spoken sentences, no markdown, numbers and times as spoken, links at the end, "I
-  can't make changes by voice" for change requests. A first version that also asked for
+  is therefore not a delegated run. In place of that cap, what may run is decided at
+  execution (`fork/voice/policy.py`, `VoiceGate`, asked by `fork/brain/tools.py` before
+  anything runs):
+  1. **email is never run** (listed, refused: "Not run: email isn't available by
+     voice"): the answer is read aloud, to anyone in the room;
+  2. **private answers** (below): with `FORK_VOICE_PRIVATE=owner`, a voice that isn't the
+     owner's gets `PRIVATE_REPLY` from the personal tools (Athena, calendar, notes,
+     contacts, memory, beliefs, documents, chat search); web and weather stay;
+  3. **reads run** as in chat, except a `web_fetch` of an address that is neither in the
+     question nor a search hit, and a call upstream's approval gate would ask about
+     (`tools.read_only_refusal`);
+  4. **an allowed change is kept, not run** (next section);
+  5. **every other write is refused, never asked** ("Not run: this request can only
+     read"): deletes, edits, `erase_fact`, `retire_fact`, `rename_speaker_everywhere`,
+     memory, contacts, documents, image generation. The turn never pauses for an
+     approval card.
+- **The voice instructions** (`fork/voice/prompt.py`) go in the question's message,
+  before the question (after the cached prefix, next section but one): the owner's tools
+  first for questions about their life (as in chat), then one to three spoken
+  sentences, no markdown, numbers and times as spoken, links at the end, no closing
+  question or offer, and how changes work by voice. A first version that also asked for
   "the answer first" and "I don't know when the tools return nothing" made the sandbox's
-  small model skip the tools and answer "I don't know"; the instructions now say tools
-  come first.
+  small model skip the tools and answer "I don't know"; the instructions say tools come
+  first.
+- **The context message** says where the question was asked ("Asked from: Kitchen Echo,
+  Kitchen") when the satellite posted its context.
 - **Model:** the owner's default chat model (Settings → default model). The brain's
   local-only rule applies: an outside API answers "The assistant runs only on local
   models."
 - **Memory:** no memories are extracted from a voice turn (anyone near the satellite
   can speak). Recalled context holds confirmed beliefs, as in chat, but not upstream's
   memory list (the route has no memory manager); the model can still search beliefs
-  (`search_beliefs`) and read the memory store (`manage_memory`).
+  (`search_beliefs`) and read the memory store (`manage_memory`). For a voice that isn't
+  the owner's (private answers on) nothing is recalled.
 
-The security trade-off, for the owner to keep in mind: the voice token can read the
-owner's conversations, calendar, notes, contacts and beliefs (not email), but it can't
-change anything or reach anything an ordinary chat couldn't. Whoever holds the token
-(Home Assistant) and anyone who can talk to the satellite can ask. Keep the satellite in
-a private room and the token in Home Assistant only.
+## Changes by voice
+
+`fork/voice/confirm.py`. The allow-list (`WRITABLE`, one entry per tool and action, so
+a new writable tool is one entry):
+
+| Call | Kept as | Where |
+|---|---|---|
+| `manage_notes` `add` with a `due_date` | reminder | To-dos |
+| `manage_notes` `add`, a checklist | to-do | To-dos |
+| `manage_notes` `add`, a note | note | Notes |
+| `manage_notes` `update` that only adds lines to one of the owner's lists (every line kept, text and tick, in order; no rename, no other field) | list item | the list's title |
+| `manage_calendar` `create_event` | event | Calendar |
+| Athena `update_action_item` with `status: done` and nothing else | action item, completed | Athena |
+
+1. **Proposed:** an allowed call is not run. The model's tool result is "Not run yet:
+   changes by voice need the owner's spoken yes. Ask the owner to confirm in one short
+   question…". The exact tool name and arguments are kept as the voice conversation's
+   proposal, in memory, for 5 minutes; several calls of one turn are one proposal, and a
+   new turn's proposal replaces the old one. The spoken answer ends with the model's
+   confirmation question, or, if it asked none, one made from the call ("Add Dentist to
+   your calendar?"); the turn's `awaiting_confirmation` holds it.
+2. **The next question of that conversation** (same `user` or conversation id, within
+   the follow-up window) decides, without a model call:
+   - an affirmation ("yes", "yeah", "sure", "do it", "please do", "okay", "go ahead",
+     "correct", alone or with "please"/"thanks"): the kept calls run exactly as the model
+     made them, each with an exact approval filed and consumed at once in upstream's
+     `tool_approval_store` and run by the brain's executor (`tools.execute`, upstream's
+     `execute_tool_block`): the path of a call approved on a chat card, so owner scoping,
+     admin-only tools and upstream's checks still apply. A list item is checked again
+     first: if the list changed since, nothing is done. Each change that worked is a
+     ledger action (`created`/`completed`), and the answer is "Done." plus a short phrase
+     ("Done. Added Dentist to your calendar.");
+   - a refusal ("no", "cancel", "never mind", "don't"): dropped, "Okay, I won't.";
+   - anything else: dropped, and answered as a new question.
+   The "yes" and its reply are saved in the voice chat like a turn.
+3. A yes from a voice that isn't the owner's (private answers on) runs nothing.
+
+**Only a confirmation ends with "?"** (`fork/voice/speech.py`): Home Assistant keeps the
+microphone open, and skips its own commands for the reply, only when an answer ends with
+a question mark. So a trailing offer ("Anything else?", "Would you like more
+details?") is dropped and any other last "?" becomes "."; while streaming, a sentence
+that ends with "?" is held back until the next one arrives or the answer ends.
+
+## One prompt cache for chat and voice
+
+The owner's llama-server keeps its prompt cache warm from ordinary chat, and there is no
+memory for a second one. So a voice prompt starts byte for byte like a chat prompt of the
+same owner: the same system message (the brain's prompt plus the preset text a new chat
+in the browser would send: the Custom preset when it is on and has settings,
+`fork/voice/chat_prefix.py`, read from `presets.json` through upstream's own
+`validate_and_extract_preset`) and the same tools in the same order (email and the
+write tools included: refused or kept at execution, not hidden). Everything that differs
+comes after that prefix: the context message (device line) and the voice instructions
+with the question. A test checks that a voice turn's messages before the context message
+and its tools equal a chat turn's. Assumption: the browser's documents toggle is on (a
+chat with it off is offered no `search_documents`).
+
+## Turns and actions (the screen's feeds)
+
+`fork/voice/ledger.py`: one record per voice turn in `<DATA_DIR>/fork_voice.db`
+(SQLite), deleted after 7 days, owner-scoped. It is the one place a voice turn's facts
+live; later features add to it.
+
+`GET …/actions?since=<epoch ms>&limit=<n>` (newest first, default 8, at most 50):
+
+```json
+{"actions": [{"id": "…", "at": "2026-11-03T19:52:10+00:00", "action": "created",
+  "kind": "event", "title": "Dentist", "detail": null, "due": "2026-11-10T15:00:00-05:00",
+  "all_day": false, "where": "Calendar", "source": "odysseus", "turn_id": "…"}]}
+```
+
+`kind` is `todo`, `reminder`, `list_item`, `note`, `event` or `action_item`; `action`
+`created` or `completed`; `source` `odysseus` or `athena`.
+
+`GET …/turns/latest?since=<epoch ms>`: the newest finished turn started at or after
+`since`, else `{"turn": null}`:
+
+```json
+{"turn": {"id": "…", "started_at": "…", "ended_at": "…", "question": "…",
+  "answer": "the spoken text", "links": [{"url": "https://…", "label": null}],
+  "actions": [], "awaiting_confirmation": "Add Dentist to your calendar?",
+  "device": {"id": "…", "name": "Kitchen Echo", "area": "Kitchen"},
+  "speaker": {"verified": true, "is_owner": true, "name": "Sam"},
+  "session_id": "<the chat's id>"}}
+```
+
+`device` and `speaker` come from the satellite's context (`POST …/satellite/turn`,
+`fork/voice/satellite.py`), claimed at the start of each question; both are null without
+it. Links have no labels yet (`label: null`).
+
+## Private answers
+
+`FORK_VOICE_PRIVATE` (`fork/voice/satellite.py`): `off` (default) answers every voice;
+`owner` gives personal answers only when Athena recognised the owner's voice in the
+audio the satellite posted. Without the satellite module, every voice is answered.
+
+## The security trade-off
+
+For the owner to keep in mind: the voice token can read the owner's conversations,
+calendar, notes, contacts and beliefs (not email), and **anyone in the room can make the
+allow-listed changes** (add a to-do, reminder, list item, note or calendar event; mark an
+Athena action item done) by asking and then saying "yes". Voice can't delete or edit
+anything else, send or read email, or reach anything an ordinary chat couldn't. Whoever
+holds the token (Home Assistant) and anyone who can talk to the satellite can ask. Keep
+the satellite in a private room and the token in Home Assistant only; with
+`FORK_VOICE_PRIVATE=owner`, personal answers and changes need the owner's voice.
 
 ## Conversations
 
@@ -148,6 +267,9 @@ open link or code block, so text-to-speech can start before the answer is done; 
 preamble is spoken, since it is sent before the model's tool calls are known.
 
 ## Sandbox results (2026-11-03)
+
+Measured before changes by voice and the shared prefix (then: read-only tools only, the
+voice instructions in the system prompt); not run again since.
 
 The sandbox stack ([sandbox.md](sandbox.md)): Qwen3-4B on 4 CPUs, Athena's fictional demo
 data, Odysseus on port 7010, the voice token from the Settings route, `curl` to the
@@ -208,22 +330,130 @@ curl -s https://<odysseus>/api/chat/voice/v1/chat/completions \
 
 To check (not verified in the sandbox): which field Home Assistant's agent sends the
 conversation id in. If it sends neither `user` nor earlier turns, every question starts a
-new chat and follow-ups lose their context.
+new chat and follow-ups lose their context; a "yes" then confirms nothing either
+(it must reach the conversation that asked).
+
+## Satellites: owner-only answers and announcements
+
+Status: built hub side (2026-11-03). Needs the Echo app's satellite post and, for the
+speaker check, Athena's `POST /speakers/identify` (MCP 0.22.0); with an older Athena the
+check answers "couldn't check".
+
+### Satellite context
+
+`fork/voice/satellite.py`, `fork/voice/satellite_routes.py`. When the owner stops
+speaking (the pipeline's VOICE_STOPPED), before Home Assistant has asked Odysseus, the
+satellite posts what only it knows:
+
+`POST /api/chat/voice/v1/satellite/turn` (the `voice` token), `multipart/form-data` (a
+urlencoded form works without audio):
+
+| Field | |
+|---|---|
+| `device_id` | required, at most 128 characters |
+| `device_name`, `area`, `wake_word` | optional text (100, 100, 64 characters) |
+| `started_at` | epoch ms of the wake word (default: now) |
+| `audio` | optional WAV (16 kHz mono 16-bit, the spoken command, ≤ 15 s); at most 1 MiB, must start with a RIFF/WAVE header (else 413 / 415) |
+
+The request needs a `Content-Length` (411 without, 413 above ~1.06 MB), so an oversized
+upload is refused before it is read. Answer: `{"ok": true, "context_id": "…",
+"speaker": {"verified", "is_owner", "name", "score"} | null}`; `speaker` is null without
+audio, when Athena couldn't check, or while the check still runs (the route waits at most
+0.5 s for it).
+
+The hub keeps the context **in memory** for 30 s, per token owner (at most 8 per owner, 64
+owners). The voice turn takes it with `claim(owner, wait_seconds=3.0)`: the newest
+unclaimed context of that owner, each claimed once; if its speaker check is still
+running, it waits up to `wait_seconds`. The turn puts device and room in its context
+("Asked from: Kitchen Echo, Kitchen") and on the ledger (HUB-CORE's side, `fork/voice/routes.py`).
+After a restart, or with several workers, a turn may find no context: it is then answered
+as if no satellite had posted.
+
+**The speaker check** runs as a background task: the audio goes to Athena's relay route
+`POST /speakers/identify` (field `audio`) through the MCP server Odysseus has for Athena
+(`SOUND_MODULE_SERVER`, `fork/athena/client.py`, token as `Authorization: Bearer`, 10 s
+timeout). Athena compares it with the enrolled voices ([Enroll My Voice](modules/athena.md#enroll-my-voice)):
+a match gives `verified: true` and its `is_owner` and `name`; no match above Athena's
+threshold gives `verified: true, is_owner: false`; too little speech (< 1 s), a 404 (an
+older Athena), a timeout, a refusal or no Athena set up give `speaker: null`. **The audio
+is never written or logged**: it is held only by that task and dropped when Athena
+answers; only the outcome is logged.
+
+### Owner-only answers
+
+`personal_allowed(ctx)`, setting `FORK_VOICE_PRIVATE`:
+
+- `off` (default, and any value other than `owner`): every voice turn may use personal
+  tools, as before.
+- `owner`: personal tools (Athena, calendar, notes, contacts, memory, beliefs, documents,
+  chat search) run only when the turn's context has a speaker that Athena verified as the
+  owner. Otherwise they answer "I can only answer that for the owner of this assistant."
+  (`PRIVATE_REPLY`); web and weather stay allowed. No context, no audio and "couldn't
+  check" all count as not the owner.
+
+### Announcements
+
+`fork/voice/announce.py`: `await announce(message, entities=None) -> bool` speaks a message
+on the satellites through Home Assistant's `assist_satellite.announce` service
+(`POST <FORK_HA_URL>/api/services/assist_satellite/announce`, `{"entity_id": [...],
+"message": "..."}`, `Authorization: Bearer <FORK_HA_TOKEN>`, 10 s timeout, no redirects).
+Home Assistant speaks it with its own local text-to-speech. It never raises; a refusal is
+logged without the message. Later features (a spoken daily briefing) call it the same way.
+
+- **Reminders:** when a note reminder fires (the note-reminder scanner in
+  `src/builtin_actions.py`, the same dispatch that sends ntfy/email/browser), the hook
+  `announce_reminder(title)` also says "Reminder: <title>", in the background: the
+  reminder itself never waits for or fails on Home Assistant. Off until `FORK_HA_URL`,
+  `FORK_HA_TOKEN` and `FORK_VOICE_ANNOUNCE_ENTITIES` are all set.
+- **Test:** `POST /api/fork/voice/announce` (signed-in admin, browser), `{"message"?: str}`
+  → `{"ok": true|false, "problem": "…"|null}`.
+- **Only a local Home Assistant:** `FORK_HA_URL` must be `http(s)://host[:port][/path]` with
+  a host that is local, on a private network or in Tailscale's range; a name is resolved
+  and every address must be one. A public host, a URL with credentials, a query or a
+  fragment is refused.
+
+### Settings
+
+| Variable | Meaning |
+|---|---|
+| `FORK_VOICE_PRIVATE` | `off` (default) or `owner` |
+| `FORK_HA_URL` | Home Assistant's address, e.g. `http://192.168.1.20:8123` (local hosts only) |
+| `FORK_HA_TOKEN` | a Home Assistant long-lived access token (a secret: `.env` only) |
+| `FORK_VOICE_ANNOUNCE_ENTITIES` | comma list, e.g. `assist_satellite.kitchen_echo` |
+
+### Security trade-offs
+
+- A voiceprint is not a password: a recording of the owner, or a close voice, can pass
+  Athena's threshold. `FORK_VOICE_PRIVATE=owner` keeps casual visitors out of personal
+  answers, nothing more. Without it (the default), anyone near a satellite can ask.
+- Contexts are matched to turns by owner and time only (the newest within 30 s): two
+  satellites of one owner asking at the same moment could swap contexts. Each context is
+  used once, and a missing one never grants more.
+- The voice token can now also send audio to Athena's identify route; Athena only compares
+  it and writes nothing.
+- Announcements speak reminder titles aloud in the room, to whoever is there; the
+  Home Assistant token can control the owner's home, so it stays in `.env` only and is
+  only ever sent to the private host.
 
 ## Later
 
-- Voice changes with a spoken confirmation ("Add the dentist on Tuesday at three?" —
-  "Yes").
-- Private answers only for the owner's voice: Athena already keeps the owner's voiceprint
-  (Enroll My Voice); the satellite's audio could be checked against it.
-- The answer's links and Athena cards on the satellite's screen.
+- The answer's link labels (conversation titles) in `links[].label`.
+- More writable tools (tick a to-do done: `manage_notes` `toggle_item`): one entry in
+  `confirm.WRITABLE` each.
 
 ## Files and tests
 
-- `fork/voice/routes.py`, `openai_api.py`, `sessions.py`, `speech.py`, `prompt.py`.
-- In the brain: `read_only_turn` (`fork/brain/turn.py`), `read_only_refusal`
+- `fork/voice/routes.py`, `openai_api.py`, `sessions.py`, `speech.py`, `prompt.py`,
+  `chat_prefix.py` (the chat's preset), `policy.py` (what runs), `confirm.py` (changes
+  after a yes), `ledger.py` (turns and actions). The satellite's context and
+  announcements are `fork/voice/satellite.py` and `announce.py`, optional here (the routes
+  import the satellite module lazily and work without it).
+- Satellites and announcements: `fork/voice/satellite.py`, `satellite_routes.py`,
+  `announce.py`; the hook in `src/builtin_actions.py` (`ping_notes`).
+- In the brain: `read_only_turn` (`fork/brain/turn.py`: `shared_prefix`, `preset`,
+  `gate`, `context_lines`, `no_memory`), `ToolRun.gate` and `read_only_refusal`
   (`fork/brain/tools.py`), `can_read` and `read_only` (`fork/brain/toolset.py`).
 - `static/js/forkVoiceAssistant.js`: the Settings card.
 - Hooks: `routes/api_token_routes.py` (scope `voice`), `static/index.html` (the card's
   script tag); the router is in `fork/routes/__init__.py`.
-- Tests: `tests/fork/test_voice_assistant.py`.
+- Tests: `tests/fork/test_voice_assistant.py`, `tests/fork/test_voice_satellite.py`.

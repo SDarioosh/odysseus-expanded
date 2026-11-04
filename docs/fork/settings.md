@@ -45,5 +45,9 @@ that are off by default are on for `1`, `true`, `yes` or `on` (any case).
 | `FORK_BRAIN` | - | on/off | `on` | The brain, the fork's own agent loop, answers every chat turn of every chat; off (0, false, no, off) gives the turns back to upstream's agent. | `fork/brain/settings.py` |
 | `FORK_BRAIN_MAX_ROUNDS` | - | integer 1-20 | `8` | Tool rounds per brain turn before one last round without tools; clamped to 1-20. | `fork/brain/settings.py` |
 | `FORK_BRAIN_TOOL_GROUPS` | - | comma-separated groups | `web,athena,workspace,documents,beliefs,chats,email` | Tool groups the brain offers (web, athena, workspace, documents, beliefs, chats, email, images); unknown names are ignored. | `fork/brain/settings.py` |
+| `FORK_VOICE_PRIVATE` | - | off or owner | `off` | Personal voice answers: off answers anyone near a satellite; owner only when Athena recognised the owner's voice (anything else means off). | `fork/voice/satellite.py` |
+| `FORK_HA_URL` | - | URL | (empty) | Home Assistant's address for spoken announcements; only a local, private-network or Tailscale host is used (unset: no announcements). | `fork/voice/announce.py` |
+| `FORK_HA_TOKEN` | - | secret | (empty) | A Home Assistant long-lived access token for announcements. | `fork/voice/announce.py` |
+| `FORK_VOICE_ANNOUNCE_ENTITIES` | - | comma-separated entity ids | (empty) | The assist_satellite entities announcements are spoken on (unset: none). | `fork/voice/announce.py` |
 | `INK_AUTO_SEND` | - | on/off | (empty) | Send pages the model read without [?] to Athena without review. | `fork/ink/transcribe.py` |
 | `APP_PUBLIC_URL` | - | URL | (empty) | The hub's address for links in notes sent to Athena when Settings has no Public URL (upstream's MCP OAuth redirect reads it too). | `fork/ink/athena.py` |

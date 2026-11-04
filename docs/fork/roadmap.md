@@ -46,9 +46,17 @@ branches) are kept in [status-history.md](status-history.md).
 - **Voice assistant** ([voice-assistant.md](voice-assistant.md)): wake-word questions to
   Odysseus and Athena from a Home Assistant voice satellite (the Echo Show 5, 2nd gen, on
   LineageOS). Hub side built: the OpenAI-compatible `/api/chat/voice/v1/chat/completions` for `voice`
-  tokens, read-only brain turns, spoken answers, the Settings card. Next: the device and
-  Home Assistant setup (separate work), the owner's test with the real satellite, then
-  voice changes with a spoken confirmation.
+  tokens, brain turns that share chat's prompt prefix (one KV cache), spoken answers, the
+  Settings card, changes after a spoken "yes" (to-dos, reminders, list items, notes,
+  calendar events, Athena action items done), the turn ledger and the screen's feeds
+  (`/actions`, `/turns/latest`); the satellite context, private answers
+  (`FORK_VOICE_PRIVATE`) and announcements are their own stream. Next: the owner's test
+  with the real satellite (confirmation flow, cache reuse on the server's GPU).
+  Satellite context (device, room, wake word), owner-only answers checked against Athena's
+  voiceprint (`FORK_VOICE_PRIVATE=owner`, needs Athena's `/speakers/identify`, MCP 0.22.0)
+  and spoken reminders through Home Assistant are built hub side
+  ([satellites](voice-assistant.md#satellites-owner-only-answers-and-announcements)); next:
+  the owner's test with the Echo app's satellite post and a real voiceprint.
 
 - **The brain** ([brain.md](brain.md)): a small fork-owned agent loop that answers chat
   turns as a general personal assistant (web, Athena, workspace), streaming and with a

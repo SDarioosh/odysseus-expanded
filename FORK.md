@@ -169,7 +169,8 @@ the link goes to its details (what it does, its files, whether it can go upstrea
 
 ### Voice assistant
 
-- [Voice assistant through Home Assistant](docs/fork/voice-assistant.md): `POST /api/chat/voice/v1/chat/completions` (OpenAI's shape) for a Home Assistant conversation agent, for API tokens with the `voice` scope only. Each question is a read-only brain turn of the token's owner (`read_only_turn`): Athena, calendar, notes, contacts, memory, beliefs, documents and the web are read, nothing is changed or asked, no email; answers are short spoken text with the links apart, and each conversation is a chat in the Voice folder. Settings → Integrations → Voice assistant makes the token.
+- [Voice assistant through Home Assistant](docs/fork/voice-assistant.md): `POST /api/chat/voice/v1/chat/completions` (OpenAI's shape) for a Home Assistant conversation agent, for API tokens with the `voice` scope only. Each question is a brain turn of the token's owner (`read_only_turn`, `shared_prefix`) whose prompt starts exactly like a chat's (same system prompt, preset and tools, so the model server's chat cache is reused); Athena, calendar, notes, contacts, memory, beliefs, documents and the web are read, email is never run, and an allow-listed change (to-do, reminder, list item, note, calendar event, Athena action item done) runs only after a spoken "yes" (`fork/voice/confirm.py`), everything else that writes is refused; answers are short spoken text with the links apart, ending in "?" only for a confirmation, and each conversation is a chat in the Voice folder. The turn ledger (`fork/voice/ledger.py`) feeds the satellite's screen: `GET …/actions`, `GET …/turns/latest`. Settings → Integrations → Voice assistant makes the token.
+- [Voice satellites: room context, owner-only answers, announcements](docs/fork/voice-assistant.md#satellites-owner-only-answers-and-announcements): `POST /api/chat/voice/v1/satellite/turn` keeps the device, room and wake word of the next voice turn for 30 s and has Athena check whose voice it was (`/speakers/identify`, audio never stored); `FORK_VOICE_PRIVATE=owner` keeps personal answers to the owner's voice; due reminders are spoken on the satellites through Home Assistant's `assist_satellite.announce` (`FORK_HA_URL`, a local host only).
 
 ### Logs and tests
 
@@ -194,7 +195,7 @@ to be offered) upstream, "with discussion" a change upstream may want in another
 |---|---|---|---|---|
 | `app.py` | after the logging handlers | `fork/hub/log_redact.py` | log formatters write token query values as `***` | yes |
 | `app.py` | `AUTH_EXEMPT_EXACT` | `fork/athena/relay_routes.py` | `/api/pair/redeem` needs no session (rate limited) | no |
-| `app.py` | routers, after the MCP routes | `fork/routes/__init__.py` (`mount`, table `ROUTERS`) | the fork's twelve routers in one call, in order: Athena page, Today, belief search (before the review page's `/api/beliefs/{id}`), belief review, phone relay and pairing, summary model, transcription vocabulary, Enroll My Voice, auto mode default, handwritten notes, news brief, voice assistant | no |
+| `app.py` | routers, after the MCP routes | `fork/routes/__init__.py` (`mount`, table `ROUTERS`) | the fork's thirteen routers in one call, in order: Athena page, Today, belief search (before the review page's `/api/beliefs/{id}`), belief review, phone relay and pairing, summary model, transcription vocabulary, Enroll My Voice, auto mode default, handwritten notes, news brief, voice assistant, voice satellites and announcements | no |
 | `app.py` | `_startup_event` | `fork/hub/checklist_auto_archive.py` | start the checklist archiver | with discussion |
 | `.github/workflows/ci.yml` | byte-compile step | none | compile `fork/` too | no |
 | `frontend/src/features/notes/application/workflows.js` | `_fetchNotes` | none (a filter; Write is `static/js/forkInk.js`) | handwritten notes left out of the Notes window | no |
@@ -238,6 +239,7 @@ to be offered) upstream, "with discussion" a change upstream may want in another
 | `src/agent_runtime/effect_adapters.py` | `classify` | `fork/mcp/trust.py` | a trusted read-only call is an admitted read | yes |
 | `src/agent_tools/__init__.py` | `TOOL_HANDLERS` | `fork/routing/auto_mode.py` | `calculate` handler | no |
 | `src/builtin_actions.py` | `action_consolidate_memory` | `fork/beliefs/consolidation.py` | Memory Tidy skips sourced memories | no |
+| `src/builtin_actions.py` | `ping_notes`, after a reminder is dispatched | `fork/voice/announce.py` (`announce_reminder`) | a due reminder is also spoken on the voice satellites, in the background, when configured | no |
 | `src/builtin_actions.py` | action registry, end of file | `fork/tasks.py` (`register_actions`, table `TASKS`) | the fork's actions: Module Action Items, Module Facts, Today Insight, Notes Evidence, Belief Structure, News Brief, `meeting_auto_join` | no |
 | `src/caldav_sync.py` | `sync_caldav`, after the pull | `fork/athena/meeting_auto_join.py` | Send Athena tasks follow moved or deleted events | no |
 | `src/chat_processor.py` | `ChatProcessor.build_context_preface`, memory context | `fork/insight/today.py` | Today and beliefs block on plan questions | no |
@@ -307,7 +309,7 @@ granted; `turn_policy.py` is what the chat route's hooks call), `fork/athena/` (
 Athena module in the hub, its routes included; `fork/athena/client.py` is the one way the
 fork calls Athena, MCP tools and HTTP routes alike),
 `fork/beliefs/`, `fork/insight/`, `fork/news/` (the morning news brief), `fork/ink/`, `fork/brain/` (the brain, a chat agent loop of the fork's own;
-[docs/fork/brain.md](docs/fork/brain.md)), `fork/voice/` (the voice assistant endpoint;
+[docs/fork/brain.md](docs/fork/brain.md)), `fork/voice/` (the voice assistant endpoint, satellites and announcements;
 [docs/fork/voice-assistant.md](docs/fork/voice-assistant.md)), `fork/hub/` (fixes to upstream's own
 features), `fork/routes/` (the other route files; `fork.routes.mount` includes all the
 fork's routers) and `fork/common/` (shared helpers). `fork/tasks.py` is the table of the

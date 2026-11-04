@@ -12,7 +12,8 @@ from fastapi import FastAPI
 from fastapi.testclient import TestClient
 
 from fork.brain import turn as brain_turn
-from fork.voice import openai_api, routes as voice_routes, sessions as voice_sessions
+from fork.voice import confirm, ledger, openai_api, routes as voice_routes
+from fork.voice import sessions as voice_sessions
 from fork.voice.speech import SpeechStream, to_speech
 from tests.fork.brain_fakes import Brain, calls, fake_request, text
 
@@ -110,7 +111,13 @@ def test_conversation_header_when_there_is_no_user_field():
 # --------------------------------------------------------- the read-only brain turn
 @pytest.fixture
 def brain(monkeypatch, data_dir):
+    confirm.forget_all()
+    monkeypatch.setattr(confirm, "athena_item_title", _no_title)
     return Brain(monkeypatch, data_dir)
+
+
+async def _no_title(item_id):
+    return None
 
 
 def _token_request(owner="alice", scopes=("voice",)):
@@ -121,10 +128,18 @@ def _token_request(owner="alice", scopes=("voice",)):
     return req
 
 
-async def _voice(brain, sess, message, *, request=None, disabled=voice_routes.LEFT_OUT):
+async def _voice(brain, sess, message, *, request=None, personal=True, turn_id="turn-1"):
+    """A voice turn the way the route starts one: the chat's prefix, the voice gate."""
+    from fork.voice.chat_prefix import EMPTY
+    from fork.voice.policy import VoiceGate
+
+    gate = VoiceGate(owner=sess.owner, session_id=sess.id, turn_id=turn_id,
+                     personal=personal)
     events = brain_turn.read_only_turn(
         request or _token_request(sess.owner), sess=sess, session_id=sess.id,
-        message=message, owner=sess.owner, instructions="Speak briefly.", disabled=disabled)
+        message=message, owner=sess.owner, instructions="Speak briefly.", preset=EMPTY,
+        gate=gate, shared_prefix=True, context_lines=("Asked from: Kitchen Echo, Kitchen",),
+        no_memory=not personal)
     assert events is not None
     out = []
     async for chunk in events:
@@ -136,44 +151,123 @@ def _offered(request) -> set[str]:
     return {t["function"]["name"] for t in request.get("tools") or []}
 
 
-async def test_voice_offers_athena_reads_to_a_token_but_no_writes_and_no_email(brain):
-    sess = brain.session()
-    brain.llm.rounds([text("Nothing yet.")])
-    await _voice(brain, sess, "What did Priya say?")
-    offered = _offered(brain.llm.requests[0])
-    # a bearer token's run, yet Athena's read tools are offered (as the owner)
-    assert SEARCH in offered
-    assert UPDATE not in offered and ERASE not in offered
-    assert not offered & set(voice_routes.LEFT_OUT)
-    assert "generate_image" not in offered
-    # the voice instructions stand where a preset's text goes
-    assert brain.llm.requests[0]["messages"][0]["content"].endswith("Speak briefly.")
+def _tool_results(request) -> list[str]:
+    return [m["content"] for m in request["messages"] if m.get("role") == "tool"]
 
 
-async def test_a_write_the_model_calls_anyway_is_refused_never_asked(brain):
+async def test_voice_shares_the_chat_prefix_and_tools(brain):
+    """Same system prompt and tools, in the same order, as a chat turn of the owner;
+    the voice instructions come after the cached prefix, with the question."""
+    chat, voice = brain.session(sid="chat-a"), brain.session(sid="voice-a")
+    brain.llm.rounds([text("Hi.")], [text("Hi.")])
+    await brain.run(chat, "What did Priya say?")
+    await _voice(brain, voice, "What did Priya say?")
+    chat_req, voice_req = brain.llm.requests
+    assert [t["function"]["name"] for t in voice_req["tools"]] == \
+        [t["function"]["name"] for t in chat_req["tools"]]
+    assert voice_req["tools"] == chat_req["tools"]
+    assert UPDATE in _offered(voice_req) and "send_email" in _offered(voice_req)
+    cm, vm = chat_req["messages"], voice_req["messages"]
+    assert vm[:-2] == cm[:-2]  # everything before the context message
+    assert "Asked from: Kitchen Echo, Kitchen" in vm[-2]["content"]
+    assert vm[-1]["content"].startswith("Speak briefly.") and \
+        vm[-1]["content"].endswith("What did Priya say?")
+    assert cm[-1]["content"] == "What did Priya say?"
+    # the chat window's saved message is the plain question
+    assert voice.history[0].content == "What did Priya say?"
+
+
+async def test_voice_uses_the_chat_preset_text(brain, monkeypatch, data_dir):
+    from src.preset_manager import PresetManager
+    from fork.voice import chat_prefix
+
+    pm = PresetManager(str(data_dir))
+    pm.presets["custom"] = {**pm.presets["custom"], "enabled": True,
+                            "system_prompt": "Call me Sam."}
+    pm.save(pm.presets)
+    preset = chat_prefix.default_preset()
+    assert preset.system_prompt == "Call me Sam."
+    pm.presets["custom"]["enabled"] = False
+    pm.save(pm.presets)
+    assert not chat_prefix.default_preset().system_prompt
+
+
+async def test_a_disallowed_write_is_refused_never_asked(brain):
     sess = brain.session()
-    brain.llm.rounds([calls((UPDATE, {"id": 3}))], [text("I can't change that by voice.")])
-    chunks = await _voice(brain, sess, "Mark the cake to-do done")
-    assert brain.ran == []  # upstream's runner never saw the call
+    brain.llm.rounds([calls((ERASE, {"fact_id": 3}),
+                            ("manage_calendar", {"action": "delete_event", "uid": "x"}))],
+                     [text("I can't do that by voice.")])
+    chunks = await _voice(brain, sess, "Forget that fact and delete the dentist")
+    assert brain.ran == []  # upstream's runner never saw the calls
     events = [json.loads(c[6:]) for c in chunks if c.startswith("data: {")]
     assert not any(e.get("type") == "ask_user" or e.get("ask_user") for e in events)
-    tool_msg = [m for m in brain.llm.requests[1]["messages"] if m.get("role") == "tool"][-1]
-    assert "not available here" in tool_msg["content"]  # not offered, so not run
+    results = _tool_results(brain.llm.requests[1])
+    assert "not available here" in results[0]  # not in the brain's set, chat or voice
+    assert "can only read" in results[1]
     assert brain_turn.pending_count() == 0
+    assert confirm.pending(sess.owner, sess.id) is None
 
 
-async def test_store_tools_run_their_reads_and_refuse_their_writes(brain):
+async def test_email_is_listed_but_never_run(brain):
+    sess = brain.session()
+    brain.llm.rounds([calls(("list_emails", {}), ("send_email", {"to": "x@example.test"}))],
+                     [text("No email by voice.")])
+    await _voice(brain, sess, "Read my email")
+    assert brain.ran == []
+    assert all("email isn't available by voice" in r
+               for r in _tool_results(brain.llm.requests[1]))
+
+
+async def test_store_reads_run_and_an_allowed_write_is_only_proposed(brain):
     sess = brain.session()
     brain.llm.rounds(
         [calls(("manage_calendar", {"action": "list_events"}),
-               ("manage_calendar", {"action": "create_event", "title": "Dentist"}))],
-        [text("You have nothing on Tuesday.")])
-    await _voice(brain, sess, "What's on Tuesday?")
+               ("manage_calendar", {"action": "create_event", "summary": "Dentist",
+                                    "local_start": {"date": "2026-11-10", "time": "15:00"}}))],
+        [text("You're free. Add Dentist on Tuesday at three to your calendar?")])
+    await _voice(brain, sess, "Add the dentist on Tuesday at three")
     assert [r["tool"] for r in brain.ran] == ["manage_calendar"]
     assert "list_events" in brain.ran[0]["content"]
-    refused = [m for m in brain.llm.requests[1]["messages"] if m.get("role") == "tool"][-1]
-    assert "can only read" in refused["content"]
+    proposed = _tool_results(brain.llm.requests[1])[-1]
+    assert proposed == confirm.PROPOSED
+    p = confirm.pending(sess.owner, sess.id)
+    assert p is not None and [c.name for c in p.calls] == ["manage_calendar"]
+    assert p.calls[0].change.kind == "event" and p.calls[0].change.where == "Calendar"
     assert brain_turn.pending_count() == 0
+
+
+async def test_yes_runs_the_kept_call_exactly_with_an_exact_approval(brain):
+    sess = brain.session()
+    args = {"item_id": 3, "status": "done"}
+    brain.llm.rounds([calls((UPDATE, args))], [text("Mark the cake to-do as done?")])
+    await _voice(brain, sess, "Mark the cake to-do done")
+    assert brain.ran == []
+    p = confirm.take(sess.owner, sess.id)
+    outcomes = await confirm.run(p)
+    assert [o.ok for o in outcomes] == [True]
+    assert len(brain.ran) == 1 and brain.ran[0]["tool"] == UPDATE
+    assert json.loads(brain.ran[0]["content"]) == args
+    assert brain.ran[0]["exact_approval"] is not None
+    assert confirm.reply(outcomes) == "Done. Marked action item 3 done."
+
+
+async def test_an_athena_update_other_than_done_is_refused(brain):
+    sess = brain.session()
+    brain.llm.rounds([calls((UPDATE, {"item_id": 3, "status": "done", "due_date": "none"}))],
+                     [text("Can't.")])
+    await _voice(brain, sess, "Mark it done and clear the date")
+    assert "can only read" in _tool_results(brain.llm.requests[1])[0]
+    assert confirm.pending(sess.owner, sess.id) is None
+
+
+async def test_private_answers_refuse_personal_tools_and_keep_the_web(brain):
+    sess = brain.session()
+    brain.llm.rounds([calls((SEARCH, {"query": "cake"}), ("get_weather", {"location": "Lisbon"}))],
+                     [text("It's sunny.")])
+    await _voice(brain, sess, "Who brings the cake and how's the weather?", personal=False)
+    assert [r["tool"] for r in brain.ran] == ["get_weather"]
+    from fork.voice.policy import PRIVATE_REPLY
+    assert PRIVATE_REPLY in _tool_results(brain.llm.requests[1])[0]
 
 
 async def test_reads_run_and_the_answer_is_saved_in_the_chat(brain):
@@ -220,9 +314,16 @@ class FakeSessions:
 
 
 @pytest.fixture
-def api(monkeypatch):
-    """The voice router on a bare app; the token is set by a header the fake auth reads."""
+def api(monkeypatch, data_dir):
+    """The voice router on a bare app; the token is set by a header the fake auth reads.
+    ``client.answer``: what the fake brain turn says; ``client.on_turn(kw)``: called with
+    the turn's arguments (to keep a proposal, as the voice gate would)."""
+    import sys
+
     voice_sessions.forget_all()
+    confirm.forget_all()
+    # no satellite module unless a test adds one (the HUB-SATELLITE stream's file)
+    monkeypatch.setitem(sys.modules, "fork.voice.satellite", None)
     app = FastAPI()
     app.state.session_manager = FakeSessions()
     turns = []
@@ -236,28 +337,37 @@ def api(monkeypatch):
         request.state.current_user = "api" if scopes is not None else "alice"
         return await call_next(request)
 
-    def fake_turn(request, *, sess, session_id, message, owner, instructions, disabled,
-                  services):
+    def fake_turn(request, *, sess, session_id, message, owner, instructions, services,
+                  **kw):
         turns.append({"sid": session_id, "message": message, "owner": owner,
-                      "instructions": instructions, "disabled": disabled})
+                      "instructions": instructions, **kw})
+        if client.on_turn:
+            client.on_turn(turns[-1])
+        said = client.answer
 
         async def events():
             yield 'data: {"type": "tool_start", "tool": "x"}\n\n'
             yield 'data: {"type": "agent_step", "round": 2}\n\n'
-            yield 'data: {"delta": "**Priya** brings the cake. "}\n\n'
-            yield 'data: {"delta": "' + f"[transcript]({LINK})" + '"}\n\n'
+            for piece in said:
+                yield "data: " + json.dumps({"delta": piece}) + "\n\n"
             yield 'data: {"type": "metrics", "data": {"input_tokens": 9, "output_tokens": 4}}\n\n'
             yield "data: [DONE]\n\n"
         return events()
 
     monkeypatch.setattr("fork.brain.turn.read_only_turn", fake_turn)
+    monkeypatch.setattr("fork.voice.chat_prefix.default_preset",
+                        lambda: SimpleNamespace(system_prompt="", temperature=None,
+                                                max_tokens=None, character_name=None))
     monkeypatch.setattr(voice_sessions, "default_model",
                         lambda owner: ("http://127.0.0.1:8082/v1/chat/completions", "local", {}))
     monkeypatch.setattr(voice_sessions, "_file_in_folder", lambda sid: None)
+    monkeypatch.setattr(voice_routes, "_save_exchange", lambda *a: turns.append({"saved": a[2:]}))
     app.include_router(voice_routes.setup_voice_routes())
     client = TestClient(app)
     client.turns = turns
     client.sessions = app.state.session_manager
+    client.answer = ["**Priya** brings the cake. ", f"[transcript]({LINK})"]
+    client.on_turn = None
     return client
 
 
@@ -295,7 +405,10 @@ def test_answer_is_spoken_text_with_the_links_apart(api):
     assert body["odysseus"]["links"] == [LINK]
     turn = api.turns[0]
     assert turn["owner"] == "alice" and turn["message"] == "Who brings the cake?"
-    assert "read aloud" in turn["instructions"] and "send_email" in turn["disabled"]
+    assert "read aloud" in turn["instructions"] and turn["shared_prefix"] is True
+    assert "disabled" not in turn  # email is listed like in chat, refused at execution
+    assert turn["gate"].personal is True and turn["no_memory"] is False
+    assert body["odysseus"]["turn_id"]
     assert api.sessions.created[0].name == "Voice: Who brings the cake?"
 
 
@@ -384,3 +497,308 @@ def test_the_settings_card_makes_a_voice_only_token(monkeypatch):
     assert res.status_code == 200 and res.json()["token"] == "ody_fake"
     owner, name, scopes = made[0]
     assert owner == "alice" and scopes == ["voice"] and name.startswith("Voice assistant ")
+
+
+# --------------------------------------------------- the turn ledger and its feeds
+ACTIONS = voice_routes.PREFIX + "/actions"
+LATEST = voice_routes.PREFIX + "/turns/latest"
+YES = {"user": "ha-1", "model": "odysseus", "messages": [{"role": "user", "content": "Yes."}]}
+DENTIST = {"user": "ha-1", "model": "odysseus",
+           "messages": [{"role": "user", "content": "Add the dentist on Tuesday at three"}]}
+
+
+def test_the_feeds_need_a_voice_token(api):
+    for url in (ACTIONS, LATEST):
+        assert api.get(url).status_code == 403
+        assert api.get(url, headers={"x-test-scopes": "chat"}).status_code == 403
+    assert api.get(ACTIONS, headers=VOICE).json() == {"actions": []}
+    assert api.get(LATEST, headers=VOICE).json() == {"turn": None}
+
+
+def test_a_turn_is_recorded_and_served_as_the_latest(api):
+    body = api.post(URL, json=ASK, headers=VOICE).json()
+    turn = api.get(LATEST, headers=VOICE).json()["turn"]
+    assert turn["id"] == body["odysseus"]["turn_id"]
+    assert turn["question"] == "Who brings the cake?"
+    assert turn["answer"] == "Priya brings the cake."
+    assert turn["links"] == [{"url": LINK, "label": None}]
+    assert turn["actions"] == [] and turn["awaiting_confirmation"] is None
+    assert turn["device"] is None and turn["speaker"] is None
+    assert turn["session_id"] == body["odysseus"]["session_id"]
+    assert turn["started_at"].endswith("+00:00") and turn["ended_at"]
+    future = (ledger.time.time() + 60) * 1000
+    assert api.get(LATEST, params={"since": int(future)}, headers=VOICE).json() == {"turn": None}
+
+
+def test_a_streamed_turn_is_recorded_too(api):
+    res = api.post(URL, json={**ASK, "stream": True}, headers=VOICE)
+    last = json.loads([l[6:] for l in res.text.split("\n\n") if l.startswith("data: {")][-1])
+    turn = api.get(LATEST, headers=VOICE).json()["turn"]
+    assert turn["id"] == last["odysseus"]["turn_id"] and turn["answer"] == "Priya brings the cake."
+
+
+def test_the_ledger_is_owner_scoped_and_newest_first(data_dir):
+    t = ledger.start_turn("alice", "q", now=1000.0)
+    ledger.add_action(t, "alice", action="created", kind="todo", title="Old", where="To-dos",
+                      now=1001.0)
+    ledger.add_action(t, "alice", action="completed", kind="action_item", title="New",
+                      where="Athena", source="athena", now=1002.0)
+    ledger.add_action(t, "bob", action="created", kind="note", title="Bob's", where="Notes",
+                      now=1003.0)
+    rows = ledger.actions("alice", since_ms=0, limit=8)
+    assert [r["title"] for r in rows] == ["New", "Old"]
+    assert set(rows[0]) == {"id", "at", "action", "kind", "title", "detail", "due",
+                            "all_day", "where", "source", "turn_id"}
+    assert rows[0]["at"] == "1970-01-01T00:16:42+00:00" and rows[0]["source"] == "athena"
+    assert [r["title"] for r in ledger.actions("alice", since_ms=1001500)] == ["New"]
+    assert len(ledger.actions("alice", limit=1)) == 1
+    with pytest.raises(ValueError):
+        ledger.add_action(t, "alice", action="deleted", kind="todo", title="x", where="y")
+    # pruned after 7 days
+    ledger.start_turn("alice", "later", now=1000.0 + ledger.KEEP_SECONDS + 10)
+    assert ledger.actions("alice") == []
+
+
+def _propose(api, change=None):
+    """The fake turn keeps a proposal, as the voice gate does for an allowed write."""
+    change = change or confirm.Change("created", "event", "Dentist", "Calendar",
+                                      "Added Dentist to your calendar.", due="2026-11-10T15:00:00+00:00",
+                                      question="Add Dentist to your calendar?")
+
+    def keep(kw):
+        gate = kw["gate"]
+        confirm.keep("alice", kw["sid"], gate.turn_id, SimpleNamespace(), "manage_calendar",
+                     '{"action": "create_event", "summary": "Dentist"}', change)
+    api.on_turn = keep
+
+
+@pytest.mark.parametrize("said", [["Sure."], ["Add Dentist on Tuesday at three to your calendar?"]])
+def test_a_proposal_ends_with_a_confirmation_question(api, said):
+    _propose(api)
+    api.answer = said
+    body = api.post(URL, json=DENTIST, headers=VOICE).json()
+    spoken = body["choices"][0]["message"]["content"]
+    assert spoken.endswith("?")
+    turn = api.get(LATEST, headers=VOICE).json()["turn"]
+    assert turn["awaiting_confirmation"] == spoken.split(". ")[-1]
+    assert api.get(ACTIONS, headers=VOICE).json() == {"actions": []}  # not run
+
+
+@pytest.mark.parametrize("said", ["It is sunny. Would you like to hear more?",
+                                  "Add milk to your shopping list?"])
+def test_the_spoken_question_is_the_kept_calls_own(api, said):
+    """A "yes" must answer the question built from the stored call: a question the model
+    wrote (an offer, or one naming another change) is replaced, never kept."""
+    _propose(api)
+    api.answer = [said]
+    body = api.post(URL, json=DENTIST, headers=VOICE).json()
+    spoken = body["choices"][0]["message"]["content"]
+    assert spoken.endswith("Add Dentist to your calendar?")
+    assert "hear more" not in spoken and "milk" not in spoken
+
+
+def test_several_kept_changes_are_each_named():
+    p = confirm.Proposal("alice", "s", "t", None)
+    for q in ("Add Dentist to your calendar?", "Set a reminder: call Sam?"):
+        p.calls.append(confirm.Call("x", "{}", confirm.Change("created", "event", "x", "y",
+                                                              "z", question=q)))
+    assert p.question() == "Add Dentist to your calendar, and set a reminder: call Sam?"
+
+
+def test_event_and_reminder_questions_say_when():
+    assert confirm._spoken_when("2026-11-10T15:00:00+00:00") == " on Tuesday, November 10 at 3:00 PM"
+    assert confirm._spoken_when("2026-11-10", all_day=True) == " on Tuesday, November 10"
+    assert confirm._spoken_when(None) == ""
+    assert confirm._spoken_when("next week") == " (next week)"
+
+
+def test_yes_runs_the_proposal_without_the_model(api, monkeypatch):
+    _propose(api)
+    api.post(URL, json=DENTIST, headers=VOICE)
+    ran = []
+
+    async def fake_run(p):
+        ran.append(p)
+        return [confirm.Outcome(c.change, True) for c in p.calls]
+    monkeypatch.setattr(confirm, "run", fake_run)
+    api.on_turn = None
+    body = api.post(URL, json=YES, headers=VOICE).json()
+    assert body["choices"][0]["message"]["content"] == "Done. Added Dentist to your calendar."
+    assert len([t for t in api.turns if "message" in t]) == 1  # no model turn for the yes
+    assert len(ran) == 1 and ran[0].calls[0].name == "manage_calendar"
+    actions = api.get(ACTIONS, headers=VOICE).json()["actions"]
+    assert [(a["action"], a["kind"], a["title"], a["where"], a["source"]) for a in actions] == [
+        ("created", "event", "Dentist", "Calendar", "odysseus")]
+    assert actions[0]["due"] == "2026-11-10T15:00:00+00:00" and actions[0]["all_day"] is False
+    turn = api.get(LATEST, headers=VOICE).json()["turn"]
+    assert turn["question"] == "Yes." and turn["actions"] == actions
+    assert actions[0]["turn_id"] == body["odysseus"]["turn_id"]
+    # used up: a second yes is a new question
+    api.answer = ["Yes what."]
+    api.post(URL, json=YES, headers=VOICE)
+    assert len([t for t in api.turns if "message" in t]) == 2
+
+
+def test_no_drops_the_proposal_and_anything_else_is_a_new_question(api, monkeypatch):
+    monkeypatch.setattr(confirm, "run", lambda p: pytest.fail("must not run"))
+    _propose(api)
+    api.post(URL, json=DENTIST, headers=VOICE)
+    no = {**YES, "messages": [{"role": "user", "content": "No, never mind."}]}
+    body = api.post(URL, json=no, headers=VOICE).json()
+    assert body["choices"][0]["message"]["content"] == "Okay, I won't."
+    assert confirm.pending("alice", body["odysseus"]["session_id"]) is None
+    api.post(URL, json=DENTIST, headers=VOICE)
+    api.on_turn = None
+    other = {**YES, "messages": [{"role": "user", "content": "What's the weather?"}]}
+    body = api.post(URL, json=other, headers=VOICE).json()
+    assert api.turns[-1]["message"] == "What's the weather?"
+    assert confirm.pending("alice", body["odysseus"]["session_id"]) is None
+
+
+def test_a_proposal_expires(api):
+    _propose(api)
+    body = api.post(URL, json=DENTIST, headers=VOICE).json()
+    sid = body["odysseus"]["session_id"]
+    later = ledger.time.time() + confirm.PROPOSAL_SECONDS + 1
+    assert confirm.pending("alice", sid, now=later) is None
+
+
+@pytest.mark.parametrize("text_, kind", [
+    ("Yes.", "yes"), ("yeah, do it!", "yes"), ("Sure", "yes"), ("Okay, go ahead.", "yes"),
+    ("Correct", "yes"), ("Please do", "yes"), ("No.", "no"), ("Cancel", "no"),
+    ("Never mind", "no"), ("Don't", "no"), ("No, make it Wednesday", "other"),
+    ("What's on Tuesday?", "other"), ("", "other")])
+def test_reply_kind(text_, kind):
+    assert confirm.reply_kind(text_) == kind
+
+
+@pytest.mark.parametrize("said, spoken", [
+    (["Paris is the capital. Anything else?"], "Paris is the capital."),
+    (["Is it Paris?"], "Is it Paris."),
+    (["It rains. ", "Would you like more details?"], "It rains."),
+])
+def test_only_a_confirmation_ends_with_a_question_mark(api, said, spoken):
+    api.answer = said
+    body = api.post(URL, json=ASK, headers=VOICE).json()
+    assert body["choices"][0]["message"]["content"] == spoken
+    res = api.post(URL, json={**ASK, "stream": True}, headers=VOICE)
+    chunks = [json.loads(l[6:]) for l in res.text.split("\n\n") if l.startswith("data: {")]
+    assert "".join(c["choices"][0]["delta"].get("content") or "" for c in chunks) == spoken
+
+
+# ------------------------------------------------------------ the satellite's seam
+def _satellite(monkeypatch, *, allowed: bool):
+    import sys
+
+    from dataclasses import dataclass
+
+    @dataclass(frozen=True)
+    class Speaker:
+        verified: bool
+        is_owner: bool
+        name: str | None
+        score: float | None
+
+    @dataclass(frozen=True)
+    class Ctx:
+        context_id: str
+        device_id: str
+        device_name: str
+        area: str
+        wake_word: str
+        started_at_ms: int
+        speaker: Speaker | None
+
+    claimed = []
+
+    async def claim(owner, *, wait_seconds=3.0):
+        claimed.append(owner)
+        return Ctx("c1", "echo-1", "Kitchen Echo", "Kitchen", "hey athena", 1,
+                   Speaker(True, allowed, "Sam" if allowed else None, 0.7))
+
+    fake = SimpleNamespace(claim=claim, personal_allowed=lambda ctx: allowed,
+                           PRIVATE_REPLY="Owner only.")
+    monkeypatch.setitem(sys.modules, "fork.voice.satellite", fake)
+    import fork.voice
+    monkeypatch.setattr(fork.voice, "satellite", fake, raising=False)
+    return claimed
+
+
+def test_without_the_satellite_module_every_speaker_is_answered(api):
+    api.post(URL, json=ASK, headers=VOICE)
+    kw = api.turns[-1]
+    assert kw["gate"].personal is True and kw["context_lines"] == ("",)
+
+
+def test_the_satellite_context_goes_into_the_turn(api, monkeypatch):
+    claimed = _satellite(monkeypatch, allowed=True)
+    api.post(URL, json=ASK, headers=VOICE)
+    kw = api.turns[-1]
+    assert claimed == ["alice"]
+    assert kw["context_lines"] == ("Asked from: Kitchen Echo, Kitchen",)
+    assert kw["gate"].personal is True and kw["no_memory"] is False
+    turn = api.get(LATEST, headers=VOICE).json()["turn"]
+    assert turn["device"] == {"id": "echo-1", "name": "Kitchen Echo", "area": "Kitchen"}
+    assert turn["speaker"] == {"verified": True, "is_owner": True, "name": "Sam"}
+
+
+def test_a_voice_that_isnt_the_owners_gets_no_personal_answers(api, monkeypatch):
+    _satellite(monkeypatch, allowed=False)
+    api.post(URL, json=ASK, headers=VOICE)
+    kw = api.turns[-1]
+    assert kw["gate"].personal is False and kw["gate"].private_reply == "Owner only."
+    assert kw["no_memory"] is True  # nothing recalled into the context either
+    # and a yes from that voice doesn't run a kept change
+    monkeypatch.setattr(confirm, "run", lambda p: pytest.fail("must not run"))
+    _propose(api)
+    api.post(URL, json=DENTIST, headers=VOICE)
+    body = api.post(URL, json=YES, headers=VOICE).json()
+    assert body["choices"][0]["message"]["content"] == "Owner only."
+
+
+# --------------------------------------------------------- what may be proposed
+async def test_the_allow_list_describes_its_calls(monkeypatch, data_dir):
+    from tests.fork.brain_fakes import notes_db
+
+    monkeypatch.setattr(confirm, "athena_item_title", _no_title)
+    monkeypatch.setattr("fork.brain.toolset.athena_server", lambda manager=None: "convo")
+    d = confirm.describe
+    todo = await d("alice", "manage_notes", json.dumps(
+        {"action": "add", "title": "Call the dentist",
+         "checklist_items": [{"text": "Call the dentist"}]}))
+    assert (todo.kind, todo.where, todo.title) == ("todo", "To-dos", "Call the dentist")
+    note = await d("alice", "manage_notes", json.dumps(
+        {"action": "create", "title": "Gift ideas", "content": "A blue scarf"}))
+    assert (note.kind, note.where, note.detail) == ("note", "Notes", "A blue scarf")
+    event = await d("alice", "manage_calendar", json.dumps(
+        {"action": "create_event", "summary": "Picnic", "local_start": {"date": "2026-11-07"}}))
+    assert (event.kind, event.due, event.all_day) == ("event", "2026-11-07", True)
+    done = await d("alice", UPDATE, json.dumps({"item_id": 4, "status": "done"}))
+    assert (done.action, done.kind, done.source) == ("completed", "action_item", "athena")
+    for name, args in (("manage_notes", {"action": "delete", "id": "abc"}),
+                       ("manage_calendar", {"action": "delete_event", "uid": "u"}),
+                       ("manage_calendar", {"action": "update_event", "uid": "u"}),
+                       (UPDATE, {"item_id": 4, "status": "dismissed"}),
+                       ("manage_memory", {"action": "add", "text": "x"}),
+                       ("send_email", {"to": "x@example.test"}),
+                       ("generate_image", {"prompt": "x"})):
+        assert await d("alice", name, json.dumps(args)) is None, (name, args)
+
+    # a list item: only an update that keeps every line and adds
+    from core.database import Note
+    factory = notes_db(monkeypatch)
+    db = factory()
+    db.add(Note(id="list1234", owner="alice", title="Shopping list", note_type="checklist",
+                items=json.dumps([{"text": "Milk", "done": True}, {"text": "Bread", "done": False}])))
+    db.commit()
+    db.close()
+    keep = {"action": "update", "id": "list1234", "checklist_items": [
+        {"text": "Milk", "done": True}, {"text": "Bread", "done": False}, {"text": "Eggs"}]}
+    item = await d("alice", "manage_notes", json.dumps(keep))
+    assert (item.kind, item.title, item.where) == ("list_item", "Eggs", "Shopping list")
+    assert item.check() is True
+    drops = {"action": "update", "id": "list1234", "checklist_items": [{"text": "Eggs"}]}
+    assert await d("alice", "manage_notes", json.dumps(drops)) is None
+    rename = {**keep, "title": "Groceries"}
+    assert await d("alice", "manage_notes", json.dumps(rename)) is None
+    assert await d("bob", "manage_notes", json.dumps(keep)) is None  # not bob's list

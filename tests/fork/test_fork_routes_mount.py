@@ -21,6 +21,7 @@ ORDER = [
     "setup_ink_routes",
     "setup_news_routes",
     "setup_voice_routes",
+    "setup_satellite_routes",
 ]
 
 
