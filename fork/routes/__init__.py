@@ -23,6 +23,7 @@ ROUTERS: tuple[tuple[str, str], ...] = (
     ("fork.routes.ink_routes", "setup_ink_routes"),  # handwritten notes
     ("fork.routes.news_routes", "setup_news_routes"),  # morning news brief
     ("fork.voice.routes", "setup_voice_routes"),  # voice assistant (Home Assistant)
+    ("fork.voice.satellite_routes", "setup_satellite_routes"),  # voice satellites, announcements
     ("fork.voice.ha_routes", "setup_ha_routes"),  # Set up Home Assistant (voice)
     ("fork.voice.echo_link", "setup_echo_link_routes"),  # Link this Echo (one-QR Echo setup)
 )

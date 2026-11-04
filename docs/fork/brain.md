@@ -615,6 +615,16 @@ owner even when an API token sent it: upstream's cap on token runs
 (`delegated_tool_is_blocked`) would leave out exactly the tools a voice question needs,
 and the read-only rule takes its place. Ordinary chat turns are unchanged.
 
+With `shared_prefix` (the voice assistant since 2026-11-03) the prompt starts exactly
+like a chat turn of the owner, so llama-server reuses chat's cached prefix: the caller's
+`preset` (the owner's default chat preset) in the system prompt, and every tool a chat
+turn is offered, in the same order (no `toolset.read_only` filter). The caller's
+instructions go in the question's message, before the question, and `context_lines` into
+the context message. What may run is then decided at execution: the caller's `gate`
+(`ToolRun.gate`, asked before `read_only_refusal`) returns a refusal, a result that
+stands for the call (a change kept for a spoken yes, `fork/voice/confirm.py`), or nothing,
+and the read-only refusal applies to the rest.
+
 ## Sandbox results (2026-10-31)
 
 Qwen3-4B on 4 CPUs, `seed_demo.py`, one config at a time, llama-server and Odysseus

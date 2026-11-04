@@ -187,9 +187,20 @@ is an old path of a module that moved into `fork/`; it only aliases the new modu
 - `fork/tasks.py`
 - `fork/upstream.py`
 - `fork/voice/__init__.py`
+- `fork/voice/announce.py`
+- `fork/voice/chat_prefix.py`
+- `fork/voice/confirm.py`
+- `fork/voice/echo_link.py`
+- `fork/voice/ha_routes.py`
+- `fork/voice/ha_settings.py`
+- `fork/voice/ha_setup.py`
+- `fork/voice/ledger.py`
 - `fork/voice/openai_api.py`
+- `fork/voice/policy.py`
 - `fork/voice/prompt.py`
 - `fork/voice/routes.py`
+- `fork/voice/satellite.py`
+- `fork/voice/satellite_routes.py`
 - `fork/voice/sessions.py`
 - `fork/voice/speech.py`
 
@@ -220,6 +231,7 @@ is an old path of a module that moved into `fork/`; it only aliases the new modu
 - `scripts/fixtures/insight_eval_day.json`
 - `scripts/fixtures/t5_weights_day.json`
 - `scripts/fork_deploy.sh`
+- `scripts/ha_voice_setup.py`
 - `scripts/ink_eval.py`
 - `scripts/insight_eval.py`
 - `scripts/module_slash_eval.py`
@@ -399,6 +411,7 @@ is an old path of a module that moved into `fork/`; it only aliases the new modu
 - `tests/fork/test_chat_mode_scope.py`
 - `tests/fork/test_checklist_auto_archive.py`
 - `tests/fork/test_codex_todos_json.py`
+- `tests/fork/test_echo_link.py`
 - `tests/fork/test_eval_common.py`
 - `tests/fork/test_eval_goldens.py`
 - `tests/fork/test_evidence_intake.py`
@@ -420,6 +433,7 @@ is an old path of a module that moved into `fork/`; it only aliases the new modu
 - `tests/fork/test_fork_tests_layout.py`
 - `tests/fork/test_fork_upstream.py`
 - `tests/fork/test_fork_views_look.py`
+- `tests/fork/test_ha_voice_setup.py`
 - `tests/fork/test_ink_athena.py`
 - `tests/fork/test_ink_auto_send.py`
 - `tests/fork/test_ink_eval.py`
@@ -485,6 +499,7 @@ is an old path of a module that moved into `fork/`; it only aliases the new modu
 - `tests/fork/test_vision_auto_detect.py`
 - `tests/fork/test_voice_assistant.py`
 - `tests/fork/test_voice_enroll_routes.py`
+- `tests/fork/test_voice_satellite.py`
 - `tests/fork/test_web_read_recovery.py`
 - `tests/fork/test_web_turn_scope.py`
 - `tests/fork/test_whisper_vocabulary_routes.py`
