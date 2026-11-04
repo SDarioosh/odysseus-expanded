@@ -12,7 +12,10 @@ What the manual "Setup (owner)" steps do, in one run against Home Assistant's ow
    Odysseus ignores system prompts). That integration has no way to change an entry's
    key, so a rerun adds a new entry and then removes the older ones named "Odysseus".
 4. **Assist pipeline** "Odysseus": that speech, that agent, language English, "prefer
-   handling commands locally" on. Updated in place when it exists.
+   handling commands locally" on. Updated in place when it exists. The text-to-speech
+   engine and voice it already uses are kept (Piper only when it has none), and each
+   other local text-to-speech engine (Kokoro) gets a pipeline "Odysseus (<engine>)" to
+   switch to for testing (docs/fork/voice-tts.md).
 5. **Preferred assistant**: that pipeline.
 
 Each step reports ``ok`` (already right), ``changed``, ``error`` or ``skipped``. The run
@@ -53,6 +56,8 @@ PROMPT = "You are Odysseus, a voice assistant. Answer briefly."
 # empty; "[]" is the way to say "no tools".
 NO_TOOLS = "[]"
 LANGUAGE = "en"
+# The voice a new pipeline gets when its engine has it, best first; else the first one
+GOOD_VOICES = ("af_heart",)  # Kokoro's best-rated English voice
 SCOPE = "voice"
 TOKEN_PREFIX = "Home Assistant"
 TOKEN_NAME_RE = re.compile(r"^Home Assistant \d{4}-\d{2}-\d{2}$")
@@ -306,12 +311,23 @@ STEPS = ("Home Assistant", "Speech", "Conversation agent", "Assist pipeline",
 
 
 @dataclass
+class Tts:
+    """A local text-to-speech engine with English: its entity, name, language, voices."""
+    engine: str
+    label: str
+    language: str
+    voices: list[str]
+
+
+@dataclass
 class Speech:
     stt: str
     stt_language: str
     tts: str
     tts_language: str
     tts_voices: list[str]
+    # the other local text-to-speech engines, each with a pipeline "Odysseus (<label>)"
+    spares: list[Tts] = field(default_factory=list)
 
 
 # ------------------------------------------------------------------------------- steps
@@ -339,7 +355,27 @@ def _languages(providers: Any, engine: str) -> list[str] | None:
     return None
 
 
-async def _find_speech(ha: HomeAssistant) -> Speech:
+def _label(entity: dict) -> str:
+    """The name a pipeline shows for a text-to-speech engine: "Kokoro", "Piper"."""
+    name = str(entity.get("original_name") or "").strip()
+    if not name:
+        name = str(entity["entity_id"]).split(".", 1)[-1].replace("_", " ")
+    return name[:1].upper() + name[1:]
+
+
+async def _tts(ha: HomeAssistant, providers: Any, entity: dict) -> Tts | None:
+    langs = _languages(providers, entity["entity_id"])
+    if not langs:
+        return None
+    voices = await ha.ws("tts/engine/voices", engine_id=entity["entity_id"], language=langs[0])
+    voice_ids = [v.get("voice_id") for v in ((voices or {}).get("voices") or [])
+                 if isinstance(v, dict) and v.get("voice_id")]
+    return Tts(entity["entity_id"], _label(entity), langs[0], voice_ids)
+
+
+async def _find_speech(ha: HomeAssistant, keep_tts: str | None = None) -> Speech:
+    """The local speech engines; text-to-speech is ``keep_tts`` (the engine the Odysseus
+    pipeline already uses) while it is still there, else Piper."""
     registry = await ha.ws("config/entity_registry/list") or []
     wyoming = [e for e in registry if isinstance(e, dict) and e.get("platform") == "wyoming"
                and not e.get("disabled_by")]
@@ -349,18 +385,23 @@ async def _find_speech(ha: HomeAssistant) -> Speech:
         missing = " and ".join(n for n, found in (("speech-to-text (Whisper)", stt),
                                                     ("text-to-speech (Piper)", tts)) if not found)
         raise HAError(f"No local {missing} in Home Assistant. {INSTALL_SPEECH}")
-    stt_id, tts_id = _pick(stt, "whisper"), _pick(tts, "piper")
+    stt_id = _pick(stt, "whisper")
+    tts_ids = {e["entity_id"] for e in tts}
+    tts_id = keep_tts if keep_tts in tts_ids else _pick(tts, "piper")
     stt_langs = _languages(await ha.ws("stt/engine/list", language=LANGUAGE), stt_id)
-    tts_langs = _languages(await ha.ws("tts/engine/list", language=LANGUAGE), tts_id)
+    providers = await ha.ws("tts/engine/list", language=LANGUAGE)
+    tts_langs = _languages(providers, tts_id)
     for engine, langs in ((stt_id, stt_langs), (tts_id, tts_langs)):
         if langs is None:
             raise HAError(f"{engine} isn't running in Home Assistant: check its add-on.")
         if not langs:
             raise HAError(f"{engine} has no English voice or model: choose one in its add-on.")
-    voices = await ha.ws("tts/engine/voices", engine_id=tts_id, language=tts_langs[0])
-    voice_ids = [v.get("voice_id") for v in ((voices or {}).get("voices") or [])
-                 if isinstance(v, dict) and v.get("voice_id")]
-    return Speech(stt_id, stt_langs[0], tts_id, tts_langs[0], voice_ids)
+    main = await _tts(ha, providers, next(e for e in tts if e["entity_id"] == tts_id))
+    spares = []
+    for entity in sorted(tts, key=lambda e: e["entity_id"]):
+        if entity["entity_id"] != tts_id and (spare := await _tts(ha, providers, entity)):
+            spares.append(spare)
+    return Speech(stt_id, stt_langs[0], tts_id, main.language, main.voices, spares)
 
 
 def _schema_names(flow: dict) -> set[str] | None:
@@ -510,18 +551,24 @@ async def _agent(ha: HomeAssistant, report: Report, base_url: str, voice_token: 
     return f"{entity} → {base_url} (model {MODEL}, no tools){replaced}"
 
 
-def _pipeline_fields(entity: str, speech: Speech, existing: dict | None) -> dict[str, Any]:
+def _first_voice(voices: list[str]) -> str | None:
+    return next((v for v in GOOD_VOICES if v in voices), voices[0] if voices else None)
+
+
+def _pipeline_fields(entity: str, speech: Speech, existing: dict | None,
+                     tts: Tts | None = None, name: str = NAME) -> dict[str, Any]:
     existing = existing or {}
+    tts = tts or Tts(speech.tts, "", speech.tts_language, speech.tts_voices)
     voice = existing.get("tts_voice")
-    if (existing.get("tts_engine") != speech.tts or existing.get("tts_language") != speech.tts_language
-            or voice not in speech.tts_voices):
-        voice = speech.tts_voices[0] if speech.tts_voices else None
+    if (existing.get("tts_engine") != tts.engine or existing.get("tts_language") != tts.language
+            or voice not in tts.voices):
+        voice = _first_voice(tts.voices)
     fields: dict[str, Any] = {
-        "name": NAME, "language": LANGUAGE,
+        "name": name, "language": LANGUAGE,
         # EOC answers in any language (MATCH_ALL), which HA's pipelines write as "*".
         "conversation_engine": entity, "conversation_language": "*",
         "stt_engine": speech.stt, "stt_language": speech.stt_language,
-        "tts_engine": speech.tts, "tts_language": speech.tts_language, "tts_voice": voice,
+        "tts_engine": tts.engine, "tts_language": tts.language, "tts_voice": voice,
         # the satellite listens for its own wake word; keep one set in HA by hand
         "wake_word_entity": existing.get("wake_word_entity"),
         "wake_word_id": existing.get("wake_word_id"),
@@ -532,29 +579,49 @@ def _pipeline_fields(entity: str, speech: Speech, existing: dict | None) -> dict
     return fields
 
 
+def _ours(listing: Any, name: str = NAME) -> dict | None:
+    """The pipeline called ``name`` (the preferred one first when there are several)."""
+    pipelines = [p for p in (listing or {}).get("pipelines") or [] if isinstance(p, dict)]
+    preferred = (listing or {}).get("preferred_pipeline")
+    named = [p for p in pipelines if str(p.get("name", "")).strip().casefold() == name.casefold()]
+    named.sort(key=lambda p: p.get("id") != preferred)
+    return named[0] if named else None
+
+
+async def _save_pipeline(ha: HomeAssistant, existing: dict | None,
+                         fields: dict[str, Any]) -> tuple[str, str]:
+    """Create or update a pipeline; its id and ``changed`` or ``ok``."""
+    if existing is None:
+        created = await ha.ws("assist_pipeline/pipeline/create", **fields)
+        return created["id"], "changed"
+    if any(existing.get(k) != v for k, v in fields.items()):
+        await ha.ws("assist_pipeline/pipeline/update", pipeline_id=existing["id"], **fields)
+        return existing["id"], "changed"
+    return existing["id"], "ok"
+
+
+def _voice_text(fields: dict[str, Any]) -> str:
+    return f"{fields['tts_engine']}{' (' + fields['tts_voice'] + ')' if fields['tts_voice'] else ''}"
+
+
 async def _pipeline(ha: HomeAssistant, report: Report, entity: str,
                     speech: Speech) -> tuple[str, str, dict]:
     listing = await ha.ws("assist_pipeline/pipeline/list") or {}
-    pipelines = [p for p in listing.get("pipelines") or [] if isinstance(p, dict)]
-    preferred = listing.get("preferred_pipeline")
-    named = [p for p in pipelines if str(p.get("name", "")).strip().casefold() == NAME.casefold()]
-    named.sort(key=lambda p: p.get("id") != preferred)
-    existing = named[0] if named else None
-    fields = _pipeline_fields(entity, speech, existing)
-    if existing is None:
-        created = await ha.ws("assist_pipeline/pipeline/create", **fields)
-        report.pipeline_id = created["id"]
-        status = "changed"
-    else:
-        report.pipeline_id = existing["id"]
-        if any(existing.get(k) != v for k, v in fields.items()):
-            await ha.ws("assist_pipeline/pipeline/update", pipeline_id=existing["id"], **fields)
-            status = "changed"
-        else:
-            status = "ok"
-    detail = (f"{speech.stt} → {entity} → {speech.tts}"
-              f"{' (' + fields['tts_voice'] + ')' if fields['tts_voice'] else ''}, "
+    fields = _pipeline_fields(entity, speech, _ours(listing))
+    report.pipeline_id, status = await _save_pipeline(ha, _ours(listing), fields)
+    detail = (f"{speech.stt} → {entity} → {_voice_text(fields)}, "
               "commands handled locally first")
+    # One more pipeline per other local voice, to switch to for testing
+    spares = []
+    for tts in speech.spares:
+        name = f"{NAME} ({tts.label})"
+        existing = _ours(listing, name)
+        spare = _pipeline_fields(entity, speech, existing, tts, name)
+        _, spare_status = await _save_pipeline(ha, existing, spare)
+        status = "changed" if spare_status == "changed" else status
+        spares.append(f"{name}: {_voice_text(spare)}")
+    if spares:
+        detail += "; to switch to: " + "; ".join(spares)
     return status, detail, listing
 
 
@@ -582,9 +649,12 @@ async def setup_voice(ha_url: str, access_token: str, odysseus_base_url: str, vo
                 if step == "Home Assistant":
                     report.add(step, "ok", await _check_admin(ha))
                 elif step == "Speech":
-                    speech = await _find_speech(ha)
+                    # keep the text-to-speech the owner chose in the Odysseus pipeline
+                    current = _ours(await ha.ws("assist_pipeline/pipeline/list"))
+                    speech = await _find_speech(ha, (current or {}).get("tts_engine"))
+                    others = "".join(f", also {t.engine}" for t in speech.spares)
                     report.add(step, "ok", f"{speech.stt} ({speech.stt_language}), "
-                                           f"{speech.tts} ({speech.tts_language})")
+                                           f"{speech.tts} ({speech.tts_language}){others}")
                 elif step == "Conversation agent":
                     report.add(step, "changed", await _agent(
                         ha, report, base_url, voice_token, validate, polls, pause))

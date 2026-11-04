@@ -324,9 +324,9 @@ offered to voice.
 | Step | What Odysseus does in Home Assistant |
 |---|---|
 | Home Assistant | checks the sign-in is an administrator |
-| Speech | finds the Wyoming speech-to-text (Whisper) and text-to-speech (Piper) entities, with English, and Piper's first English voice. Only Wyoming ones: never cloud speech. Missing: "Install the Whisper and Piper add-ons …", and nothing is changed |
+| Speech | finds the Wyoming speech-to-text (Whisper) and text-to-speech entities, with English. Text-to-speech is the engine the "Odysseus" pipeline already uses, else Piper; other local ones (Kokoro) are listed too. Only Wyoming ones: never cloud speech. Missing: "Install the Whisper and Piper add-ons …", and nothing is changed |
 | Conversation agent | a new Extended OpenAI Conversation entry "Odysseus": API key a new voice token "Home Assistant <date>", base URL `<odysseus>/api/chat/voice/v1` (checked by Home Assistant: it lists the models with the key), one conversation agent "Odysseus" (`conversation.odysseus`): model `odysseus`, no tools (`functions: []`), a one-line prompt (ignored by Odysseus). The integration's default GPT agent and AI task are removed. Older entries named "Odysseus" are removed after the new one works (the integration can't change an entry's key) |
-| Assist pipeline | "Odysseus": that speech-to-text, agent and text-to-speech, language `en`, **prefer handling commands locally** on (so "turn off the lights" stays in Home Assistant). An existing "Odysseus" pipeline is updated in place (its wake word fields are kept) |
+| Assist pipeline | "Odysseus": that speech-to-text, agent and text-to-speech, language `en`, **prefer handling commands locally** on (so "turn off the lights" stays in Home Assistant). An existing "Odysseus" pipeline is updated in place (its wake word fields, text-to-speech engine and voice are kept). Each other local text-to-speech engine gets a pipeline "Odysseus (<engine>)" to switch to: [voice-tts.md](voice-tts.md) |
 | Preferred assistant | makes it Home Assistant's preferred assistant, which the Echos use |
 
 What happens to the Home Assistant login: Odysseus uses it for this one run and then

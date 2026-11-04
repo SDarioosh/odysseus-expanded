@@ -30,7 +30,7 @@ PIPELINE_REQUIRED = ("conversation_engine", "conversation_language", "language",
 class FakeHA:
     """Just enough of Home Assistant (2026.x, Extended OpenAI Conversation 3.0.0)."""
 
-    def __init__(self, *, admin=True, eoc=True, speech=True, reach="ok"):
+    def __init__(self, *, admin=True, eoc=True, speech=True, reach="ok", kokoro=False):
         self.admin, self.eoc, self.reach = admin, eoc, reach
         self.entries: dict[str, dict] = {}
         self.registry: list[dict] = [
@@ -43,6 +43,8 @@ class FakeHA:
                  "config_entry_id": "w1", "original_name": None},
                 {"entity_id": "tts.piper", "platform": "wyoming", "config_entry_id": "w2"},
             ]
+        if kokoro:
+            self.add_kokoro()
         self.pipelines: list[dict] = [{
             "id": "p-default", "name": "Home Assistant", "language": "en",
             "conversation_engine": "conversation.home_assistant", "conversation_language": "en",
@@ -54,6 +56,13 @@ class FakeHA:
         self.calls: list[str] = []
         self.revoked: list[str] = []
         self.counter = 0
+
+    def add_kokoro(self):
+        self.registry.append({"entity_id": "tts.kokoro", "platform": "wyoming",
+                              "config_entry_id": "w3", "original_name": "kokoro"})
+
+    def remove_kokoro(self):
+        self.registry = [e for e in self.registry if e["entity_id"] != "tts.kokoro"]
 
     def _id(self, prefix):
         self.counter += 1
@@ -185,6 +194,9 @@ class FakeHA:
                                   for e in self.registry if e["entity_id"].startswith("tts.")]}
         if kind == "tts/engine/voices":
             assert msg["language"] == "en_US"
+            if msg["engine_id"] == "tts.kokoro":
+                return {"voices": [{"voice_id": v, "name": v}
+                                   for v in ("af_alloy", "af_heart", "am_michael")]}
             return {"voices": [{"voice_id": "en_US-lessac-medium", "name": "lessac"},
                                {"voice_id": "en_US-amy-low", "name": "amy"}]}
         if kind == "config_entries/subentries/list":
@@ -678,3 +690,93 @@ def test_a_failed_setup_saves_no_address(web):
                    params={"code": "good-code", "state": state}, headers=web.same)
     assert web.runs and web.fake.revoked == ["ha-refresh-fake"]
     assert web.saved == []
+
+
+# ------------------------------------------------------------- the owner's voice choice
+def _pipeline(fake, name="Odysseus"):
+    return next(p for p in fake.pipelines if p["name"] == name)
+
+
+def test_a_rerun_keeps_the_voice_chosen_by_hand():
+    fake = FakeHA()
+    _setup(fake)
+    _pipeline(fake)["tts_voice"] = "en_US-amy-low"  # chosen in HA
+    report = _setup(fake)
+    assert report["ok"], report
+    assert _pipeline(fake)["tts_voice"] == "en_US-amy-low"
+    assert _status(report)["Assist pipeline"] == "ok"
+
+
+def test_another_local_voice_gets_its_own_pipeline_to_switch_to():
+    fake = FakeHA(kokoro=True)
+    report = _setup(fake)
+    assert report["ok"], report
+    main, spare = _pipeline(fake), _pipeline(fake, "Odysseus (Kokoro)")
+    assert (main["tts_engine"], main["tts_voice"]) == ("tts.piper", "en_US-lessac-medium")
+    assert (spare["tts_engine"], spare["tts_voice"]) == ("tts.kokoro", "af_heart")
+    # the same speech-to-text and agent, local commands first; never the preferred one
+    for key in ("stt_engine", "conversation_engine", "prefer_local_intents", "language"):
+        assert spare[key] == main[key]
+    assert fake.preferred == main["id"] != spare["id"]
+    assert "also tts.kokoro" in report["steps"][1]["detail"]
+    assert "Odysseus (Kokoro): tts.kokoro (af_heart)" in report["steps"][3]["detail"]
+    # a rerun changes nothing and adds no pipeline
+    count = len(fake.pipelines)
+    report = _setup(fake)
+    assert _status(report)["Assist pipeline"] == "ok" and len(fake.pipelines) == count
+
+
+def test_kokoro_installed_later_is_found_on_the_next_run():
+    fake = FakeHA()
+    _setup(fake)
+    fake.add_kokoro()
+    report = _setup(fake)
+    assert _status(report)["Assist pipeline"] == "changed"
+    assert _pipeline(fake, "Odysseus (Kokoro)")["tts_engine"] == "tts.kokoro"
+    assert _pipeline(fake)["tts_engine"] == "tts.piper"
+
+
+def test_a_rerun_keeps_kokoro_when_the_owner_made_it_the_main_voice():
+    fake = FakeHA(kokoro=True)
+    _setup(fake)
+    _pipeline(fake).update(tts_engine="tts.kokoro", tts_language="en_US",
+                           tts_voice="am_michael")
+    _pipeline(fake, "Odysseus (Kokoro)")["tts_voice"] = "af_alloy"
+    report = _setup(fake)
+    assert report["ok"], report
+    main = _pipeline(fake)
+    assert (main["tts_engine"], main["tts_voice"]) == ("tts.kokoro", "am_michael")
+    assert fake.preferred == main["id"]
+    # Piper is now the one to switch to; the older Kokoro pipeline is left as it is
+    piper = _pipeline(fake, "Odysseus (Piper)")
+    assert (piper["tts_engine"], piper["tts_voice"]) == ("tts.piper", "en_US-lessac-medium")
+    assert _pipeline(fake, "Odysseus (Kokoro)")["tts_voice"] == "af_alloy"
+
+
+def test_piper_comes_back_when_the_chosen_engine_is_gone():
+    fake = FakeHA(kokoro=True)
+    _setup(fake)
+    _pipeline(fake).update(tts_engine="tts.kokoro", tts_language="en_US", tts_voice="af_heart")
+    fake.remove_kokoro()
+    report = _setup(fake)
+    assert report["ok"], report
+    main = _pipeline(fake)
+    assert (main["tts_engine"], main["tts_voice"]) == ("tts.piper", "en_US-lessac-medium")
+
+
+def test_a_local_voice_without_english_gets_no_pipeline():
+    fake = FakeHA(kokoro=True)
+    command = fake.command
+
+    def no_english_kokoro(msg):
+        result = command(msg)
+        if msg["type"] == "tts/engine/list":
+            for p in result["providers"]:
+                if p["engine_id"] == "tts.kokoro":
+                    p["supported_languages"] = []
+        return result
+
+    fake.command = no_english_kokoro
+    report = _setup(fake)
+    assert report["ok"], report
+    assert not any(p["name"].startswith("Odysseus (") for p in fake.pipelines)
