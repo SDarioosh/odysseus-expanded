@@ -57,6 +57,9 @@ branches) are kept in [status-history.md](status-history.md).
   and spoken reminders through Home Assistant are built hub side
   ([satellites](voice-assistant.md#satellites-owner-only-answers-and-announcements)); next:
   the owner's test with the Echo app's satellite post and a real voiceprint.
+  Setup built: **Set up Home Assistant** (one sign-in creates the agent and the preferred
+  pipeline) and one-QR Echo setup (`/echo/link` plus the Echo app's phone setup); next: the
+  owner's test with a real Echo and Home Assistant.
 
 - **The brain** ([brain.md](brain.md)): a small fork-owned agent loop that answers chat
   turns as a general personal assistant (web, Athena, workspace), streaming and with a

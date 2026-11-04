@@ -171,6 +171,7 @@ the link goes to its details (what it does, its files, whether it can go upstrea
 
 - [Voice assistant through Home Assistant](docs/fork/voice-assistant.md): `POST /api/chat/voice/v1/chat/completions` (OpenAI's shape) for a Home Assistant conversation agent, for API tokens with the `voice` scope only. Each question is a brain turn of the token's owner (`read_only_turn`, `shared_prefix`) whose prompt starts exactly like a chat's (same system prompt, preset and tools, so the model server's chat cache is reused); Athena, calendar, notes, contacts, memory, beliefs, documents and the web are read, email is never run, and an allow-listed change (to-do, reminder, list item, note, calendar event, Athena action item done) runs only after a spoken "yes" (`fork/voice/confirm.py`), everything else that writes is refused; answers are short spoken text with the links apart, ending in "?" only for a confirmation, and each conversation is a chat in the Voice folder. The turn ledger (`fork/voice/ledger.py`) feeds the satellite's screen: `GET …/actions`, `GET …/turns/latest`. Settings → Integrations → Voice assistant makes the token.
 - [Voice satellites: room context, owner-only answers, announcements](docs/fork/voice-assistant.md#satellites-owner-only-answers-and-announcements): `POST /api/chat/voice/v1/satellite/turn` keeps the device, room and wake word of the next voice turn for 30 s and has Athena check whose voice it was (`/speakers/identify`, audio never stored); `FORK_VOICE_PRIVATE=owner` keeps personal answers to the owner's voice; due reminders are spoken on the satellites through Home Assistant's `assist_satellite.announce` (`FORK_HA_URL`, a local host only).
+- [Echo setup with one QR code](docs/fork/voice-assistant.md#setup-owner): Settings → Integrations → Voice assistant → **Set up Home Assistant** signs in to Home Assistant once and creates the Odysseus agent (Extended OpenAI Conversation) and the preferred "Odysseus" Assist pipeline, then revokes that login; `/echo/link` lets the owner approve a new Echo from the phone, which gets a voice-only token and the saved Home Assistant address (the Echo side is in `SDarioosh/odysseus-echo`).
 
 ### Logs and tests
 
@@ -195,7 +196,7 @@ to be offered) upstream, "with discussion" a change upstream may want in another
 |---|---|---|---|---|
 | `app.py` | after the logging handlers | `fork/hub/log_redact.py` | log formatters write token query values as `***` | yes |
 | `app.py` | `AUTH_EXEMPT_EXACT` | `fork/athena/relay_routes.py` | `/api/pair/redeem` needs no session (rate limited) | no |
-| `app.py` | routers, after the MCP routes | `fork/routes/__init__.py` (`mount`, table `ROUTERS`) | the fork's thirteen routers in one call, in order: Athena page, Today, belief search (before the review page's `/api/beliefs/{id}`), belief review, phone relay and pairing, summary model, transcription vocabulary, Enroll My Voice, auto mode default, handwritten notes, news brief, voice assistant, voice satellites and announcements | no |
+| `app.py` | routers, after the MCP routes | `fork/routes/__init__.py` (`mount`, table `ROUTERS`) | the fork's fifteen routers in one call, in order: Athena page, Today, belief search (before the review page's `/api/beliefs/{id}`), belief review, phone relay and pairing, summary model, transcription vocabulary, Enroll My Voice, auto mode default, handwritten notes, news brief, voice assistant, voice satellites and announcements, Set up Home Assistant, Link this Echo | no |
 | `app.py` | `_startup_event` | `fork/hub/checklist_auto_archive.py` | start the checklist archiver | with discussion |
 | `.github/workflows/ci.yml` | byte-compile step | none | compile `fork/` too | no |
 | `frontend/src/features/notes/application/workflows.js` | `_fetchNotes` | none (a filter; Write is `static/js/forkInk.js`) | handwritten notes left out of the Notes window | no |
@@ -204,6 +205,7 @@ to be offered) upstream, "with discussion" a change upstream may want in another
 | `routes/api_token_routes.py` | `ALLOWED_SCOPES` | `fork/athena/relay_routes.py` | scopes `sound:ingest`, `sound:read`, `sound:write` (old names, kept) | no |
 | `routes/api_token_routes.py` | `ALLOWED_SCOPES` | `fork/athena/urls.py` | scopes `athena:ingest`, `athena:read`, `athena:write` | no |
 | `routes/api_token_routes.py` | `ALLOWED_SCOPES` | `fork/voice/routes.py` | scope `voice` | no |
+| `requirements.txt` | end of file | `fork/voice/ha_setup.py` | `websockets>=15`, for Home Assistant's websocket API | no |
 | `routes/calendar_routes.py` | `update_event`, before the success return | `fork/athena/meeting_auto_join.py` | Send Athena tasks follow the event | no |
 | `routes/calendar_routes.py` | `delete_event`, one occurrence | `fork/athena/meeting_auto_join.py` | same | no |
 | `routes/calendar_routes.py` | `delete_event`, whole event | `fork/athena/meeting_auto_join.py` | same | no |

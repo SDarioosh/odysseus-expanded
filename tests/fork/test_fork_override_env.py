@@ -42,6 +42,9 @@ NOT_PASSED = {
     # (fake) SearXNG it points the instance at.
     "ODYSSEUS_URL", "ODYSSEUS_API_TOKEN", "BRAIN_EVAL_PASSWORD", "BRAIN_EVAL_PASSWORD_FILE",
     "BRAIN_EVAL_MODE", "BRAIN_EVAL_PRESET", "BRAIN_EVAL_APPROVAL", "BRAIN_EVAL_SEARXNG",
+    # scripts/ha_voice_setup.py, run by hand (no browser): the Home Assistant admin token
+    # it signs in with and an optional voice token to give Home Assistant.
+    "HA_TOKEN", "VOICE_TOKEN",
 }
 
 

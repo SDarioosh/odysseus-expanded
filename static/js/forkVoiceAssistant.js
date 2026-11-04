@@ -3,8 +3,11 @@
 // conversation agent (fork/voice/routes.py, POST /api/fork/voice/token) and shows what to
 // enter in Home Assistant. The token is shown once; it is listed with the other tokens
 // above the card as "Voice assistant <date>", where it is revoked.
+// "Set up Home Assistant" (fork/voice/ha_routes.py) does the Home Assistant side in one
+// go: the owner signs in to HA once, Odysseus sets up the agent and the Assist pipeline,
+// then signs out of HA again. The card shows the last run's steps.
 
-import { el } from './forkDom.js';
+import { api, el } from './forkDom.js';
 
 const CARD_ID = 'fork-voice-assistant-card';
 
@@ -15,6 +18,81 @@ export function setupRows(origin, answer) {
     ['API key', answer.token],
     ['Model', answer.model || 'odysseus'],
   ];
+}
+
+/** One line per step of a setup report (exported for tests). */
+export function reportLines(report) {
+  const marks = { ok: '\u2713', changed: '\u2713', error: '\u2717', skipped: '\u2013' };
+  return (report && Array.isArray(report.steps) ? report.steps : []).map((s) =>
+    `${marks[s.status] || '?'} ${s.step}: ${s.status}${s.detail ? ` \u2014 ${s.detail}` : ''}`);
+}
+
+function labelled(label, input) {
+  const row = el('div', { style: 'display:flex;gap:8px;align-items:center;margin:4px 0;' });
+  input.style.flex = '1 1 auto';
+  row.append(el('span', { style: 'min-width:150px;font-size:12px;' }, label), input);
+  return row;
+}
+
+function buildHaSection() {
+  const box = el('div', { style: 'border-top:1px solid var(--border);margin-top:10px;padding-top:8px;' });
+  box.append(el('div', { style: 'font-weight:600;margin-bottom:4px;' }, 'Set up Home Assistant'));
+  const sub = el('div', { class: 'admin-toggle-sub' },
+    'Sign in to Home Assistant once (an administrator) and Odysseus sets it up: a voice '
+    + 'token for Home Assistant, the Extended OpenAI Conversation agent (model odysseus, no '
+    + 'tools) and an "Odysseus" assistant with local Whisper and Piper, made the preferred '
+    + 'one. Install the Whisper and Piper add-ons and Extended OpenAI Conversation (HACS) in '
+    + 'Home Assistant first. Odysseus signs out of Home Assistant when it is done.');
+  sub.style.marginBottom = '6px';
+  const haUrl = el('input', { type: 'url', class: 'settings-select', placeholder: 'http://homeassistant.local:8123',
+                              'aria-label': 'Home Assistant address' });
+  const odyUrl = el('input', { type: 'url', class: 'settings-select', value: window.location.origin,
+                               'aria-label': 'Odysseus address as Home Assistant reaches it' });
+  const actions = el('div', { style: 'text-align:right;padding:8px 0;' });
+  const connect = el('button', { type: 'button', class: 'admin-btn-add' }, 'Set up Home Assistant');
+  actions.append(connect);
+  const msg = el('div', { style: 'font-size:11px;margin-top:4px;' });
+  const last = el('div', { style: 'display:none;font-size:12px;margin:6px 0;white-space:pre-wrap;' });
+  box.append(sub, labelled('Home Assistant address', haUrl),
+    labelled('Odysseus address (as Home Assistant reaches it)', odyUrl), actions, msg, last);
+  return { box, haUrl, odyUrl, connect, msg, last };
+}
+
+function showReport(ha, state) {
+  const lines = reportLines(state.report);
+  if (state.running) lines.unshift('A setup is running\u2026');
+  ha.last.textContent = lines.length ? ['Last setup:', ...lines].join('\n') : '';
+  ha.last.style.display = lines.length ? '' : 'none';
+}
+
+async function loadHa(ha) {
+  try {
+    const state = await api('/api/fork/voice/ha', {}, { redirect401: false });
+    if (state.ha_url && !ha.haUrl.value) ha.haUrl.value = state.ha_url;
+    showReport(ha, state);
+  } catch (e) { /* not an admin, or an older hub: the section still works */ }
+}
+
+function wireHa(ha) {
+  ha.connect.addEventListener('click', async () => {
+    ha.msg.textContent = '';
+    ha.connect.disabled = true;
+    try {
+      const answer = await api('/api/fork/voice/ha/connect', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ ha_url: ha.haUrl.value.trim(), odysseus_url: ha.odyUrl.value.trim() }),
+      });
+      if (!answer.authorize_url) throw new Error('No sign-in address');
+      ha.msg.textContent = 'Opening Home Assistant\u2026';
+      ha.msg.style.color = '';
+      window.location.assign(answer.authorize_url);
+    } catch (e) {
+      ha.msg.textContent = e.message || 'Failed';
+      ha.msg.style.color = 'var(--red)';
+      ha.connect.disabled = false;
+    }
+  });
 }
 
 function buildCard() {
@@ -32,8 +110,9 @@ function buildCard() {
   const actions = el('div', { style: 'text-align:right;padding:8px 0;' });
   const make = el('button', { type: 'button', class: 'admin-btn-add' }, 'Make a voice token');
   actions.append(make);
-  card.append(sub, result, actions, msg);
-  return { card, make, result, msg };
+  const ha = buildHaSection();
+  card.append(sub, result, actions, msg, ha.box);
+  return { card, make, result, msg, ha };
 }
 
 function showResult(ui, answer) {
@@ -79,6 +158,8 @@ function init() {
   const ui = buildCard();
   panel.append(ui.card);
   wire(ui);
+  wireHa(ui.ha);
+  loadHa(ui.ha);
 }
 
 if (typeof document !== 'undefined') {

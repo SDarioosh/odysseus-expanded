@@ -190,6 +190,10 @@ is an old path of a module that moved into `fork/`; it only aliases the new modu
 - `fork/voice/announce.py`
 - `fork/voice/chat_prefix.py`
 - `fork/voice/confirm.py`
+- `fork/voice/echo_link.py`
+- `fork/voice/ha_routes.py`
+- `fork/voice/ha_settings.py`
+- `fork/voice/ha_setup.py`
 - `fork/voice/ledger.py`
 - `fork/voice/openai_api.py`
 - `fork/voice/policy.py`
@@ -227,6 +231,7 @@ is an old path of a module that moved into `fork/`; it only aliases the new modu
 - `scripts/fixtures/insight_eval_day.json`
 - `scripts/fixtures/t5_weights_day.json`
 - `scripts/fork_deploy.sh`
+- `scripts/ha_voice_setup.py`
 - `scripts/ink_eval.py`
 - `scripts/insight_eval.py`
 - `scripts/module_slash_eval.py`
@@ -406,6 +411,7 @@ is an old path of a module that moved into `fork/`; it only aliases the new modu
 - `tests/fork/test_chat_mode_scope.py`
 - `tests/fork/test_checklist_auto_archive.py`
 - `tests/fork/test_codex_todos_json.py`
+- `tests/fork/test_echo_link.py`
 - `tests/fork/test_eval_common.py`
 - `tests/fork/test_eval_goldens.py`
 - `tests/fork/test_evidence_intake.py`
@@ -427,6 +433,7 @@ is an old path of a module that moved into `fork/`; it only aliases the new modu
 - `tests/fork/test_fork_tests_layout.py`
 - `tests/fork/test_fork_upstream.py`
 - `tests/fork/test_fork_views_look.py`
+- `tests/fork/test_ha_voice_setup.py`
 - `tests/fork/test_ink_athena.py`
 - `tests/fork/test_ink_auto_send.py`
 - `tests/fork/test_ink_eval.py`
