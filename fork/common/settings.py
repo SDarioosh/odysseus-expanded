@@ -230,9 +230,9 @@ VOICE_PRIVATE = _setting(
     used_in=("fork/voice/satellite.py",))
 HA_URL = _setting(
     "FORK_HA_URL", "", "URL",
-    "Home Assistant's address for spoken announcements; only a local, private-network or "
-    "Tailscale host is used (unset: no announcements).",
-    used_in=("fork/voice/announce.py",))
+    "Home Assistant's address for voice features (announcements, the Echo link); unset: the "
+    "one Set up Home Assistant saved. Only a local, private-network or Tailscale host is used.",
+    used_in=("fork/voice/announce.py", "fork/voice/ha_settings.py"))
 HA_TOKEN = _setting(
     "FORK_HA_TOKEN", "", "secret",
     "A Home Assistant long-lived access token for announcements.",

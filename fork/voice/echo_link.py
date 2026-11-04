@@ -12,7 +12,7 @@ sends the phone on to the Echo with the fields in the URL *fragment*,
 * ``token``: the voice token, shown nowhere else and never logged;
 * ``base_url``: ``<origin the browser used>/api/chat/voice/v1``;
 * ``ha_url``: the Home Assistant address saved by "Set up Home Assistant"
-  (``fork.voice.ha_settings.get_ha_url``), or empty.
+  (``fork.voice.ha_settings.home_assistant_url``), or empty.
 
 The return URL is checked here (:func:`check_return`): ``http``, port 10801, path
 ``/setup/<code>/odysseus``, nothing else, on a private or Tailscale address or a home
@@ -158,11 +158,11 @@ def ha_origin(url: str) -> str:
 def saved_ha_url() -> str:
     """The HA address "Set up Home Assistant" saved, if it is a plain http(s) address."""
     try:
-        from fork.voice.ha_settings import get_ha_url
+        from fork.voice.ha_settings import home_assistant_url
     except ImportError:
         return ""
     try:
-        url = (get_ha_url() or "").strip()
+        url = (home_assistant_url() or "").strip()
     except Exception:  # noqa: BLE001 -- an unreadable setting is "not set"
         logger.warning("echo link: couldn't read the Home Assistant address", exc_info=True)
         return ""

@@ -143,7 +143,7 @@ def echo(monkeypatch):
                         lambda owner, name, scopes: made.append((owner, name, scopes))
                         or {"id": "t1", "token": "ody_fake<&\"'>"})
     monkeypatch.setitem(sys.modules, "fork.voice.ha_settings",
-                        SimpleNamespace(get_ha_url=lambda: "http://homeassistant.local:8123/"))
+                        SimpleNamespace(home_assistant_url=lambda: "http://homeassistant.local:8123/"))
     monkeypatch.setattr(echo_link, "APPROVALS", echo_link._Approvals())
     app.include_router(echo_link.setup_echo_link_routes())
     client = TestClient(app, base_url="https://odysseus.tail1234.ts.net")
@@ -261,7 +261,7 @@ def test_a_bad_return_url_makes_no_token(echo):
 @pytest.mark.parametrize("saved", ["", "not a url", "javascript:alert(1)"])
 def test_no_or_a_bad_ha_address_is_sent_empty(echo, monkeypatch, saved):
     monkeypatch.setitem(sys.modules, "fork.voice.ha_settings",
-                        SimpleNamespace(get_ha_url=lambda: saved))
+                        SimpleNamespace(home_assistant_url=lambda: saved))
     res = echo.post(echo_link.PATH, data=FORM, headers=SAME)
     assert _handoff(res.text)[1]["ha_url"] == ""
 

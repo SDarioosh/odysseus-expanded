@@ -468,7 +468,7 @@ answers; only the outcome is logged.
 
 `fork/voice/announce.py`: `await announce(message, entities=None) -> bool` speaks a message
 on the satellites through Home Assistant's `assist_satellite.announce` service
-(`POST <FORK_HA_URL>/api/services/assist_satellite/announce`, `{"entity_id": [...],
+(`POST <Home Assistant>/api/services/assist_satellite/announce`, `{"entity_id": [...],
 "message": "..."}`, `Authorization: Bearer <FORK_HA_TOKEN>`, 10 s timeout, no redirects).
 Home Assistant speaks it with its own local text-to-speech. It never raises; a refusal is
 logged without the message. Later features (a spoken daily briefing) call it the same way.
@@ -476,21 +476,26 @@ logged without the message. Later features (a spoken daily briefing) call it the
 - **Reminders:** when a note reminder fires (the note-reminder scanner in
   `src/builtin_actions.py`, the same dispatch that sends ntfy/email/browser), the hook
   `announce_reminder(title)` also says "Reminder: <title>", in the background: the
-  reminder itself never waits for or fails on Home Assistant. Off until `FORK_HA_URL`,
-  `FORK_HA_TOKEN` and `FORK_VOICE_ANNOUNCE_ENTITIES` are all set.
+  reminder itself never waits for or fails on Home Assistant. Off until there is a Home
+  Assistant address, `FORK_HA_TOKEN` and `FORK_VOICE_ANNOUNCE_ENTITIES` are set.
 - **Test:** `POST /api/fork/voice/announce` (signed-in admin, browser), `{"message"?: str}`
   → `{"ok": true|false, "problem": "…"|null}`.
-- **Only a local Home Assistant:** `FORK_HA_URL` must be `http(s)://host[:port][/path]` with
+- **One Home Assistant address:** announcements and the Echo link use
+  `fork/voice/ha_settings.py`'s `home_assistant_url()`: the address **Set up Home
+  Assistant** saved (only after a setup that succeeded), or `FORK_HA_URL` when it is set,
+  which overrides it.
+- **Only a local Home Assistant:** the address must be `http(s)://host[:port][/path]` with
   a host that is local, on a private network or in Tailscale's range; a name is resolved
-  and every address must be one. A public host, a URL with credentials, a query or a
-  fragment is refused.
+  and every address must be one (`announce.check_url`). **Set up Home Assistant** and
+  `scripts/ha_voice_setup.py` apply the same rule before signing in. A public host, a URL
+  with credentials, a query or a fragment is refused.
 
 ### Settings
 
 | Variable | Meaning |
 |---|---|
 | `FORK_VOICE_PRIVATE` | `off` (default) or `owner` |
-| `FORK_HA_URL` | Home Assistant's address, e.g. `http://192.168.1.20:8123` (local hosts only) |
+| `FORK_HA_URL` | optional: overrides the address Set up Home Assistant saved, e.g. `http://192.168.1.20:8123` (local hosts only) |
 | `FORK_HA_TOKEN` | a Home Assistant long-lived access token (a secret: `.env` only) |
 | `FORK_VOICE_ANNOUNCE_ENTITIES` | comma list, e.g. `assist_satellite.kitchen_echo` |
 

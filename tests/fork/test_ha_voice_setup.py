@@ -372,6 +372,16 @@ def test_ha_address_is_normalised():
 
 
 # ---------------------------------------------------------------------------- tokens
+@pytest.fixture(autouse=True)
+def ha_on_the_home_network(monkeypatch):
+    """The fake HA's name resolves to a home-network address (the setup refuses others)."""
+    async def resolve(host):
+        if host == "ha.public.test":
+            return ["203.0.113.7"]
+        return ["192.168.1.20"]
+    monkeypatch.setattr("fork.voice.announce._resolve", resolve)
+
+
 @pytest.fixture
 def token_db(monkeypatch):
     from sqlalchemy import create_engine
@@ -485,6 +495,8 @@ def web(monkeypatch):
         runs.append((owner, ha_url, access_token, odysseus_url))
         if fake.reach == "boom":
             raise RuntimeError("boom")
+        if fake.reach == "fails":
+            return {"ok": False, "steps": [{"step": "Speech", "status": "error", "detail": ""}]}
         return {"ok": True, "steps": [{"step": "Speech", "status": "ok", "detail": "<b>x</b>"}],
                 "token_name": "Home Assistant 2026-11-03"}
 
@@ -642,3 +654,27 @@ def test_script_never_revokes_the_token_it_was_given(monkeypatch, capsys):
     assert fake.revoked == [] and "/auth/revoke" not in " ".join(fake.calls)
     assert "Restart Odysseus" in out and saved == [HA]
     assert script.main(["--ha-url", HA, "--odysseus-url", ODY, "--owner", "nobody"]) == 2
+
+
+def test_connect_refuses_a_home_assistant_off_the_home_network(web):
+    res = _connect(web, ha_url="http://ha.public.test:8123")
+    assert res.status_code == 400 and "local, private-network or Tailscale" in res.json()["detail"]
+
+
+def test_the_saved_address_is_the_default_and_fork_ha_url_overrides_it(monkeypatch):
+    from fork.voice import ha_settings
+
+    monkeypatch.setattr(ha_settings, "get_ha_url", lambda: "http://homeassistant.local:8123")
+    monkeypatch.delenv("FORK_HA_URL", raising=False)
+    assert ha_settings.home_assistant_url() == "http://homeassistant.local:8123"
+    monkeypatch.setenv("FORK_HA_URL", "http://192.168.1.30:8123")
+    assert ha_settings.home_assistant_url() == "http://192.168.1.30:8123"
+
+
+def test_a_failed_setup_saves_no_address(web):
+    web.fake.reach = "fails"  # a step fails: the report isn't ok
+    state = parse_qs(urlsplit(_connect(web).json()["authorize_url"]).query)["state"][0]
+    web.client.get("/api/fork/voice/ha/callback",
+                   params={"code": "good-code", "state": state}, headers=web.same)
+    assert web.runs and web.fake.revoked == ["ha-refresh-fake"]
+    assert web.saved == []

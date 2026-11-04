@@ -221,12 +221,13 @@ async def _run(owner: str, pending: Pending, code: str, invalidate: Any) -> dict
         if not revoked:
             logger.warning("voice: Home Assistant's sign-in couldn't be revoked; remove "
                            "the Odysseus login under your HA profile → Security")
-    try:
-        from fork.voice.ha_settings import set_ha_url
+    if report.get("ok"):  # a failed setup's address isn't handed to Echos
+        try:
+            from fork.voice.ha_settings import set_ha_url
 
-        await asyncio.to_thread(set_ha_url, pending.ha_url)
-    except Exception:
-        logger.warning("voice: couldn't save the Home Assistant address", exc_info=True)
+            await asyncio.to_thread(set_ha_url, pending.ha_url)
+        except Exception:
+            logger.warning("voice: couldn't save the Home Assistant address", exc_info=True)
     report["revoked"] = revoked
     return report
 
@@ -260,7 +261,7 @@ def setup_ha_routes() -> APIRouter:
                             headers={"Cache-Control": "no-store"})
 
     @router.post(BASE + "/connect")
-    def connect(request: Request, body: Connect) -> Any:
+    async def connect(request: Request, body: Connect) -> Any:
         owner = _admin_owner(request)
         origin = browser_origin(request)
         check_client_origin(origin)
@@ -270,6 +271,12 @@ def setup_ha_routes() -> APIRouter:
             ha_setup.voice_base_url(odysseus_url)
         except ValueError as exc:
             raise HTTPException(400, str(exc)) from None
+        from fork.voice.announce import Refused, check_url
+
+        try:  # the same rule as announcements: only Home Assistant on the owner's network
+            await check_url(ha_url)
+        except Refused as exc:
+            raise HTTPException(400, f"{exc}.") from None
         if (RUNS.get(owner) or {}).get("running"):
             raise HTTPException(409, "A setup is still running; wait for it to finish.")
         from core.middleware import with_asgi_root_path
