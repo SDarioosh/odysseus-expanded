@@ -163,27 +163,27 @@ class SpeechStream:
 
 # ------------------------------------------------------------ the final question mark
 # Home Assistant keeps the microphone open (and skips its own commands) only when an
-# answer ends with "?", so only a confirmation question may end with one.
+# answer ends with "?". A real question ("Do you want me to add it?") keeps its "?", so
+# the owner can just answer; a filler offer ("Anything else?") is dropped.
 LAST_SENTENCE = re.compile(r"(?:^|(?<=[.!?…]))\s*([^.!?…]*[?])\s*$")
 OFFER = re.compile(
     r"(?i)^\s*(?:is there\s+)?(?:anything else|something else|can i help|how (?:else )?can i"
     r"|would you like (?:to know|more|anything)|do you (?:want|need) (?:anything|more)"
-    r"|shall i (?:look|check|search)|want me to (?:look|check|search)|need anything)\b")
+    r"|need anything)\b")
 
 
 def end_without_question(text: str) -> str:
-    """``text`` without a question at the end: a trailing offer ("Anything else?") is
-    dropped, any other last "?" becomes "."."""
+    """``text`` without a filler offer at the end ("Anything else?", "Would you like more
+    details?"): dropped, up to three. Any other last question is kept as it is, so Home
+    Assistant listens for the answer; an offer that is the whole answer becomes "."."""
     out = (text or "").rstrip()
     for _ in range(3):
         m = LAST_SENTENCE.search(out)
-        if not m:
+        if not m or not OFFER.search(m.group(1)):
             return out
-        sentence = m.group(1)
-        if OFFER.search(sentence) and out[:m.start(1)].strip():
-            out = out[:m.start(1)].rstrip()
-            continue
-        return out[:m.end(1) - 1].rstrip() + "."
+        if not out[:m.start(1)].strip():
+            return out[:m.end(1) - 1].rstrip() + "."
+        out = out[:m.start(1)].rstrip()
     return out
 
 

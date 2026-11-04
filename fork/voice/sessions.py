@@ -11,9 +11,11 @@ about Friday?" works. A request names its conversation by, in this order:
 2. otherwise, when the request carries earlier turns, its first question (a client that
    sends the whole conversation each time sends the same first question).
 
-A request with neither starts a new chat. The map is kept in this process's memory (one
-uvicorn worker, like the brain's paused turns); after a restart the next question starts
-a new chat. Keys are per owner, so one owner's conversation never continues another's.
+A request with neither starts a new chat. A first question (no earlier turns) always
+starts a new chat, but is remembered under itself, so the next turn of that conversation,
+which sends it as its first question, finds the chat. The map is kept in this process's
+memory (one uvicorn worker, like the brain's paused turns); after a restart the next
+question starts a new chat. Keys are per owner, so one owner's conversation never continues another's.
 """
 from __future__ import annotations
 
@@ -121,10 +123,12 @@ def new_chat(session_manager: Any, owner: str, question: str) -> Any:
     return sess
 
 
-def chat_for(session_manager: Any, owner: str, key: str | None, question: str) -> Any:
+def chat_for(session_manager: Any, owner: str, key: str | None, question: str, *,
+             new: bool = False) -> Any:
     """The chat this question goes into: the conversation's while it is fresh and still
-    the owner's, else a new one. Remembered under ``key``."""
-    session_id = remembered(owner, key)
+    the owner's, else a new one (always a new one with ``new``: a conversation's first
+    question). Remembered under ``key``."""
+    session_id = None if new else remembered(owner, key)
     sess = None
     if session_id:
         try:

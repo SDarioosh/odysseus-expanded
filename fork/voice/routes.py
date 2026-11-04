@@ -242,10 +242,15 @@ def setup_voice_routes() -> APIRouter:
         session_manager = getattr(request.app.state, "session_manager", None)
         if session_manager is None:
             return _error(503, "Odysseus isn't ready yet.", "server_error")
-        key = voice_sessions.conversation_key(explicit=question.conversation,
-                                              first_question=question.first_question)
+        # A first question starts a new chat, kept under itself so the follow-up (which
+        # sends it as its first) continues it; an explicit conversation id goes first.
+        key = voice_sessions.conversation_key(
+            explicit=question.conversation,
+            first_question=question.first_question or question.opening)
+        first = not question.conversation and question.first_question is None
         try:
-            sess = voice_sessions.chat_for(session_manager, owner, key, question.text)
+            sess = voice_sessions.chat_for(session_manager, owner, key, question.text,
+                                           new=first)
         except voice_sessions.NoModel as exc:
             return _error(503, str(exc), "server_error")
         module, ctx = await satellite_context(owner)

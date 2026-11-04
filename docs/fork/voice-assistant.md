@@ -182,11 +182,17 @@ no date. The voice instructions also ask for a `due_date` only when one was said
    The "yes" and its reply are saved in the voice chat like a turn.
 3. A yes from a voice that isn't the owner's (private answers on) runs nothing.
 
-**Only a confirmation ends with "?"** (`fork/voice/speech.py`): Home Assistant keeps the
-microphone open, and skips its own commands for the reply, only when an answer ends with
-a question mark. So a trailing offer ("Anything else?", "Would you like more
-details?") is dropped and any other last "?" becomes "."; while streaming, a sentence
-that ends with "?" is held back until the next one arrives or the answer ends.
+**A question keeps its "?", a filler offer is dropped** (`fork/voice/speech.py`): Home
+Assistant keeps the microphone open, and skips its own commands for the reply, only when
+an answer ends with a question mark. A kept change ends with its confirmation question
+(above). Otherwise a trailing filler offer ("Anything else?", "Would you like more
+details?") is dropped, and any other last question ("Do you want me to read them?",
+"Want me to check the transcripts?") is kept, so the owner can just answer it. Before
+2026-11-04 every last "?" became ".", and the Echo stopped listening after a question.
+A "yes" to such a question goes to the model with the chat's history; when the model
+then calls a change, that change is still only proposed and confirmed by its own
+question. While streaming, a sentence that ends with "?" is held back until the next one
+arrives or the answer ends.
 
 ## One prompt cache for chat and voice
 
@@ -257,8 +263,13 @@ the satellite in a private room and the token in Home Assistant only; with
 `fork/voice/sessions.py`. A follow-up within 5 minutes of the last question continues
 the same chat, so "and on Friday?" works. A request names its conversation by its `user`
 field or `X-Conversation-Id` header, or else (when it sends earlier turns) by its first
-question. A request with neither starts a new chat. The map is kept in memory per owner;
-after a restart the next question starts a new chat.
+question. A request with neither starts a new chat. A conversation's first question
+(no earlier turns, no id) always starts a new chat, and is remembered under itself, so
+the next turn (which sends it as its first question) continues that chat. Before
+2026-11-04 it wasn't: with Home Assistant, which sends no id, the first reply of every
+conversation started a new chat, and a "yes" to the first answer's confirmation found
+nothing to confirm. The map is kept in memory per owner; after a restart the next
+question starts a new chat.
 
 New chats are named "Voice: <question>" and filed in the **Voice** folder.
 
@@ -563,7 +574,10 @@ logged without the message. Later features (a spoken daily briefing) call it the
 Checked in the sandbox (Home Assistant 2026.2.3, Extended OpenAI Conversation 3.0.0, a
 fake Odysseus): the agent sends no `user` field, `stream: true`, model `odysseus`, no
 tools, and a follow-up in the same Home Assistant conversation carries the earlier
-turns, so Odysseus continues the chat by its first question.
+turns, so Odysseus continues the chat by its first question (since 2026-11-04 also the
+first follow-up: `fork/voice/sessions.py`). Home Assistant keeps a satellite's
+conversation for 5 minutes after its last turn, so a reply after waking the Echo again
+continues it too.
 
 ## Linking an Echo
 
