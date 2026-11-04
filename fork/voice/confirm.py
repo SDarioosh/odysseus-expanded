@@ -56,7 +56,7 @@ class Change:
     due: str | None = None
     all_day: bool = False
     source: str = "odysseus"
-    question: str = ""  # the confirmation question, if the model didn't ask one
+    question: str = ""  # the confirmation question spoken (it replaces any the model asked)
     check: Callable[[], bool] | None = None  # still true when run? (a list's items)
 
 
@@ -77,9 +77,13 @@ class Proposal:
     created: float = field(default_factory=time.time)
 
     def question(self) -> str:
+        """The spoken confirmation: built from the kept calls only, naming each one, so a
+        "yes" only ever approves what the owner just heard."""
         if len(self.calls) == 1:
             return self.calls[0].change.question
-        return "Should I make these " + str(len(self.calls)) + " changes?"
+        parts = [c.change.question.rstrip("?").strip() for c in self.calls]
+        parts = [parts[0]] + [p[:1].lower() + p[1:] for p in parts[1:]]
+        return ", and ".join(parts) + "?"
 
 
 _PROPOSALS: dict[tuple[str, str], Proposal] = {}
@@ -183,6 +187,24 @@ def _due(raw: Any) -> str | None:
         return text
 
 
+def _spoken_when(due: str | None, all_day: bool = False) -> str:
+    """" on Wednesday, November 4 at 9:00 AM" for a due or start time, so the question
+    says when; "" when there is none, the raw text when it can't be read."""
+    text = str(due or "").strip()
+    if not text:
+        return ""
+    from datetime import datetime
+    try:
+        when = datetime.fromisoformat(text.replace("Z", "+00:00"))
+    except ValueError:
+        return f" ({text})"
+    day = f"{when.strftime('%A, %B')} {when.day}"
+    if all_day or len(text) == 10:
+        return f" on {day}"
+    clock = when.strftime("%I:%M %p").lstrip("0")
+    return f" on {day} at {clock}"
+
+
 def _clean(text: Any, limit: int = 120) -> str:
     out = " ".join(str(text or "").split())
     return out if len(out) <= limit else out[:limit - 1].rstrip() + "…"
@@ -200,7 +222,7 @@ async def _note_add(owner: Any, args: dict) -> Change | None:
         name = title or (texts[0] if texts else "a reminder")
         return Change("created", "reminder", name, "To-dos", f"I'll remind you: {name}.",
                       detail=", ".join(texts) or _clean(args.get("content"), 500) or None,
-                      due=due, question=f"Set a reminder: {name}?")
+                      due=due, question=f"Set a reminder: {name}{_spoken_when(due)}?")
     checklist = bool(items) or str(args.get("note_type") or "") in {"checklist", "todo"}
     if checklist:
         name = title or (texts[0] if texts else "")
@@ -323,7 +345,8 @@ async def _event(owner: Any, args: dict) -> Change | None:
         all_day = all_day or len(raw) == 10
     return Change("created", "event", title, "Calendar", f"Added {title} to your calendar.",
                   detail=_clean(args.get("description"), 500) or None, due=due,
-                  all_day=all_day, question=f"Add {title} to your calendar?")
+                  all_day=all_day,
+                  question=f"Add {title} to your calendar{_spoken_when(due, all_day)}?")
 
 
 async def athena_item_title(item_id: int) -> str | None:

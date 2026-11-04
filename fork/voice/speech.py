@@ -188,14 +188,18 @@ def end_without_question(text: str) -> str:
 
 
 def end_with_question(text: str, question: str) -> str:
-    """``text`` ending in a confirmation question: its own last question when it ends
-    with one, else ``question`` added."""
+    """``text`` ending in the confirmation question ``question``: any question the model
+    ended with is dropped first, so a "yes" answers the kept change's own question (built
+    from the stored call) and never an offer or a question the model made up."""
     out = (text or "").rstrip()
-    if out.endswith("?"):
-        return out
     q = (question or "").strip()
     if not q:
         return out
     if not q.endswith("?"):
         q = q.rstrip(".!") + "?"
+    for _ in range(3):
+        m = LAST_SENTENCE.search(out)
+        if not m:
+            break
+        out = out[:m.start(1)].rstrip()
     return (out + " " + q).strip()

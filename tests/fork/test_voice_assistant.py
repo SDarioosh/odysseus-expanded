@@ -584,6 +584,34 @@ def test_a_proposal_ends_with_a_confirmation_question(api, said):
     assert api.get(ACTIONS, headers=VOICE).json() == {"actions": []}  # not run
 
 
+@pytest.mark.parametrize("said", ["It is sunny. Would you like to hear more?",
+                                  "Add milk to your shopping list?"])
+def test_the_spoken_question_is_the_kept_calls_own(api, said):
+    """A "yes" must answer the question built from the stored call: a question the model
+    wrote (an offer, or one naming another change) is replaced, never kept."""
+    _propose(api)
+    api.answer = [said]
+    body = api.post(URL, json=DENTIST, headers=VOICE).json()
+    spoken = body["choices"][0]["message"]["content"]
+    assert spoken.endswith("Add Dentist to your calendar?")
+    assert "hear more" not in spoken and "milk" not in spoken
+
+
+def test_several_kept_changes_are_each_named():
+    p = confirm.Proposal("alice", "s", "t", None)
+    for q in ("Add Dentist to your calendar?", "Set a reminder: call Sam?"):
+        p.calls.append(confirm.Call("x", "{}", confirm.Change("created", "event", "x", "y",
+                                                              "z", question=q)))
+    assert p.question() == "Add Dentist to your calendar, and set a reminder: call Sam?"
+
+
+def test_event_and_reminder_questions_say_when():
+    assert confirm._spoken_when("2026-11-10T15:00:00+00:00") == " on Tuesday, November 10 at 3:00 PM"
+    assert confirm._spoken_when("2026-11-10", all_day=True) == " on Tuesday, November 10"
+    assert confirm._spoken_when(None) == ""
+    assert confirm._spoken_when("next week") == " (next week)"
+
+
 def test_yes_runs_the_proposal_without_the_model(api, monkeypatch):
     _propose(api)
     api.post(URL, json=DENTIST, headers=VOICE)
