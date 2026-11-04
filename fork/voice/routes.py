@@ -225,6 +225,11 @@ def setup_voice_routes() -> APIRouter:
     @router.post(PREFIX + "/chat/completions")
     async def chat_completions(request: Request) -> Any:
         owner = voice_owner(request)
+        # No browser sends a zone: event times and "today" use the owner's.
+        from fork.common.local_time import use_owner_timezone
+        from src.user_time import clear_user_time_context
+        clear_user_time_context()
+        use_owner_timezone(owner)
         try:
             body = await request.json()
         except ValueError:

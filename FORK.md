@@ -145,6 +145,7 @@ the link goes to its details (what it does, its files, whether it can go upstrea
 ### Notes, calendar and tasks
 
 - [Calendar reminder shows the wall time](docs/fork/features/notes-and-tasks.md#calendar-reminder-shows-the-wall-time): the reminder to-do of a timed event shows the local time, not UTC (general bug).
+- [Calendar events in the wall time](docs/fork/features/notes-and-tasks.md#calendar-events-in-the-wall-time): `list_events` gives the model each event's local time, not UTC, and a voice turn uses the owner's timezone (general bug).
 - [Structured notes for token clients](docs/fork/features/notes-and-tasks.md#structured-notes-for-token-clients): `GET /api/codex/todos?format=json` returns notes as data.
 - [Finished checklists archive themselves](docs/fork/features/notes-and-tasks.md#finished-checklists-archive-themselves): a finished, unpinned checklist is archived after `FORK_CHECKLIST_ARCHIVE_MINUTES`.
 - [Built-in tasks recover from a broken sealed authority](docs/fork/features/notes-and-tasks.md#built-in-tasks-recover-from-a-broken-sealed-authority): a built-in housekeeping task with a broken sealed authority is re-sealed.
@@ -265,6 +266,7 @@ to be offered) upstream, "with discussion" a change upstream may want in another
 | `src/tool_execution.py` | `execute_tool_block`, before the request-authority denial | `fork/routing/web_turn_scope.py` | `web_fetch` of this run's search hits | yes, with discussion |
 | `src/tool_types.py` | `TOOL_TAGS` | `fork/routing/auto_mode.py` | `calculate` tag | no |
 | `src/tools/calendar.py` | `_create_calendar_reminder` | none (upstream `src/user_time.py`) | the reminder shows the wall time | yes |
+| `src/tools/calendar.py` | `list_events`, the answer | `fork/common/local_time.py` | event times in the user's wall time, not UTC | yes |
 | `src/turn_contract.py` | `selected_tools_for_request`, model-discovery rule | `fork/routing/web_turn_scope.py` | comparisons and web lookups are web questions | yes, with discussion |
 | `static/css/01-agent-chat.css` | `.chat-meta-overlay` with the Nobody eye | none | the chat title stays centered | yes |
 | `static/index.html` | script tags, end of body | `static/js/forkChatAsk.js` | `/?ask=` prefills a new chat | yes, with discussion |
