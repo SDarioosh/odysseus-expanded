@@ -438,6 +438,43 @@ def test_a_follow_up_continues_the_chat_and_a_new_conversation_does_not(api):
     assert sids[0] == sids[1] and len(set(sids)) == 3
 
 
+def _ha_turns(*said):
+    """A request as Home Assistant's agent sends it: no ``user`` field, the earlier turns
+    of its conversation in ``messages``."""
+    messages = [{"role": "system", "content": "You are Home Assistant."}]
+    for i, text_ in enumerate(said):
+        if i:
+            messages.append({"role": "assistant", "content": "Earlier answer?"})
+        messages.append({"role": "user", "content": text_})
+    return {"model": "odysseus", "stream": True, "messages": messages}
+
+
+def test_the_first_follow_up_of_a_conversation_continues_its_chat(api):
+    """Home Assistant names a conversation only by its earlier turns: the reply to the
+    first answer (the second request) must land in the first question's chat."""
+    api.post(URL, json=_ha_turns("Who brings the cake?"), headers=VOICE)
+    api.post(URL, json=_ha_turns("Who brings the cake?", "And the drinks?"), headers=VOICE)
+    api.post(URL, json=_ha_turns("Who brings the cake?", "And the drinks?", "Thanks"),
+             headers=VOICE)
+    api.post(URL, json=_ha_turns("Who brings the cake?"), headers=VOICE)  # a new one
+    sids = [t["sid"] for t in api.turns]
+    assert sids[0] == sids[1] == sids[2] and sids[3] != sids[0]
+    assert len(api.sessions.created) == 2
+
+
+def test_a_yes_in_the_first_follow_up_answers_the_kept_change(api, monkeypatch):
+    async def fake_run(p):
+        return [confirm.Outcome(c.change, True) for c in p.calls]
+    monkeypatch.setattr(confirm, "run", fake_run)
+    _propose(api)
+    ask = "Add the dentist on Tuesday at three"
+    api.post(URL, json={**_ha_turns(ask), "stream": False}, headers=VOICE)
+    api.on_turn = None
+    body = api.post(URL, json={**_ha_turns(ask, "Yes."), "stream": False},
+                    headers=VOICE).json()
+    assert body["choices"][0]["message"]["content"] == "Done. Added Dentist to your calendar."
+
+
 def test_a_conversation_goes_stale_after_the_follow_up_window():
     voice_sessions.forget_all()
     voice_sessions.remember("alice", "id:x", "chat-1", now=1000.0)
@@ -736,10 +773,16 @@ def test_reply_kind(text_, kind):
 
 @pytest.mark.parametrize("said, spoken", [
     (["Paris is the capital. Anything else?"], "Paris is the capital."),
-    (["Is it Paris?"], "Is it Paris."),
     (["It rains. ", "Would you like more details?"], "It rains."),
+    (["Anything else?"], "Anything else."),
+    # a real question keeps its "?": Home Assistant then listens for the answer
+    (["Is it Paris?"], "Is it Paris?"),
+    (["You have two notes about it. ", "Do you want me to read them?"],
+     "You have two notes about it. Do you want me to read them?"),
+    (["Nothing in your calendar. Want me to check the transcripts?"],
+     "Nothing in your calendar. Want me to check the transcripts?"),
 ])
-def test_only_a_confirmation_ends_with_a_question_mark(api, said, spoken):
+def test_a_real_question_ends_with_a_question_mark_and_an_offer_is_dropped(api, said, spoken):
     api.answer = said
     body = api.post(URL, json=ASK, headers=VOICE).json()
     assert body["choices"][0]["message"]["content"] == spoken

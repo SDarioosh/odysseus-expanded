@@ -39,6 +39,9 @@ class Question:
     conversation: str | None  # the client's conversation id, if it sent one
     first_question: str | None  # the first user message, when earlier turns were sent
     model: str = MODEL_ID
+    # the conversation's first user message: this question when it is the first one
+    # (remembered, so the next turn, which sends it as its first, continues the chat)
+    opening: str | None = None
 
 
 def _content_text(content: Any) -> str:
@@ -73,7 +76,8 @@ def parse(body: Any, *, conversation_header: str | None = None) -> Question:
     return Question(text=question, stream=body.get("stream") is True,
                     conversation=conversation,
                     first_question=users[0] if len(users) > 1 else None,
-                    model=model if isinstance(model, str) and model.strip() else MODEL_ID)
+                    model=model if isinstance(model, str) and model.strip() else MODEL_ID,
+                    opening=users[0])
 
 
 def error_body(message: str, kind: str = "invalid_request_error") -> dict:
@@ -101,7 +105,7 @@ class Answer:
     failed: bool = False
     tokens: tuple[int, int] = (0, 0)
     # the confirmation question while a proposal of this turn waits for a yes, or None
-    # (fork/voice/confirm.py); only then may the spoken answer end with "?"
+    # (fork/voice/confirm.py); then the spoken answer ends with it
     confirmation: Callable[[], str | None] | None = None
     awaiting: str | None = None  # the question the answer ended with, once finished
     held: str = ""  # streamed text ending in "?", held until more comes or the end
@@ -193,8 +197,9 @@ class Answer:
         self.speech.finish()
 
     def finish(self) -> str:
-        """The rest to speak once the turn is over. The answer ends with "?" only when
-        it asks to confirm a kept change; then :attr:`awaiting` is that question."""
+        """The rest to speak once the turn is over. A kept change's confirmation question
+        replaces any question the model ended with (then :attr:`awaiting` is it); else a
+        filler offer at the end is dropped and a real question is kept."""
         if self.interrupted:
             return ""
         self._body()
