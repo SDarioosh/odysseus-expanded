@@ -304,6 +304,62 @@ words were no longer in `convo.db*`, nor "peanut" anywhere in `beliefs.db*`; the
 had no "peanut"; the next facts run reported the fact gone and the belief stayed
 rejected and erased.
 
+## Voice barge-in
+
+Reproduces "Hey Athena" said again while the Echo is still thinking
+([voice-assistant.md](voice-assistant.md#barge-in)) with a real Home Assistant (core, from
+PyPI) and Odysseus, in `scripts/voice_barge_sandbox/`:
+
+| Piece | What |
+|---|---|
+| `echo_emulator.py` | Wyoming satellite on :10700 with the Echo's barge-in code ported line by line (`--mode before`: 0.14.0+odysseus.13, `--mode after`: .14) |
+| `slow_llm.py` | Odysseus's model on :8082: answers after 25 s (`SLOW_LLM_DELAY`), like a turn with tool calls; logs a caller that hung up |
+| `fake_speech.py` | Wyoming speech-to-text (:10300, answers the question the emulator just "said") and text-to-speech (:10200, a tone) |
+| `ha_custom_components/odysseus_sbx` | stand-ins for the owner's two custom integrations: the agent (asks Odysseus's voice endpoint, streamed, like Extended OpenAI Conversation) and VACA's `pipeline-ended` event to the device on every run end |
+| `ha_setup.py` | onboards Home Assistant and adds the speech services, the agent, the preferred "Odysseus" pipeline and the emulator |
+
+Home Assistant's voice pipeline, its Wyoming satellite and its voice activity detection are
+real; the questions are real speech (Piper, fictional text) streamed in real time.
+
+```bash
+S=$FORK/scripts/voice_barge_sandbox; export BARGE_WORK=$SBX/barge
+mkdir -p $BARGE_WORK/logs $BARGE_WORK/ha/custom_components
+uv venv -p 3.12 $BARGE_WORK/venv && uv pip install -p $BARGE_WORK/venv/bin/python piper-tts wyoming httpx aiohttp
+uv venv -p 3.13 $SBX/ha-venv && uv pip install -p $SBX/ha-venv/bin/python homeassistant   # 2026.2.3 here
+# Fictional questions as speech, 16 kHz mono (voice: rhasspy/piper-voices en_US-lessac-low)
+for q in "hey athena:wake" "What did Alice say about the budget?:q1" "Is the kitchen light on?:q2"; do
+  echo "${q%%:*}" | $BARGE_WORK/venv/bin/piper -m en_US-lessac-low.onnx -f /tmp/$$.wav
+  ffmpeg -loglevel error -y -i /tmp/$$.wav -ar 16000 -ac 1 -sample_fmt s16 $BARGE_WORK/${q##*:}.wav
+done
+cp -r $S/ha_custom_components/odysseus_sbx $BARGE_WORK/ha/custom_components/
+printf 'default_config:\n' > $BARGE_WORK/ha/configuration.yaml
+setsid nohup $BARGE_WORK/venv/bin/python $S/slow_llm.py > $BARGE_WORK/logs/slow_llm.log 2>&1 < /dev/null &
+setsid nohup $BARGE_WORK/venv/bin/python $S/fake_speech.py > $BARGE_WORK/logs/speech.log 2>&1 < /dev/null &
+setsid nohup $SBX/ha-venv/bin/hass -c $BARGE_WORK/ha > $BARGE_WORK/logs/ha.log 2>&1 < /dev/null &
+# Odysseus on :7010 as above, its default model http://127.0.0.1:8082/v1 (the slow one),
+# and a voice token from POST /api/fork/voice/token
+setsid nohup $BARGE_WORK/venv/bin/python $S/echo_emulator.py --mode before > $BARGE_WORK/logs/before.log 2>&1 < /dev/null &
+$BARGE_WORK/venv/bin/python $S/ha_setup.py <voice token>
+# later runs: one emulator at a time; Home Assistant reconnects to it by itself
+$BARGE_WORK/venv/bin/python $S/echo_emulator.py --mode after --barge-after 3
+```
+
+### Results, 2026-11-04
+
+Home Assistant 2026.2.3, Odysseus with the fix, the model answering in 25 s. Wake word +
+question 1, then wake word + question 2 a few seconds into "Thinking…":
+
+| Echo | barge-in after | question 2 | the interrupted answer |
+|---|---|---|---|
+| before (.13) | 3 s | **dropped**: the Echo waited 15 s for HA to end the old run, gave up and went idle; HA ended it at 25 s | dropped |
+| before (.13) | 17 s | answered, 9 s late (waited for the old answer) | **played** (after 15 s of "Thinking…" the wake word wasn't a barge-in) |
+| after (.14) | 3 s | answered; transcribed 2 s after the wake word | never played; its model call hung up 2.5 s in |
+| after (.14) | 17 s | answered; transcribed 2 s after the wake word | never played |
+
+The "before" rows are the live test's symptom. A first "after" run found no turn to cut:
+Home Assistant asked before the Echo's `/satellite/turn` post arrived (the sandbox's
+speech-to-text answers at once), hence `ADOPT_SECONDS`.
+
 ## Findings from the first sandbox run
 
 These are real bugs, not sandbox quirks. 1–3 and 5 are bugs in Odysseus or the fork (tracked in

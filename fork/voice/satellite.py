@@ -68,6 +68,9 @@ class SatelliteContext:
     wake_word: str
     started_at_ms: int
     speaker: Speaker | None
+    # the device's barge-in came before Home Assistant asked: the turn answers empty
+    # (fork/voice/interrupts.py)
+    interrupted: bool = False
 
 
 @dataclass
@@ -229,6 +232,27 @@ async def claim(owner: str, *, wait_seconds: float = 3.0) -> SatelliteContext | 
         if entry is None:
             return None
     return await wait_for_check(entry, wait_seconds)
+
+
+def interrupt_unclaimed(owner: str, device_id: str) -> int:
+    """A barge-in on ``device_id`` before Home Assistant asked for its turn: mark that
+    device's contexts nobody claimed, so the turn that claims one answers empty at once
+    (fork/voice/interrupts.py). The number marked."""
+    now = _now()
+    marked = 0
+    with _lock:
+        for e in _prune(_contexts.get(owner, []), now):
+            if not e.claimed and e.ctx.device_id == device_id and now - e.created < CLAIM_SECONDS:
+                e.ctx = replace(e.ctx, interrupted=True)
+                marked += 1
+    return marked
+
+
+def mark_claimed(entry: _Entry) -> None:
+    """The context belongs to a turn that is already running (fork/voice/interrupts.py
+    ``adopt``): no later turn may claim it."""
+    with _lock:
+        entry.claimed = True
 
 
 def personal_allowed(ctx: SatelliteContext | None) -> bool:

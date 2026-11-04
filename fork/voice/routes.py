@@ -28,7 +28,7 @@ from typing import Any
 from fastapi import APIRouter, Depends, HTTPException, Request
 from fastapi.responses import JSONResponse, StreamingResponse
 
-from fork.voice import confirm, ledger, openai_api
+from fork.voice import confirm, interrupts, ledger, openai_api
 from fork.voice import policy as voice_policy
 from fork.voice import prompt as voice_prompt
 from fork.voice import sessions as voice_sessions
@@ -248,9 +248,16 @@ def setup_voice_routes() -> APIRouter:
         session_id = str(sess.id)
         turn_id = ledger.start_turn(owner, question.text, session_id=session_id,
                                     device=device_of(ctx), speaker=speaker_of(ctx))
-        fixed = await confirmation_reply(
-            owner=owner, sess=sess, session_manager=session_manager, question=question.text,
-            turn_id=turn_id, personal=personal, module=module)
+        # A barge-in on the asking device cuts this turn short (fork/voice/interrupts.py).
+        stop = interrupts.start(turn_id, owner, getattr(ctx, "device_id", None))
+        if getattr(ctx, "interrupted", False):
+            stop.set()  # the device was interrupted before Home Assistant asked
+        if stop.is_set():
+            fixed = ""
+        else:
+            fixed = await confirmation_reply(
+                owner=owner, sess=sess, session_manager=session_manager, question=question.text,
+                turn_id=turn_id, personal=personal, module=module)
         if fixed is not None:
             events = _fixed(fixed)
             confirmation = None
@@ -269,6 +276,7 @@ def setup_voice_routes() -> APIRouter:
                 shared_prefix=True, context_lines=(asked_from(ctx),),
                 no_memory=not personal)
             if events is None:
+                interrupts.end(turn_id)
                 ledger.finish_turn(turn_id, answer="")
                 return _error(503, "Voice answers need the brain (FORK_BRAIN) and an owner "
                                    "allowed to use the agent.", "server_error")
@@ -278,19 +286,29 @@ def setup_voice_routes() -> APIRouter:
                 return p.question() if p is not None and p.turn_id == turn_id else None
 
         answer = openai_api.Answer(streaming=question.stream, confirmation=confirmation)
+        events = interrupts.until_stopped(events, stop)
 
         def done(a: openai_api.Answer) -> None:
+            interrupts.end(turn_id)
+            if stop.is_set():
+                # Nobody heard it: no answer, and no change waits for a "yes".
+                a.interrupt()
+                p = confirm.pending(owner, session_id)
+                if p is not None and p.turn_id == turn_id:
+                    confirm.drop(owner, session_id)
+                logger.info("voice: turn %s was interrupted by its satellite", turn_id)
             ledger.finish_turn(turn_id, answer=a.speech.spoken, links=list(a.speech.links),
                                awaiting_confirmation=a.awaiting)
 
         if question.stream:
             return StreamingResponse(
-                openai_api.stream(events, question, answer, session_id, turn_id, on_done=done),
+                openai_api.stream(events, question, answer, session_id, turn_id, on_done=done,
+                                  interrupted=stop.is_set),
                 media_type="text/event-stream",
                 headers={"Cache-Control": "no-cache, no-transform",
                          "X-Accel-Buffering": "no"})
         try:
-            await openai_api.collect(events, answer)
+            await openai_api.collect(events, answer, interrupted=stop.is_set)
         except Exception:  # noqa: BLE001 -- a spoken apology instead of a 500
             logger.exception("voice: the turn failed")
             answer.failed = True

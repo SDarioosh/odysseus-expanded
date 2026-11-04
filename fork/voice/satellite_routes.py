@@ -7,11 +7,17 @@
   (``fork/voice/satellite.py``) and starts the speaker check in the background; answers
   ``{"ok": true, "context_id", "speaker"}`` (``speaker`` null while the check still runs,
   without audio, or when Athena couldn't check). The audio is never stored or logged.
+* ``POST /api/chat/voice/v1/satellite/interrupt`` (the same token), a form with
+  ``device_id``: the device's wake word interrupted its turn (a barge-in). The hub cuts
+  that device's running voice turn short, so Home Assistant ends its run at once
+  (``fork/voice/interrupts.py``); answers ``{"ok": true, "cut": <running turns cut>,
+  "marked": <contexts marked before HA asked>}``.
 * ``POST /api/fork/voice/announce`` (signed-in admin), ``{"message"?: str}``: speak a test
   announcement through Home Assistant (``fork/voice/announce.py``); ``{"ok", "problem"}``.
 """
 from __future__ import annotations
 
+import logging
 import time
 from typing import Any
 
@@ -20,11 +26,14 @@ from pydantic import BaseModel, Field
 from starlette.datastructures import UploadFile
 
 from fork.voice import announce as voice_announce
-from fork.voice import satellite
+from fork.voice import interrupts, satellite
 from fork.voice.routes import PREFIX, voice_owner
+
+logger = logging.getLogger(__name__)
 
 MAX_AUDIO_BYTES = 1024 * 1024  # 15 s of 16 kHz mono 16-bit WAV is ~480 KB
 MAX_BODY_BYTES = MAX_AUDIO_BYTES + 64 * 1024  # the form fields and multipart framing
+MAX_INTERRUPT_BYTES = 4 * 1024
 RESPONSE_WAIT_SECONDS = 0.5  # a quick check is answered in the response itself
 FIELD_LIMITS = {"device_id": 128, "device_name": 100, "area": 100, "wake_word": 64}
 TEST_MESSAGE = "This is a test announcement from Odysseus."
@@ -109,10 +118,35 @@ def setup_satellite_routes() -> APIRouter:
             audio = await _audio(form)
         entry = satellite.register(owner, device_id=device_id, started_at_ms=started,
                                    audio=audio, **fields)
+        if interrupts.adopt(owner, device_id):
+            # Home Assistant asked before this post arrived: the context is that turn's,
+            # so a barge-in on this device can end it (fork/voice/interrupts.py).
+            satellite.mark_claimed(entry)
         del audio  # only the speaker check's task holds it now
         ctx = await satellite.wait_for_check(entry, RESPONSE_WAIT_SECONDS)
         return {"ok": True, "context_id": ctx.context_id,
                 "speaker": ctx.speaker.as_json() if ctx.speaker else None}
+
+    @router.post(PREFIX + "/satellite/interrupt")
+    async def satellite_interrupt(request: Request) -> Any:
+        owner = voice_owner(request)
+        length = request.headers.get("content-length")
+        try:
+            too_big = length is not None and int(length) > MAX_INTERRUPT_BYTES
+        except ValueError:
+            raise HTTPException(400, "Bad Content-Length") from None
+        if too_big:
+            raise HTTPException(413, "The request is too large")
+        kind = request.headers.get("content-type", "").split(";", 1)[0].strip().lower()
+        if kind not in ("multipart/form-data", "application/x-www-form-urlencoded"):
+            raise HTTPException(415, "Send a form")
+        async with request.form(max_files=0, max_fields=4) as form:
+            device_id = _text(form, "device_id", required=True)
+        cut, marked = interrupts.interrupt(owner, device_id)
+        if cut or marked:
+            logger.info("voice: barge-in on a satellite cut %d running turn(s), marked %d "
+                        "waiting context(s)", cut, marked)
+        return {"ok": True, "cut": cut, "marked": marked}
 
     @router.post("/api/fork/voice/announce", dependencies=[Depends(require_admin)])
     async def announce_test(request: Request, body: AnnounceTest) -> Any:
