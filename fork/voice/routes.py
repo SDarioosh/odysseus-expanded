@@ -169,6 +169,14 @@ async def confirmation_reply(*, owner: str, sess: Any, session_manager: Any,
     return text
 
 
+def _last_question(sess: Any) -> str:
+    """The voice chat's previous question, before this one is added."""
+    for m in reversed(list(getattr(sess, "history", None) or ())):
+        if getattr(m, "role", None) == "user":
+            return str(getattr(m, "content", "") or "")
+    return ""
+
+
 def _error(status: int, message: str, kind: str = "invalid_request_error") -> JSONResponse:
     return JSONResponse(status_code=status, content=openai_api.error_body(message, kind))
 
@@ -252,7 +260,8 @@ def setup_voice_routes() -> APIRouter:
 
             gate = voice_policy.VoiceGate(owner=owner, session_id=session_id,
                                           turn_id=turn_id, personal=personal,
-                                          private_reply=private_reply(module))
+                                          private_reply=private_reply(module),
+                                          earlier=_last_question(sess))
             events = read_only_turn(
                 request, sess=sess, session_id=session_id, message=question.text,
                 owner=owner, instructions=voice_prompt.INSTRUCTIONS,

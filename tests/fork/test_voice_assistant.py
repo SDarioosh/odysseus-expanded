@@ -559,6 +559,65 @@ def test_the_ledger_is_owner_scoped_and_newest_first(data_dir):
     assert ledger.actions("alice") == []
 
 
+@pytest.mark.parametrize("said", [
+    "Remind me to call Sam tomorrow at five", "Add milk to my to-dos for Friday",
+    "Remind me to stretch in 20 minutes", "Pay rent on the 1st", "Call Lee at 3pm",
+    "Water the plants every morning", "Buy a gift before Christmas", "Dentist at 9:30",
+    "Remind me on May 3 to renew", "Remind me tonight"])
+def test_words_that_say_when(said):
+    assert confirm.says_when(said)
+
+
+@pytest.mark.parametrize("said", [
+    "Add buy milk to my to-dos", "Make a todo to call the plumber", "Remind me to call Sam",
+    "Add a to-do: pick up the dry cleaning", "I may need batteries, add them to my to-dos"])
+def test_words_that_say_no_when(said):
+    assert not confirm.says_when(said)
+
+
+def test_an_unsaid_due_date_is_dropped_from_a_to_do():
+    call = json.dumps({"action": "add", "title": "Buy milk", "due_date": "tomorrow at 9am"})
+    out = json.loads(confirm.without_unsaid_due("manage_notes", call, "Add buy milk to my to-dos"))
+    assert out == {"action": "add", "title": "Buy milk", "note_type": "checklist"}
+    kept = confirm.without_unsaid_due("manage_notes", call, "Remind me tomorrow to buy milk")
+    assert kept == call
+    items = json.dumps({"action": "add", "title": "Shop", "due_date": "today",
+                        "checklist_items": [{"text": "eggs"}]})
+    assert json.loads(confirm.without_unsaid_due("manage_notes", items, "Make a shopping todo")) \
+        == {"action": "add", "title": "Shop", "checklist_items": [{"text": "eggs"}]}
+    other = json.dumps({"action": "update", "id": "ab", "due_date": "today"})
+    assert confirm.without_unsaid_due("manage_notes", other, "x") == other
+    event = json.dumps({"action": "create_event", "summary": "x", "due_date": "today"})
+    assert confirm.without_unsaid_due("manage_calendar", event, "x") == event
+
+
+async def test_a_to_do_keeps_no_due_date_the_owner_never_said(brain):
+    sess = brain.session()
+    brain.llm.rounds(
+        [calls(("manage_notes", {"action": "add", "title": "Buy milk",
+                                 "due_date": "tomorrow at 9am"}))],
+        [text("Add Buy milk to your to-dos?")])
+    await _voice(brain, sess, "Make a todo to buy milk")
+    p = confirm.pending(sess.owner, sess.id)
+    assert p is not None and len(p.calls) == 1
+    assert "due_date" not in json.loads(p.calls[0].content)
+    change = p.calls[0].change
+    assert (change.kind, change.due, change.question) == \
+        ("todo", None, "Add Buy milk to your to-dos?")
+
+
+async def test_a_date_said_in_the_previous_question_counts(brain):
+    from fork.voice.policy import VoiceGate
+
+    run = SimpleNamespace(request_text="Actually call it pick up the cake")
+    gate = VoiceGate(owner="alice", session_id="s-1", turn_id="t-1",
+                     earlier="Remind me to get the cake tomorrow at noon")
+    call = json.dumps({"action": "add", "title": "Pick up the cake", "due_date": "tomorrow noon"})
+    await gate(run, "manage_notes", call)
+    p = confirm.pending("alice", "s-1")
+    assert p is not None and p.calls[0].content == call and p.calls[0].change.kind == "reminder"
+
+
 def _propose(api, change=None):
     """The fake turn keeps a proposal, as the voice gate does for an allowed write."""
     change = change or confirm.Change("created", "event", "Dentist", "Calendar",

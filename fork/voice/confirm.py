@@ -176,6 +176,48 @@ def _args(content: str) -> dict:
     return args if isinstance(args, dict) else {}
 
 
+_NUM = ("one|two|three|four|five|six|seven|eight|nine|ten|eleven|twelve|"
+        "[0-9]{1,2}(?::[0-9]{2})?")
+# Words that say when. A due date is kept only when the owner said one of them: the model
+# sometimes adds a due date to a plain to-do (upstream's tool example shows one).
+WHEN = re.compile(
+    r"\b(?:today|tonight|tomorrow|tmrw|yesterday|morning|afternoon|evening|night|noon|"
+    r"midday|midnight|weekend|later|eod|end of (?:the )?day|every|daily|weekly|monthly|"
+    r"yearly|minutes?|mins?|hours?|hrs?|days?|weeks?|months?|years?|"
+    r"mon|tues?|wed|thur?s?|fri|sat|sun|"
+    r"(?:mon|tues|wednes|thurs|fri|satur|sun)days?|"
+    r"jan(?:uary)?|feb(?:ruary)?|april|june|july|aug(?:ust)?|sept?(?:ember)?|"
+    r"oct(?:ober)?|nov(?:ember)?|dec(?:ember)?|(?:march|may) (?:the )?[0-9]|"
+    r"christmas|thanksgiving|easter|new year'?s?|halloween|"
+    r"o'?clock|half past|quarter (?:past|to)|"
+    rf"(?:at|by|until|till|before|after|around) (?:{_NUM})|"
+    r"[0-9]{1,2}(?::[0-9]{2})? ?(?:am|pm|a ?m|p ?m)|[0-9]{1,2}:[0-9]{2}|"
+    r"[0-9]{1,2}(?:st|nd|rd|th)|[0-9]{1,2}/[0-9]{1,2}|[0-9]{4}-[0-9]{2}-[0-9]{2})\b")
+
+
+def says_when(text: Any) -> bool:
+    """True when the owner's words name a date or time."""
+    norm = " ".join(str(text or "").casefold().replace("’", "'").replace(".", " ").split())
+    return WHEN.search(norm) is not None
+
+
+def without_unsaid_due(name: str, content: str, said: str) -> str:
+    """``content`` of a ``manage_notes`` ``add`` without a ``due_date`` the owner never
+    said (a plain to-do then, not a reminder); any other call unchanged. The confirmation
+    question is built from the result, so the owner hears what will be saved."""
+    if name != "manage_notes":
+        return content
+    args = _args(content)
+    if str(args.get("action") or "").strip().lower() != "add" \
+            or not str(args.get("due_date") or "").strip() or says_when(said):
+        return content
+    args.pop("due_date", None)
+    items = args.get("checklist_items") or args.get("items")
+    if not items and not str(args.get("content") or "").strip() and not args.get("note_type"):
+        args["note_type"] = "checklist"  # a title alone is a to-do
+    return json.dumps(args)
+
+
 def _due(raw: Any) -> str | None:
     text = str(raw or "").strip()
     if not text:

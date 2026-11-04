@@ -11,7 +11,8 @@ decided here, at execution, by :class:`VoiceGate` (``ToolRun.gate``, called by
    (``fork/voice/satellite.py``, ``personal_allowed``), the personal tools are refused
    with its ``PRIVATE_REPLY``; web and weather stay;
 3. reads fall through to the brain's read-only checks;
-4. a write of the allow-list (``fork/voice/confirm.py``) is kept as a proposal, not run;
+4. a write of the allow-list (``fork/voice/confirm.py``) is kept as a proposal, not run
+   (a to-do's due date the owner never said is dropped first: ``without_unsaid_due``);
 5. every other write falls through to the brain's read-only refusal.
 """
 from __future__ import annotations
@@ -48,6 +49,7 @@ class VoiceGate:
     turn_id: str
     personal: bool = True  # this speaker may get personal answers
     private_reply: str = PRIVATE_REPLY
+    earlier: str = ""  # the conversation's previous question (a date said there counts)
 
     async def __call__(self, run: Any, name: str, content: str) -> str | dict | None:
         """Instead of running the call: a refusal (str), the result of a kept proposal
@@ -63,6 +65,8 @@ class VoiceGate:
                 return None
         except Exception:  # noqa: BLE001 -- unknown: treated as a write
             pass
+        said = f"{self.earlier} {getattr(run, 'request_text', '') or ''}"
+        content = confirm.without_unsaid_due(name, content, said)
         change = await confirm.describe(self.owner, name, content)
         if change is None:
             return None  # the brain's read-only refusal

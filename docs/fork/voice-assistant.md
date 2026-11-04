@@ -151,6 +151,14 @@ a new writable tool is one entry):
 | `manage_calendar` `create_event` | event | Calendar |
 | Athena `update_action_item` with `status: done` and nothing else | action item, completed | Athena |
 
+A `due_date` the owner didn't say is dropped before the call is kept
+(`without_unsaid_due`): the model sometimes gives a plain to-do a due date (upstream's
+tool example shows one). The date stays only when the question, or the conversation's
+previous question, names a date or time ("tomorrow", "Friday", "at five", "3pm", "in 20
+minutes", "the 1st"…, `WHEN`); otherwise the call is kept as a to-do (a title alone gets
+`note_type: checklist`), and the confirmation question, built from the kept call, says
+no date. The voice instructions also ask for a `due_date` only when one was said.
+
 1. **Proposed:** an allowed call is not run. The model's tool result is "Not run yet:
    changes by voice need the owner's spoken yes. Ask the owner to confirm in one short
    question…". The exact tool name and arguments are kept as the voice conversation's
