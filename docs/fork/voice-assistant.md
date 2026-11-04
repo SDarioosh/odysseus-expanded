@@ -452,6 +452,44 @@ older Athena), a timeout, a refusal or no Athena set up give `speaker: null`. **
 is never written or logged**: it is held only by that task and dropped when Athena
 answers; only the outcome is logged.
 
+### Barge-in
+
+`fork/voice/interrupts.py`; the Echo side is `odysseus/BargeIn.kt` in `SDarioosh/odysseus-echo`
+(0.14.0+odysseus.14).
+
+Saying the wake word while the Echo is still thinking starts a new question. Home
+Assistant runs one Assist pipeline per satellite, and the Echo starts the new question
+only once Home Assistant has ended the interrupted run (its `HaRunGate`: starting it sooner
+leaves the satellite deaf). Home Assistant ends that run only when Odysseus has answered,
+and the Echo waits at most 15 s, so a question that looks things up was dropped: the
+device went quiet instead of taking the new question.
+
+So on a barge-in the Echo also posts:
+
+`POST /api/chat/voice/v1/satellite/interrupt` (the `voice` token), a form with
+`device_id` (the id it posts with `/satellite/turn`). The hub cuts that device's running
+voice turn short: the turn and its model call stop (the new question doesn't queue behind
+it on the model server), and Home Assistant gets what was already said, usually nothing
+(no apology), which it doesn't speak; it ends the run within about a second. Answer:
+`{"ok": true, "cut": <turns cut>, "marked": <contexts marked>}`.
+
+- **Which turn:** the one whose satellite context came from that device. The Echo posts
+  the context in the background, so Home Assistant's question can arrive first: a context
+  posted within 3 s (`ADOPT_SECONDS`) after a turn without one started belongs to that
+  turn. When Home Assistant hasn't asked yet, the device's waiting context is marked and
+  the turn that claims it answers empty at once. A turn without a context (another
+  satellite, Home Assistant's text Assist) is never cut.
+- **The cut turn:** the ledger keeps the question with the answer said so far (usually
+  empty); a change it kept for a "yes" is dropped (nobody heard the question).
+- **After a long "Thinking…"** (over 15 s, when the Echo stops counting the turn as
+  running) a wake word interrupts too: the Echo asks whenever Home Assistant still has a
+  run for it.
+- Without the route (an older hub, HTTP 404) the Echo waits for the old answer as before.
+- In this process's memory only, like the satellite contexts.
+
+The sandbox reproduction (a real Home Assistant, an Echo emulator, a slow model) is in
+[sandbox.md](sandbox.md#voice-barge-in).
+
 ### Owner-only answers
 
 `personal_allowed(ctx)`, setting `FORK_VOICE_PRIVATE`:
@@ -565,7 +603,8 @@ the phone to Home Assistant's sign-in, and adds itself to Home Assistant.
   announcements are `fork/voice/satellite.py` and `announce.py`, optional here (the routes
   import the satellite module lazily and work without it).
 - Satellites and announcements: `fork/voice/satellite.py`, `satellite_routes.py`,
-  `announce.py`; the hook in `src/builtin_actions.py` (`ping_notes`).
+  `announce.py`; the hook in `src/builtin_actions.py` (`ping_notes`). Barge-in:
+  `fork/voice/interrupts.py`; its sandbox: `scripts/voice_barge_sandbox/`.
 - In the brain: `read_only_turn` (`fork/brain/turn.py`: `shared_prefix`, `preset`,
   `gate`, `context_lines`, `no_memory`), `ToolRun.gate` and `read_only_refusal`
   (`fork/brain/tools.py`), `can_read` and `read_only` (`fork/brain/toolset.py`).
@@ -577,4 +616,5 @@ the phone to Home Assistant's sign-in, and adds itself to Home Assistant.
   script tag), `requirements.txt` (`websockets`, for Home Assistant's websocket API); the
   routers are in `fork/routes/__init__.py`.
 - Tests: `tests/fork/test_voice_assistant.py`, `tests/fork/test_voice_satellite.py`,
+  `tests/fork/test_voice_interrupts.py` (barge-in),
   `tests/fork/test_ha_voice_setup.py` (a fake Home Assistant), `tests/fork/test_echo_link.py`.

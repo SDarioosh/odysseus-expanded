@@ -106,6 +106,17 @@ class Answer:
     awaiting: str | None = None  # the question the answer ended with, once finished
     held: str = ""  # streamed text ending in "?", held until more comes or the end
     sent: str = ""  # what the client got so far, while streaming
+    # the satellite's barge-in cut the turn short (fork/voice/interrupts.py): nothing
+    # more is said, not even an apology, so Home Assistant ends its run at once
+    interrupted: bool = False
+
+    def interrupt(self) -> None:
+        """The turn was cut short: the answer is what was already sent, nothing more."""
+        self.interrupted = True
+        self.speech.spoken = self.sent
+        self.speech.links = []
+        self.held = ""
+        self.awaiting = None
 
     def _out(self, piece: str) -> str:
         """A spoken piece out while streaming; one that ends with "?" is held back, so
@@ -184,6 +195,8 @@ class Answer:
     def finish(self) -> str:
         """The rest to speak once the turn is over. The answer ends with "?" only when
         it asks to confirm a kept change; then :attr:`awaiting` is that question."""
+        if self.interrupted:
+            return ""
         self._body()
         spoken = self.speech.spoken
         question = self.confirmation() if self.confirmation is not None else None
@@ -212,9 +225,14 @@ def _usage(answer: Answer) -> dict:
             "total_tokens": prompt + completion}
 
 
-async def collect(events: AsyncIterator[str], answer: Answer) -> str:
+async def collect(events: AsyncIterator[str], answer: Answer,
+                  interrupted: Callable[[], bool] | None = None) -> str:
+    """The whole answer. ``interrupted()`` true once the events end: the turn was cut
+    short (:meth:`Answer.interrupt`), and the answer is empty."""
     async for chunk in events:
         answer.feed(chunk)
+    if interrupted is not None and interrupted():
+        answer.interrupt()
     answer.finish()
     return answer.speech.spoken
 
@@ -240,9 +258,12 @@ def _chunk(cid: str, created: int, model: str, delta: dict, finish: str | None =
 
 async def stream(events: AsyncIterator[str], question: Question, answer: Answer,
                  session_id: str, turn_id: str | None = None,
-                 on_done: Callable[[Answer], None] | None = None) -> AsyncIterator[str]:
+                 on_done: Callable[[Answer], None] | None = None,
+                 interrupted: Callable[[], bool] | None = None) -> AsyncIterator[str]:
     """The answer as OpenAI stream chunks, one finished sentence at a time.
-    ``on_done(answer)`` runs once the answer is complete (the turn ledger)."""
+    ``on_done(answer)`` runs once the answer is complete (the turn ledger).
+    ``interrupted()`` true once the events end: the turn was cut short, and the stream
+    ends with what was already sent (:meth:`Answer.interrupt`)."""
     cid, created = "chatcmpl-" + uuid.uuid4().hex, int(time.time())
     yield _chunk(cid, created, question.model, {"role": "assistant", "content": ""})
     try:
@@ -253,6 +274,8 @@ async def stream(events: AsyncIterator[str], question: Question, answer: Answer,
     except Exception:  # noqa: BLE001 -- the client gets a spoken apology, not a cut stream
         logger.exception("voice: the turn failed while streaming")
         answer.failed = True
+    if interrupted is not None and interrupted():
+        answer.interrupt()
     piece = answer.finish()
     if piece:
         yield _chunk(cid, created, question.model, {"content": piece})
