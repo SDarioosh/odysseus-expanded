@@ -194,6 +194,7 @@ is an old path of a module that moved into `fork/`; it only aliases the new modu
 - `fork/voice/ha_routes.py`
 - `fork/voice/ha_settings.py`
 - `fork/voice/ha_setup.py`
+- `fork/voice/interrupts.py`
 - `fork/voice/ledger.py`
 - `fork/voice/openai_api.py`
 - `fork/voice/policy.py`
@@ -238,6 +239,14 @@ is an old path of a module that moved into `fork/`; it only aliases the new modu
 - `scripts/modules_setup.py`
 - `scripts/unfile_voice_note_todos.py`
 - `scripts/upstream_drift.py`
+- `scripts/voice_barge_sandbox/echo_emulator.py`
+- `scripts/voice_barge_sandbox/fake_speech.py`
+- `scripts/voice_barge_sandbox/ha_custom_components/odysseus_sbx/__init__.py`
+- `scripts/voice_barge_sandbox/ha_custom_components/odysseus_sbx/config_flow.py`
+- `scripts/voice_barge_sandbox/ha_custom_components/odysseus_sbx/conversation.py`
+- `scripts/voice_barge_sandbox/ha_custom_components/odysseus_sbx/manifest.json`
+- `scripts/voice_barge_sandbox/ha_setup.py`
+- `scripts/voice_barge_sandbox/slow_llm.py`
 
 ## src/
 
@@ -499,6 +508,7 @@ is an old path of a module that moved into `fork/`; it only aliases the new modu
 - `tests/fork/test_vision_auto_detect.py`
 - `tests/fork/test_voice_assistant.py`
 - `tests/fork/test_voice_enroll_routes.py`
+- `tests/fork/test_voice_interrupts.py`
 - `tests/fork/test_voice_satellite.py`
 - `tests/fork/test_web_read_recovery.py`
 - `tests/fork/test_web_turn_scope.py`
