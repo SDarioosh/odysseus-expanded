@@ -527,9 +527,11 @@ on the Echo. The Odysseus part is `fork/voice/echo_link.py`. The Echo's setup pa
 phone to `GET /echo/link?return=<Echo URL>&name=<name>`. The signed-in admin sees "Link Echo
 'Kitchen' at <host>:10801?" and taps **Approve**. Odysseus then makes a token with only the
 `voice` scope, named `Echo <name> <YYYY-MM-DD>` (revoke it in Settings → API tokens like any
-other). It sends the phone back to the Echo with `token`, `base_url` (`<the address you
+other). Linking a named Echo again deletes its older tokens of that name, keeping the new one
+and the most recently used earlier one (so an Echo the phone never reached still works);
+unnamed Echos keep theirs (`echo_link.prune_echo_tokens`). It sends the phone back to the Echo with `token`, `base_url` (`<the address you
 opened Odysseus at>/api/chat/voice/v1`) and `ha_url` (the Home Assistant address saved by
-**Set up Home Assistant**, or empty) in the URL fragment (`<Echo URL>#token=…`). The Echo's
+**Set up Home Assistant** or set as `FORK_HA_URL`, or empty) in the URL fragment (`<Echo URL>#token=…`). The Echo's
 page passes them on to the Echo and clears them from the address bar. The Echo then sends
 the phone to Home Assistant's sign-in, and adds itself to Home Assistant.
 
