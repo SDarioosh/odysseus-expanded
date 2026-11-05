@@ -205,6 +205,8 @@ is an old path of a module that moved into `fork/`; it only aliases the new modu
 - `fork/voice/satellite_routes.py`
 - `fork/voice/sessions.py`
 - `fork/voice/speech.py`
+- `fork/voice/timing_routes.py`
+- `fork/voice/timings.py`
 
 ## routes/
 
@@ -248,6 +250,7 @@ is an old path of a module that moved into `fork/`; it only aliases the new modu
 - `scripts/voice_barge_sandbox/ha_custom_components/odysseus_sbx/manifest.json`
 - `scripts/voice_barge_sandbox/ha_setup.py`
 - `scripts/voice_barge_sandbox/slow_llm.py`
+- `scripts/voice_timings.py`
 
 ## src/
 
@@ -512,6 +515,7 @@ is an old path of a module that moved into `fork/`; it only aliases the new modu
 - `tests/fork/test_voice_enroll_routes.py`
 - `tests/fork/test_voice_interrupts.py`
 - `tests/fork/test_voice_satellite.py`
+- `tests/fork/test_voice_timings.py`
 - `tests/fork/test_web_read_recovery.py`
 - `tests/fork/test_web_turn_scope.py`
 - `tests/fork/test_whisper_vocabulary_routes.py`

@@ -579,6 +579,53 @@ first follow-up: `fork/voice/sessions.py`). Home Assistant keeps a satellite's
 conversation for 5 minutes after its last turn, so a reply after waking the Echo again
 continues it too.
 
+## Timings
+
+Every voice turn saves how long each step took, so slow steps can be found and the
+effect of a change measured. Two clocks measure a turn and each keeps its own durations
+(no step mixes the server's clock with the Echo's, so a clock difference can't skew one):
+
+| Step | Clock | From → to |
+|---|---|---|
+| Wake word to listening | Echo | wake word → Home Assistant streams the mic |
+| You speaking | Echo | speech started → speech stopped |
+| Speech to text (HA) | Echo | speech stopped → transcript |
+| Odysseus: getting ready | Odysseus | request in → turn ready (chat, satellite context) |
+| Odysseus: model's first token | Odysseus | turn ready → first token (prompt processing) |
+| Odysseus: thinking | Odysseus | first token → first answer text |
+| Odysseus: tool calls (all) | Odysseus | each tool call, start → output, added up |
+| Odysseus: first sentence sent | Odysseus | request in → first sentence back to Home Assistant |
+| Odysseus: whole answer | Odysseus | request in → answer complete |
+| Answer, as the device waited | Echo | transcript → Home Assistant asks for speech |
+| Text to speech: first audio | Echo | speech asked for → first audio arrives |
+| Answer playing | Echo | first audio → playback done |
+| Silence after you stopped | Echo | speech stopped → first audio (the wait you hear) |
+| Whole turn | Echo | wake word → turn ended |
+
+"Answer, as the device waited" minus "Odysseus: whole answer" (or "first sentence sent",
+when Home Assistant speaks a streamed answer as it comes) is Home Assistant's own share.
+
+- **Odysseus's half** (`fork/voice/timings.py`, `HubTimer`) is read off the brain's
+  events in `fork/voice/routes.py`, saved when the turn starts and updated at its end.
+  It also keeps the tool names with their seconds, the rounds, the token counts and the
+  outcome (answered, fixed reply, interrupted, failed).
+- **The Echo's half**: when a turn ends, the Echo posts its stage times to
+  `POST /api/chat/voice/v1/satellite/timing` (voice token), JSON `{"device_id",
+  "started_at" (epoch ms of the wake word), "marks": {"started", "listening",
+  "voice_started", "voice_stopped", "awaiting_response", "awaiting_tts", "starting_tts",
+  "streaming_tts", "completed_tts", "ended": ms after the wake word}, "flags":
+  {"thinking_sound", "barge_in", "voice_check"}, "start_mode"}` (any mark may be missing).
+  It joins the turn of the same device whose request came between the wake word and the
+  Echo's end (10 s slack); a command Home Assistant answered itself gets a row of its own,
+  with the Echo's times only.
+- Stored in `<DATA_DIR>/fork_voice_timings.db`, 90 days: numbers, the device id and tool
+  names only, never the question, the answer or audio.
+- **Read them:** `python scripts/voice_timings.py` (last 7 days; `--days 1`, `--last 10`
+  for the newest turns one by one, `--csv timings.csv` for a spreadsheet), or
+  `GET /api/fork/voice/timings?days=7` signed in as admin (JSON).
+- Home Assistant's own trace of a run (Settings → Voice assistants → the pipeline's ⋮ →
+  Debug) shows its stages too, but only for the last few runs.
+
 ## Linking an Echo
 
 An Echo Show running our VACA fork ([odysseus-echo](https://github.com/SDarioosh/odysseus-echo),
@@ -619,6 +666,8 @@ the phone to Home Assistant's sign-in, and adds itself to Home Assistant.
 
 ## Files and tests
 
+- Timings: `fork/voice/timings.py`, `timing_routes.py`, `scripts/voice_timings.py`; tests
+  `tests/fork/test_voice_timings.py`.
 - `fork/voice/routes.py`, `openai_api.py`, `sessions.py`, `speech.py`, `prompt.py`,
   `chat_prefix.py` (the chat's preset), `policy.py` (what runs), `confirm.py` (changes
   after a yes), `ledger.py` (turns and actions). The satellite's context and
