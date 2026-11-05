@@ -28,7 +28,7 @@ from typing import Any
 from fastapi import APIRouter, Depends, HTTPException, Request
 from fastapi.responses import JSONResponse, StreamingResponse
 
-from fork.voice import confirm, interrupts, ledger, openai_api
+from fork.voice import confirm, interrupts, ledger, openai_api, timings
 from fork.voice import policy as voice_policy
 from fork.voice import prompt as voice_prompt
 from fork.voice import sessions as voice_sessions
@@ -177,6 +177,29 @@ def _last_question(sess: Any) -> str:
     return ""
 
 
+def _timing_start(owner: str, turn_id: str, ctx: Any, timer: Any) -> str | None:
+    try:
+        return timings.save_hub(owner, turn_id, getattr(ctx, "device_id", None), timer)
+    except Exception:  # noqa: BLE001 -- timing never breaks a turn
+        logger.warning("voice: saving the turn's timing failed", exc_info=True)
+        return None
+
+
+def _timing_end(row_id: str | None, timer: Any, answer: Any, *, interrupted: bool,
+                fixed: bool) -> None:
+    if row_id is None:
+        return
+    try:
+        if not answer.streaming:
+            timer.mark("first_spoken")  # the whole answer goes back at once
+        outcome = ("interrupted" if interrupted else "failed" if answer.failed
+                   else "fixed" if fixed else "answered")
+        timer.finish(outcome)
+        timings.update_hub(row_id, timer)
+    except Exception:  # noqa: BLE001
+        logger.warning("voice: saving the turn's timing failed", exc_info=True)
+
+
 def _error(status: int, message: str, kind: str = "invalid_request_error") -> JSONResponse:
     return JSONResponse(status_code=status, content=openai_api.error_body(message, kind))
 
@@ -225,6 +248,7 @@ def setup_voice_routes() -> APIRouter:
     @router.post(PREFIX + "/chat/completions")
     async def chat_completions(request: Request) -> Any:
         owner = voice_owner(request)
+        timer = timings.HubTimer()  # how long each step took (fork/voice/timings.py)
         # No browser sends a zone: event times and "today" use the owner's.
         from fork.common.local_time import use_owner_timezone
         from src.user_time import clear_user_time_context
@@ -297,6 +321,9 @@ def setup_voice_routes() -> APIRouter:
 
         answer = openai_api.Answer(streaming=question.stream, confirmation=confirmation)
         events = interrupts.until_stopped(events, stop)
+        timer.mark("ready")  # timing never fails the turn
+        timing_row = _timing_start(owner, turn_id, ctx, timer)
+        events = timings.observed(events, timer)
 
         def done(a: openai_api.Answer) -> None:
             interrupts.end(turn_id)
@@ -309,11 +336,15 @@ def setup_voice_routes() -> APIRouter:
                 logger.info("voice: turn %s was interrupted by its satellite", turn_id)
             ledger.finish_turn(turn_id, answer=a.speech.spoken, links=list(a.speech.links),
                                awaiting_confirmation=a.awaiting)
+            _timing_end(timing_row, timer, a, interrupted=stop.is_set(),
+                        fixed=fixed is not None)
 
         if question.stream:
             return StreamingResponse(
-                openai_api.stream(events, question, answer, session_id, turn_id, on_done=done,
-                                  interrupted=stop.is_set),
+                timings.first_spoken(
+                    openai_api.stream(events, question, answer, session_id, turn_id,
+                                      on_done=done, interrupted=stop.is_set),
+                    timer, lambda: answer.sent),
                 media_type="text/event-stream",
                 headers={"Cache-Control": "no-cache, no-transform",
                          "X-Accel-Buffering": "no"})

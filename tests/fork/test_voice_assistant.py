@@ -415,6 +415,21 @@ def test_answer_is_spoken_text_with_the_links_apart(api):
     assert api.sessions.created[0].name == "Voice: Who brings the cake?"
 
 
+def test_a_turn_saves_how_long_each_step_took(api):
+    from fork.voice import timings
+
+    api.post(URL, json=ASK, headers=VOICE)
+    api.post(URL, json={**ASK, "stream": True}, headers=VOICE)
+    found = timings.rows("alice")
+    assert len(found) == 2
+    for row in found:
+        hub = row["hub"]
+        assert {"ready", "first_token", "first_text", "first_spoken", "done"} <= set(hub["marks"])
+        assert [t["name"] for t in hub["tools"]] == ["x"] and hub["outcome"] == "answered"
+        assert row["turn_id"] and not row["device"]
+    assert "Priya" not in json.dumps(found)  # numbers only, never what was said
+
+
 def test_streamed_answer_is_openai_chunks(api):
     res = api.post(URL, json={**ASK, "stream": True}, headers=VOICE)
     lines = [l[6:] for l in res.text.split("\n\n") if l.startswith("data: ")]
