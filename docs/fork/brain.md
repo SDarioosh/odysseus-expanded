@@ -300,7 +300,9 @@ Where the code differs from the design above:
   upstream consumes an approval reply and after the research decision. Everything before
   it is classification and upstream's own checks, which the brain reuses.
 - **Turns left to upstream:** research, compare, plan, incognito, image chats, workspace
-  or path turns, native and TUI clients, an open document, and approval replies that
+  or path turns, native and TUI clients, an open document (since
+  [Open document](#open-document-2026-11-05) only a request to change it), and approval
+  replies that
   aren't the brain's; attachments until [Attachments](#attachments-2026-10-31), since then
   only images, audio and other files the brain doesn't read (selected notes and an open
   email are the brain's since
@@ -505,7 +507,7 @@ Turns with notes selected (`selected_note_ids`) or an email open in the reader
 (`active_email_uid`, `active_email_folder`, `active_email_account`) went to upstream's
 agent, minutes per turn on the owner's CPU. They are the brain's now
 (`fork/brain/selection.py`; tests `tests/fork/test_brain_context.py`). An open document
-stays upstream's.
+stayed upstream's until [Open document](#open-document-2026-11-05).
 
 - **Hook.** Same line: `upstream_turn` no longer names `selected_note_ids` and
   `active_email_uid`; the hook also passes `selected_notes=selected_notes_context` and
@@ -624,6 +626,36 @@ the context message. What may run is then decided at execution: the caller's `ga
 (`ToolRun.gate`, asked before `read_only_refusal`) returns a refusal, a result that
 stands for the call (a change kept for a spoken yes, `fork/voice/confirm.py`), or nothing,
 and the read-only refusal applies to the rest.
+
+### Open document (2026-11-05)
+
+With a document open in the editor the chat window sends `active_doc_id` with every
+message, and the hook handed all those turns to upstream's agent: a question about the
+document was answered by the old agent, slowly. Now the brain takes them
+(`fork/brain/open_document.py`; tests `tests/fork/test_brain_open_document.py`):
+
+- **Which turns.** A question about the document ("what does this say?", "summarise it")
+  is the brain's. A request to change it stays upstream's (`wants_edit`: upstream's own
+  edit words from `chat_stream`'s document escalation, plus fix, add, remove, translate,
+  write and the other verbs of an edit): upstream's agent has the in-place editing tools
+  (`edit_document`, `update_document`, `suggest_document`) and the editor events, which
+  the brain doesn't offer. A question that happens to use one of those words goes to
+  upstream, which still answers it.
+- **Hook.** Same line: `upstream_turn` no longer names `active_doc_id`; the hook passes
+  `active_doc_id=active_doc_id` instead.
+- **Loading.** `chat_stream` loads the open document after the hook, so the brain loads
+  it itself, the same way: by id, only a document of the turn's owner (upstream's
+  `_owner_session_filter` through `fork/upstream.py`, then the owner checked again). An
+  unknown id or another owner's document gives nothing. Upstream's fallbacks for clients
+  that send no `active_doc_state` (the chat's newest document) are not copied: the web UI
+  always sends it. Cut to 12,000 characters.
+- **Prompt.** Into the volatile context message, before selected notes and an open email,
+  in upstream's untrusted wrapper with upstream's label ("active editor document"), with
+  its title and language and a line saying "this" and "it" mean it. So the run is armed
+  and the exchange replays untrusted (a document can hold pasted outside text). The system
+  message, tools and history don't change, so the prompt cache holds.
+- **Not mirrored.** Upstream rebinds a document opened from another chat to this chat;
+  the brain only reads it.
 
 ## Sandbox results (2026-10-31)
 

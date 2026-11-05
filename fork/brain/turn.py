@@ -6,13 +6,15 @@ session, owner and message are resolved, the chat privileges enforced, a tool ap
 consumed (upstream's own checks) and the research decision made. It returns None, and the
 route goes on as upstream wrote it, when ``FORK_BRAIN`` is off, for ``/research`` and
 other turns the brain doesn't take (compare, plan mode, incognito, image chats,
-workspace or native-client turns, an open document, internal tool requests, users
+workspace or native-client turns, a request to change the open document
+(``fork/brain/open_document.py``), internal tool requests, users
 without the agent privilege, and attachments other than files upstream reads as text: an
 image, audio, an id the owner check refuses, a file whose text can't be read;
 ``fork/brain/attachments.py``), and for an approval that isn't one of the brain's.
 Selected notes and an open email are the brain's: the route passes the notes it loaded
 and the email's uid, folder and account, and they go into the turn's context message
-(``fork/brain/selection.py``). Otherwise it returns the brain's streaming response,
+(``fork/brain/selection.py``); so is a question about the document open in the editor,
+loaded owner-checked into the same message (``fork/brain/open_document.py``). Otherwise it returns the brain's streaming response,
 detached like upstream's (``src/agent_runs.py``), with the
 same headers. The hook also runs ``history.py``'s sweep on the first request after a
 start and then hourly, in a worker thread, whether the brain is on or not.
@@ -79,6 +81,7 @@ from fork.brain import attachments as brain_attachments
 from fork.brain import claims as brain_claims
 from fork.brain import documents as brain_documents
 from fork.brain import history as brain_history
+from fork.brain import open_document as brain_open_document
 from fork.brain import prompt as brain_prompt
 from fork.brain import selection as brain_selection
 from fork.brain import settings as brain_settings
@@ -166,13 +169,14 @@ async def brain_response(request: Any, *, sess: Any, session_id: str, message: A
                          attachments: Any = None, services: tuple = (),
                          external_untrusted_context_seen: bool = False,
                          no_memory: bool = False, use_rag: Any = None,
-                         selected_notes: Any = None, active_email: Any = None) -> Any:
+                         selected_notes: Any = None, active_email: Any = None,
+                         active_doc_id: Any = None) -> Any:
     """The brain's streaming response for this turn, or None for upstream's paths.
 
     ``approval_id``: set when this request continues a consumed tool approval;
     ``exact_approval`` is then upstream's consumed grant. ``upstream_turn``: the route
     already knows the turn is upstream's (research, compare, plan mode, incognito, a
-    workspace or native client, an image chat, an open document). ``attachments``: the
+    workspace or native client, an image chat). ``attachments``: the
     turn's upload ids; the brain takes the turn only when every one is a text, PDF or
     office file of the chat's owner that it can read (``fork/brain/attachments.py``),
     else upstream does. ``services``: the route's ``(session_manager, chat_handler,
@@ -186,7 +190,9 @@ async def brain_response(request: Any, *, sess: Any, session_id: str, message: A
     upstream, owner-checked). ``active_email``: the route's ``active_email_ctx`` (uid,
     folder, account of the email open in the reader), or None. Both are for this turn
     only (``fork/brain/selection.py``); a follow-up with them still selected sends them
-    again.
+    again. ``active_doc_id``: the document open in the editor (upstream's form field);
+    the brain loads it, owner-checked, unless the message asks to change it, which
+    upstream's agent does in place (``fork/brain/open_document.py``).
     """
     _sweep_soon()
     if not brain_settings.enabled():
@@ -204,6 +210,8 @@ async def brain_response(request: Any, *, sess: Any, session_id: str, message: A
     expire_pending()
     if not takes_turn(message=message, upstream_turn=upstream_turn, request=request):
         return None
+    if active_doc_id and brain_open_document.wants_edit(message):
+        return None  # an edit of the open document: upstream's agent edits it in place
     if not agent_permitted(request, owner):
         return None
     attached = None
@@ -217,7 +225,7 @@ async def brain_response(request: Any, *, sess: Any, session_id: str, message: A
                        external_seen=bool(external_untrusted_context_seen),
                        no_memory=bool(no_memory), use_rag=use_rag,
                        selected_notes=selected_notes, active_email=active_email,
-                       attached=attached)
+                       active_doc_id=active_doc_id, attached=attached)
     return _response(session_id, _run_new_turn(turn))
 
 
@@ -509,6 +517,7 @@ def _start_turn(request: Any, *, sess: Any, session_id: str, message: str, owner
                 preset_id: Any, deps: _Deps, external_seen: bool = False,
                 no_memory: bool = False, use_rag: Any = None,
                 selected_notes: Any = None, active_email: Any = None,
+                active_doc_id: Any = None,
                 attached: Any = None, preset: Any = None) -> _Turn:
     """Save the owner's message and set the turn up; the tool set, the history and the
     authority are built by :func:`_prepare` when the stream starts, so a failure there
@@ -535,6 +544,7 @@ def _start_turn(request: Any, *, sess: Any, session_id: str, message: str, owner
               "use_rag": str(use_rag).strip().lower() != "false",
               "selected_notes": str(selected_notes or ""),
               "active_email": dict(active_email) if isinstance(active_email, dict) else None,
+              "active_doc_id": str(active_doc_id or "").strip(),
               "attached": attached})
 
 
@@ -600,7 +610,8 @@ async def _prepare(turn: _Turn) -> None:
         chat_search_hits=hits, rag=rag, read_only=read_only, gate=prep.get("gate"))
     if attached:
         brain_tools.distrust(run, brain_attachments.SOURCE)
-    selected = [brain_selection.notes_item(prep.get("selected_notes")),
+    selected = [await brain_open_document.item(prep.get("active_doc_id"), owner),
+                brain_selection.notes_item(prep.get("selected_notes")),
                 await brain_selection.email_text(run, prep.get("active_email"))]
     selected = [item for item in selected if item] + list(prep.get("context_lines") or ())
     if selected:

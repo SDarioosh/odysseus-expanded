@@ -201,21 +201,21 @@ async def test_attachments_the_brain_cant_read_stay_upstreams(monkeypatch, spy, 
     assert "chat" in captured  # upstream's chat path answered
 
 
-async def test_turns_with_an_open_document_stay_upstreams(monkeypatch, spy):
-    """An open document stays upstream's; selected notes and an open email are the
-    brain's since 2026-10-31 (tests/fork/test_brain_context.py)."""
+async def test_the_hook_passes_the_open_document_to_the_brain(monkeypatch, spy):
+    """A question with a document open is the brain's since 2026-11-05; a change to it
+    stays upstream's (tests/fork/test_brain_open_document.py)."""
     monkeypatch.setenv("FORK_BRAIN", "on")
-    monkeypatch.setattr(brain_turn, "_start_turn", lambda *a, **k: (_ for _ in ()).throw(
-        AssertionError("brain took an upstream turn")))
-    captured = {}
-    endpoint = _chat_stream_endpoint(monkeypatch, "chat", captured)
-    try:
-        await _body(await endpoint(_Request("chat", active_doc_id="doc-1")))
-    except AssertionError:
-        raise
-    except Exception:  # noqa: BLE001
-        pass
-    assert spy and spy[0][1] is None and spy[0][0]["upstream_turn"] is True
+    started = {}
+    monkeypatch.setattr(brain_turn, "_start_turn", lambda *a, **k: started.update(k))
+
+    async def fake_run(turn):
+        yield "data: [DONE]\n\n"
+
+    monkeypatch.setattr(brain_turn, "_run_new_turn", fake_run)
+    endpoint = _chat_stream_endpoint(monkeypatch, "chat", {})
+    await _body(await endpoint(_Request("chat", active_doc_id="doc-1")))
+    assert spy[0][0]["upstream_turn"] is False and spy[0][0]["active_doc_id"] == "doc-1"
+    assert started["active_doc_id"] == "doc-1"
 
 
 @pytest.mark.parametrize("use_rag", ["true", "false"])
