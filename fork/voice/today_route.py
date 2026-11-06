@@ -191,9 +191,37 @@ def load_todos(owner: str, now: datetime) -> list[dict]:
 
 
 def load_events(owner: str, now: datetime) -> list[dict]:
+    """The insight's occurrences (events starting from yesterday on, series expanded) and
+    the single events that started before that and haven't ended (a week's holiday)."""
     from fork.insight import today as ti
 
-    return ti._load_events(owner, now)
+    out = ti._load_events(owner, now)
+    have = {str(e.get("uid")) for e in out if isinstance(e, dict)}
+    out.extend(e for e in _ongoing_events(owner, now) if str(e.get("uid")) not in have)
+    return out
+
+
+def _ongoing_events(owner: str, now: datetime) -> list[dict]:
+    """Non-recurring events that started before the insight's window (local midnight -1
+    day, naive) and end after it; :func:`_events` keeps those that overlap today."""
+    from core.database import CalendarCal, CalendarEvent, SessionLocal
+    from fork.upstream import expand_rrule as _expand_rrule
+
+    since = datetime.combine(now.date(), time.min) - timedelta(days=1)
+    db = SessionLocal()
+    try:
+        rows = (db.query(CalendarEvent)
+                .join(CalendarCal, CalendarEvent.calendar_id == CalendarCal.id)
+                .filter(CalendarCal.owner == owner, CalendarEvent.status != "cancelled",
+                        CalendarEvent.dtstart < since, CalendarEvent.dtend > since,
+                        (CalendarEvent.rrule.is_(None)) | (CalendarEvent.rrule == ""))
+                .order_by(CalendarEvent.dtstart.desc()).limit(100).all())
+        out = []
+        for ev in rows:
+            out.extend(_expand_rrule(ev, since, since + timedelta(days=2)))
+        return out
+    finally:
+        db.close()
 
 
 def load_filed(owner: str) -> set[str]:
