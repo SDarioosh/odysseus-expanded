@@ -237,6 +237,7 @@ is an old path of a module that moved into `fork/`; it only aliases the new modu
 - `scripts/brain_eval.py`
 - `scripts/brain_fake_searxng.py`
 - `scripts/echo_release.py`
+- `scripts/echo_verify.py`
 - `scripts/eval_common.py`
 - `scripts/fixtures/insight_eval_day.json`
 - `scripts/fixtures/t5_weights_day.json`
@@ -433,6 +434,7 @@ is an old path of a module that moved into `fork/`; it only aliases the new modu
 - `tests/fork/test_codex_todos_json.py`
 - `tests/fork/test_echo_app_release.py`
 - `tests/fork/test_echo_link.py`
+- `tests/fork/test_echo_verify.py`
 - `tests/fork/test_eval_common.py`
 - `tests/fork/test_eval_goldens.py`
 - `tests/fork/test_evidence_intake.py`
