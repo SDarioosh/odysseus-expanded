@@ -747,7 +747,7 @@ Odysseus only.
 
 | Route | Scope | Goes to |
 |---|---|---|
-| `POST /api/codex/athena/chunk` | `athena:ingest` | `/ingest/chunk` (checked first: id rule for `session_id` and `device`, `kind` conversation or note, codec `ogg` or `opus`, ≤ 5 MB, timestamp not over a day ahead or 60 days old) |
+| `POST /api/codex/athena/chunk` | `athena:ingest` | `/ingest/chunk` (checked first: id rule for `session_id` and `device`, `kind` conversation or note, codec `ogg`, `opus` or `wav`, ≤ 5 MB, timestamp not over a day ahead or 60 days old) |
 | `POST /api/codex/athena/sessions/{id}/end` | `athena:ingest` | `/sessions/{id}/end` |
 | `GET /api/codex/athena/health` | `athena:ingest` or `athena:read` | `/health` (the relay's Test connection) |
 | `GET /api/codex/athena/conversations`, `…/conversations/{id}`, `…/conversations/{id}/transcript`, `…/action-items`, `…/digests/{date}` | `athena:read` | the module routes of the same names |
@@ -755,6 +755,15 @@ Odysseus only.
 | `GET /api/codex/calendars` | `calendar:read` | the token owner's calendars (`name`, `href`, `source`), for the relay's calendar list |
 
 - The direct mode (module URL plus ingest token) stays in the relay as a fallback.
+- **Echo recordings.** An Echo (`SDarioosh/odysseus-echo`) uploads its recordings and voice
+  notes through the same chunk and end routes, with the token `/echo/link` gave it (`voice`
+  and `athena:ingest`; an Echo linked before that has `voice` only, gets 403 and must be
+  linked again: [Linking an Echo](../voice-assistant.md#linking-an-echo)). It sends
+  30-second WAV chunks, `codec=wav`, device `echo-<device id>`, `kind=note` for a voice
+  note. The relay reads only the WAV header: `RIFF`/`WAVE`, a `fmt ` chunk saying PCM,
+  mono, 16 kHz, 16-bit, then a `data` chunk with audio; anything else is a 400 and never
+  reaches Athena. The file is forwarded unchanged (Athena decodes WAV itself). 30 s is
+  about 960 KB, under the 5 MB cap.
 
 ### Old URLs and scopes
 
