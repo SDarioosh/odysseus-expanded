@@ -313,3 +313,22 @@ def test_the_admin_put_reads_the_registry_off_the_event_loop(api, monkeypatch):
     monkeypatch.setattr(devices, "get", get)
     assert put(api, "echo-1", {"home.enabled": True}).status_code == 200
     assert where == ["worker"]
+
+
+@pytest.mark.skipif(shutil.which("node") is None, reason="needs node")
+def test_the_card_refuses_a_number_the_browser_couldnt_read():
+    """A number field the browser can't read (``"1e"``) has value "" and badInput: that
+    is an error, not "the device decides"."""
+    script = """
+const m = await import(process.argv[1]);
+const out = [];
+for (const input of [{value: '', validity: {badInput: true}}, {value: '', validity: {badInput: false}},
+                     {value: '8'}, {value: ''}]) {
+  try { out.push(m.rawValue(input)); } catch (e) { out.push('error: ' + e.message); }
+}
+console.log(JSON.stringify(out));
+"""
+    url = (REPO / "static" / "js" / "forkVoiceDevices.js").as_uri()
+    done = subprocess.run(["node", "--input-type=module", "-e", script, url],
+                          capture_output=True, text=True, check=True, timeout=30)
+    assert json.loads(done.stdout) == ["error: A number: not a number", "", "8", ""]
