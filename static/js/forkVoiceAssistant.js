@@ -71,6 +71,8 @@ async function loadHa(ha) {
   try {
     const state = await api('/api/fork/voice/ha', {}, { redirect401: false });
     if (state.ha_url && !ha.haUrl.value) ha.haUrl.value = state.ha_url;
+    // the address HA was last set up with (e.g. the server's home-network one), not the browser's
+    if (state.odysseus_url) ha.odyUrl.value = state.odysseus_url;
     showReport(ha, state);
   } catch (e) { /* not an admin, or an older hub: the section still works */ }
 }

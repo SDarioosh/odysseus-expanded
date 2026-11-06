@@ -150,11 +150,16 @@ def echo(monkeypatch):
                         lambda owner, token_id: marked.append((owner, token_id)))
     monkeypatch.setitem(sys.modules, "fork.voice.ha_settings",
                         SimpleNamespace(home_assistant_url=lambda: "http://homeassistant.local:8123/"))
+    settings = {}  # upstream's settings file, in memory (the remembered addresses)
+    monkeypatch.setattr("src.settings.load_settings", lambda: dict(settings))
+    monkeypatch.setattr("src.settings.save_settings", settings.update)
+    monkeypatch.setattr("src.settings.get_setting",
+                        lambda key, default=None: settings.get(key, default))
     monkeypatch.setattr(echo_link, "APPROVALS", echo_link._Approvals())
     app.include_router(echo_link.setup_echo_link_routes())
     client = TestClient(app, base_url="https://odysseus.tail1234.ts.net")
     client.made, client.invalidated, client.pruned = made, invalidated, pruned
-    client.marked = marked
+    client.marked, client.settings = marked, settings
     return client
 
 
@@ -165,6 +170,12 @@ FORM = {"return": RET, "name": "Kitchen"}
 
 def _get(client, ret=RET, name="Kitchen", headers=ALICE):
     return client.get(echo_link.PATH, params={"return": ret, "name": name}, headers=headers)
+
+
+def _inputs(text: str) -> dict[str, str]:
+    """The approve form's typed fields (name → value)."""
+    return {html.unescape(k): html.unescape(v) for k, v in
+            re.findall(r'type="url" name="([^"]*)"\s+value="([^"]*)"', text)}
 
 
 def _form_fields(text: str) -> dict[str, str]:
@@ -411,3 +422,65 @@ def test_marks_are_kept_per_owner(data_dir):
     assert echo_link.marked_echo_tokens("carol") == set()
     (data_dir / "echo_tokens_alice.json").write_text("not json")
     assert echo_link.marked_echo_tokens("alice") == set()
+
+
+# ----------------------------------------------------------- the addresses an Echo uses
+def test_the_page_offers_this_pages_address_and_the_saved_ha_on_the_home_network(echo):
+    assert _inputs(_get(echo).text) == {"odysseus_url": "",
+                                        "ha_url": "http://homeassistant.local:8123"}
+
+
+def test_an_echo_over_tailscale_is_not_offered_a_home_network_ha(echo):
+    # the phone signs in to HA from wherever it is: a .local address may not reach
+    assert _inputs(_get(echo, ret=TS_RET).text)["ha_url"] == ""
+
+
+def test_typed_addresses_go_to_the_echo_and_are_offered_next_time_on_that_network(echo):
+    form = {**FORM, "odysseus_url": "http://192.168.1.10:7000/",
+            "ha_url": "http://192.168.1.10:8123"}
+    _url, fields = _handoff(echo.post(echo_link.PATH, data=form, headers=SAME).text)
+    assert fields["base_url"] == "http://192.168.1.10:7000" + PREFIX
+    assert fields["ha_url"] == "http://192.168.1.10:8123"
+    assert _inputs(_get(echo).text) == {"odysseus_url": "http://192.168.1.10:7000",
+                                        "ha_url": "http://192.168.1.10:8123"}
+    assert _inputs(_get(echo, ret=TS_RET).text)["ha_url"] == ""  # the other network's own
+
+
+def test_tailscale_and_home_network_addresses_are_kept_apart(echo):
+    ts = {"return": TS_RET, "name": "Office", "odysseus_url": "",
+          "ha_url": "https://ha.tail1234.ts.net"}
+    _url, fields = _handoff(echo.post(echo_link.PATH, data=ts, headers=SAME).text)
+    assert fields["base_url"] == "https://odysseus.tail1234.ts.net" + PREFIX  # empty: this page
+    assert fields["ha_url"] == "https://ha.tail1234.ts.net"
+    assert _inputs(_get(echo, ret=TS_RET).text)["ha_url"] == "https://ha.tail1234.ts.net"
+    assert _inputs(_get(echo).text)["ha_url"] == "http://homeassistant.local:8123"
+
+
+def test_an_empty_ha_address_lets_the_echo_ask(echo):
+    res = echo.post(echo_link.PATH, data={**FORM, "ha_url": ""}, headers=SAME)
+    assert _handoff(res.text)[1]["ha_url"] == ""
+
+
+def test_the_voice_path_may_be_pasted_with_the_address(echo):
+    form = {**FORM, "odysseus_url": "http://192.168.1.10:7000" + PREFIX}
+    res = echo.post(echo_link.PATH, data=form, headers=SAME)
+    assert _handoff(res.text)[1]["base_url"] == "http://192.168.1.10:7000" + PREFIX
+
+
+@pytest.mark.parametrize("field, value", [
+    ("odysseus_url", "https://odysseus.example.com"),  # not on the owner's network
+    ("odysseus_url", "http://127.0.0.1:7000"),  # the Echo itself
+    ("odysseus_url", "http://localhost:7000"),
+    ("odysseus_url", "http://192.168.1.10:7000/other"),
+    ("odysseus_url", "ftp://192.168.1.10"),
+    ("ha_url", "http://user:pw@192.168.1.10:8123"),
+    ("ha_url", "http://8.8.8.8:8123"),
+    ("ha_url", "http://192.168.1.10:8123?x=1"),
+])
+def test_an_address_off_the_home_network_shows_the_form_again_without_a_token(
+        echo, field, value):
+    res = echo.post(echo_link.PATH, data={**FORM, field: value}, headers=SAME)
+    assert res.status_code == 400 and not echo.made
+    assert "on your network" in res.text and "Approve" in res.text
+    assert _inputs(res.text)[field] == value  # kept to fix
+    assert not echo.settings

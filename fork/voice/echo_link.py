@@ -12,9 +12,19 @@ sends the phone on to the Echo with the fields in the URL *fragment*,
 **Continue** link to the same URL is the fallback):
 
 * ``token``: the Echo's token, shown nowhere else and never logged;
-* ``base_url``: ``<origin the browser used>/api/chat/voice/v1``;
-* ``ha_url``: the Home Assistant address saved by "Set up Home Assistant"
-  (``fork.voice.ha_settings.home_assistant_url``), or empty.
+* ``base_url``: ``<Odysseus address>/api/chat/voice/v1``, the address typed on the
+  approve page for this Echo, or the origin the browser used when left empty;
+* ``ha_url``: the Home Assistant address on the approve page, or empty (the Echo then
+  asks for it). The Echo uses it for its own connection and sends the phone to its
+  sign-in, so it must be one both reach.
+
+The page starts with the addresses the last Echo on the same network got (an Echo reached
+on the home network, or over Tailscale: :func:`offered_addresses`); the first time, the
+Home Assistant address saved by "Set up Home Assistant"
+(``fork.voice.ha_settings.home_assistant_url``) when it is on that network.
+
+Both typed addresses must be on the owner's network (:func:`device_address`), as the
+return URL must.
 
 The return URL is checked here (:func:`check_return`): ``http``, port 10801, path
 ``/setup/<code>/odysseus``, nothing else, on a private or Tailscale address or a home
@@ -91,6 +101,30 @@ class EchoReturn:
     tailscale: bool  # reached over Tailscale (encrypted), not over plain Wi-Fi
 
 
+def home_host(host: str) -> bool | None:
+    """Whether ``host`` is a Tailscale host (True) or another home-network one (False), or
+    None when it is neither: a private IPv4 address (10/8, 172.16/12, 192.168/16), a
+    Tailscale one (100.64/10), or a name that is one label or ends in ``.ts.net``,
+    ``.local``, ``.lan`` or ``.home.arpa``. ``localhost`` is never one: on an Echo or a
+    phone it means the device itself."""
+    host = (host or "").lower()
+    labels = host.split(".")
+    if _NUMERIC_LABEL_RE.match(labels[-1]):
+        try:
+            ip = ipaddress.IPv4Address(host)  # strict dotted quad, no leading zeros
+        except ValueError:
+            return None
+        if any(ip in net for net in _PRIVATE_NETS):
+            return False
+        return True if ip in _TAILSCALE_NET else None
+    if not all(_LABEL_RE.match(label) for label in labels) or host in _LOOPBACK_NAMES:
+        return None
+    if len(labels) > 1 and not any(
+            host.endswith(s) and len(host) > len(s) for s in _HOME_SUFFIXES):
+        return None
+    return host.endswith(".ts.net")
+
+
 def check_return(raw: str) -> EchoReturn:
     """The Echo's return URL, or :class:`LinkError` (400).
 
@@ -107,25 +141,9 @@ def check_return(raw: str) -> EchoReturn:
     if not match:
         raise bad
     host = match.group(1).lower()
-    labels = host.split(".")
-    if _NUMERIC_LABEL_RE.match(labels[-1]):
-        try:
-            ip = ipaddress.IPv4Address(host)  # strict dotted quad, no leading zeros
-        except ValueError:
-            raise bad from None
-        if any(ip in net for net in _PRIVATE_NETS):
-            tailscale = False
-        elif ip in _TAILSCALE_NET:
-            tailscale = True
-        else:
-            raise bad
-    else:
-        if not all(_LABEL_RE.match(label) for label in labels) or host in _LOOPBACK_NAMES:
-            raise bad
-        if len(labels) > 1 and not any(
-                host.endswith(s) and len(host) > len(s) for s in _HOME_SUFFIXES):
-            raise bad
-        tailscale = host.endswith(".ts.net")
+    tailscale = home_host(host)
+    if tailscale is None:
+        raise bad
     origin = f"http://{host}:{ECHO_PORT}"
     return EchoReturn(url=origin + match.group(2), origin=origin, host=host,
                       tailscale=tailscale)
@@ -252,6 +270,81 @@ def saved_ha_url() -> str:
     return url.rstrip("/") if ha_origin(url) else ""
 
 
+def device_address(raw: str, what: str, *, strip_path: str = "") -> str:
+    """``scheme://host[:port]`` of an address the owner typed for this Echo ("" when left
+    empty), or :class:`LinkError` (400). Only a host on the owner's network
+    (:func:`home_host`): the Echo sends its token there. ``strip_path`` (the voice API
+    path) is dropped from the end when pasted with it."""
+    text = (raw or "").strip().rstrip("/")
+    if strip_path and text.endswith(strip_path):
+        text = text[:-len(strip_path)].rstrip("/")
+    if not text:
+        return ""
+    bad = LinkError(400, f"The {what} must be http:// or https://, a host on your network "
+                         "(a home-network or Tailscale address, or a name ending in .local, "
+                         ".lan, .home.arpa or .ts.net) and an optional port, nothing else.")
+    origin = ha_origin(text)
+    path = urlsplit(text).path if origin else ""
+    if not origin or path not in ("", "/") or len(text) > 300:
+        raise bad
+    if home_host(urlsplit(origin).hostname or "") is None:
+        raise bad
+    return origin
+
+
+# The addresses the last Echo linked on each network got, in upstream's settings file
+# (as ``fork/voice/ha_settings.py`` keeps its address): ``{"lan": {...}, "tailscale":
+# {...}}``, each ``{"odysseus_url", "ha_url"}``. An Echo reached on the home network is
+# offered the home-network addresses, one reached over Tailscale the Tailscale ones.
+ADDRESSES_KEY = "fork_voice_echo_addresses"
+
+
+def _network(tailscale: bool) -> str:
+    return "tailscale" if tailscale else "lan"
+
+
+def remembered_addresses(tailscale: bool) -> dict[str, str] | None:
+    """The addresses last used for an Echo on this network, or None when none was."""
+    try:
+        from src.settings import get_setting
+
+        value = get_setting(ADDRESSES_KEY, {})
+    except Exception:  # noqa: BLE001 -- unreadable is "none yet"
+        logger.warning("echo link: couldn't read the remembered addresses", exc_info=True)
+        return None
+    entry = value.get(_network(tailscale)) if isinstance(value, dict) else None
+    if not isinstance(entry, dict):
+        return None
+    return {key: entry[key] if isinstance(entry.get(key), str) and (
+                entry[key] == "" or ha_origin(entry[key])) else ""
+            for key in ("odysseus_url", "ha_url")}
+
+
+def remember_addresses(tailscale: bool, odysseus_url: str, ha_url: str) -> None:
+    from src.settings import load_settings, save_settings
+
+    settings = dict(load_settings())
+    value = settings.get(ADDRESSES_KEY)
+    value = dict(value) if isinstance(value, dict) else {}
+    value[_network(tailscale)] = {"odysseus_url": odysseus_url, "ha_url": ha_url}
+    settings[ADDRESSES_KEY] = value
+    save_settings(settings)
+
+
+def offered_addresses(target: EchoReturn) -> tuple[str, str]:
+    """``(odysseus_url, ha_url)`` the approve page starts with for this Echo: what the
+    last Echo on the same network got, else "" (this page's own address) and the saved
+    Home Assistant address when it is on that network ("" otherwise: the Echo asks)."""
+    last = remembered_addresses(target.tailscale)
+    if last is not None:
+        return last["odysseus_url"], last["ha_url"]
+    saved = saved_ha_url()
+    host = urlsplit(saved).hostname or ""
+    fits = saved and home_host(host) is not None and (
+        bool(home_host(host)) == target.tailscale)
+    return "", saved if fits else ""
+
+
 # --------------------------------------------------------------------------- requests
 def browser_origin(request: Request) -> str:
     """The origin of a same-origin browser POST, or :class:`LinkError` (403).
@@ -362,7 +455,7 @@ def _page(request: Request, title: str, body: str, *, status: int = 200,
   <!-- Fork: "Link this Echo" (fork/voice/echo_link.py), the phone-pairing page's look -->
   <link rel="stylesheet" href="/static/css/fork-modules.css">
 </head>
-<body class="fm-card-page">
+<body class="fm-card-page fm-pairing-page">
   <div class="bs-wrap">
     <div class="bs-top"><h1>{esc(title)}</h1></div>
 {body}
@@ -390,8 +483,14 @@ def _action(request: Request) -> str:
     return with_asgi_root_path(request.scope, PATH)
 
 
-def approve_page(request: Request, target: EchoReturn, name: str) -> HTMLResponse:
+def approve_page(request: Request, target: EchoReturn, name: str, *,
+                 odysseus_url: str = "", ha_url: str | None = None,
+                 error: str = "", status: int = 200) -> HTMLResponse:
     esc = html.escape
+    if ha_url is None:
+        odysseus_url, ha_url = offered_addresses(target)
+    notice = (f'    <div class="bs-notice" role="alert">{esc(error)}</div>\n'
+              if error else "")
     shown = name or "(no name)"
     where = f"{target.host}:{ECHO_PORT}"
     if target.tailscale:
@@ -400,7 +499,7 @@ def approve_page(request: Request, target: EchoReturn, name: str) -> HTMLRespons
         transport = ("<b>Over plain Wi-Fi:</b> the token crosses your home network "
                      "unencrypted on its way to the Echo. Link it over Tailscale if you "
                      "can (the Echo then shows its Tailscale name).")
-    body = f"""    <div class="bs-card">
+    body = notice + f"""    <div class="bs-card">
       <p class="bs-text">Link Echo <b>“{esc(shown)}”</b> at <b>{esc(where)}</b>?</p>
       <ul class="bs-list">
         <li>Odysseus makes it a token that can only ask the voice assistant and add
@@ -409,14 +508,29 @@ def approve_page(request: Request, target: EchoReturn, name: str) -> HTMLRespons
         <li>{transport}</li>
         <li>Approve only if you just started this on that Echo.</li>
       </ul>
-      <form method="post" action="{esc(_action(request))}" class="bs-row">
+      <form method="post" action="{esc(_action(request))}">
         <input type="hidden" name="return" value="{esc(target.url)}">
         <input type="hidden" name="name" value="{esc(name)}">
-        <button type="submit" class="bs-btn primary">Approve</button>
-        <a class="bs-btn" href="/">Cancel</a>
+        <p class="bs-text">How this Echo reaches your servers. Change them when the Echo
+          reaches them another way than this phone does (for example over your home
+          network instead of Tailscale).</p>
+        <p class="bs-text"><label class="bs-meta" for="el-ody">Odysseus address the Echo
+          uses (empty: the address this page is open at)</label></p>
+        <div class="bs-row"><input class="bs-input" id="el-ody" type="url" name="odysseus_url"
+          value="{esc(odysseus_url)}" placeholder="http://192.168.1.10:7000"
+          autocomplete="off" spellcheck="false"></div>
+        <p class="bs-text"><label class="bs-meta" for="el-ha">Home Assistant address the
+          Echo uses (empty: the Echo asks for it)</label></p>
+        <div class="bs-row"><input class="bs-input" id="el-ha" type="url" name="ha_url"
+          value="{esc(ha_url)}" placeholder="http://homeassistant.local:8123"
+          autocomplete="off" spellcheck="false"></div>
+        <div class="bs-row">
+          <button type="submit" class="bs-btn primary">Approve</button>
+          <a class="bs-btn" href="/">Cancel</a>
+        </div>
       </form>
     </div>"""
-    return _page(request, "Link this Echo", body)
+    return _page(request, "Link this Echo", body, status=status)
 
 
 def handoff_url(target: EchoReturn, fields: dict[str, str]) -> str:
@@ -465,6 +579,19 @@ def setup_echo_link_routes() -> APIRouter:
             form = await request.form()
             target = check_return(str(form.get("return") or ""))
             name = clean_name(str(form.get("name") or ""))
+        except LinkError as exc:
+            return _error_page(request, exc)
+        typed_ody = str(form.get("odysseus_url") or "")
+        # a form without the field (a page from before it) keeps the saved address
+        typed_ha = (str(form.get("ha_url") or "") if "ha_url" in form
+                    else offered_addresses(target)[1])
+        try:  # the addresses this Echo uses; a bad one shows the form again, no token
+            odysseus_url = device_address(typed_ody, "Odysseus address", strip_path=PREFIX)
+            ha_url = device_address(typed_ha, "Home Assistant address")
+        except LinkError as exc:
+            return approve_page(request, target, name, odysseus_url=typed_ody,
+                                ha_url=typed_ha, error=exc.message, status=exc.status)
+        try:
             if not APPROVALS.allow(owner):
                 logger.warning("echo link: rate limited %s", owner)
                 raise LinkError(429, "Too many Echo links in a short time; wait a few "
@@ -490,9 +617,14 @@ def setup_echo_link_routes() -> APIRouter:
             invalidate()
         logger.info("echo link: %s made Echo token %s (%r) for %s; %d old removed", owner,
                     token["id"], label, target.host, removed)
+        try:  # the next Echo on this network starts with the same addresses
+            remember_addresses(target.tailscale, odysseus_url, ha_url)
+        except Exception:  # noqa: BLE001 -- the link itself still works
+            logger.warning("echo link: couldn't remember the addresses", exc_info=True)
         fields = {"token": token["token"],
-                  "base_url": origin + with_asgi_root_path(request.scope, PREFIX),
-                  "ha_url": saved_ha_url()}
+                  "base_url": (odysseus_url or origin)
+                  + with_asgi_root_path(request.scope, PREFIX),
+                  "ha_url": ha_url}
         return handoff_page(request, target, fields)
 
     return router

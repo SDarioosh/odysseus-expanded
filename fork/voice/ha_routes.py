@@ -16,7 +16,8 @@ Settings → Integrations → Voice assistant → **Set up Home Assistant**
    keeps no HA login; the HA address is saved (``fork/voice/ha_settings.py``). The page
    shows each step's result.
 
-``GET /api/fork/voice/ha`` gives the card the saved address and the last run's report.
+``GET /api/fork/voice/ha`` gives the card the saved addresses (Home Assistant's, and
+Odysseus's as HA reaches it) and the last run's report.
 Only a signed-in admin's browser session may use these routes, never an API token.
 Connect is a POST (the session cookie is SameSite=Lax, and ``Sec-Fetch-Site`` must say
 same-origin): a link on another site can't start a run toward a Home Assistant of its
@@ -223,9 +224,10 @@ async def _run(owner: str, pending: Pending, code: str, invalidate: Any) -> dict
                            "the Odysseus login under your HA profile → Security")
     if report.get("ok"):  # a failed setup's address isn't handed to Echos
         try:
-            from fork.voice.ha_settings import set_ha_url
+            from fork.voice.ha_settings import set_ha_url, set_odysseus_url
 
             await asyncio.to_thread(set_ha_url, pending.ha_url)
+            await asyncio.to_thread(set_odysseus_url, pending.odysseus_url)
         except Exception:
             logger.warning("voice: couldn't save the Home Assistant address", exc_info=True)
     report["revoked"] = revoked
@@ -253,10 +255,11 @@ def setup_ha_routes() -> APIRouter:
     @router.get(BASE)
     def status(request: Request) -> Any:
         owner = _admin_owner(request)
-        from fork.voice.ha_settings import get_ha_url
+        from fork.voice.ha_settings import get_ha_url, get_odysseus_url
 
         run = RUNS.get(owner) or {}
-        return JSONResponse({"ha_url": get_ha_url(), "running": bool(run.get("running")),
+        return JSONResponse({"ha_url": get_ha_url(), "odysseus_url": get_odysseus_url(),
+                             "running": bool(run.get("running")),
                              "report": run.get("report")},
                             headers={"Cache-Control": "no-store"})
 

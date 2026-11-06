@@ -466,6 +466,10 @@ def test_ha_address_is_saved_in_the_settings_file(tmp_path, monkeypatch):
             ha_settings.set_ha_url("http://ha.example.test/?x")
         ha_settings.set_ha_url("")
         assert ha_settings.get_ha_url() == ""
+        assert ha_settings.get_odysseus_url() == ""
+        assert ha_settings.set_odysseus_url(
+            "http://192.168.1.5:7000/api/chat/voice/v1") == "http://192.168.1.5:7000"
+        assert ha_settings.get_odysseus_url() == "http://192.168.1.5:7000"
     finally:
         settings._invalidate_caches()
 
@@ -488,6 +492,10 @@ def web(monkeypatch):
     saved = []
     monkeypatch.setattr("fork.voice.ha_settings.set_ha_url", saved.append)
     monkeypatch.setattr("fork.voice.ha_settings.get_ha_url", lambda: saved[-1] if saved else "")
+    saved_ody = []
+    monkeypatch.setattr("fork.voice.ha_settings.set_odysseus_url", saved_ody.append)
+    monkeypatch.setattr("fork.voice.ha_settings.get_odysseus_url",
+                        lambda: saved_ody[-1] if saved_ody else "")
     fake = FakeHA()
     runs = []
 
@@ -517,7 +525,8 @@ def web(monkeypatch):
     app.include_router(ha_routes.setup_ha_routes())
     client = TestClient(app, base_url=ODY)
     same = {"x-test-user": "alice", "origin": ODY, "sec-fetch-site": "same-origin"}
-    return SimpleNamespace(client=client, fake=fake, runs=runs, saved=saved, same=same)
+    return SimpleNamespace(client=client, fake=fake, runs=runs, saved=saved,
+                           saved_ody=saved_ody, same=same)
 
 
 def _connect(web, **body):
@@ -544,7 +553,7 @@ def test_callback_sets_up_revokes_and_saves(web):
     assert res.status_code == 200, res.text
     assert web.runs == [("alice", HA, ADMIN_TOKEN, "http://192.168.1.5:7000")]
     assert web.fake.revoked == ["ha-refresh-fake"]
-    assert web.saved == [HA]
+    assert web.saved == [HA] and web.saved_ody == ["http://192.168.1.5:7000"]
     assert "&lt;b&gt;x&lt;/b&gt;" in res.text and "<b>x</b>" not in res.text  # escaped
     assert res.headers["cache-control"] == "no-store"
     # the state is used up
@@ -553,6 +562,7 @@ def test_callback_sets_up_revokes_and_saves(web):
     assert again.status_code == 400 and len(web.runs) == 1
     status = web.client.get("/api/fork/voice/ha", headers=web.same).json()
     assert status["ha_url"] == HA and status["report"]["ok"] and not status["running"]
+    assert status["odysseus_url"] == "http://192.168.1.5:7000"  # the form shows it next time
 
 
 def test_revoke_happens_even_when_the_setup_fails(web):
@@ -644,6 +654,8 @@ def test_script_never_revokes_the_token_it_was_given(monkeypatch, capsys):
     monkeypatch.setattr(script, "known_owner", lambda owner: owner == "alice")
     saved = []
     monkeypatch.setattr("fork.voice.ha_settings.set_ha_url", saved.append)
+    saved_ody = []
+    monkeypatch.setattr("fork.voice.ha_settings.set_odysseus_url", saved_ody.append)
     monkeypatch.setenv("HA_TOKEN", ADMIN_TOKEN)
     monkeypatch.delenv("VOICE_TOKEN", raising=False)
     code = script.main(["--ha-url", HA, "--ha-token", "argv-token-ignored",
@@ -652,7 +664,7 @@ def test_script_never_revokes_the_token_it_was_given(monkeypatch, capsys):
     assert code == 0, out
     assert calls == {"owner": "alice", "token": ADMIN_TOKEN, "validate": False}
     assert fake.revoked == [] and "/auth/revoke" not in " ".join(fake.calls)
-    assert "Restart Odysseus" in out and saved == [HA]
+    assert "Restart Odysseus" in out and saved == [HA] and saved_ody == [ODY]
     assert script.main(["--ha-url", HA, "--odysseus-url", ODY, "--owner", "nobody"]) == 2
 
 
@@ -677,4 +689,4 @@ def test_a_failed_setup_saves_no_address(web):
     web.client.get("/api/fork/voice/ha/callback",
                    params={"code": "good-code", "state": state}, headers=web.same)
     assert web.runs and web.fake.revoked == ["ha-refresh-fake"]
-    assert web.saved == []
+    assert web.saved == [] and web.saved_ody == []

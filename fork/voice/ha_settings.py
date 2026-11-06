@@ -17,6 +17,10 @@ import logging
 logger = logging.getLogger(__name__)
 
 SETTING_KEY = "fork_voice_ha_url"
+# The Odysseus address Home Assistant was set up with (as HA reaches it, e.g. the server's
+# home-network address when HA runs on the same machine), so the form shows it next time
+# instead of the browser's address.
+ODYSSEUS_KEY = "fork_voice_ha_odysseus_url"
 
 
 def get_ha_url() -> str:
@@ -39,6 +43,34 @@ def set_ha_url(url: str) -> str:
     value = check_ha_url(url) if (url or "").strip() else ""
     settings = dict(load_settings())
     settings[SETTING_KEY] = value
+    save_settings(settings)
+    return value
+
+
+def get_odysseus_url() -> str:
+    """The Odysseus address the last good setup gave Home Assistant, or "" when unset."""
+    try:
+        from src.settings import get_setting
+
+        value = get_setting(ODYSSEUS_KEY, "")
+    except Exception:
+        logger.warning("voice: couldn't read the Odysseus address for Home Assistant",
+                       exc_info=True)
+        return ""
+    return value.strip() if isinstance(value, str) else ""
+
+
+def set_odysseus_url(url: str) -> str:
+    """Save the Odysseus address HA was set up with (without the voice path)."""
+    from fork.athena.phone_pairing import check_url
+    from fork.voice.routes import PREFIX
+    from src.settings import load_settings, save_settings
+
+    value = check_url(url) if (url or "").strip() else ""
+    if value.endswith(PREFIX):
+        value = value[:-len(PREFIX)].rstrip("/")
+    settings = dict(load_settings())
+    settings[ODYSSEUS_KEY] = value
     save_settings(settings)
     return value
 
