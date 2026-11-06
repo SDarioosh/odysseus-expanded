@@ -289,7 +289,7 @@ reminder cards have Done buttons. A tap on the device's own screen is the confir
 so these need no spoken "yes". Same `voice` token as the other routes.
 
 ```
-POST …/todos/done         {"ref": "todo:41:2", "device_id": "…"} -> {"ok": true, "already": false, "title": "Call the plumber"}
+POST …/todos/done         {"ref": "todo:41:2", "device_id": "…", "title"?: "Call the plumber"} -> {"ok": true, "already": false, "title": "Call the plumber"}
 POST …/reminders/done     {"ref": "todo:41", "device_id": "…"}   -> {"ok": true, "already": false, "title": "Take the bins out"}
 POST …/action-items/done  {"id": "17", "device_id": "…"}         -> {"ok": true, "already": false, "title": "Send Sam the photos"}
 POST …/todos/undo         {"ref": "todo:41:2", "device_id": "…"} -> {"ok": true, "already": false, "title": "Call the plumber"}
@@ -302,6 +302,15 @@ POST …/action-items/undo  {"id": "17", "device_id": "…"}         -> {"ok": t
 | `reminders/done` | archives note 41 (the `ref` of a `kind: reminder` announcement). This is what the notes page's ✓ Done does to a note (`PATCH archived: true`, for a note with or without items, repeating or not), so a reminder finished on the Echo looks the same as one finished in the browser: the reminder scanner (`ping_notes`) and the notes page skip archived notes, so it doesn't fire again, and it can be restored from the notes archive. Ticking the note's one item or clearing its due date (the plan's other options) would leave a reminder the notes page still shows. The `ref` is taken as the feed carries it: a ref with an item index (`todo:41:2`) ticks that item instead, as `todos/done` |
 | `action-items/done` | Athena's `status: done` through the hub's Athena link (`PATCH /action-items/{id}`, the relay's own write; the item is first read with `GET /action-items?status=all`, for its title and whether it is already done). `id` is Athena's id as `GET …/today` gives it (`"17"`); a number and `"ai_17"` are read too |
 
+- **A stale index:** a to-do's `ref` names a line by its index, and the owner may have
+  added, removed or moved lines since the device fetched Today. So `todos/done` (and
+  `reminders/done` with a ref that has an index) take an optional `title`: the row's text
+  the device showed. When the line at the index doesn't read it (compared as `/today`
+  titles a line: whitespace collapsed, the first 200 characters, any case), the line that
+  does is ticked instead (an unticked one first, then the nearest); when no line reads it,
+  409 `{"error": "changed"}` and nothing changes (the device puts the row back and fetches
+  Today again). Without `title` (Echo builds before it) the index alone counts, as
+  before. A whole-note reminder ref (`todo:41`) ignores `title`.
 - **Idempotent:** a to-do item already ticked, a note already archived or an item already
   done answers 200 with `"already": true` and changes nothing.
 - **Recorded:** each change is a `completed` action in the turn ledger (`kind` `todo`,
@@ -317,11 +326,14 @@ POST …/action-items/undo  {"id": "17", "device_id": "…"}         -> {"ok": t
   the owner may undo) and is ignored.
   A reminder has no undo route: unarchive it on the notes page.
 - **Errors:** 400 `{"error": "…"}` for a body that isn't a JSON object, a malformed
-  `ref` or `id`, or no `device_id` (done routes; at most 128 characters); 404
+  `ref` or `id`, a `title` that isn't text (or over 2000 characters), or no `device_id`
+  (done routes; at most 128 characters); 404
   `{"error": "not found"}` for a note that isn't the owner's or doesn't exist, an item
   index past the end, or an action item Athena doesn't have; 503 `{"error": "athena
   unavailable"}` when Athena isn't set up, is down, refuses the hub's token or takes
-  more than 5 s; 403 without the `voice` scope.
+  more than 5 s; 409 `{"error": "changed"}` (above) and
+  `{"error": "too late to undo"}` (undo routes only) are told apart by their text; 403
+  without the `voice` scope.
 - Notes are only the token owner's (`Note.owner`). Athena has one owner, as for
   `GET …/today`.
 
