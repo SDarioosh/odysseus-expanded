@@ -260,23 +260,34 @@ def todo_done(owner: str, ref: Any, device_id: Any, *, kind: str = "todo") -> di
     return {"ok": True, "already": False, "title": title}
 
 
+def _ticked_line(items: list, index: int, text: str) -> int:
+    """The line a device ticked: at its index, else by its text (lines moved or were
+    removed since); of equal lines, a ticked one. :data:`NOT_FOUND` when it's gone."""
+    here = index < len(items) and isinstance(items[index], dict)
+    if not text:
+        if not here:
+            raise NOT_FOUND
+        return index
+    same = [i for i, it in enumerate(items) if isinstance(it, dict) and _item_text(it) == text]
+    if not same:
+        raise NOT_FOUND
+    ticked = [i for i in same if _item_done(items[i])]
+    if ticked:
+        return index if index in ticked else ticked[0]
+    return index if index in same else same[0]
+
+
 def todo_undo(owner: str, ref: Any, now: float | None = None) -> dict:
     note_id, index = parse_todo_ref(ref)
     target = f"todo:{note_id}:{index}"
     with _note(owner, note_id) as (db, note):
         items = _items(note)
-        if index >= len(items) or not isinstance(items[index], dict):
-            raise NOT_FOUND
         done = last_done(owner, target, now)
         if done is None:
-            raise TOO_LATE
-        # The line the device ticked: at its index, else by its text (lines moved since).
-        text = done.get("item_text") or ""
-        at = index
-        if text and _item_text(items[index]) != text:
-            at = next((i for i, it in enumerate(items) if _item_text(it) == text), -1)
-            if at < 0:
+            if index >= len(items) or not isinstance(items[index], dict):
                 raise NOT_FOUND
+            raise TOO_LATE
+        at = _ticked_line(items, index, done.get("item_text") or "")
         item = items[at]
         if not _item_done(item):
             mark_undone(done["id"], now)
