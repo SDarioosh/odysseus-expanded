@@ -207,6 +207,7 @@ is an old path of a module that moved into `fork/`; it only aliases the new modu
 - `fork/voice/speech.py`
 - `fork/voice/timing_routes.py`
 - `fork/voice/timings.py`
+- `fork/voice/today_route.py`
 
 ## routes/
 
@@ -516,6 +517,7 @@ is an old path of a module that moved into `fork/`; it only aliases the new modu
 - `tests/fork/test_voice_interrupts.py`
 - `tests/fork/test_voice_satellite.py`
 - `tests/fork/test_voice_timings.py`
+- `tests/fork/test_voice_today.py`
 - `tests/fork/test_web_read_recovery.py`
 - `tests/fork/test_web_turn_scope.py`
 - `tests/fork/test_whisper_vocabulary_routes.py`

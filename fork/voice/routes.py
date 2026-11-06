@@ -3,7 +3,8 @@
 ``POST /api/chat/voice/v1/chat/completions`` and ``GET /api/chat/voice/v1/models``
 (:data:`PREFIX` is the OpenAI base URL a client is given), OpenAI's shapes
 (``fork/voice/openai_api.py``), for a Home Assistant conversation agent, and the device
-screen's feeds ``GET …/actions`` and ``GET …/turns/latest`` (``fork/voice/ledger.py``).
+screen's feeds ``GET …/actions`` and ``GET …/turns/latest`` (``fork/voice/ledger.py``),
+and ``GET …/today``, the day at a glance (``fork/voice/today_route.py``).
 Only an API token with the ``voice`` scope may call them (a browser login may not: these
 routes are for a device, and a token can be revoked on its own).
 
@@ -360,4 +361,7 @@ def setup_voice_routes() -> APIRouter:
             logger.exception("voice: recording the turn failed")
         return openai_api.completion_body(question, answer, session_id, turn_id)
 
+    from fork.voice.today_route import setup_voice_today_routes
+
+    router.include_router(setup_voice_today_routes())  # GET …/today, for device screens
     return router
