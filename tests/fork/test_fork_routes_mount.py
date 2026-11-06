@@ -25,6 +25,7 @@ ORDER = [
     "setup_timing_routes",
     "setup_ha_routes",
     "setup_echo_link_routes",
+    "setup_app_release_routes",
 ]
 
 

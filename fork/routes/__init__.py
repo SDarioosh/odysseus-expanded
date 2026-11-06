@@ -27,6 +27,7 @@ ROUTERS: tuple[tuple[str, str], ...] = (
     ("fork.voice.timing_routes", "setup_timing_routes"),  # voice turn timings
     ("fork.voice.ha_routes", "setup_ha_routes"),  # Set up Home Assistant (voice)
     ("fork.voice.echo_link", "setup_echo_link_routes"),  # Link this Echo (one-QR Echo setup)
+    ("fork.voice.app_release", "setup_app_release_routes"),  # the Echo app's releases
 )
 
 
