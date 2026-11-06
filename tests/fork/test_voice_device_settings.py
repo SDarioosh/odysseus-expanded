@@ -293,3 +293,23 @@ def test_saves_at_once_each_get_their_own_version(data_dir):
 def test_ints_must_be_whole_json_numbers(value):
     with pytest.raises(device_settings.BadSettings):
         device_settings.validate({"followup.seconds": value})
+
+
+def test_the_admin_put_reads_the_registry_off_the_event_loop(api, monkeypatch):
+    import asyncio
+
+    hello()
+    where = []
+    real = devices.get
+
+    def get(*a, **kw):
+        try:
+            asyncio.get_running_loop()
+            where.append("on the loop")
+        except RuntimeError:
+            where.append("worker")
+        return real(*a, **kw)
+
+    monkeypatch.setattr(devices, "get", get)
+    assert put(api, "echo-1", {"home.enabled": True}).status_code == 200
+    assert where == ["worker"]
