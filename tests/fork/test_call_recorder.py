@@ -326,3 +326,56 @@ def test_routes_are_admin_only(monkeypatch):
     with TestClient(app) as c:
         assert c.get("/api/modules/sound/record/config").status_code == 403
         assert post_chunk(c).status_code == 403
+
+
+# ------------------------------------------------------------- WAV header edge cases
+def _chunk(cid: bytes, body: bytes, size: int | None = None) -> bytes:
+    import struct
+
+    n = len(body) if size is None else size
+    return cid + struct.pack("<I", n) + body + (b"\0" if len(body) % 2 else b"")
+
+
+def _fmt(rate=16000, channels=1, bits=16, extra=b"") -> bytes:
+    import struct
+
+    return struct.pack("<HHIIHH", 1, channels, rate, rate * channels * bits // 8,
+                       channels * bits // 8, bits) + extra
+
+
+def _riff(*chunks: bytes) -> bytes:
+    import struct
+
+    body = b"WAVE" + b"".join(chunks)
+    return b"RIFF" + struct.pack("<I", len(body)) + body
+
+
+AUDIO = b"\0\0" * 160
+
+
+@pytest.mark.parametrize("data", [
+    _riff(_chunk(b"fmt ", _fmt()), _chunk(b"data", AUDIO)),
+    _riff(_chunk(b"fmt ", _fmt(extra=b"\0\0")), _chunk(b"data", AUDIO)),  # fmt of 18
+    _riff(_chunk(b"fmt ", _fmt()), _chunk(b"LIST", b"odd"), _chunk(b"data", AUDIO)),  # padded
+    _riff(_chunk(b"fmt ", _fmt()), _chunk(b"data", AUDIO, size=0xFFFFFFFF)),  # streamed
+    _riff(_chunk(b"fmt ", _fmt()), _chunk(b"data", AUDIO, size=10 ** 6)),  # truncated
+])
+def test_check_wav_accepts(data):
+    rec.check_wav(data)
+
+
+@pytest.mark.parametrize("data", [
+    b"", b"RIFF", b"RIFF\0\0\0\0WAVE",
+    _riff(_chunk(b"data", AUDIO), _chunk(b"fmt ", _fmt())),  # data before fmt
+    _riff(_chunk(b"fmt ", _fmt()[:14])),  # fmt too short
+    _riff(_chunk(b"LIST", b"x" * 8, size=0xFFFFFFF0), _chunk(b"fmt ", _fmt()),
+          _chunk(b"data", AUDIO)),  # a huge chunk hides the rest
+    _riff(_chunk(b"fmt ", _fmt()), _chunk(b"data", b"", size=0)),  # no audio
+    _riff(_chunk(b"fmt ", _fmt()), _chunk(b"data", b"\0", size=1)),  # half a sample
+    _riff(_chunk(b"fmt ", _fmt(rate=48000)), _chunk(b"data", AUDIO)),
+    _riff(_chunk(b"fmt ", _fmt()), b"da"),  # cut inside a chunk header
+])
+def test_check_wav_refuses(data):
+    with pytest.raises(rec.RecorderError) as e:
+        rec.check_wav(data)
+    assert e.value.status == 400
