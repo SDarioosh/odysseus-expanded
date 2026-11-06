@@ -6,7 +6,9 @@ Two callers send audio pieces here, and this file checks each piece and forwards
   WebM/Opus pieces of a meeting captured in the browser (admin session);
 * the phone relay paired through Odysseus (Athena's ``android-relay``): the
   watch's 30-second Ogg/Opus chunks (API token with scope ``athena:ingest`` or its old name ``sound:ingest``,
-  ``routes/sound_relay_routes.py``).
+  ``routes/sound_relay_routes.py``), and an Echo's recordings and voice notes through the
+  same relay: 30-second WAV chunks, 16 kHz mono PCM16 (``codec=wav``, :func:`check_wav`),
+  forwarded unchanged.
 
 Where the pieces go: Athena's MCP HTTP server (``convo-server mcp --http``) has two
 plain HTTP routes next to ``/mcp``, behind its MCP token: ``POST /ingest/chunk`` and
@@ -55,7 +57,7 @@ DEFAULT_DEVICE = settings.CALL_DEVICE.default
 # Same rule as Athena's ids (server/athena/validation.py _SAFE).
 SAFE_ID = re.compile(r"^[A-Za-z0-9._:-]{1,128}$")
 KINDS = {"conversation", "note"}  # Athena's session kinds
-MAX_CHUNK_BYTES = 5 * 1024 * 1024  # 30 s of Opus is ~60-250 KB; leaves room for 60 s at 64 kbit/s
+MAX_CHUNK_BYTES = 5 * 1024 * 1024  # 30 s of Opus is ~60-250 KB, of 16 kHz PCM16 WAV ~960 KB
 MAX_SEQUENCE = 100_000  # 4 h sessions (the module's default cap) are 480 pieces
 UPDATE_MODULE = ("Athena can't take uploads through its MCP server yet: update "
                  "Athena (scripts/fork_deploy.sh deploy).")
@@ -76,7 +78,14 @@ RECORDER = Source(frozenset({"webm", "ogg"}), timedelta(minutes=5), timedelta(da
 # The relay sends the watch's Ogg/Opus chunks (``codec=ogg``; ``opus`` is the module's name
 # for Ogg/Opus or bare Opus packets). The watch keeps its queue across days offline and
 # its clock comes from the phone, so the window is wide: a rejected chunk is lost audio.
-RELAY = Source(frozenset({"ogg", "opus"}), timedelta(days=1), timedelta(days=60))
+# An Echo sends WAV (``codec=wav``): it has no Opus encoder on Android 8 or 9.
+RELAY = Source(frozenset({"ogg", "opus", "wav"}), timedelta(days=1), timedelta(days=60))
+
+# The one WAV the relay takes: what the Echo records and Athena transcribes as it is.
+WAV_RATE = 16_000
+WAV_CHANNELS = 1
+WAV_BITS = 16
+_WAV_PCM = 1  # WAVE_FORMAT_PCM
 
 
 # A request the caller can be shown: ``status`` is the HTTP status to answer with. The one
@@ -127,11 +136,45 @@ def check_chunk(*, data: bytes, session_id: str, sequence: int, timestamp: str, 
         raise RecorderError(400, "empty audio")
     if len(data) > MAX_CHUNK_BYTES:
         raise RecorderError(413, "audio piece too large")
+    if codec == "wav":
+        check_wav(data)
     started = _parse_time(timestamp)
     now = now or datetime.now(UTC)
     if started - now > source.max_future or now - started > source.max_age:
         raise RecorderError(400, "timestamp is too far from the server's clock")
     return session_id, started.astimezone(UTC).isoformat(), codec
+
+
+def check_wav(data: bytes) -> None:
+    """A 400 :class:`RecorderError` unless ``data`` is a RIFF/WAVE file whose ``fmt ``
+    chunk says PCM, mono, 16 kHz, 16-bit, followed by a ``data`` chunk with audio in it.
+    Only the header is read; the file is forwarded as it is."""
+    if len(data) < 12 or data[:4] != b"RIFF" or data[8:12] != b"WAVE":
+        raise RecorderError(400, "audio isn't a WAV file (no RIFF/WAVE header)")
+    fmt = None
+    pos = 12
+    while pos + 8 <= len(data):
+        chunk_id, size = data[pos:pos + 4], int.from_bytes(data[pos + 4:pos + 8], "little")
+        body = pos + 8
+        if chunk_id == b"fmt " and fmt is None:
+            if size < 16 or body + 16 > len(data):
+                break
+            fmt = (int.from_bytes(data[body:body + 2], "little"),  # format tag
+                   int.from_bytes(data[body + 2:body + 4], "little"),  # channels
+                   int.from_bytes(data[body + 4:body + 8], "little"),  # sample rate
+                   int.from_bytes(data[body + 12:body + 14], "little"),  # block align
+                   int.from_bytes(data[body + 14:body + 16], "little"))  # bits
+        elif chunk_id == b"data":
+            if fmt is None:
+                break
+            if fmt != (_WAV_PCM, WAV_CHANNELS, WAV_RATE, WAV_CHANNELS * WAV_BITS // 8,
+                       WAV_BITS):
+                raise RecorderError(400, "WAV audio must be 16-bit PCM, mono, 16 kHz")
+            if len(data) - body < WAV_BITS // 8 or size < WAV_BITS // 8:
+                raise RecorderError(400, "WAV file has no audio")
+            return
+        pos = body + size + (size & 1)  # chunks are padded to an even length
+    raise RecorderError(400, "WAV header is incomplete (needs a fmt chunk, then data)")
 
 
 def _parse_time(value: str) -> datetime:

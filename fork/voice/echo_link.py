@@ -3,13 +3,15 @@
 Step 3 of the one-QR Echo setup. The Echo's own setup page sends the owner's phone to
 ``GET /echo/link?return=<Echo URL>&name=<name>``. The signed-in admin sees which Echo
 asks and where the token will go, and taps **Approve**: a same-origin ``POST /echo/link``
-makes an API token with only the ``voice`` scope, named ``Echo <name> <YYYY-MM-DD>``
-(listed and revoked in Settings → API tokens like any other), and answers a page that
+makes an API token with the ``voice`` and ``athena:ingest`` scopes (ask the voice
+assistant; upload recordings and voice notes through the Athena relay), named
+``Echo <name> <YYYY-MM-DD>`` (listed and revoked in Settings → API tokens like any other),
+remembers its id as an Echo token (:func:`mark_echo_token`), and answers a page that
 sends the phone on to the Echo with the fields in the URL *fragment*,
 ``<return>#token=…&base_url=…&ha_url=…`` (a script does ``location.replace``; a
 **Continue** link to the same URL is the fallback):
 
-* ``token``: the voice token, shown nowhere else and never logged;
+* ``token``: the Echo's token, shown nowhere else and never logged;
 * ``base_url``: ``<origin the browser used>/api/chat/voice/v1``;
 * ``ha_url``: the Home Assistant address saved by "Set up Home Assistant"
   (``fork.voice.ha_settings.home_assistant_url``), or empty.
@@ -54,6 +56,11 @@ ECHO_PORT = 10801
 NAME_MAX = 40
 TOKEN_PREFIX = "Echo"
 SCOPE = "voice"
+# What /echo/link mints: the voice API, and recordings through the Athena relay
+# (fork/athena/relay_routes.py). Echos linked before this have ``voice`` only; they keep
+# working (without recordings) until relinked.
+SCOPES = [SCOPE, "athena:ingest"]
+MARKS = "echo_tokens"  # <DATA_DIR>/echo_tokens_<owner>.json: ids /echo/link minted
 _RETURN_RE = re.compile(r"^http://([A-Za-z0-9.-]{1,253}):10801(/setup/[A-Za-z0-9_-]{16,64}/odysseus)$")
 _LABEL_RE = re.compile(r"^[a-z0-9](?:[a-z0-9-]{0,61}[a-z0-9])?$")
 # A last label a browser reads as a number makes the whole host an IPv4 address (WHATWG
@@ -140,25 +147,74 @@ def token_name(name: str, day: date | None = None) -> str:
 KEEP_EARLIER = 1
 
 
+_MARKS_LOCK = threading.Lock()
+
+
+def _marks_file(owner: str):
+    from fork.common.state import owner_file
+
+    return owner_file(MARKS, owner)
+
+
+def marked_echo_tokens(owner: str) -> set[str]:
+    """Ids of ``owner``'s tokens that /echo/link minted (:func:`mark_echo_token`)."""
+    from fork.common.state import read_json
+
+    data = read_json(_marks_file(owner), {})
+    ids = data.get("ids") if isinstance(data, dict) else None
+    return {str(i) for i in ids if isinstance(i, str)} if isinstance(ids, list) else set()
+
+
+def _write_marks(owner: str, ids: set[str]) -> None:
+    from fork.common.state import write_json
+
+    write_json(_marks_file(owner), {"ids": sorted(ids)})
+
+
+def mark_echo_token(owner: str, token_id: str) -> None:
+    """Remember ``token_id`` as an Echo token, so a relink can tell it from any other."""
+    with _MARKS_LOCK:
+        _write_marks(owner, marked_echo_tokens(owner) | {token_id})
+
+
+def is_echo_token(row: Any, marked: set[str]) -> bool:
+    """Whether a token is one /echo/link made: an ``Echo …`` token (the caller checks the
+    name) holding nothing but :data:`SCOPES`, and either marked when minted or ``voice``
+    only (minted before the marks). Any other token is never touched."""
+    scopes = {s.strip() for s in (row.scopes or "").split(",") if s.strip()}
+    if SCOPE not in scopes or not scopes <= set(SCOPES):
+        return False
+    return scopes == {SCOPE} or row.id in marked
+
+
 def prune_echo_tokens(owner: str, name: str, keep: str) -> int:
-    """Delete this Echo's old voice tokens: ``owner``'s "Echo <name> <date>" tokens with only
-    the ``voice`` scope, except ``keep`` (the new one) and the newest earlier one. Unnamed
-    Echos can't be told apart, so nothing is deleted for them. Returns how many went."""
+    """Delete this Echo's old tokens: ``owner``'s "Echo <name> <date>" tokens that
+    :func:`is_echo_token` says /echo/link made (the old voice-only ones and the marked
+    ones), except ``keep`` (the new one) and the newest earlier one. Unnamed Echos can't
+    be told apart, so nothing is deleted for them. Returns how many went."""
     if not name:
         return 0
     from core.database import ApiToken, get_db_session
 
     pattern = re.compile(r"^" + re.escape(f"{TOKEN_PREFIX} {name} ") + r"\d{4}-\d{2}-\d{2}$")
     removed = 0
-    with get_db_session() as db:
-        rows = [r for r in db.query(ApiToken).filter(ApiToken.owner == owner).all()
-                if r.id != keep and pattern.match(r.name or "")
-                and (r.scopes or "").strip() == SCOPE]
-        rows.sort(key=lambda r: (r.last_used_at or r.created_at or datetime.min,
-                                 r.created_at or datetime.min), reverse=True)
-        for row in rows[KEEP_EARLIER:]:
-            db.delete(row)
-            removed += 1
+    with _MARKS_LOCK:
+        marked = marked_echo_tokens(owner)
+        with get_db_session() as db:
+            everyone = db.query(ApiToken).filter(ApiToken.owner == owner).all()
+            present = {r.id for r in everyone}
+            rows = [r for r in everyone
+                    if r.id != keep and pattern.match(r.name or "") and is_echo_token(r, marked)]
+            rows.sort(key=lambda r: (r.last_used_at or r.created_at or datetime.min,
+                                     r.created_at or datetime.min), reverse=True)
+            gone = set()
+            for row in rows[KEEP_EARLIER:]:
+                db.delete(row)
+                gone.add(row.id)
+                removed += 1
+        left = (marked & present) - gone  # forget tokens deleted here or in Settings
+        if left != marked:
+            _write_marks(owner, left)
     return removed
 
 
@@ -347,7 +403,8 @@ def approve_page(request: Request, target: EchoReturn, name: str) -> HTMLRespons
     body = f"""    <div class="bs-card">
       <p class="bs-text">Link Echo <b>“{esc(shown)}”</b> at <b>{esc(where)}</b>?</p>
       <ul class="bs-list">
-        <li>Odysseus makes it a token that can only ask the voice assistant, named
+        <li>Odysseus makes it a token that can only ask the voice assistant and add
+          recordings and voice notes to Athena, named
           <b>{esc(token_name(name))}</b>; revoke it in Settings → API tokens.</li>
         <li>{transport}</li>
         <li>Approve only if you just started this on that Echo.</li>
@@ -418,7 +475,11 @@ def setup_echo_link_routes() -> APIRouter:
         from fork.athena.phone_pairing import create_api_token
 
         label = token_name(name)
-        token = create_api_token(owner, label, [SCOPE])
+        token = create_api_token(owner, label, list(SCOPES))
+        try:
+            mark_echo_token(owner, token["id"])
+        except Exception:  # noqa: BLE001 -- the link works; only a later prune skips it
+            logger.warning("echo link: couldn't remember the new Echo token", exc_info=True)
         try:  # re-linking an Echo doesn't pile up its old tokens
             removed = prune_echo_tokens(owner, name, token["id"])
         except Exception:  # noqa: BLE001 -- the link itself still works
@@ -427,7 +488,7 @@ def setup_echo_link_routes() -> APIRouter:
         invalidate = getattr(request.app.state, "invalidate_token_cache", None)
         if callable(invalidate):
             invalidate()
-        logger.info("echo link: %s made voice token %s (%r) for %s; %d old removed", owner,
+        logger.info("echo link: %s made Echo token %s (%r) for %s; %d old removed", owner,
                     token["id"], label, target.host, removed)
         fields = {"token": token["token"],
                   "base_url": origin + with_asgi_root_path(request.scope, PREFIX),
