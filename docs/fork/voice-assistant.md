@@ -36,6 +36,9 @@ Nothing leaves the owner's network: every stage is local, and Home Assistant Clo
   refused; email is never run.
 - **The device's screen sees what a turn did:** `GET …/actions` and
   `GET …/turns/latest` (the turn ledger).
+- **Done from the device's screen:** a tap ticks a to-do, finishes a reminder or marks an
+  Athena action item done, without a spoken "yes" ([Done from a
+  device](#done-from-a-device)).
 - **Voice shares chat's prompt cache:** a voice prompt starts exactly like a chat
   prompt (same system prompt and tools), so the model server needs no second cache.
 - **Each voice conversation is a chat** in the **Voice** folder, so the owner can read
@@ -228,7 +231,9 @@ live; later features add to it.
 ```
 
 `kind` is `todo`, `reminder`, `list_item`, `note`, `event` or `action_item`; `action`
-`created` or `completed`; `source` `odysseus` or `athena`.
+`created` or `completed`; `source` `odysseus` or `athena`, or `device` for a Done tapped
+on a device's screen (then `turn_id` is `device:<device id>`: no voice turn made it;
+[Done from a device](#done-from-a-device)).
 
 `GET …/turns/latest?since=<epoch ms>`: the newest finished turn started at or after
 `since`, else `{"turn": null}`:
@@ -273,6 +278,47 @@ offset (the insight's zone, `owner_timezone`); the device shows them in its own 
 
 Each section is read on its own: one that fails is empty (and logged), and the route
 answers 200 whenever the token holds the `voice` scope.
+
+## Done from a device
+
+`fork/voice/done.py` (contract C5 of the Echo's round 2). The Echo's Today page and its
+reminder cards have Done buttons. A tap on the device's own screen is the confirmation,
+so these need no spoken "yes". Same `voice` token as the other routes.
+
+```
+POST …/todos/done         {"ref": "todo:41:2", "device_id": "…"} -> {"ok": true, "already": false, "title": "Call the plumber"}
+POST …/reminders/done     {"ref": "todo:41", "device_id": "…"}   -> {"ok": true, "already": false, "title": "Take the bins out"}
+POST …/action-items/done  {"id": "17", "device_id": "…"}         -> {"ok": true, "already": false, "title": "Send Sam the photos"}
+POST …/todos/undo         {"ref": "todo:41:2"}                   -> {"ok": true, "already": false, "title": "Call the plumber"}
+POST …/action-items/undo  {"id": "17"}                           -> {"ok": true, "already": false, "title": "Send Sam the photos"}
+```
+
+| Route | What it changes |
+|---|---|
+| `todos/done` | ticks item 2 of note 41 (the `ref` of `GET …/today`), the same change as the notes page's tick: the item's `done` |
+| `reminders/done` | archives note 41 (the `ref` of a `kind: reminder` announcement). This is what the notes page's ✓ Done does to a note (`PATCH archived: true`, for a note with or without items, repeating or not), so a reminder finished on the Echo looks the same as one finished in the browser: the reminder scanner (`ping_notes`) and the notes page skip archived notes, so it doesn't fire again, and it can be restored from the notes archive. Ticking the note's one item or clearing its due date (the plan's other options) would leave a reminder the notes page still shows |
+| `action-items/done` | Athena's `status: done` through the hub's Athena link (`PATCH /action-items/{id}`, the relay's own write; the item is first read with `GET /action-items?status=all`, for its title and whether it is already done). `id` is Athena's id as `GET …/today` gives it (`"17"`); a number and `"ai_17"` are read too |
+
+- **Idempotent:** a to-do item already ticked, a note already archived or an item already
+  done answers 200 with `"already": true` and changes nothing.
+- **Recorded:** each change is a `completed` action in the turn ledger (`kind` `todo`,
+  `reminder` or `action_item`; `where` the list's title, `To-dos` or `Athena`; `source`
+  `device`; `turn_id` `device:<device id>`), so `GET …/actions` shows it.
+- **Undo:** `todos/undo` and `action-items/undo` reopen what a device closed within 10
+  minutes of its done (any device of the same owner), and remove that ledger action. A
+  to-do line that moved since is found by its text. Later, or for something a device
+  didn't close (ticked in the browser, or closed again elsewhere after an undo): 409
+  `{"error": "too late to undo"}`; already open: 200 with `"already": true`. A device's
+  dones are kept for a day in `fork_voice.db` (table `device_done`), owner-scoped.
+  A reminder has no undo route: unarchive it on the notes page.
+- **Errors:** 400 `{"error": "…"}` for a body that isn't a JSON object, a malformed
+  `ref` or `id`, or no `device_id` (done routes; at most 128 characters); 404
+  `{"error": "not found"}` for a note that isn't the owner's or doesn't exist, an item
+  index past the end, or an action item Athena doesn't have; 503 `{"error": "athena
+  unavailable"}` when Athena isn't set up, is down, refuses the hub's token or takes
+  more than 5 s; 403 without the `voice` scope.
+- Notes are only the token owner's (`Note.owner`). Athena has one owner, as for
+  `GET …/today`.
 
 ## Private answers
 
@@ -839,6 +885,7 @@ the phone to Home Assistant's sign-in, and adds itself to Home Assistant.
 - Hooks: `routes/api_token_routes.py` (scope `voice`), `static/index.html` (the card's
   script tag), `requirements.txt` (`websockets`, for Home Assistant's websocket API); the
   routers are in `fork/routes/__init__.py`.
+- Done from a device: `fork/voice/done.py`; tests `tests/fork/test_voice_done.py`.
 - Tests: `tests/fork/test_voice_assistant.py`, `tests/fork/test_voice_satellite.py`,
   `tests/fork/test_voice_interrupts.py` (barge-in),
   `tests/fork/test_ha_voice_setup.py` (a fake Home Assistant), `tests/fork/test_echo_link.py`.

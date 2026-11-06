@@ -195,6 +195,7 @@ is an old path of a module that moved into `fork/`; it only aliases the new modu
 - `fork/voice/chat_prefix.py`
 - `fork/voice/confirm.py`
 - `fork/voice/devices.py`
+- `fork/voice/done.py`
 - `fork/voice/echo_link.py`
 - `fork/voice/ha_routes.py`
 - `fork/voice/ha_settings.py`
@@ -521,6 +522,7 @@ is an old path of a module that moved into `fork/`; it only aliases the new modu
 - `tests/fork/test_voice_announce_tool.py`
 - `tests/fork/test_voice_announcements.py`
 - `tests/fork/test_voice_assistant.py`
+- `tests/fork/test_voice_done.py`
 - `tests/fork/test_voice_enroll_routes.py`
 - `tests/fork/test_voice_interrupts.py`
 - `tests/fork/test_voice_satellite.py`
