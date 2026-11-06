@@ -591,6 +591,10 @@ def test_reminder_done_with_an_index_follows_its_title(db):
     r = post(c, "/reminders/done", {"ref": "todo:r8:0", "device_id": DEVICE,
                                     "title": "Pack the tent"})
     assert r.status_code == 409 and r.json() == {"error": "changed"}
+    # a card titled by its note, not the line: the index alone counts
+    r = post(c, "/reminders/done", {"ref": "todo:r8:0", "device_id": DEVICE,
+                                    "title": "Before  the trip"})
+    assert r.json() == {"ok": True, "already": False, "title": "Call the plumber"}
     # a whole-note reminder ignores a title
     add_note(db, "r9", title="Bins", items=None, note_type="note")
     r = post(c, "/reminders/done", {"ref": "todo:r9", "device_id": DEVICE, "title": "x"})

@@ -22,7 +22,8 @@ token check as the other voice routes (:func:`fork.voice.routes.voice_owner`)::
   index doesn't read ``title`` (compared as ``/today`` titles a line: whitespace
   collapsed, its first 200 characters, any case), the line with that text is ticked
   instead (an unticked one first); when no line reads it, 409 ``{"error": "changed"}``
-  and nothing changes. Without ``title`` (older devices) the index alone counts.
+  and nothing changes. Without ``title`` (older devices) the index alone counts, and so it
+  does for a reminder card whose ``title`` is its note's title (the card shows that).
 * An Athena action item gets ``status: done`` through the hub's Athena link
   (``PATCH /action-items/{id}``, the relay's own write, ``fork/athena/call_recorder.py``).
 
@@ -356,10 +357,18 @@ def todo_undo(owner: str, ref: Any, now: float | None = None) -> dict:
     return {"ok": True, "already": False, "title": _item_text(item)}
 
 
+def _note_title_key(owner: str, ref: str) -> str:
+    note_id, _index = parse_todo_ref(ref)
+    with _note(owner, note_id) as (_db, note):
+        return _line_key(note.title)
+
+
 def reminder_done(owner: str, ref: Any, device_id: Any, title: Any = None) -> dict:
     """``todo:<note id>`` archives the reminder's note; ``todo:<note id>:<index>`` (a ref
     naming one line) ticks that line, as :func:`todo_done` (``title`` guards its index)."""
     if isinstance(ref, str) and TODO_REF.match(ref.strip()):
+        if parse_title(title) and parse_title(title) == _note_title_key(owner, ref):
+            title = None  # a reminder card titled by its note, not the line: the index counts
         return todo_done(owner, ref, device_id, kind="reminder", title=title)
     note_id = parse_reminder_ref(ref)
     device_id = parse_device_id(device_id)

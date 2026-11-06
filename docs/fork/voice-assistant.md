@@ -310,7 +310,8 @@ POST …/action-items/undo  {"id": "17", "device_id": "…"}         -> {"ok": t
   does is ticked instead (an unticked one first, then the nearest); when no line reads it,
   409 `{"error": "changed"}` and nothing changes (the device puts the row back and fetches
   Today again). Without `title` (Echo builds before it) the index alone counts, as
-  before. A whole-note reminder ref (`todo:41`) ignores `title`.
+  before. A whole-note reminder ref (`todo:41`) ignores `title`, and so does a reminder
+  ref with an index whose `title` is the note's own title (what a reminder card shows).
 - **Idempotent:** a to-do item already ticked, a note already archived or an item already
   done answers 200 with `"already": true` and changes nothing.
 - **Recorded:** each change is a `completed` action in the turn ledger (`kind` `todo`,
