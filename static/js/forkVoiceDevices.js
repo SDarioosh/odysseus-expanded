@@ -30,6 +30,16 @@ export function parseValue(key, raw) {
   throw new Error(`${key.label}: not a valid choice`);
 }
 
+/** A field's raw input. A number field the browser can't read ("1e", "--3") has the
+ *  value "" and validity.badInput: an error, never "the device decides" (exported for tests). */
+export function rawValue(input) {
+  if (input && input.validity && input.validity.badInput) {
+    const label = (input.getAttribute && input.getAttribute('aria-label')) || 'A number';
+    throw new Error(`${label}: not a number`);
+  }
+  return input ? input.value : '';
+}
+
 /** The settings object to send, from {key: raw input} (exported for tests). */
 export function settingsFrom(keys, raws) {
   const out = {};
@@ -100,7 +110,7 @@ function deviceBox(device, keys) {
     let settings;
     try {
       const raws = {};
-      for (const [k, input] of Object.entries(inputs)) raws[k] = input.value;
+      for (const [k, input] of Object.entries(inputs)) raws[k] = rawValue(input);
       settings = settingsFrom(keys, raws);
     } catch (e) {
       msg.textContent = e.message;

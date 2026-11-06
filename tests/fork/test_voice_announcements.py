@@ -99,14 +99,42 @@ async def test_a_room_name_with_spaces_matches_its_area_id(ha):
     assert out.entities == ["assist_satellite.living_room_echo"]
 
 
-async def test_no_area_match_falls_back_to_the_configured_list(ha):
+async def test_a_room_with_no_satellite_is_kept_for_its_feed_but_spoken_nowhere(ha):
+    hello(device_id="echo-g", name="Garage Echo", area="Garage")
     out = await announcements.deliver("alice", "Hi", {"area": "Garage"},
                                       transport=ha.transport)
-    assert out.spoken and out.entities == []
-    assert ha.spoken[0]["entity_id"] == ["assist_satellite.everywhere"]
-    ha.template_status = 500  # Home Assistant can't list them: the list too
-    await announcements.deliver("alice", "Hi", {"area": "Kitchen"}, transport=ha.transport)
-    assert ha.spoken[1]["entity_id"] == ["assist_satellite.everywhere"]
+    assert not out.spoken and out.no_satellite and out.entities == []
+    assert out.problem == "no Echo in the Garage can speak it"
+    assert ha.spoken == []  # never the configured "everywhere" list instead
+    assert [i["text"] for i in announcements.feed("alice", "echo-g")] == ["Hi"]
+    assert announcements.feed("alice", "echo-1") == []
+
+
+async def test_a_device_with_no_satellite_is_spoken_nowhere(ha):
+    hello(device_id="echo-7", name="Attic Echo", area="Attic")
+    out = await announcements.deliver("alice", "Hi", {"device_id": "echo-7"},
+                                      transport=ha.transport)
+    assert not out.spoken and out.problem == "no Echo for Attic Echo can speak it"
+    out = await announcements.deliver("alice", "Hi", {"device_id": "never-seen"},
+                                      transport=ha.transport)
+    assert out.problem == "no Echo for that device can speak it"
+    assert ha.spoken == [] and out.item is not None
+
+
+async def test_home_assistant_unable_to_list_satellites_speaks_nowhere(ha):
+    ha.template_status = 500
+    out = await announcements.deliver("alice", "Hi", {"area": "Kitchen"},
+                                      transport=ha.transport)
+    assert not out.spoken and out.no_satellite and ha.spoken == []
+    assert out.problem.startswith("no Echo in the Kitchen can speak it (Home Assistant")
+
+
+async def test_a_reminder_to_all_still_uses_the_configured_list(ha):
+    out = await announcements.deliver("alice", "Reminder: Bins", "all", kind="reminder",
+                                      ref="todo:41", transport=ha.transport)
+    assert out.spoken and not out.no_satellite and ha.templates == []
+    assert ha.spoken == [{"entity_id": ["assist_satellite.everywhere"],
+                          "message": "Reminder: Bins"}]
 
 
 async def test_all_uses_the_configured_list_without_asking(ha):
@@ -288,12 +316,25 @@ def test_the_admin_test_announcement_to_one_device(ha, monkeypatch):
         (body["id"], "Verification test", {"device_id": "echo-verify-1"},
          "Test announcement")]
     assert announcements.feed("alice", "echo-kitchen") == []  # no real device sees it
-    # speak: through deliver, to that device's satellites (here: the configured list)
+    # speak: through deliver, to that device's satellite; with none it is said nowhere
     monkeypatch.setattr(announcements, "satellites", _no_satellites)
     res = client.post("/api/fork/voice/announce",
                       json={"device_id": "echo-verify-1", "speak": True})
+    assert res.json()["spoken"] is False and res.json()["ok"] is False
+    assert res.json()["problem"] == "no Echo for that device can speak it"
+    assert ha.spoken == []
+
+    async def one_satellite(**_):
+        return [announcements.Satellite("assist_satellite.kitchen_echo", "kitchen",
+                                        "Kitchen", "Kitchen Echo")]
+
+    monkeypatch.setattr(announcements, "satellites", one_satellite)
+    hello(device_id="echo-verify-2", name="Kitchen Echo", area="Kitchen")
+    res = client.post("/api/fork/voice/announce",
+                      json={"device_id": "echo-verify-2", "speak": True})
     assert res.json()["spoken"] is True and res.json()["ok"] is True
-    assert ha.spoken[-1]["message"] == satellite_routes.TEST_MESSAGE
+    assert ha.spoken[-1] == {"message": satellite_routes.TEST_MESSAGE,
+                             "entity_id": ["assist_satellite.kitchen_echo"]}
     assert client.post("/api/fork/voice/announce", json={"device_id": "x"},
                        headers={"x-token": "1"}).status_code == 403
     assert client.post("/api/fork/voice/announce",
@@ -302,3 +343,57 @@ def test_the_admin_test_announcement_to_one_device(ha, monkeypatch):
 
 async def _no_satellites(**_):
     return []
+
+
+# ------------------------------------------------------------------- edge cases
+@pytest.mark.parametrize("code", ["²", "１２", "٣"])
+def test_hello_refuses_non_ascii_digits(api, code):
+    res = api.post(PREFIX + "/satellite/hello", headers=VOICE,
+                   data={"device_id": "echo-1", "app_version_code": code})
+    assert res.status_code == 422
+
+
+@pytest.mark.parametrize("since", [str(10 ** 30), str(-(10 ** 30)), "-5"])
+def test_the_feed_survives_any_since(api, since):
+    a = announcements.store("alice", "For everyone", "all")
+    res = api.get(PREFIX + "/announcements", headers=VOICE,
+                  params={"device_id": "echo-1", "since": since})
+    assert res.status_code == 200
+    expected = [] if since == str(10 ** 30) else [a["id"]]
+    assert [x["id"] for x in res.json()["announcements"]] == expected
+
+
+def test_the_feed_keeps_the_newest_fifty(data_dir):
+    now = 1_762_434_000.0
+    made = [announcements.store("alice", f"Item {i}", "all", now=now + i)["id"]
+            for i in range(60)]
+    got = [x["id"] for x in announcements.feed("alice", "echo-1", now=now + 61)]
+    assert got == made[-announcements.MAX_FEED:]
+
+
+def test_targets_match_rooms_by_slug_and_devices_exactly(data_dir):
+    hello(device_id="echo-1", name="Kids' Room", area="Kids’ Room")
+    hello(device_id="echo-2", name="Kitchen", area="kitchen")
+    k = announcements.store("alice", "Bedtime", {"area": "kids room"})
+    d = announcements.store("alice", "Only one", {"device_id": "ECHO-2"})
+    assert [x["id"] for x in announcements.feed("alice", "echo-1")] == [k["id"]]
+    assert announcements.feed("alice", "echo-2") == []  # device ids are exact
+    assert d["target"] == {"device_id": "ECHO-2"}
+
+
+def test_the_registry_is_written_off_the_event_loop(api, monkeypatch):
+    threads = []
+    real = devices.seen
+
+    def seen(*a, **kw):
+        try:
+            asyncio.get_running_loop()
+            threads.append("on the loop")
+        except RuntimeError:
+            threads.append("worker")
+        return real(*a, **kw)
+
+    monkeypatch.setattr(devices, "seen", seen)
+    api.post(PREFIX + "/satellite/hello", headers=VOICE, data={"device_id": "echo-1"})
+    api.post(PREFIX + "/satellite/turn", headers=VOICE, data={"device_id": "echo-1"})
+    assert threads == ["worker", "worker"]

@@ -165,7 +165,8 @@ def setup_satellite_routes() -> APIRouter:
             audio = await _audio(form)
         entry = satellite.register(owner, device_id=device_id, started_at_ms=started,
                                    audio=audio, **fields)
-        _seen(owner, device_id, fields.get("device_name"), fields.get("area"))
+        await asyncio.to_thread(_seen, owner, device_id, fields.get("device_name"),
+                                fields.get("area"))
         if interrupts.adopt(owner, device_id):
             # Home Assistant asked before this post arrived: the context is that turn's,
             # so a barge-in on this device can end it (fork/voice/interrupts.py).
@@ -192,9 +193,10 @@ def setup_satellite_routes() -> APIRouter:
             device_id = _text(form, "device_id", required=True)
             name, area = _text(form, "device_name"), _text(form, "area")
             version = _text(form, "app_version_code")
-        if version and not version.isdigit():
+        if version and not (version.isascii() and version.isdigit()):
             raise HTTPException(422, "app_version_code must be a whole number")
-        _seen(owner, device_id, name, area, int(version) if version else None)
+        await asyncio.to_thread(_seen, owner, device_id, name, area,
+                                int(version) if version else None)
         return {"ok": True}
 
     @router.get(PREFIX + "/announcements")

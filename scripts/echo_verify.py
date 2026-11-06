@@ -13,7 +13,9 @@ check failed. Read-only, except:
 * a **test announcement**, only with ``--admin-user`` and ``--password-file`` (the route
   is admin-only): kept for the feed of a made-up device ``echo-verify-<time>``, so no
   screen shows it and nothing is spoken. With ``--speak`` it goes to ``--device-id`` (a
-  real Echo) instead, which shows it and says it aloud.
+  real Echo) instead, which shows it and says it aloud on that Echo's Home Assistant
+  satellite (by its name, else its room); when Home Assistant has none for it, it is said
+  nowhere and the check fails.
 * ``satellite/hello``, only with ``--device-id``: sends that device's id alone, which keeps
   its stored name, room and version and only refreshes its last-seen time.
 
@@ -188,9 +190,12 @@ def today_problem(body: Any) -> str | None:
     for key in TODAY_LISTS:
         if not isinstance(body.get(key), list):
             return f"{key} isn't a list"
-    for row in body["todos"] + body["focus"]:
+    for row in body["todos"]:
         if not isinstance(row, dict) or not str(row.get("ref", "")).startswith("todo:"):
             return "a to-do without a todo: ref"
+    for row in body["focus"]:  # a to-do, an event, a loop or a plan: todo:, event:, …
+        if not isinstance(row, dict) or not isinstance(row.get("ref"), str) or not row["ref"]:
+            return "a focus row without a ref"
     for row in body["events"]:
         if not isinstance(row, dict) or not row.get("start") or "all_day" not in row:
             return "an event without start or all_day"
@@ -289,6 +294,10 @@ def check_hello(http: Http, opts: Options) -> Result:
     return Result("satellite/hello", FAIL, _why(res))
 
 
+# "settings": the device's hub-managed settings changed (no card; fork/voice/device_settings.py)
+FEED_KINDS = ("reminder", "announcement", "settings")
+
+
 def feed_problem(body: Any) -> str | None:
     if not isinstance(body, dict) or not isinstance(body.get("announcements"), list):
         return "no announcements list"
@@ -297,7 +306,7 @@ def feed_problem(body: Any) -> str | None:
             return "an announcement isn't an object"
         if not str(row.get("id", "")).startswith("an_"):
             return "an announcement without an an_ id"
-        if row.get("kind") not in ("reminder", "announcement"):
+        if row.get("kind") not in FEED_KINDS:
             return f"unknown kind {row.get('kind')!r}"
         if not isinstance(row.get("target"), dict):
             return "an announcement whose target isn't an object"
@@ -400,7 +409,11 @@ def check_announcement(http: Http, opts: Options) -> Result:
                                   "must be the same owner)")
     if opts.speak:
         if not answer.get("spoken"):
-            return Result(name, FAIL, f"in the feed, not spoken: {answer.get('problem')}")
+            problem = str(answer.get("problem") or "")
+            hint = (" (Home Assistant needs an assist_satellite named like the Echo, or in "
+                    "its room; nothing was said anywhere else)"
+                    if problem.startswith("no Echo") else "")
+            return Result(name, FAIL, f"in the feed, not spoken: {problem}{hint}")
         return Result(name, PASS, "in the device's feed and spoken; the Echo shows it")
     return Result(name, PASS, f"in the feed of {device_id} only; not spoken, no screen "
                               "shows it")
@@ -450,7 +463,8 @@ def main(argv: list[str] | None = None, http: Http | None = None) -> int:
     ap.add_argument("--admin-user", default="", help="admin, for the test announcement")
     ap.add_argument("--password-file", help="a file holding that admin's password")
     ap.add_argument("--speak", action="store_true",
-                    help="send the test announcement to --device-id and say it aloud")
+                    help="send the test announcement to --device-id and say it aloud on "
+                         "its Home Assistant satellite (nowhere else)")
     ap.add_argument("--full-apk", action="store_true", help="download the whole APK")
     args = ap.parse_args(argv)
     token = (args.token or (_read(args.token_file) if args.token_file else "")

@@ -4,8 +4,10 @@ Contract C5. A tap on the device's own screen (the Echo's Today page or a remind
 is the owner's confirmation, so these need no spoken "yes". Scope ``voice``, the same
 token check as the other voice routes (:func:`fork.voice.routes.voice_owner`)::
 
-    POST …/todos/done         {"ref": "todo:<note id>:<item index>", "device_id": "…"}
-    POST …/reminders/done     {"ref": "todo:<note id>[:<item index>]", "device_id": "…"}
+    POST …/todos/done         {"ref": "todo:<note id>:<item index>", "device_id": "…",
+                               "title"?: "<the row's text>"}
+    POST …/reminders/done     {"ref": "todo:<note id>[:<item index>]", "device_id": "…",
+                               "title"?: "…"}
     POST …/action-items/done  {"id": "17", "device_id": "…"}
     POST …/todos/undo         {"ref": "todo:<note id>:<item index>", "device_id"?}
     POST …/action-items/undo  {"id": "17", "device_id"?}
@@ -15,6 +17,13 @@ token check as the other voice routes (:func:`fork.voice.routes.voice_owner`)::
   to a note (``PATCH archived: true``). The reminder scanner and the notes page skip
   archived notes, so it doesn't fire again, and it can be restored from the archive.
   A reminder ref with an item index ticks that item instead, as ``todos/done``.
+* ``title`` (optional, the row's text the device showed) guards against a stale index:
+  lines added, removed or moved since the device fetched Today. When the line at the
+  index doesn't read ``title`` (compared as ``/today`` titles a line: whitespace
+  collapsed, its first 200 characters, any case), the line with that text is ticked
+  instead (an unticked one first); when no line reads it, 409 ``{"error": "changed"}``
+  and nothing changes. Without ``title`` (older devices) the index alone counts, and so it
+  does for a reminder card whose ``title`` is its note's title (the card shows that).
 * An Athena action item gets ``status: done`` through the hub's Athena link
   (``PATCH /action-items/{id}``, the relay's own write, ``fork/athena/call_recorder.py``).
 
@@ -25,8 +34,10 @@ to-do item or an action item within :data:`UNDO_SECONDS` of a done by a device (
 ledger action is removed); later, or for one a device didn't close, 409. A device's dones
 are kept in ``<DATA_DIR>/fork_voice.db`` (table ``device_done``) for a day, owner-scoped.
 
-Errors: 400 for a malformed body, ref or id; 404 ``{"error": "not found"}``; 503
-``{"error": "athena unavailable"}`` when Athena can't be reached.
+Errors: 400 for a malformed body, ref, id or title; 404 ``{"error": "not found"}``; 409
+``{"error": "changed"}`` (the line the device showed is gone) or ``{"error": "too late to
+undo"}``; 503 ``{"error": "athena unavailable"}`` when Athena can't be reached, 503
+``{"error": "busy"}`` on a database error (locked, …; only its type is logged).
 """
 from __future__ import annotations
 
@@ -35,6 +46,7 @@ import json
 import logging
 import re
 import sqlite3
+import threading
 import time
 import uuid
 from collections.abc import Iterator
@@ -88,6 +100,10 @@ class Failure(Exception):
 NOT_FOUND = Failure(404, "not found")
 UNAVAILABLE = Failure(503, "athena unavailable")
 TOO_LATE = Failure(409, "too late to undo")
+CHANGED = Failure(409, "changed")
+BUSY = Failure(503, "busy")
+TITLE_CHARS = 200  # /today titles a line by its first 200 characters
+MAX_TITLE_IN = 2000
 
 
 # ------------------------------------------------------------------- device dones
@@ -193,6 +209,15 @@ def parse_item_id(value: Any) -> int:
     return int(m.group(1))
 
 
+def parse_title(value: Any) -> str:
+    """The optional ``title`` of a done, as a line key; "" when not given."""
+    if value is None:
+        return ""
+    if not isinstance(value, str) or len(value) > MAX_TITLE_IN:
+        raise Failure(400, "title must be the row's text")
+    return _line_key(value)
+
+
 def parse_device_id(value: Any) -> str:
     device_id = " ".join(str(value).split()) if isinstance(value, str) else ""
     if not device_id or len(device_id) > MAX_DEVICE_ID:
@@ -215,6 +240,36 @@ def _item_text(item: Any) -> str:
 
 def _item_done(item: Any) -> bool:
     return isinstance(item, dict) and bool(item.get("done") or item.get("checked"))
+
+
+def _line_key(text: Any) -> str:
+    """A line's text as ``/today`` titles it (``fork/insight/today_candidates.py``):
+    whitespace collapsed, its first :data:`TITLE_CHARS` characters; any case."""
+    return re.sub(r"\s+", " ", str(text or "")).strip()[:TITLE_CHARS].strip().casefold()
+
+
+def _shown_line(items: list, index: int, key: str) -> int:
+    """The line a device's done means: at ``index`` when it reads ``key`` (or no ``key``
+    was given), else the line that reads it, an unticked one first, the nearest to
+    ``index``. :data:`NOT_FOUND` / :data:`CHANGED` when there is none."""
+    here = index < len(items) and isinstance(items[index], dict)
+    if not key:
+        if not here:
+            raise NOT_FOUND
+        return index
+    if here and _line_key(_item_text(items[index])) == key:
+        return index
+    same = [i for i, it in enumerate(items)
+            if isinstance(it, dict) and _line_key(_item_text(it)) == key]
+    if not same:
+        raise CHANGED
+    same.sort(key=lambda i: (_item_done(items[i]), abs(i - index), i))
+    return same[0]
+
+
+# A device's read-change-write of a note's items is one at a time, so two Echos (or two
+# quick taps) ticking two lines of one note don't overwrite each other's tick.
+_NOTES_LOCK = threading.Lock()
 
 
 @contextmanager
@@ -240,15 +295,15 @@ def _save_items(db: Any, note: Any, items: list) -> None:
     db.commit()
 
 
-def todo_done(owner: str, ref: Any, device_id: Any, *, kind: str = "todo") -> dict:
+def todo_done(owner: str, ref: Any, device_id: Any, *, kind: str = "todo",
+              title: Any = None) -> dict:
     note_id, index = parse_todo_ref(ref)
     device_id = parse_device_id(device_id)
+    key = parse_title(title)
     target = f"todo:{note_id}:{index}"
-    with _note(owner, note_id) as (db, note):
+    with _NOTES_LOCK, _note(owner, note_id) as (db, note):
         items = _items(note)
-        if index >= len(items) or not isinstance(items[index], dict):
-            raise NOT_FOUND
-        item = items[index]
+        item = items[_shown_line(items, index, key)]
         title = _item_text(item)
         if _item_done(item):
             return {"ok": True, "already": True, "title": title}
@@ -260,23 +315,34 @@ def todo_done(owner: str, ref: Any, device_id: Any, *, kind: str = "todo") -> di
     return {"ok": True, "already": False, "title": title}
 
 
+def _ticked_line(items: list, index: int, text: str) -> int:
+    """The line a device ticked: at its index, else by its text (lines moved or were
+    removed since); of equal lines, a ticked one. :data:`NOT_FOUND` when it's gone."""
+    here = index < len(items) and isinstance(items[index], dict)
+    if not text:
+        if not here:
+            raise NOT_FOUND
+        return index
+    same = [i for i, it in enumerate(items) if isinstance(it, dict) and _item_text(it) == text]
+    if not same:
+        raise NOT_FOUND
+    ticked = [i for i in same if _item_done(items[i])]
+    if ticked:
+        return index if index in ticked else ticked[0]
+    return index if index in same else same[0]
+
+
 def todo_undo(owner: str, ref: Any, now: float | None = None) -> dict:
     note_id, index = parse_todo_ref(ref)
     target = f"todo:{note_id}:{index}"
-    with _note(owner, note_id) as (db, note):
+    with _NOTES_LOCK, _note(owner, note_id) as (db, note):
         items = _items(note)
-        if index >= len(items) or not isinstance(items[index], dict):
-            raise NOT_FOUND
         done = last_done(owner, target, now)
         if done is None:
-            raise TOO_LATE
-        # The line the device ticked: at its index, else by its text (lines moved since).
-        text = done.get("item_text") or ""
-        at = index
-        if text and _item_text(items[index]) != text:
-            at = next((i for i, it in enumerate(items) if _item_text(it) == text), -1)
-            if at < 0:
+            if index >= len(items) or not isinstance(items[index], dict):
                 raise NOT_FOUND
+            raise TOO_LATE
+        at = _ticked_line(items, index, done.get("item_text") or "")
         item = items[at]
         if not _item_done(item):
             mark_undone(done["id"], now)
@@ -291,14 +357,22 @@ def todo_undo(owner: str, ref: Any, now: float | None = None) -> dict:
     return {"ok": True, "already": False, "title": _item_text(item)}
 
 
-def reminder_done(owner: str, ref: Any, device_id: Any) -> dict:
+def _note_title_key(owner: str, ref: str) -> str:
+    note_id, _index = parse_todo_ref(ref)
+    with _note(owner, note_id) as (_db, note):
+        return _line_key(note.title)
+
+
+def reminder_done(owner: str, ref: Any, device_id: Any, title: Any = None) -> dict:
     """``todo:<note id>`` archives the reminder's note; ``todo:<note id>:<index>`` (a ref
-    naming one line) ticks that line, as :func:`todo_done`."""
+    naming one line) ticks that line, as :func:`todo_done` (``title`` guards its index)."""
     if isinstance(ref, str) and TODO_REF.match(ref.strip()):
-        return todo_done(owner, ref, device_id, kind="reminder")
+        if parse_title(title) and parse_title(title) == _note_title_key(owner, ref):
+            title = None  # a reminder card titled by its note, not the line: the index counts
+        return todo_done(owner, ref, device_id, kind="reminder", title=title)
     note_id = parse_reminder_ref(ref)
     device_id = parse_device_id(device_id)
-    with _note(owner, note_id) as (db, note):
+    with _NOTES_LOCK, _note(owner, note_id) as (db, note):
         title = str(note.title or "").strip() or "Reminder"
         if note.archived:
             return {"ok": True, "already": True, "title": title}
@@ -389,6 +463,17 @@ async def _body(request: Request) -> dict:
     return body
 
 
+def _db_errors() -> tuple[type[BaseException], ...]:
+    try:
+        from sqlalchemy.exc import SQLAlchemyError
+    except ImportError:  # pragma: no cover -- the hub always has SQLAlchemy
+        return (sqlite3.Error,)
+    return (sqlite3.Error, SQLAlchemyError)
+
+
+_DB_ERRORS = _db_errors()
+
+
 def setup_voice_done_routes() -> APIRouter:
     from fork.voice.routes import PREFIX, voice_owner
 
@@ -401,11 +486,14 @@ def setup_voice_done_routes() -> APIRouter:
             return await work(owner, body)
         except Failure as f:
             return JSONResponse(status_code=f.status, content={"error": f.error})
+        except _DB_ERRORS as exc:  # locked, disk I/O, …: try again later
+            logger.warning("voice done: database error %s", type(exc).__name__)
+            return JSONResponse(status_code=BUSY.status, content={"error": BUSY.error})
 
     @router.post(PREFIX + "/todos/done")
     async def todos_done(request: Request) -> Any:
         return await run(request, lambda o, b: asyncio.to_thread(
-            todo_done, o, b.get("ref"), b.get("device_id")))
+            todo_done, o, b.get("ref"), b.get("device_id"), title=b.get("title")))
 
     @router.post(PREFIX + "/todos/undo")
     async def todos_undo(request: Request) -> Any:
@@ -414,7 +502,7 @@ def setup_voice_done_routes() -> APIRouter:
     @router.post(PREFIX + "/reminders/done")
     async def reminders_done(request: Request) -> Any:
         return await run(request, lambda o, b: asyncio.to_thread(
-            reminder_done, o, b.get("ref"), b.get("device_id")))
+            reminder_done, o, b.get("ref"), b.get("device_id"), b.get("title")))
 
     @router.post(PREFIX + "/action-items/done")
     async def action_items_done(request: Request) -> Any:

@@ -265,3 +265,70 @@ console.log(JSON.stringify(out));
     assert out["ok"] == {"home.enabled": False, "followup.seconds": 8}
     assert out["bad"] == ["Listen: a whole number from 3 to 15"] * 4
     assert out["line"] == "Kitchen · app 1400030 · seen 5 min ago"
+
+
+# ------------------------------------------------------------------- edge cases
+@pytest.mark.parametrize("stored", ["not json", "[1, 2]", "7", "null"])
+def test_a_damaged_row_reads_as_nothing_set_and_can_be_replaced(data_dir, stored):
+    device_settings.replace("alice", "echo-1", {"home.enabled": False}, notify=False)
+    with device_settings._connect(write=True) as db:
+        db.execute("UPDATE device_settings SET settings = ?", (stored,))
+    assert device_settings.get("alice", "echo-1") == {"version": 1, "settings": {}}
+    out = device_settings.replace("alice", "echo-1", {"home.enabled": True}, notify=False)
+    assert out == {"version": 2, "settings": {"home.enabled": True}}
+
+
+def test_saves_at_once_each_get_their_own_version(data_dir):
+    from concurrent.futures import ThreadPoolExecutor
+
+    with ThreadPoolExecutor(8) as pool:
+        versions = list(pool.map(
+            lambda s: device_settings.replace("alice", "echo-1", {"followup.seconds": s},
+                                              notify=False)["version"], range(3, 15)))
+    assert sorted(versions) == list(range(1, 13))
+    assert device_settings.get("alice", "echo-1")["version"] == 12
+
+
+@pytest.mark.parametrize("value", [1.0, "8", 8.5, [8], {"v": 8}, float("nan")])
+def test_ints_must_be_whole_json_numbers(value):
+    with pytest.raises(device_settings.BadSettings):
+        device_settings.validate({"followup.seconds": value})
+
+
+def test_the_admin_put_reads_the_registry_off_the_event_loop(api, monkeypatch):
+    import asyncio
+
+    hello()
+    where = []
+    real = devices.get
+
+    def get(*a, **kw):
+        try:
+            asyncio.get_running_loop()
+            where.append("on the loop")
+        except RuntimeError:
+            where.append("worker")
+        return real(*a, **kw)
+
+    monkeypatch.setattr(devices, "get", get)
+    assert put(api, "echo-1", {"home.enabled": True}).status_code == 200
+    assert where == ["worker"]
+
+
+@pytest.mark.skipif(shutil.which("node") is None, reason="needs node")
+def test_the_card_refuses_a_number_the_browser_couldnt_read():
+    """A number field the browser can't read (``"1e"``) has value "" and badInput: that
+    is an error, not "the device decides"."""
+    script = """
+const m = await import(process.argv[1]);
+const out = [];
+for (const input of [{value: '', validity: {badInput: true}}, {value: '', validity: {badInput: false}},
+                     {value: '8'}, {value: ''}]) {
+  try { out.push(m.rawValue(input)); } catch (e) { out.push('error: ' + e.message); }
+}
+console.log(JSON.stringify(out));
+"""
+    url = (REPO / "static" / "js" / "forkVoiceDevices.js").as_uri()
+    done = subprocess.run(["node", "--input-type=module", "-e", script, url],
+                          capture_output=True, text=True, check=True, timeout=30)
+    assert json.loads(done.stdout) == ["error: A number: not a number", "", "8", ""]

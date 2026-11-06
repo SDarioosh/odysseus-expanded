@@ -33,6 +33,7 @@ class FakeHub(ev.Http):
         self.override: dict[tuple[str, str], ev.Response] = {}
         self.signed_in = False
         self.feed: list[dict] = []
+        self.no_satellite = False
         self.owner_feed = owner_feed
 
     def send(self, method, path, *, headers=None, body=None):
@@ -88,6 +89,9 @@ class FakeHub(ev.Http):
                    "text": sent["message"], "target": {"device_id": sent["device_id"]},
                    "ref": None}
             self.feed.append(row)
+            if sent["speak"] and self.no_satellite:
+                return _json(200, {"ok": False, "id": row["id"], "spoken": False,
+                                   "problem": "no Echo for Attic Echo can speak it"})
             return _json(200, {"ok": True, "problem": None, "id": row["id"],
                                "spoken": bool(sent["speak"])})
         return _json(404, {"detail": "Not Found"})
@@ -158,6 +162,12 @@ def test_the_announcement_goes_to_a_made_up_device_unless_spoken():
     r = ev.check_announcement(hub, opts(admin_user="admin", admin_password="pw", speak=True,
                                         device_id="echo-kitchen"))
     assert r.status == ev.PASS and "spoken" in r.detail
+    hub = FakeHub()
+    hub.no_satellite = True  # Home Assistant has no satellite for that Echo
+    r = ev.check_announcement(hub, opts(admin_user="admin", admin_password="pw", speak=True,
+                                        device_id="echo-attic"))
+    assert r.status == ev.FAIL and "no Echo for Attic Echo can speak it" in r.detail
+    assert "nothing was said anywhere else" in r.detail
 
 
 def test_announcement_failures():
@@ -199,6 +209,7 @@ def test_a_wrong_apk_fails():
     ({"date": None}, "no date"),
     ({"todos": None}, "todos isn't a list"),
     ({"todos": [{"ref": "41", "title": "x"}]}, "a to-do without a todo: ref"),
+    ({"focus": [{"title": "x", "why": "y"}]}, "a focus row without a ref"),
     ({"events": [{"title": "x"}]}, "an event without start or all_day"),
     ({"action_items": [{"title": "x"}]}, "an action item without id or title"),
     ({"counts": {"todos_open": 1}}, "counts missing"),
@@ -209,9 +220,22 @@ def test_today_problems(change, problem):
     assert ev.today_problem(TODAY) is None
 
 
+def test_today_focus_may_name_an_event_a_loop_or_a_plan():
+    # The Today insight's focus holds events (their uid) as well as to-dos (sandbox run).
+    focus = [{"ref": "todo:0ba57096-fbe2-4dd4-9715-b68334f36ffb:0", "title": "Call the plumber",
+              "why": "Due today"},
+             {"ref": "205e6a2c-b081-4e7e-974e-1bc830e0c30d", "title": "Dentist", "why": "At 15:00"},
+             {"ref": "loop:3", "title": "Reply to Sam", "why": "Waiting"}]
+    assert ev.today_problem({**TODAY, "focus": focus}) is None
+
+
 def test_feed_and_release_problems():
     good = {"id": "an_1", "at": 1, "expires_at": 2, "kind": "reminder", "target": {"all": True}}
     assert ev.feed_problem({"announcements": [good]}) is None
+    # a device's settings changed (round 2): the device refetches them, the feed carries it
+    settings = {**good, "kind": "settings", "target": {"device_id": "echo-1"},
+                "ref": "settings:2"}
+    assert ev.feed_problem({"announcements": [good, settings]}) is None
     assert ev.feed_problem({"announcements": [{**good, "kind": "x"}]}) == "unknown kind 'x'"
     assert ev.feed_problem({"announcements": [{**good, "target": "all"}]})
     assert ev.feed_problem({"announcements": [{**good, "at": "1"}]})
@@ -263,3 +287,22 @@ def test_main_reads_the_token_and_checks_arguments(tmp_path, monkeypatch, capsys
                 http=FakeHub())
     monkeypatch.setenv("ODYSSEUS_ECHO_TOKEN", TOKEN)
     assert ev.main(["--url", "http://x", "--no-voice-note"], http=FakeHub()) == 0
+
+
+# ------------------------------------------------------------------- edge cases
+def test_today_focus_may_name_events_loops_and_beliefs():
+    body = {**TODAY, "focus": [{"ref": "event:dentist", "title": "Dentist", "why": "At 3"},
+                               {"ref": "loop:7", "title": "Reply to Sam", "why": ""},
+                               {"ref": "todo:41:2", "title": "Call the plumber", "why": ""}]}
+    assert ev.today_problem(body) is None
+    assert ev.today_problem({**TODAY, "focus": [{"ref": "", "title": "x"}]}) is not None
+    assert ev.today_problem({**TODAY, "todos": [{"ref": "event:x", "title": "x"}]}) \
+        is not None
+
+
+def test_a_settings_item_in_the_feed_is_fine():
+    row = {"id": "an_1", "at": 1, "expires_at": 2, "kind": "settings",
+           "target": {"device_id": "echo-1"}, "title": "Settings",
+           "text": "Settings changed in Odysseus.", "ref": "settings:3"}
+    assert ev.feed_problem({"announcements": [row]}) is None
+    assert ev.feed_problem({"announcements": [{**row, "kind": "spam"}]}) is not None

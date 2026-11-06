@@ -289,7 +289,7 @@ reminder cards have Done buttons. A tap on the device's own screen is the confir
 so these need no spoken "yes". Same `voice` token as the other routes.
 
 ```
-POST …/todos/done         {"ref": "todo:41:2", "device_id": "…"} -> {"ok": true, "already": false, "title": "Call the plumber"}
+POST …/todos/done         {"ref": "todo:41:2", "device_id": "…", "title"?: "Call the plumber"} -> {"ok": true, "already": false, "title": "Call the plumber"}
 POST …/reminders/done     {"ref": "todo:41", "device_id": "…"}   -> {"ok": true, "already": false, "title": "Take the bins out"}
 POST …/action-items/done  {"id": "17", "device_id": "…"}         -> {"ok": true, "already": false, "title": "Send Sam the photos"}
 POST …/todos/undo         {"ref": "todo:41:2", "device_id": "…"} -> {"ok": true, "already": false, "title": "Call the plumber"}
@@ -302,6 +302,16 @@ POST …/action-items/undo  {"id": "17", "device_id": "…"}         -> {"ok": t
 | `reminders/done` | archives note 41 (the `ref` of a `kind: reminder` announcement). This is what the notes page's ✓ Done does to a note (`PATCH archived: true`, for a note with or without items, repeating or not), so a reminder finished on the Echo looks the same as one finished in the browser: the reminder scanner (`ping_notes`) and the notes page skip archived notes, so it doesn't fire again, and it can be restored from the notes archive. Ticking the note's one item or clearing its due date (the plan's other options) would leave a reminder the notes page still shows. The `ref` is taken as the feed carries it: a ref with an item index (`todo:41:2`) ticks that item instead, as `todos/done` |
 | `action-items/done` | Athena's `status: done` through the hub's Athena link (`PATCH /action-items/{id}`, the relay's own write; the item is first read with `GET /action-items?status=all`, for its title and whether it is already done). `id` is Athena's id as `GET …/today` gives it (`"17"`); a number and `"ai_17"` are read too |
 
+- **A stale index:** a to-do's `ref` names a line by its index, and the owner may have
+  added, removed or moved lines since the device fetched Today. So `todos/done` (and
+  `reminders/done` with a ref that has an index) take an optional `title`: the row's text
+  the device showed. When the line at the index doesn't read it (compared as `/today`
+  titles a line: whitespace collapsed, the first 200 characters, any case), the line that
+  does is ticked instead (an unticked one first, then the nearest); when no line reads it,
+  409 `{"error": "changed"}` and nothing changes (the device puts the row back and fetches
+  Today again). Without `title` (Echo builds before it) the index alone counts, as
+  before. A whole-note reminder ref (`todo:41`) ignores `title`, and so does a reminder
+  ref with an index whose `title` is the note's own title (what a reminder card shows).
 - **Idempotent:** a to-do item already ticked, a note already archived or an item already
   done answers 200 with `"already": true` and changes nothing.
 - **Recorded:** each change is a `completed` action in the turn ledger (`kind` `todo`,
@@ -317,11 +327,16 @@ POST …/action-items/undo  {"id": "17", "device_id": "…"}         -> {"ok": t
   the owner may undo) and is ignored.
   A reminder has no undo route: unarchive it on the notes page.
 - **Errors:** 400 `{"error": "…"}` for a body that isn't a JSON object, a malformed
-  `ref` or `id`, or no `device_id` (done routes; at most 128 characters); 404
+  `ref` or `id`, a `title` that isn't text (or over 2000 characters), or no `device_id`
+  (done routes; at most 128 characters); 404
   `{"error": "not found"}` for a note that isn't the owner's or doesn't exist, an item
   index past the end, or an action item Athena doesn't have; 503 `{"error": "athena
   unavailable"}` when Athena isn't set up, is down, refuses the hub's token or takes
-  more than 5 s; 403 without the `voice` scope.
+  more than 5 s; 503 `{"error": "busy"}` on a database error (SQLite "database is
+  locked", disk I/O, any SQLAlchemy error; only the exception's type is logged, never the
+  line's text): the device tries again later; 409 `{"error": "changed"}` (above) and
+  `{"error": "too late to undo"}` (undo routes only) are told apart by their text; 403
+  without the `voice` scope.
 - Notes are only the token owner's (`Note.owner`). Athena has one owner, as for
   `GET …/today`.
 
@@ -627,8 +642,9 @@ logged without the message. Later features (a spoken daily briefing) call it the
   that one device instead (titled "Test announcement"): kept for its feed only, or also
   spoken with `"speak": true` (through `deliver`) → `{"ok", "problem", "id", "spoken"}`.
   [`scripts/echo_verify.py`](#checking-a-server-for-the-echos) sends one to a made-up
-  device id, so no screen shows it and nothing is said. (A device target that matches no
-  satellite falls back to the configured list when spoken, so speaking is opt-in.)
+  device id, so no screen shows it and nothing is said. Spoken, a device target is said
+  only on that device's satellite; one that matches none is said nowhere (`spoken:
+  false`, `problem` "no Echo for … can speak it").
 - **One Home Assistant address:** announcements and the Echo link use
   `fork/voice/ha_settings.py`'s `home_assistant_url()`: the address **Set up Home
   Assistant** saved (only after a setup that succeeded), or `FORK_HA_URL` when it is set,
@@ -723,7 +739,12 @@ ref=…)` keeps the announcement for the devices' feed and speaks it. `target` i
   `living_room`).
 - A device: the satellite whose name starts with the device's name (exactly one), else the
   satellites of the device's room.
-- No satellite found, or Home Assistant can't list them: the configured list.
+- No satellite found for an area or device, or Home Assistant can't list them: it is kept
+  for that target's feed (its screens show it) but **spoken nowhere**, never on the
+  configured list instead, so "tell the bedroom" is never said in every room. `deliver`
+  returns `spoken: false`, `no_satellite: true` and a `problem` such as "no Echo in the
+  Bedroom can speak it" (or "no Echo for Bedroom Echo can speak it"). Only `"all"` (the
+  announce tool's "everywhere", reminders) uses the configured list.
 - The same rules as before: Home Assistant only on the owner's network (`check_url`), its
   token from `FORK_HA_TOKEN`; never raises. Without a Home Assistant address and token the
   announcement is only kept for the feed.
@@ -767,7 +788,9 @@ and token are set. Speaking aloud is a write:
   (`fork/voice/confirm.py`, `WRITABLE`): "Announce “Dinner is ready” in the Kitchen?". A
   room nobody knows is refused. The ledger records it as `kind: "announcement"`.
 - A room the hub doesn't know is an error that names the known rooms; Home Assistant down
-  still shows it on the devices' screens (the result says it wasn't spoken).
+  still shows it on the devices' screens (the result says it wasn't spoken). A room or
+  device Home Assistant has no satellite for is spoken nowhere; the result tells the model
+  "Not spoken aloud anywhere: no Echo in the Bedroom can speak it…" to pass on.
 
 ### Settings
 
@@ -878,7 +901,8 @@ install (Android shows its own prompt; no silent install).
   ```
 
   The script copies the APK to a temp file in `echo_app/` while working out its sha256,
-  renames it into place, then writes `release.json` the same way. It refuses a file that
+  renames it into place, then writes `release.json` the same way; two publishes at once
+  take turns (a lock on `echo_app/.publish.lock`). It refuses a file that
   isn't a zip, and a `--version-code` lower than the published one unless `--force` (an
   Echo would never install it). It doesn't read the APK's manifest: pass what the Echo
   build printed (`./gradlew printVersionName printVersionCode`). Releases signed with a
@@ -961,7 +985,9 @@ What it changes, and nothing else:
 - **The test announcement** ("Odysseus verification test, please ignore (<time>).") goes to
   the feed of a made-up device `echo-verify-<UTC time>`: no Echo shows it and nothing is
   spoken; it expires after an hour and is deleted after a day. With `--speak` it goes to
-  `--device-id` instead: that Echo shows it and Home Assistant says it aloud. The token's
+  `--device-id` instead: that Echo shows it and Home Assistant says it aloud on that Echo's
+  satellite (by its name, else its room); with none for it, nothing is said anywhere and
+  the check fails with "no Echo for … can speak it". The token's
   owner and the admin must be the same user, or the feed check fails.
 - **hello** with `--device-id` refreshes that device's last-seen time.
 
@@ -984,6 +1010,23 @@ made by `/echo/link`'s approve POST, `curl` and `echo_verify.py` over HTTP:
 | 3 s WAV voice note, `kind=note`, through `/api/codex/athena/chunk`, `/end` | pass: Athena's session has `kind: "note"`, status `ended`; a stereo WAV and `kind=memo` 400 |
 | silent WAV note | Athena: status `done`, no conversation, audio deleted |
 | `echo_verify.py` with `--device-id`, admin sign-in | 10 passed |
+
+### Sandbox run, round 2 (2026-11-06)
+
+The same stack, with Done and device settings, over HTTP (an Echo token, a second owner's
+Echo token, tokens with only `chat` or `athena:ingest`, an admin session). The answers are
+fixtures of the Echo app's parser tests (odysseus-echo `app/src/test/resources/odysseus/hub/`).
+
+| Check | Result |
+|---|---|
+| `…/today` with a stored insight, events (all-day, daily, timed), to-dos (overdue, today, pinned), Athena's items; another owner's (empty); Athena stopped (`action_items` `[]`, 200); an owner zone of UTC+1 | pass |
+| a note due now: the reminder scanner puts a `reminder` (target `{"all": true}`, ref `todo:<note id>`) in the feed | pass |
+| hello (form, multipart, repeated; 422 without id or with a bad version, 415 JSON, 413), feed (`since`, other owner, 422) | pass |
+| test announcement to a device, area announcement (`{"area": "kitchen"}` reaches the device that said "Kitchen"), API token 403 | pass |
+| `todos/done` + undo, `reminders/done` (note archived; an item ref ticks the item), `action-items/done` + undo against Athena: already, 400, 404, 409 (never a device's, after 10 min), 503 with Athena stopped, other owner 404 | pass |
+| device settings: GET before any, admin PUT (all keys, partial, null, same again keeps the version), 400s, 404, 403 for a token; a `settings` feed item per change | pass |
+| WAV note through the relay, `/end`, duplicate chunk, `kind=memo` and stereo 400 | pass |
+| `echo_verify.py` | failed `today` (focus rows naming events) and the feed (`kind: "settings"`); fixed, then 10 passed |
 
 ## Later
 

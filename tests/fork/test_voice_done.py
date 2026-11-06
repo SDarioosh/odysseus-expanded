@@ -397,3 +397,244 @@ def test_remove_action_is_owner_scoped(data_dir):
     assert ledger.remove_action("bob", a["id"]) is False
     assert ledger.remove_action("alice", a["id"]) is True
     assert ledger.actions("alice") == []
+
+
+# ------------------------------------------------------------------- edge cases
+def _set_items(factory, note_id, items):
+    from core.database import Note
+
+    s = factory()
+    try:
+        n = s.query(Note).filter(Note.id == note_id).first()
+        n.items = json.dumps(items)
+        s.commit()
+    finally:
+        s.close()
+
+
+def test_todo_undo_finds_the_line_after_lines_above_it_were_removed(db):
+    add_note(db, "n41", items=ITEMS)
+    items = [{"text": "A", "done": False}, {"text": "B", "done": False},
+             {"text": "C", "done": False}]
+    _set_items(db, "n41", items)
+    vd.todo_done("alice", "todo:n41:2", DEVICE)  # ticks C
+    _set_items(db, "n41", get_note(db, "n41")["items"][1:])  # A deleted: C is line 1
+    assert vd.todo_undo("alice", "todo:n41:2")["already"] is False
+    assert get_note(db, "n41")["items"] == [{"text": "B", "done": False},
+                                            {"text": "C", "done": False}]
+
+
+def test_todo_undo_reopens_the_ticked_one_of_two_equal_lines(db):
+    add_note(db, "n41", items=[{"text": "Milk", "done": False},
+                               {"text": "Eggs", "done": False},
+                               {"text": "Milk", "done": False}])
+    vd.todo_done("alice", "todo:n41:2", DEVICE)  # the second "Milk"
+    items = get_note(db, "n41")["items"]
+    _set_items(db, "n41", [{"text": "Bread", "done": False}] + items)  # lines move down
+    assert vd.todo_undo("alice", "todo:n41:2")["already"] is False
+    assert [i["done"] for i in get_note(db, "n41")["items"]] == [False] * 4
+
+
+def test_done_then_undo_then_done_then_undo(db):
+    add_note(db, "n41", items=ITEMS)
+    for _ in range(2):
+        assert vd.todo_done("alice", "todo:n41:0", DEVICE)["already"] is False
+        assert vd.todo_undo("alice", "todo:n41:0")["already"] is False
+    assert get_note(db, "n41")["items"][0]["done"] is False
+    assert ledger.actions("alice") == []
+
+
+def test_dones_of_two_lines_at_once_both_stick(db, monkeypatch):
+    """Two devices tick two lines of one note at the same moment: neither is lost."""
+    import threading
+
+    add_note(db, "n41", items=[{"text": f"Line {i}", "done": False} for i in range(6)])
+    real = vd._save_items
+    gate = threading.Barrier(2, timeout=0.5)
+
+    def slow_save(*a, **kw):
+        try:
+            gate.wait()  # both have read the note before either writes
+        except threading.BrokenBarrierError:
+            pass
+        return real(*a, **kw)
+
+    monkeypatch.setattr(vd, "_save_items", slow_save)
+    threads = [threading.Thread(target=vd.todo_done, args=("alice", f"todo:n41:{i}", DEVICE))
+               for i in (1, 4)]
+    for t in threads:
+        t.start()
+    for t in threads:
+        t.join()
+    assert [i["done"] for i in get_note(db, "n41")["items"]] == [
+        False, True, False, False, True, False]
+
+
+def test_a_done_of_an_archived_note_or_another_owners_is_handled(db):
+    add_note(db, "n50", items=ITEMS, archived=True)
+    add_note(db, "n51", owner="bob", items=ITEMS)
+    assert vd.todo_done("alice", "todo:n50:0", DEVICE)["already"] is False
+    assert vd.reminder_done("alice", "todo:n50", DEVICE)["already"] is True
+    for call in (lambda: vd.todo_done("alice", "todo:n51:0", DEVICE),
+                 lambda: vd.todo_undo("alice", "todo:n51:0"),
+                 lambda: vd.reminder_done("alice", "todo:n51", DEVICE)):
+        with pytest.raises(vd.Failure) as e:
+            call()
+        assert e.value.status == 404
+    assert get_note(db, "n51")["items"] == ITEMS
+
+
+@pytest.mark.parametrize("item, ok", [("ai_17", True), ("17", True), (17, True),
+                                      (" 17 ", True), ("ai_0", False), (True, False),
+                                      ("ai-17", False), ("1e3", False), (-17, False),
+                                      ("1" * 13, False), (None, False)])
+def test_action_item_id_formats(item, ok):
+    if ok:
+        assert vd.parse_item_id(item) == 17
+    else:
+        with pytest.raises(vd.Failure):
+            vd.parse_item_id(item)
+
+
+# ------------------------------------------------ a stale index (the row's title)
+def _set_items(factory, note_id, items):
+    from core.database import Note
+
+    s = factory()
+    try:
+        n = s.query(Note).filter(Note.id == note_id).first()
+        n.items = json.dumps(items)
+        s.commit()
+    finally:
+        s.close()
+
+
+def test_todo_done_with_the_title_of_the_line_at_the_index(db):
+    add_note(db, "n41", items=ITEMS)
+    r = post(client(), "/todos/done", {"ref": "todo:n41:1", "device_id": DEVICE,
+                                       "title": "  call   the Plumber "})
+    assert r.status_code == 200 and r.json()["title"] == "Call the plumber"
+    assert [i["done"] for i in get_note(db, "n41")["items"]] == [False, True, True]
+
+
+def test_todo_done_follows_its_title_when_a_line_was_inserted_above(db):
+    add_note(db, "n41", items=ITEMS)
+    _set_items(db, "n41", [{"text": "New first line", "done": False}, *ITEMS])
+    c = client()
+    r = post(c, "/todos/done", {"ref": "todo:n41:1", "device_id": DEVICE,
+                                "title": "Call the plumber"})
+    assert r.status_code == 200
+    assert r.json() == {"ok": True, "already": False, "title": "Call the plumber"}
+    assert [i["done"] for i in get_note(db, "n41")["items"]] == [False, False, True, True]
+    assert ledger.actions("alice")[0]["title"] == "Call the plumber"
+    # undo with the same ref reopens that line, not the one now at index 1
+    r = post(c, "/todos/undo", {"ref": "todo:n41:1", "device_id": DEVICE})
+    assert r.status_code == 200 and r.json()["already"] is False
+    assert [i["done"] for i in get_note(db, "n41")["items"]] == [False, False, False, True]
+
+
+def test_todo_done_prefers_an_unticked_line_of_that_text(db):
+    add_note(db, "n41", items=[{"text": "Other", "done": False},
+                               {"text": "Buy bread", "done": True},
+                               {"text": "Buy bread", "done": False}])
+    r = post(client(), "/todos/done", {"ref": "todo:n41:0", "device_id": DEVICE,
+                                       "title": "Buy bread"})
+    assert r.json()["already"] is False
+    assert [i["done"] for i in get_note(db, "n41")["items"]] == [False, True, True]
+    # all of that text ticked already: already done
+    r = post(client(), "/todos/done", {"ref": "todo:n41:0", "device_id": DEVICE,
+                                       "title": "Buy bread"})
+    assert r.status_code == 200 and r.json()["already"] is True
+
+
+def test_todo_done_of_a_line_no_longer_there_is_409_changed(db):
+    add_note(db, "n41", items=ITEMS)
+    _set_items(db, "n41", [ITEMS[0], ITEMS[2]])  # "Call the plumber" deleted
+    for ref in ("todo:n41:1", "todo:n41:7"):
+        r = post(client(), "/todos/done", {"ref": ref, "device_id": DEVICE,
+                                           "title": "Call the plumber"})
+        assert r.status_code == 409 and r.json() == {"error": "changed"}
+    assert get_note(db, "n41")["items"] == [ITEMS[0], ITEMS[2]]
+    assert ledger.actions("alice") == []
+
+
+def test_todo_done_without_a_title_keeps_the_index_alone(db):
+    add_note(db, "n41", items=ITEMS)
+    _set_items(db, "n41", [{"text": "New first line", "done": False}, *ITEMS])
+    r = post(client(), "/todos/done", {"ref": "todo:n41:1", "device_id": DEVICE})
+    assert r.json()["title"] == "Buy bread"  # older devices: what is at the index now
+
+
+def test_a_title_is_matched_by_its_first_200_characters(db):
+    long = "Pack " + "x" * 300
+    add_note(db, "n41", items=[{"text": "Other", "done": False}, {"text": long}])
+    r = post(client(), "/todos/done", {"ref": "todo:n41:0", "device_id": DEVICE,
+                                       "title": long[:200]})
+    assert r.status_code == 200 and r.json()["title"] == long
+
+
+@pytest.mark.parametrize("title", [17, ["a"], "x" * 3000])
+def test_a_malformed_title_is_400(db, title):
+    add_note(db, "n41", items=ITEMS)
+    r = post(client(), "/todos/done", {"ref": "todo:n41:1", "device_id": DEVICE,
+                                       "title": title})
+    assert r.status_code == 400
+
+
+def test_reminder_done_with_an_index_follows_its_title(db):
+    add_note(db, "r8", title="Before the trip", items=ITEMS)
+    _set_items(db, "r8", [ITEMS[1], ITEMS[0], ITEMS[2]])
+    c = client()
+    r = post(c, "/reminders/done", {"ref": "todo:r8:0", "device_id": DEVICE,
+                                    "title": "Buy bread"})
+    assert r.json() == {"ok": True, "already": False, "title": "Buy bread"}
+    r = post(c, "/reminders/done", {"ref": "todo:r8:0", "device_id": DEVICE,
+                                    "title": "Pack the tent"})
+    assert r.status_code == 409 and r.json() == {"error": "changed"}
+    # a card titled by its note, not the line: the index alone counts
+    r = post(c, "/reminders/done", {"ref": "todo:r8:0", "device_id": DEVICE,
+                                    "title": "Before  the trip"})
+    assert r.json() == {"ok": True, "already": False, "title": "Call the plumber"}
+    # a whole-note reminder ignores a title
+    add_note(db, "r9", title="Bins", items=None, note_type="note")
+    r = post(c, "/reminders/done", {"ref": "todo:r9", "device_id": DEVICE, "title": "x"})
+    assert r.status_code == 200 and get_note(db, "r9")["archived"] is True
+
+
+# ----------------------------------------------------------- database errors
+@pytest.mark.parametrize("path, body, fn", [
+    ("/todos/done", {"ref": "todo:n41:1", "device_id": DEVICE}, "todo_done"),
+    ("/todos/undo", {"ref": "todo:n41:1"}, "todo_undo"),
+    ("/reminders/done", {"ref": "todo:n41", "device_id": DEVICE}, "reminder_done"),
+])
+def test_a_database_error_is_503_busy(db, monkeypatch, caplog, path, body, fn):
+    import sqlite3
+
+    from sqlalchemy.exc import OperationalError
+
+    errors = iter([sqlite3.OperationalError("database is locked: Buy bread"),
+                   OperationalError("UPDATE notes", {}, Exception("database is locked"))])
+
+    def boom(*a, **kw):
+        raise next(errors)
+
+    monkeypatch.setattr(vd, fn, boom)
+    c = client()
+    for _ in range(2):
+        with caplog.at_level("WARNING", logger="fork.voice.done"):
+            r = post(c, path, body)
+        assert r.status_code == 503 and r.json() == {"error": "busy"}
+    assert "OperationalError" in caplog.text and "Buy bread" not in caplog.text
+
+
+def test_a_locked_device_done_table_is_503_busy(db, monkeypatch):
+    import sqlite3
+
+    add_note(db, "n41", items=ITEMS)
+
+    def locked(*a, **kw):
+        raise sqlite3.OperationalError("database is locked")
+
+    monkeypatch.setattr(vd, "last_done", locked)
+    r = post(client(), "/todos/undo", {"ref": "todo:n41:1"})
+    assert r.status_code == 503 and r.json() == {"error": "busy"}

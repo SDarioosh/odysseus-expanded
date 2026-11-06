@@ -4,7 +4,8 @@
 the room or device (``to``), matched against the devices the hub knows
 (``fork/voice/devices.py``) and Home Assistant's rooms with a satellite. It runs
 :func:`fork.voice.announcements.deliver`: spoken there through Home Assistant and shown on
-that room's Echo screens.
+that room's Echo screens. A room or device Home Assistant has no satellite for is not
+spoken anywhere (never in every room instead); the result says so.
 
 Speaking aloud in the house is a write, so the tool never runs on the model's word:
 
@@ -132,6 +133,13 @@ async def run(owner: Any, content: str) -> tuple[str, dict]:
     out = await announcements.deliver(owner, message, target)
     if out.spoken:
         return f"{NAME}: spoken", {"output": f"Announced in {where}: {message}", "exit_code": 0}
+    if out.no_satellite:
+        shown = (f" It is shown on the screens of the devices in {where}."
+                 if out.item is not None else "")
+        return f"{NAME}: not spoken", {
+            "output": (f"Not spoken aloud anywhere: {out.problem}. Tell the owner; nothing "
+                       f"was said in other rooms.{shown} Message: {message}"),
+            "exit_code": 0}
     if out.item is not None:
         return f"{NAME}: shown only", {
             "output": (f"Not spoken aloud ({out.problem}); shown on the screens of the "

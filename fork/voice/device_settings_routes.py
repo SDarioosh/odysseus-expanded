@@ -91,7 +91,7 @@ def setup_device_settings_routes() -> APIRouter:
             wanted = device_settings.validate(data["settings"])
         except device_settings.BadSettings as exc:
             raise HTTPException(400, str(exc)) from None
-        if devices.get(owner, device_id) is None:
+        if await asyncio.to_thread(devices.get, owner, device_id) is None:
             raise HTTPException(404, "No such device")
         return await asyncio.to_thread(device_settings.replace, owner, device_id, wanted)
 
