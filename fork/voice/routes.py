@@ -4,7 +4,8 @@
 (:data:`PREFIX` is the OpenAI base URL a client is given), OpenAI's shapes
 (``fork/voice/openai_api.py``), for a Home Assistant conversation agent, and the device
 screen's feeds ``GET …/actions`` and ``GET …/turns/latest`` (``fork/voice/ledger.py``),
-and ``GET …/today``, the day at a glance (``fork/voice/today_route.py``).
+and ``GET …/today``, the day at a glance (``fork/voice/today_route.py``), and the Done
+buttons' ``POST …/todos/done`` and the rest (``fork/voice/done.py``).
 Only an API token with the ``voice`` scope may call them (a browser login may not: these
 routes are for a device, and a token can be revoked on its own).
 
@@ -364,4 +365,7 @@ def setup_voice_routes() -> APIRouter:
     from fork.voice.today_route import setup_voice_today_routes
 
     router.include_router(setup_voice_today_routes())  # GET …/today, for device screens
+    from fork.voice.done import setup_voice_done_routes
+
+    router.include_router(setup_voice_done_routes())  # Done / undo from a device's screen
     return router
