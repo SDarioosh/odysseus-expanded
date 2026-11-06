@@ -199,6 +199,7 @@ def test_a_wrong_apk_fails():
     ({"date": None}, "no date"),
     ({"todos": None}, "todos isn't a list"),
     ({"todos": [{"ref": "41", "title": "x"}]}, "a to-do without a todo: ref"),
+    ({"focus": [{"title": "x", "why": "y"}]}, "a focus row without a ref"),
     ({"events": [{"title": "x"}]}, "an event without start or all_day"),
     ({"action_items": [{"title": "x"}]}, "an action item without id or title"),
     ({"counts": {"todos_open": 1}}, "counts missing"),
@@ -209,9 +210,22 @@ def test_today_problems(change, problem):
     assert ev.today_problem(TODAY) is None
 
 
+def test_today_focus_may_name_an_event_a_loop_or_a_plan():
+    # The Today insight's focus holds events (their uid) as well as to-dos (sandbox run).
+    focus = [{"ref": "todo:0ba57096-fbe2-4dd4-9715-b68334f36ffb:0", "title": "Call the plumber",
+              "why": "Due today"},
+             {"ref": "205e6a2c-b081-4e7e-974e-1bc830e0c30d", "title": "Dentist", "why": "At 15:00"},
+             {"ref": "loop:3", "title": "Reply to Sam", "why": "Waiting"}]
+    assert ev.today_problem({**TODAY, "focus": focus}) is None
+
+
 def test_feed_and_release_problems():
     good = {"id": "an_1", "at": 1, "expires_at": 2, "kind": "reminder", "target": {"all": True}}
     assert ev.feed_problem({"announcements": [good]}) is None
+    # a device's settings changed (round 2): the device refetches them, the feed carries it
+    settings = {**good, "kind": "settings", "target": {"device_id": "echo-1"},
+                "ref": "settings:2"}
+    assert ev.feed_problem({"announcements": [good, settings]}) is None
     assert ev.feed_problem({"announcements": [{**good, "kind": "x"}]}) == "unknown kind 'x'"
     assert ev.feed_problem({"announcements": [{**good, "target": "all"}]})
     assert ev.feed_problem({"announcements": [{**good, "at": "1"}]})
