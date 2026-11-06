@@ -985,6 +985,23 @@ made by `/echo/link`'s approve POST, `curl` and `echo_verify.py` over HTTP:
 | silent WAV note | Athena: status `done`, no conversation, audio deleted |
 | `echo_verify.py` with `--device-id`, admin sign-in | 10 passed |
 
+### Sandbox run, round 2 (2026-11-06)
+
+The same stack, with Done and device settings, over HTTP (an Echo token, a second owner's
+Echo token, tokens with only `chat` or `athena:ingest`, an admin session). The answers are
+fixtures of the Echo app's parser tests (odysseus-echo `app/src/test/resources/odysseus/hub/`).
+
+| Check | Result |
+|---|---|
+| `…/today` with a stored insight, events (all-day, daily, timed), to-dos (overdue, today, pinned), Athena's items; another owner's (empty); Athena stopped (`action_items` `[]`, 200); an owner zone of UTC+1 | pass |
+| a note due now: the reminder scanner puts a `reminder` (target `{"all": true}`, ref `todo:<note id>`) in the feed | pass |
+| hello (form, multipart, repeated; 422 without id or with a bad version, 415 JSON, 413), feed (`since`, other owner, 422) | pass |
+| test announcement to a device, area announcement (`{"area": "kitchen"}` reaches the device that said "Kitchen"), API token 403 | pass |
+| `todos/done` + undo, `reminders/done` (note archived; an item ref ticks the item), `action-items/done` + undo against Athena: already, 400, 404, 409 (never a device's, after 10 min), 503 with Athena stopped, other owner 404 | pass |
+| device settings: GET before any, admin PUT (all keys, partial, null, same again keeps the version), 400s, 404, 403 for a token; a `settings` feed item per change | pass |
+| WAV note through the relay, `/end`, duplicate chunk, `kind=memo` and stereo 400 | pass |
+| `echo_verify.py` | failed `today` (focus rows naming events) and the feed (`kind: "settings"`); fixed, then 10 passed |
+
 ## Later
 
 - The answer's link labels (conversation titles) in `links[].label`.
