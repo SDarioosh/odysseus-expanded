@@ -173,7 +173,7 @@ def test_slow_athena_is_left_out(loaders):
     assert out["action_items"] == [] and len(out["events"]) == 1
 
 
-def _client():
+def _client(router=None):
     app = FastAPI()
 
     @app.middleware("http")
@@ -184,7 +184,7 @@ def _client():
         request.state.api_token_scopes = scopes.split(",") if scopes else []
         return await call_next(request)
 
-    app.include_router(tr.setup_voice_today_routes())
+    app.include_router(router or tr.setup_voice_today_routes())
     return TestClient(app)
 
 
@@ -233,8 +233,9 @@ def test_loaders_use_owner_day(monkeypatch, data_dir):
     assert date.fromisoformat(tr.shape_today(now_local=NOW)["date"]) == TODAY
 
 
-def test_voice_router_serves_today():
+def test_voice_router_serves_today(loaders):
     from fork.voice.routes import setup_voice_routes
 
-    paths = {getattr(r, "path", None) for r in setup_voice_routes().routes}
-    assert PREFIX + "/today" in paths
+    client = _client(setup_voice_routes())
+    r = client.get(PREFIX + "/today", headers={"x-test-scopes": "voice"})
+    assert r.status_code == 200 and r.json()["date"] == "2026-11-06"
