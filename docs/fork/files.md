@@ -189,6 +189,7 @@ is an old path of a module that moved into `fork/`; it only aliases the new modu
 - `fork/upstream.py`
 - `fork/voice/__init__.py`
 - `fork/voice/announce.py`
+- `fork/voice/app_release.py`
 - `fork/voice/chat_prefix.py`
 - `fork/voice/confirm.py`
 - `fork/voice/echo_link.py`
@@ -231,6 +232,7 @@ is an old path of a module that moved into `fork/`; it only aliases the new modu
 - `scripts/belief_eval_scale.py`
 - `scripts/brain_eval.py`
 - `scripts/brain_fake_searxng.py`
+- `scripts/echo_release.py`
 - `scripts/eval_common.py`
 - `scripts/fixtures/insight_eval_day.json`
 - `scripts/fixtures/t5_weights_day.json`
@@ -425,6 +427,7 @@ is an old path of a module that moved into `fork/`; it only aliases the new modu
 - `tests/fork/test_chat_mode_scope.py`
 - `tests/fork/test_checklist_auto_archive.py`
 - `tests/fork/test_codex_todos_json.py`
+- `tests/fork/test_echo_app_release.py`
 - `tests/fork/test_echo_link.py`
 - `tests/fork/test_eval_common.py`
 - `tests/fork/test_eval_goldens.py`

@@ -57,6 +57,8 @@ for chat streams, and a voice answer can take longer (minutes on the sandbox's C
 | `GET /api/chat/voice/v1/models` | the same | `{"data": [{"id": "odysseus", …}]}`, for clients that list models when set up |
 | `GET /api/chat/voice/v1/actions?since=<ms>&limit=<n>` | the same | the changes voice made (below) |
 | `GET /api/chat/voice/v1/turns/latest?since=<ms>` | the same | the newest finished voice turn (below) |
+| `GET /api/chat/voice/v1/app/latest` | the same | the Echo app's release on offer, or 404 ([App updates](#app-updates)) |
+| `GET /api/chat/voice/v1/app/apk` | the same | that release's APK ([App updates](#app-updates)) |
 | `POST /api/fork/voice/token` | signed-in admin (browser) | makes a token with only the `voice` scope (the Settings card) |
 | `GET /api/fork/voice/ha` | the same | the saved Home Assistant address and the last setup's report |
 | `POST /api/fork/voice/ha/connect` | the same, same-origin | starts "Set up Home Assistant": answers HA's login address ([Setup](#setup-owner)) |
@@ -626,6 +628,39 @@ when Home Assistant speaks a streamed answer as it comes) is Home Assistant's ow
 - Home Assistant's own trace of a run (Settings → Voice assistants → the pipeline's ⋮ →
   Debug) shows its stages too, but only for the last few runs.
 
+## App updates
+
+The Echo app ([odysseus-echo](https://github.com/SDarioosh/odysseus-echo)) updates itself
+from Odysseus, not from GitHub (`fork/voice/app_release.py`). The owner publishes a build on
+the server; each Echo asks for the release on offer with its voice token and offers the
+install (Android shows its own prompt; no silent install).
+
+| Route | Who | What |
+|---|---|---|
+| `GET /api/chat/voice/v1/app/latest` | API token with the `voice` scope | `{"app": "odysseus-echo", "version_name", "version_code", "size", "sha256", "notes"}`; 404 `{"error": "no release"}` when none is published |
+| `GET /api/chat/voice/v1/app/apk` | the same | the APK, streamed from disk: `application/vnd.android.package-archive`, `Content-Length`, `ETag` = the sha256 in quotes, Range requests answered (206); the same 404 |
+
+- A device compares **`version_code`**, never the name (semver ignores `+odysseus.N`), and
+  checks the download's size and sha256.
+- Storage: `<DATA_DIR>/echo_app/odysseus-echo.apk` and `release.json` (the fields above).
+  A `release.json` whose APK is missing or another size counts as no release.
+- Publishing, as the user that owns the data folder (no restart needed):
+
+  ```bash
+  python scripts/echo_release.py odysseus-echo-release.apk \
+      --version-name 0.14.0+odysseus.30 --version-code 1400030 \
+      --notes "Kiosk settings; Today page." --data-dir /srv/odysseus/data
+  python scripts/echo_release.py --show --data-dir /srv/odysseus/data
+  ```
+
+  The script copies the APK to a temp file in `echo_app/` while working out its sha256,
+  renames it into place, then writes `release.json` the same way. It refuses a file that
+  isn't a zip, and a `--version-code` lower than the published one unless `--force` (an
+  Echo would never install it). It doesn't read the APK's manifest: pass what the Echo
+  build printed (`./gradlew printVersionName printVersionCode`). Releases signed with a
+  different key than the installed app don't install (odysseus-echo `docs/odysseus/build.md`).
+- Not built yet: an upload form on the Settings card (the script is the only way in).
+
 ## Linking an Echo
 
 An Echo Show running our VACA fork ([odysseus-echo](https://github.com/SDarioosh/odysseus-echo),
@@ -668,6 +703,8 @@ the phone to Home Assistant's sign-in, and adds itself to Home Assistant.
 
 - Timings: `fork/voice/timings.py`, `timing_routes.py`, `scripts/voice_timings.py`; tests
   `tests/fork/test_voice_timings.py`.
+- App updates: `fork/voice/app_release.py`, `scripts/echo_release.py`; tests
+  `tests/fork/test_echo_app_release.py`.
 - `fork/voice/routes.py`, `openai_api.py`, `sessions.py`, `speech.py`, `prompt.py`,
   `chat_prefix.py` (the chat's preset), `policy.py` (what runs), `confirm.py` (changes
   after a yes), `ledger.py` (turns and actions). The satellite's context and
