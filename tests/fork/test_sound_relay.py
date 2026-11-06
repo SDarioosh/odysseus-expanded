@@ -137,6 +137,74 @@ def test_relay_rejects_bad_pieces_before_the_module(monkeypatch):
     assert c.module.requests == []
 
 
+def wav(rate=16000, channels=1, bits=16, fmt_tag=1, samples=1600, extra=b"") -> bytes:
+    """A small WAV file (silence) built by hand, so headers can be made wrong."""
+    import struct
+
+    pcm = b"\0" * (samples * channels * bits // 8)
+    fmt = struct.pack("<HHIIHH", fmt_tag, channels, rate, rate * channels * bits // 8,
+                      channels * bits // 8, bits)
+    body = b"WAVE" + b"fmt " + struct.pack("<I", len(fmt)) + fmt + extra
+    body += b"data" + struct.pack("<I", len(pcm)) + pcm
+    return b"RIFF" + struct.pack("<I", len(body)) + body
+
+
+def relay_wav(c, audio: bytes, scopes="voice,athena:ingest", **form):
+    data = {"device": "echo-a1b2c3", "session_id": "0123456789abcdef", "sequence": "0",
+            "timestamp": "2026-10-20T10:00:00.000Z", "codec": "wav", **form}
+    return c.post("/api/codex/athena/chunk", data=data, headers={"X-Test-Scopes": scopes},
+                  files={"audio": ("000000.wav", audio, "audio/wav")})
+
+
+def test_relay_forwards_an_echo_wav_unchanged(monkeypatch):
+    import wave
+    from io import BytesIO
+
+    c = make_app(monkeypatch)
+    buf = BytesIO()
+    with wave.open(buf, "wb") as w:  # what Python (and the Echo) writes
+        w.setnchannels(1), w.setsampwidth(2), w.setframerate(16000)
+        w.writeframes(b"\1\0" * 16000)
+    audio = buf.getvalue()
+    r = relay_wav(c, audio, kind="note")
+    assert r.status_code == 200 and r.json()["ok"] is True
+    (req,) = c.module.requests
+    body = req.read()
+    for field, value in [("device", "echo-a1b2c3"), ("kind", "note"), ("codec", "wav"),
+                         ("session_id", "0123456789abcdef"), ("sequence", "0"),
+                         ("timestamp", "2026-10-20T10:00:00+00:00")]:
+        assert f'name="{field}"\r\n\r\n{value}\r\n'.encode() in body
+    assert b'filename="000000.wav"\r\nContent-Type: audio/wav\r\n\r\n' + audio in body
+    assert relay_wav(c, wav(extra=b"LIST" + b"\4\0\0\0" + b"INFO")).status_code == 200
+    assert relay_wav(c, wav(), scopes="voice").status_code == 403  # an Echo not relinked
+    assert len(c.module.requests) == 2
+
+
+@pytest.mark.parametrize("audio", [
+    b"OggS" + b"\0" * 60,  # not a WAV
+    b"RIFF\0\0\0\0WAVX" + b"\0" * 40,
+    wav(rate=44100), wav(rate=8000), wav(channels=2), wav(bits=8), wav(bits=32),
+    wav(fmt_tag=3),  # float
+    wav(samples=0),  # header only
+    wav()[:36],  # cut before the data chunk
+    b"RIFF\x10\0\0\0WAVEdata\x04\0\0\0\0\0\0\0",  # data before fmt
+])
+def test_relay_rejects_a_bad_wav_header(monkeypatch, audio):
+    c = make_app(monkeypatch)
+    r = relay_wav(c, audio)
+    assert r.status_code == 400 and "WAV" in r.json()["detail"]
+    assert c.module.requests == []
+
+
+def test_wav_only_from_the_relay_and_ogg_unchanged(monkeypatch):
+    with pytest.raises(rec.RecorderError):  # the browser call recorder never sends WAV
+        rec.check_chunk(data=wav(), session_id="s", sequence=0,
+                        timestamp="2026-10-22T15:00:00Z", codec="wav", now=NOW)
+    c = make_app(monkeypatch)
+    assert relay_chunk(c, codec="opus").status_code == 200  # no WAV check on Ogg/Opus
+    assert b'name="codec"\r\n\r\nopus\r\n' in c.module.requests[0].read()
+
+
 def test_relay_passes_module_errors(monkeypatch):
     module = Module()
     module.answers["POST /ingest/chunk"] = httpx.Response(

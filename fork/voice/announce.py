@@ -15,7 +15,8 @@ message never leaves the owner's network. Anything else is refused.
 
 :func:`announce_reminder` is the hook for Odysseus's due reminders
 (``src/builtin_actions.py``, the note-reminder scanner): "Reminder: <title>", in the
-background, never failing or slowing the reminder itself. Off while unconfigured.
+background, never failing or slowing the reminder itself; also kept for the devices' feed
+(``fork/voice/announcements.py``, which also announces to one room or device).
 
 Reusable: a later feature (a spoken daily briefing) calls :func:`announce` the same way.
 """
@@ -139,15 +140,23 @@ async def announce(message: str, entities: list[str] | None = None, *,
     return False
 
 
-def announce_reminder(title: Any) -> None:
-    """Hook for a reminder that just fired: "Reminder: <title>" in the background, when
-    announcements are configured. Never raises, never waits."""
+def announce_reminder(title: Any, *, owner: Any = None, ref: Any = None) -> None:
+    """Hook for a reminder that just fired: "Reminder: <title>" in the background. With
+    ``owner``, it is also kept for the devices' feed as ``kind: reminder`` with the to-do
+    ``ref``, target every device (``fork/voice/announcements.py``), and spoken when Home
+    Assistant is set up; without, only spoken, when announcements are configured. Never
+    raises, never waits."""
     try:
+        name = " ".join(str(title or "").split()) or "Reminder"
+        text = name if name.lower().startswith("reminder") else f"Reminder: {name}"
+        if owner:
+            from fork.voice import announcements
+
+            announcements.deliver_soon(owner, text, "all", kind="reminder", title=name,
+                                       ref=str(ref) if ref else None)
+            return
         if not configured():
             return
-        text = " ".join(str(title or "").split()) or "Reminder"
-        if not text.lower().startswith("reminder"):
-            text = f"Reminder: {text}"
         task = asyncio.get_running_loop().create_task(announce(text))
         _tasks.add(task)
         task.add_done_callback(_tasks.discard)

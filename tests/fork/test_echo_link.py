@@ -145,12 +145,16 @@ def echo(monkeypatch):
     pruned = []  # the old-token cleanup, without a database (its own tests are below)
     monkeypatch.setattr(echo_link, "prune_echo_tokens",
                         lambda owner, name, keep: pruned.append((owner, name, keep)) or 0)
+    marked = []  # the Echo-token marks, without a data dir (their own tests are below)
+    monkeypatch.setattr(echo_link, "mark_echo_token",
+                        lambda owner, token_id: marked.append((owner, token_id)))
     monkeypatch.setitem(sys.modules, "fork.voice.ha_settings",
                         SimpleNamespace(home_assistant_url=lambda: "http://homeassistant.local:8123/"))
     monkeypatch.setattr(echo_link, "APPROVALS", echo_link._Approvals())
     app.include_router(echo_link.setup_echo_link_routes())
     client = TestClient(app, base_url="https://odysseus.tail1234.ts.net")
     client.made, client.invalidated, client.pruned = made, invalidated, pruned
+    client.marked = marked
     return client
 
 
@@ -224,12 +228,13 @@ def _handoff(text: str) -> tuple[str, dict[str, str]]:
     return url, dict(parse_qsl(fragment, keep_blank_values=True))
 
 
-def test_approve_makes_a_voice_only_token_and_hands_it_to_the_echo(echo):
+def test_approve_makes_a_voice_and_recording_token_and_hands_it_to_the_echo(echo):
     res = echo.post(echo_link.PATH, data=FORM, headers=SAME)
     assert res.status_code == 200
     owner, name, scopes = echo.made[0]
-    assert owner == "alice" and scopes == ["voice"]
+    assert owner == "alice" and scopes == ["voice", "athena:ingest"]  # nothing else
     assert name == f"Echo Kitchen {date.today().isoformat()}"
+    assert echo.marked == [("alice", "t1")]  # remembered as an Echo token
     assert echo.pruned == [("alice", "Kitchen", "t1")]  # this Echo's old tokens go
     assert echo.invalidated
     url, fields = _handoff(res.text)
@@ -288,8 +293,29 @@ def test_no_token_in_the_log(echo, caplog):
     assert "ody_fake" not in caplog.text and "Echo Kitchen" in caplog.text
 
 
+def test_the_page_says_what_the_token_can_do(echo):
+    text = _get(echo).text
+    assert "ask the voice assistant" in text and "recordings and voice notes" in text
+
+
+def test_the_scopes_are_known_to_the_relay():
+    from fork.athena.urls import INGEST
+    from fork.voice.routes import SCOPE
+
+    assert echo_link.SCOPES == [SCOPE, "athena:ingest"] and "athena:ingest" in INGEST
+
+
+def test_a_failed_mark_still_links(echo, monkeypatch):
+    def broken(owner, token_id):
+        raise OSError("read-only")
+
+    monkeypatch.setattr(echo_link, "mark_echo_token", broken)
+    res = echo.post(echo_link.PATH, data=FORM, headers=SAME)
+    assert res.status_code == 200 and _handoff(res.text)[1]["token"]
+
+
 @pytest.fixture
-def tokens(monkeypatch):
+def tokens(monkeypatch, data_dir):
     """An in-memory API token table, as Settings → API tokens keeps it."""
     import contextlib
     from datetime import datetime
@@ -348,3 +374,40 @@ def test_unnamed_echos_keep_their_tokens(tokens):
     tokens.add("u2", "Echo 2026-11-02", 2)
     assert echo_link.prune_echo_tokens("alice", "", "u3") == 0
     assert tokens.ids() == ["u1", "u2"]
+
+
+def test_relinking_prunes_old_voice_only_and_new_marked_tokens(tokens):
+    tokens.add("v1", "Echo Kitchen 2026-11-01", 1)  # linked before recordings: voice only
+    tokens.add("n2", "Echo Kitchen 2026-11-02", 2, scopes="voice,athena:ingest")
+    tokens.add("n3", "Echo Kitchen 2026-11-03", 3, scopes="voice,athena:ingest")
+    tokens.add("new", "Echo Kitchen 2026-11-04", 4, scopes="voice,athena:ingest")
+    for token_id in ("n2", "n3", "new"):
+        echo_link.mark_echo_token("alice", token_id)
+    assert echo_link.prune_echo_tokens("alice", "Kitchen", "new") == 2
+    assert tokens.ids() == ["n3", "new"]  # the new one and the previous one
+    assert echo_link.marked_echo_tokens("alice") == {"n3", "new"}  # deleted ones forgotten
+
+
+def test_relinking_never_prunes_tokens_it_did_not_make(tokens):
+    tokens.add("p1", "Echo Kitchen 2026-11-01", 1, scopes="voice,athena:ingest")  # unmarked
+    tokens.add("p2", "Echo Kitchen 2026-11-01", 1, scopes="athena:ingest")  # no voice
+    tokens.add("p3", "Echo Kitchen 2026-11-01", 1, scopes="voice,athena:ingest,chat")
+    tokens.add("p4", "Phone 2026-11-01", 1, scopes="voice,athena:ingest")
+    tokens.add("p5", "Echo Kitchen 2026-11-01", 1, owner="bob", scopes="voice,athena:ingest")
+    for token_id in ("p3", "p4", "p5"):
+        echo_link.mark_echo_token("alice", token_id)  # even marked: wrong scopes or name
+    tokens.add("k1", "Echo Kitchen 2026-11-02", 2)
+    tokens.add("new", "Echo Kitchen 2026-11-04", 4, scopes="voice,athena:ingest")
+    assert echo_link.prune_echo_tokens("alice", "Kitchen", "new") == 0  # k1 is kept
+    assert tokens.ids() == ["k1", "new", "p1", "p2", "p3", "p4", "p5"]
+
+
+def test_marks_are_kept_per_owner(data_dir):
+    echo_link.mark_echo_token("alice", "a1")
+    echo_link.mark_echo_token("alice", "a2")
+    echo_link.mark_echo_token("bob", "b1")
+    assert echo_link.marked_echo_tokens("alice") == {"a1", "a2"}
+    assert echo_link.marked_echo_tokens("bob") == {"b1"}
+    assert echo_link.marked_echo_tokens("carol") == set()
+    (data_dir / "echo_tokens_alice.json").write_text("not json")
+    assert echo_link.marked_echo_tokens("alice") == set()

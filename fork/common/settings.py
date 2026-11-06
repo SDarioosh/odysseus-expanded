@@ -217,10 +217,10 @@ BRAIN_MAX_ROUNDS = _setting(
     "Tool rounds per brain turn before one last round without tools; clamped to 1-20.",
     used_in=("fork/brain/settings.py",))
 BRAIN_TOOL_GROUPS = _setting(
-    "FORK_BRAIN_TOOL_GROUPS", "web,athena,workspace,documents,beliefs,chats,email",
+    "FORK_BRAIN_TOOL_GROUPS", "web,athena,workspace,documents,beliefs,chats,email,home",
     "comma-separated groups",
     "Tool groups the brain offers (web, athena, workspace, documents, beliefs, chats, "
-    "email, images); unknown names are ignored.",
+    "email, images, home: the announce tool); unknown names are ignored.",
     used_in=("fork/brain/settings.py",))
 # Voice assistant (docs/fork/voice-assistant.md)
 VOICE_PRIVATE = _setting(

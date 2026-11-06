@@ -98,7 +98,9 @@ def test_audio_is_checked_and_answered(api, data_dir, caplog):
     ctx = asyncio.run(satellite.claim("alice", wait_seconds=0))
     assert ctx.speaker == OWNER_VOICE
     # never stored or logged
-    assert not any(p.is_file() for p in data_dir.rglob("*"))
+    # (the device registry, fork_voice.db, keeps the device's name and room only)
+    assert not any(p.is_file() and not p.name.startswith("fork_voice.db")
+                   for p in data_dir.rglob("*"))
     assert "RIFF" not in caplog.text
     assert not any(isinstance(v, (bytes, bytearray)) for v in vars(ctx).values())
 

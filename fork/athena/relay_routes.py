@@ -6,7 +6,9 @@ token of the connected ``convo`` MCP server (``src/call_recorder.py``):
 
 * ``POST /api/codex/athena/chunk`` (scope ``athena:ingest``): the module's multipart fields
   (``audio``, ``device``, ``session_id``, ``sequence``, ``timestamp``, ``codec``, ``kind``)
-  and its JSON answer. Checked first like the call recorder's pieces.
+  and its JSON answer. Checked first like the call recorder's pieces. ``codec`` is
+  ``ogg``/``opus`` (the watch) or ``wav`` (an Echo: 16 kHz mono PCM16, header checked,
+  forwarded unchanged); an Echo's token from ``/echo/link`` has ``athena:ingest``.
 * ``POST /api/codex/athena/sessions/{id}/end`` (``athena:ingest``).
 * ``GET  /api/codex/athena/health`` (``athena:ingest`` or ``athena:read``): the module through
   Odysseus is reachable and the token is good (the relay's "Test connection").

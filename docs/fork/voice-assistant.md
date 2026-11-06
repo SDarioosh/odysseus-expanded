@@ -57,6 +57,11 @@ for chat streams, and a voice answer can take longer (minutes on the sandbox's C
 | `GET /api/chat/voice/v1/models` | the same | `{"data": [{"id": "odysseus", …}]}`, for clients that list models when set up |
 | `GET /api/chat/voice/v1/actions?since=<ms>&limit=<n>` | the same | the changes voice made (below) |
 | `GET /api/chat/voice/v1/turns/latest?since=<ms>` | the same | the newest finished voice turn (below) |
+| `GET /api/chat/voice/v1/today` | the same | the owner's day at a glance for a device screen: insight headline and focus, today's events, due to-dos, Athena's open action items ([Today for devices](#today-for-devices)) |
+| `GET /api/chat/voice/v1/app/latest` | the same | the Echo app's release on offer, or 404 ([App updates](#app-updates)) |
+| `GET /api/chat/voice/v1/app/apk` | the same | that release's APK ([App updates](#app-updates)) |
+| `POST /api/chat/voice/v1/satellite/hello` | the same | the device's id, name, room and app version ([Rooms and devices](#rooms-and-devices)) |
+| `GET /api/chat/voice/v1/announcements?device_id=…&since=<ms>` | the same | the announcements and reminders meant for that device ([feed](#the-devices-feed)) |
 | `POST /api/fork/voice/token` | signed-in admin (browser) | makes a token with only the `voice` scope (the Settings card) |
 | `GET /api/fork/voice/ha` | the same | the saved Home Assistant address and the last setup's report |
 | `POST /api/fork/voice/ha/connect` | the same, same-origin | starts "Set up Home Assistant": answers HA's login address ([Setup](#setup-owner)) |
@@ -240,6 +245,34 @@ live; later features add to it.
 `device` and `speaker` come from the satellite's context (`POST …/satellite/turn`,
 `fork/voice/satellite.py`), claimed at the start of each question; both are null without
 it. Links have no labels yet (`label: null`).
+
+## Today for devices
+
+`GET …/today` (`fork/voice/today_route.py`), for the Echo's Today page: the token owner's
+day, read from stored data only (no model call). Times are ISO-8601 with the owner's
+offset (the insight's zone, `owner_timezone`); the device shows them in its own zone.
+
+```json
+{"date": "2026-11-06", "generated": "2026-11-06T07:45:00-05:00",
+ "headline": "Two meetings this afternoon; the boiler service is due.",
+ "focus": [{"ref": "todo:41:2", "title": "Call the plumber", "why": "Due today"}],
+ "events": [{"uid": "abc", "title": "Dentist", "start": "2026-11-06T15:00:00-05:00",
+             "end": "2026-11-06T15:30:00-05:00", "all_day": false, "location": "Main St"}],
+ "todos": [{"ref": "todo:41:2", "title": "Call the plumber", "due": "2026-11-06", "list": "Home"}],
+ "action_items": [{"id": "ai_17", "title": "Send Sam the photos", "source": "athena"}],
+ "counts": {"todos_open": 9, "action_items_open": 4}}
+```
+
+| Field | From |
+|---|---|
+| `headline`, `focus` | today's stored [Today insight](today-insight.md), in the owner's order ("↑ first" first, "not today" left out); `null` and `[]` until one is written. A focus to-do ticked since then is left out. Each row: `ref`, `title`, `why` |
+| `events` | the calendar occurrences that overlap today (recurring events expanded by the calendar route's `_expand_rrule`, cancelled ones left out), sorted by start, at most 10. An all-day event starts at local midnight of its first day and ends at local midnight after its last; `location` is `null` when empty |
+| `todos` | open items of to-do notes (checklist, todo, goal; not archived; the insight's rules, so undated shopping-type lists are left out): due today or overdue (oldest first), then items of pinned notes without a date; at most 8. `due` is the note's date or `null`; `list` the note's title. `ref` is `todo:<note id>:<item index>`, as in the insight |
+| `action_items` | Athena's open action items (`GET /action-items?status=open` through the hub's Athena link), without those already filed here as a to-do or event; at most 5. `title` is the item's short title, else its text. `[]` when Athena is down or takes more than 3 s |
+| `counts` | `todos_open`: every open to-do item (all dates); `action_items_open`: every open, unfiled action item. The device shows "and N more" from them |
+
+Each section is read on its own: one that fails is empty (and logged), and the route
+answers 200 whenever the token holds the `voice` scope.
 
 ## Private answers
 
@@ -535,6 +568,9 @@ logged without the message. Later features (a spoken daily briefing) call it the
   `announce_reminder(title)` also says "Reminder: <title>", in the background: the
   reminder itself never waits for or fails on Home Assistant. Off until there is a Home
   Assistant address, `FORK_HA_TOKEN` and `FORK_VOICE_ANNOUNCE_ENTITIES` are set.
+- **Feed:** a reminder is also kept for the devices' feed with `kind: "reminder"`, its
+  to-do `ref` (`todo:<note id>`) and target every device, even without Home Assistant
+  (`announce_reminder(title, owner=…, ref=…)`). Per-reminder rooms can come later.
 - **Test:** `POST /api/fork/voice/announce` (signed-in admin, browser), `{"message"?: str}`
   → `{"ok": true|false, "problem": "…"|null}`.
 - **One Home Assistant address:** announcements and the Echo link use
@@ -546,6 +582,75 @@ logged without the message. Later features (a spoken daily briefing) call it the
   and every address must be one (`announce.check_url`). **Set up Home Assistant** and
   `scripts/ha_voice_setup.py` apply the same rule before signing in. A public host, a URL
   with credentials, a query or a fragment is refused.
+
+### Rooms and devices
+
+`fork/voice/devices.py`. Each Echo says who and where it is:
+
+`POST /api/chat/voice/v1/satellite/hello` (the `voice` token), a form: `device_id`
+(required, ≤ 128 characters), `device_name`, `area` (≤ 100), `app_version_code` (a whole
+number). Sent at start and hourly. Answer `{"ok": true}`. Every `POST …/satellite/turn`
+records the same (`device_id`, `device_name`, `area`); a field a request leaves blank keeps
+what was stored. One row per (owner, device) in `<DATA_DIR>/fork_voice.db`
+(`satellite_devices`) with its last-seen time; a device unheard for 90 days is dropped, at
+most 64 per owner.
+
+### Announcing to a room or device
+
+`fork/voice/announcements.py`: `await deliver(owner, message, target, kind=…, title=…,
+ref=…)` keeps the announcement for the devices' feed and speaks it. `target` is `"all"`,
+`{"area": "Kitchen"}` or `{"device_id": "…"}`:
+
+- `"all"`: the configured `FORK_VOICE_ANNOUNCE_ENTITIES`, as before (Home Assistant isn't
+  asked).
+- An area: Home Assistant's `assist_satellite.*` entities in that area. The hub asks once
+  per announcement with one **fixed** template through `POST <Home Assistant>/api/template`
+  (`areas()`, `area_entities()`, `area_name()`, the entities' names); what the owner said is
+  never put into a template. The area matches by id or name (`Living room` =
+  `living_room`).
+- A device: the satellite whose name starts with the device's name (exactly one), else the
+  satellites of the device's room.
+- No satellite found, or Home Assistant can't list them: the configured list.
+- The same rules as before: Home Assistant only on the owner's network (`check_url`), its
+  token from `FORK_HA_TOKEN`; never raises. Without a Home Assistant address and token the
+  announcement is only kept for the feed.
+
+#### The devices' feed
+
+`GET /api/chat/voice/v1/announcements?device_id=…&since=<epoch ms>` (the `voice` token):
+
+```json
+{"announcements": [
+  {"id": "an_1f2e3d4c5b6a7980", "at": 1762434000000, "kind": "reminder",
+   "title": "Take the bins out", "text": "Reminder: Take the bins out",
+   "target": {"all": true}, "ref": "todo:41", "expires_at": 1762437600000}
+]}
+```
+
+- `kind`: `reminder` or `announcement`. `target`: always an object: `{"all": true}`,
+  `{"area": "…"}` or `{"device_id": "…"}`. `ref`: the to-do note of a reminder, else null.
+- Only what is meant for that device: every device, its area (as its last hello or turn
+  said; compared like Home Assistant's ids) or its `device_id`; only the token owner's.
+- Made after `since`, not yet expired (`expires_at`, 1 h after it was made), oldest first,
+  at most 50. Rows are deleted 24 h after they were made. The device shows each `id` once.
+- `device_id` is required (422 without).
+
+### The announce tool
+
+`fork/voice/announce_tool.py`, in the brain's `home` tool group: "tell the kitchen dinner
+is ready". Arguments `message` and `to` (a room or device name; empty or "everywhere" for
+every room), matched against the devices above, then against Home Assistant's rooms that
+have a satellite. Offered to an admin (or single-user) owner while Home Assistant's address
+and token are set. Speaking aloud is a write:
+
+- **Chat:** it asks on an approval card like every brain write (`needs_approval`), and runs
+  only with that exact approval, which the tool claims for this exact call
+  (`run_approved`); without one it is refused and nothing is said.
+- **Voice:** it is on the allow-list of changes kept for a spoken "yes"
+  (`fork/voice/confirm.py`, `WRITABLE`): "Announce “Dinner is ready” in the Kitchen?". A
+  room nobody knows is refused. The ledger records it as `kind: "announcement"`.
+- A room the hub doesn't know is an error that names the known rooms; Home Assistant down
+  still shows it on the devices' screens (the result says it wasn't spoken).
 
 ### Settings
 
@@ -567,6 +672,10 @@ logged without the message. Later features (a spoken daily briefing) call it the
   dropped rather than used later, and a missing one never grants more.
 - The voice token can now also send audio to Athena's identify route; Athena only compares
   it and writes nothing.
+- The announce tool lets the owner speak in any room; a guest can't run it by voice with
+  `FORK_VOICE_PRIVATE=owner` (the "yes" is refused like every change), and in chat it
+  always needs the owner's approval. The feed holds reminder titles for 24 h, readable
+  with any of the owner's voice tokens.
 - Announcements speak reminder titles aloud in the room, to whoever is there; the
   Home Assistant token can control the owner's home, so it stays in `.env` only and is
   only ever sent to the private host.
@@ -626,17 +735,58 @@ when Home Assistant speaks a streamed answer as it comes) is Home Assistant's ow
 - Home Assistant's own trace of a run (Settings → Voice assistants → the pipeline's ⋮ →
   Debug) shows its stages too, but only for the last few runs.
 
+## App updates
+
+The Echo app ([odysseus-echo](https://github.com/SDarioosh/odysseus-echo)) updates itself
+from Odysseus, not from GitHub (`fork/voice/app_release.py`). The owner publishes a build on
+the server; each Echo asks for the release on offer with its voice token and offers the
+install (Android shows its own prompt; no silent install).
+
+| Route | Who | What |
+|---|---|---|
+| `GET /api/chat/voice/v1/app/latest` | API token with the `voice` scope | `{"app": "odysseus-echo", "version_name", "version_code", "size", "sha256", "notes"}`; 404 `{"error": "no release"}` when none is published |
+| `GET /api/chat/voice/v1/app/apk` | the same | the APK, streamed from disk: `application/vnd.android.package-archive`, `Content-Length`, `ETag` = the sha256 in quotes, Range requests answered (206); the same 404 |
+
+- A device compares **`version_code`**, never the name (semver ignores `+odysseus.N`), and
+  checks the download's size and sha256.
+- Storage: `<DATA_DIR>/echo_app/odysseus-echo.apk` and `release.json` (the fields above).
+  A `release.json` whose APK is missing or another size counts as no release.
+- Publishing, as the user that owns the data folder (no restart needed):
+
+  ```bash
+  python scripts/echo_release.py odysseus-echo-release.apk \
+      --version-name 0.14.0+odysseus.30 --version-code 1400030 \
+      --notes "Kiosk settings; Today page." --data-dir /srv/odysseus/data
+  python scripts/echo_release.py --show --data-dir /srv/odysseus/data
+  ```
+
+  The script copies the APK to a temp file in `echo_app/` while working out its sha256,
+  renames it into place, then writes `release.json` the same way. It refuses a file that
+  isn't a zip, and a `--version-code` lower than the published one unless `--force` (an
+  Echo would never install it). It doesn't read the APK's manifest: pass what the Echo
+  build printed (`./gradlew printVersionName printVersionCode`). Releases signed with a
+  different key than the installed app don't install (odysseus-echo `docs/odysseus/build.md`).
+- Not built yet: an upload form on the Settings card (the script is the only way in).
+
 ## Linking an Echo
 
 An Echo Show running our VACA fork ([odysseus-echo](https://github.com/SDarioosh/odysseus-echo),
 `docs/odysseus/setup.md`) is set up from the owner's phone with one QR code, with no typing
 on the Echo. The Odysseus part is `fork/voice/echo_link.py`. The Echo's setup page sends the
 phone to `GET /echo/link?return=<Echo URL>&name=<name>`. The signed-in admin sees "Link Echo
-'Kitchen' at <host>:10801?" and taps **Approve**. Odysseus then makes a token with only the
-`voice` scope, named `Echo <name> <YYYY-MM-DD>` (revoke it in Settings → API tokens like any
-other). Linking a named Echo again deletes its older tokens of that name, keeping the new one
-and the most recently used earlier one (so an Echo the phone never reached still works);
-unnamed Echos keep theirs (`echo_link.prune_echo_tokens`). It sends the phone back to the Echo with `token`, `base_url` (`<the address you
+'Kitchen' at <host>:10801?" and taps **Approve**. Odysseus then makes a token with the
+`voice` and `athena:ingest` scopes and nothing else (ask the voice assistant; upload the
+Echo's recordings and voice notes through the Athena relay, see
+[Athena](modules/athena.md#pairing-a-phone)), named `Echo <name> <YYYY-MM-DD>`
+(revoke it in Settings → API tokens like any other), and remembers its id as an Echo token
+(`<DATA_DIR>/echo_tokens_<owner>.json`). Echos linked earlier have a `voice`-only token: it
+keeps working for the voice assistant, uploads answer 403, and linking the Echo again gives
+it the new token. Linking a named Echo again deletes its older tokens of that name, keeping
+the new one and the most recently used earlier one (so an Echo the phone never reached still
+works); unnamed Echos keep theirs (`echo_link.prune_echo_tokens`). Only Echo tokens are
+deleted: named `Echo <name> <date>`, holding nothing but `voice` and `athena:ingest`, and
+either remembered as made here or `voice`-only (made before the marks). A token you made by
+hand with the same name and scopes is never deleted. It sends the phone back to the Echo with `token`, `base_url` (`<the address you
 opened Odysseus at>/api/chat/voice/v1`) and `ha_url` (the Home Assistant address saved by
 **Set up Home Assistant** or set as `FORK_HA_URL`, or empty) in the URL fragment (`<Echo URL>#token=…`). The Echo's
 page passes them on to the Echo and clears them from the address bar. The Echo then sends
@@ -668,13 +818,16 @@ the phone to Home Assistant's sign-in, and adds itself to Home Assistant.
 
 - Timings: `fork/voice/timings.py`, `timing_routes.py`, `scripts/voice_timings.py`; tests
   `tests/fork/test_voice_timings.py`.
+- App updates: `fork/voice/app_release.py`, `scripts/echo_release.py`; tests
+  `tests/fork/test_echo_app_release.py`.
 - `fork/voice/routes.py`, `openai_api.py`, `sessions.py`, `speech.py`, `prompt.py`,
   `chat_prefix.py` (the chat's preset), `policy.py` (what runs), `confirm.py` (changes
   after a yes), `ledger.py` (turns and actions). The satellite's context and
   announcements are `fork/voice/satellite.py` and `announce.py`, optional here (the routes
   import the satellite module lazily and work without it).
 - Satellites and announcements: `fork/voice/satellite.py`, `satellite_routes.py`,
-  `announce.py`; the hook in `src/builtin_actions.py` (`ping_notes`). Barge-in:
+  `announce.py`, `announcements.py` (targets, the feed), `devices.py` (the registry),
+  `announce_tool.py` (the agent's tool); the hook in `src/builtin_actions.py` (`ping_notes`). Barge-in:
   `fork/voice/interrupts.py`; its sandbox: `scripts/voice_barge_sandbox/`.
 - In the brain: `read_only_turn` (`fork/brain/turn.py`: `shared_prefix`, `preset`,
   `gate`, `context_lines`, `no_memory`), `ToolRun.gate` and `read_only_refusal`

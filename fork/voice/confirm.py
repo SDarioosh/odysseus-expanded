@@ -3,7 +3,7 @@
 
 A voice turn can't be approved on a card, so a write the model calls is never run in its
 turn. If it is one of :data:`WRITABLE` (a to-do, reminder, list item, note or calendar
-event made, an Athena action item marked done), the exact call is kept as the voice
+event made, an Athena action item marked done, an announcement in a room), the exact call is kept as the voice
 conversation's :class:`Proposal` (:data:`PROPOSAL_SECONDS`, one per conversation: a new
 turn's proposal replaces the old) and the model is told :data:`PROPOSED`: not run yet,
 ask the owner in one short question. Every other write is refused as before
@@ -48,7 +48,7 @@ CHANGED = "That has changed since, so I didn't do it. Nothing was changed."
 class Change:
     """What a kept call does, as the ledger and the spoken reply say it."""
     action: str  # created | completed
-    kind: str  # todo | reminder | list_item | note | event | action_item
+    kind: str  # todo | reminder | list_item | note | event | action_item | announcement
     title: str
     where: str
     phrase: str  # "Added Dentist to your calendar."
@@ -411,6 +411,12 @@ async def athena_item_title(item_id: int) -> str | None:
     return None
 
 
+async def _announce(owner: Any, args: dict) -> Change | None:
+    """The ``announce`` tool: say a message in a room (``fork/voice/announce_tool.py``)."""
+    from fork.voice.announce_tool import describe as describe_announce
+    return await describe_announce(owner, args)
+
+
 async def _item_done(owner: Any, args: dict) -> Change | None:
     """Athena's ``update_action_item`` with ``status: done`` and nothing else."""
     if str(args.get("status") or "").strip().lower() != "done":
@@ -439,6 +445,7 @@ WRITABLE: tuple[Writable, ...] = (
     Writable("manage_notes", frozenset({"update"}), _list_items),
     Writable("manage_calendar", frozenset({"create_event"}), _event),
     Writable(ATHENA_UPDATE, None, _item_done),
+    Writable("announce", None, _announce),
 )
 
 
