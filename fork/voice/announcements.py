@@ -13,8 +13,10 @@ satellites of its target:
 * ``{"device_id": "..."}``: the satellite of that device (by its name, else its room, from
   the registry ``fork/voice/devices.py``).
 
-When Home Assistant has no satellite for the area or device, it falls back to the
-configured list. The same local-only rule as before: Home Assistant must be on the
+When Home Assistant has no satellite for the area or device (or can't list them), the
+announcement is kept for that target's feed but **not spoken anywhere**: "tell the
+bedroom" never speaks in every room; :func:`deliver` says why (``problem``: "no Echo in
+the Bedroom can speak it"). Only ``"all"`` uses the configured list. The same local-only rule as before: Home Assistant must be on the
 owner's network (``announce.check_url``), and is only asked when it is set up.
 
 The feed keeps each announcement :data:`KEEP_SECONDS` (24 h) and shows it until its
@@ -265,20 +267,40 @@ def pick_entities(owner: Any, target: dict, sats: list[Satellite]) -> list[str]:
     return []
 
 
+class NoSatellite(voice_announce.Refused):
+    """An explicit room or device has no satellite Home Assistant knows of (or Home
+    Assistant can't say which): the announcement isn't spoken anywhere."""
+
+
+def _nowhere(owner: Any, target: dict, why: str = "") -> str:
+    if target.get("area"):
+        where = f"in the {target['area']}"
+    else:
+        device = devices.get(owner, target.get("device_id"))
+        where = f"for {device.name}" if device is not None and device.name else (
+            "for that device")
+    return f"no Echo {where} can speak it" + (f" ({why})" if why else "")
+
+
 async def entities_for(owner: Any, target: Any, *,
                        transport: httpx.AsyncBaseTransport | None = None) -> list[str] | None:
-    """The entities to speak on: those Home Assistant has for the target, else None (the
-    configured list)."""
+    """The entities to speak on: None for ``"all"`` (the configured list), else those Home
+    Assistant has for the room or device. Raises :class:`NoSatellite` when it has none or
+    can't say: an explicit target is never spoken in every room."""
     target = normalize_target(target)
     if target.get("all"):
         return None
     try:
         sats = await satellites(transport=transport)
+    except NoSatellite:
+        raise
     except voice_announce.Refused as exc:
-        logger.info("voice announce: satellites unknown (%s); the configured list is used", exc)
-        return None
+        raise NoSatellite(_nowhere(owner, target, f"Home Assistant can't list them: {exc}")
+                          ) from None
     found = pick_entities(owner, target, sats)
-    return found or None
+    if not found:
+        raise NoSatellite(_nowhere(owner, target))
+    return found
 
 
 # ---------------------------------------------------------------------- delivering
@@ -288,6 +310,7 @@ class Delivery:
     spoken: bool = False
     entities: list[str] = field(default_factory=list)
     problem: str | None = None  # why it wasn't spoken
+    no_satellite: bool = False  # an explicit room or device with no satellite to speak it
 
 
 def can_speak() -> bool:
@@ -322,6 +345,10 @@ async def deliver(owner: Any, message: str, target: Any = "all", *,
         out.entities = list(entities or ())
         await voice_announce.send(message, entities, transport=transport)
         out.spoken = True
+    except NoSatellite as exc:
+        out.problem = str(exc)
+        out.no_satellite = True
+        logger.info("voice announce: not spoken: no satellite for the target")
     except voice_announce.Refused as exc:
         out.problem = str(exc)
         logger.info("voice announce: not spoken: %s", exc)

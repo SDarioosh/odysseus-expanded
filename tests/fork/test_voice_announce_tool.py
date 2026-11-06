@@ -91,6 +91,22 @@ async def test_everywhere_and_a_device_name(brain):
     assert [d[2] for d in brain.delivered] == ["all", {"device_id": "echo-2"}]
 
 
+async def test_a_room_with_no_echo_to_speak_is_reported(brain, monkeypatch):
+    async def nowhere(owner, message, target="all", **kw):
+        brain.delivered.append((owner, message, target))
+        return announcements.Delivery(item={"id": "an_1"}, spoken=False, no_satellite=True,
+                                      problem="no Echo in the Bedroom can speak it")
+
+    monkeypatch.setattr(announcements, "deliver", nowhere)
+    desc, result = await announce_tool.run("alice", json.dumps({"message": "Hi",
+                                                                "to": "bedroom"}))
+    assert desc == f"{NAME}: not spoken" and result["exit_code"] == 0
+    out = result["output"]
+    assert "Not spoken aloud anywhere: no Echo in the Bedroom can speak it" in out
+    assert "nothing was said in other rooms" in out
+    assert brain.delivered == [("alice", "Hi", {"area": "Bedroom"})]
+
+
 async def test_voice_keeps_it_for_a_spoken_yes(brain):
     sess = brain.session()
     brain.llm.rounds([calls((NAME, DINNER))],

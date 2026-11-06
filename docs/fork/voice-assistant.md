@@ -641,8 +641,9 @@ logged without the message. Later features (a spoken daily briefing) call it the
   that one device instead (titled "Test announcement"): kept for its feed only, or also
   spoken with `"speak": true` (through `deliver`) → `{"ok", "problem", "id", "spoken"}`.
   [`scripts/echo_verify.py`](#checking-a-server-for-the-echos) sends one to a made-up
-  device id, so no screen shows it and nothing is said. (A device target that matches no
-  satellite falls back to the configured list when spoken, so speaking is opt-in.)
+  device id, so no screen shows it and nothing is said. Spoken, a device target is said
+  only on that device's satellite; one that matches none is said nowhere (`spoken:
+  false`, `problem` "no Echo for … can speak it").
 - **One Home Assistant address:** announcements and the Echo link use
   `fork/voice/ha_settings.py`'s `home_assistant_url()`: the address **Set up Home
   Assistant** saved (only after a setup that succeeded), or `FORK_HA_URL` when it is set,
@@ -737,7 +738,12 @@ ref=…)` keeps the announcement for the devices' feed and speaks it. `target` i
   `living_room`).
 - A device: the satellite whose name starts with the device's name (exactly one), else the
   satellites of the device's room.
-- No satellite found, or Home Assistant can't list them: the configured list.
+- No satellite found for an area or device, or Home Assistant can't list them: it is kept
+  for that target's feed (its screens show it) but **spoken nowhere**, never on the
+  configured list instead, so "tell the bedroom" is never said in every room. `deliver`
+  returns `spoken: false`, `no_satellite: true` and a `problem` such as "no Echo in the
+  Bedroom can speak it" (or "no Echo for Bedroom Echo can speak it"). Only `"all"` (the
+  announce tool's "everywhere", reminders) uses the configured list.
 - The same rules as before: Home Assistant only on the owner's network (`check_url`), its
   token from `FORK_HA_TOKEN`; never raises. Without a Home Assistant address and token the
   announcement is only kept for the feed.
@@ -781,7 +787,9 @@ and token are set. Speaking aloud is a write:
   (`fork/voice/confirm.py`, `WRITABLE`): "Announce “Dinner is ready” in the Kitchen?". A
   room nobody knows is refused. The ledger records it as `kind: "announcement"`.
 - A room the hub doesn't know is an error that names the known rooms; Home Assistant down
-  still shows it on the devices' screens (the result says it wasn't spoken).
+  still shows it on the devices' screens (the result says it wasn't spoken). A room or
+  device Home Assistant has no satellite for is spoken nowhere; the result tells the model
+  "Not spoken aloud anywhere: no Echo in the Bedroom can speak it…" to pass on.
 
 ### Settings
 
@@ -976,7 +984,9 @@ What it changes, and nothing else:
 - **The test announcement** ("Odysseus verification test, please ignore (<time>).") goes to
   the feed of a made-up device `echo-verify-<UTC time>`: no Echo shows it and nothing is
   spoken; it expires after an hour and is deleted after a day. With `--speak` it goes to
-  `--device-id` instead: that Echo shows it and Home Assistant says it aloud. The token's
+  `--device-id` instead: that Echo shows it and Home Assistant says it aloud on that Echo's
+  satellite (by its name, else its room); with none for it, nothing is said anywhere and
+  the check fails with "no Echo for … can speak it". The token's
   owner and the admin must be the same user, or the feed check fails.
 - **hello** with `--device-id` refreshes that device's last-seen time.
 

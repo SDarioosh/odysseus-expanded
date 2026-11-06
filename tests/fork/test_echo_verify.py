@@ -33,6 +33,7 @@ class FakeHub(ev.Http):
         self.override: dict[tuple[str, str], ev.Response] = {}
         self.signed_in = False
         self.feed: list[dict] = []
+        self.no_satellite = False
         self.owner_feed = owner_feed
 
     def send(self, method, path, *, headers=None, body=None):
@@ -88,6 +89,9 @@ class FakeHub(ev.Http):
                    "text": sent["message"], "target": {"device_id": sent["device_id"]},
                    "ref": None}
             self.feed.append(row)
+            if sent["speak"] and self.no_satellite:
+                return _json(200, {"ok": False, "id": row["id"], "spoken": False,
+                                   "problem": "no Echo for Attic Echo can speak it"})
             return _json(200, {"ok": True, "problem": None, "id": row["id"],
                                "spoken": bool(sent["speak"])})
         return _json(404, {"detail": "Not Found"})
@@ -158,6 +162,12 @@ def test_the_announcement_goes_to_a_made_up_device_unless_spoken():
     r = ev.check_announcement(hub, opts(admin_user="admin", admin_password="pw", speak=True,
                                         device_id="echo-kitchen"))
     assert r.status == ev.PASS and "spoken" in r.detail
+    hub = FakeHub()
+    hub.no_satellite = True  # Home Assistant has no satellite for that Echo
+    r = ev.check_announcement(hub, opts(admin_user="admin", admin_password="pw", speak=True,
+                                        device_id="echo-attic"))
+    assert r.status == ev.FAIL and "no Echo for Attic Echo can speak it" in r.detail
+    assert "nothing was said anywhere else" in r.detail
 
 
 def test_announcement_failures():

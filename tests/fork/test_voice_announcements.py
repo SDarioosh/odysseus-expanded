@@ -99,14 +99,42 @@ async def test_a_room_name_with_spaces_matches_its_area_id(ha):
     assert out.entities == ["assist_satellite.living_room_echo"]
 
 
-async def test_no_area_match_falls_back_to_the_configured_list(ha):
+async def test_a_room_with_no_satellite_is_kept_for_its_feed_but_spoken_nowhere(ha):
+    hello(device_id="echo-g", name="Garage Echo", area="Garage")
     out = await announcements.deliver("alice", "Hi", {"area": "Garage"},
                                       transport=ha.transport)
-    assert out.spoken and out.entities == []
-    assert ha.spoken[0]["entity_id"] == ["assist_satellite.everywhere"]
-    ha.template_status = 500  # Home Assistant can't list them: the list too
-    await announcements.deliver("alice", "Hi", {"area": "Kitchen"}, transport=ha.transport)
-    assert ha.spoken[1]["entity_id"] == ["assist_satellite.everywhere"]
+    assert not out.spoken and out.no_satellite and out.entities == []
+    assert out.problem == "no Echo in the Garage can speak it"
+    assert ha.spoken == []  # never the configured "everywhere" list instead
+    assert [i["text"] for i in announcements.feed("alice", "echo-g")] == ["Hi"]
+    assert announcements.feed("alice", "echo-1") == []
+
+
+async def test_a_device_with_no_satellite_is_spoken_nowhere(ha):
+    hello(device_id="echo-7", name="Attic Echo", area="Attic")
+    out = await announcements.deliver("alice", "Hi", {"device_id": "echo-7"},
+                                      transport=ha.transport)
+    assert not out.spoken and out.problem == "no Echo for Attic Echo can speak it"
+    out = await announcements.deliver("alice", "Hi", {"device_id": "never-seen"},
+                                      transport=ha.transport)
+    assert out.problem == "no Echo for that device can speak it"
+    assert ha.spoken == [] and out.item is not None
+
+
+async def test_home_assistant_unable_to_list_satellites_speaks_nowhere(ha):
+    ha.template_status = 500
+    out = await announcements.deliver("alice", "Hi", {"area": "Kitchen"},
+                                      transport=ha.transport)
+    assert not out.spoken and out.no_satellite and ha.spoken == []
+    assert out.problem.startswith("no Echo in the Kitchen can speak it (Home Assistant")
+
+
+async def test_a_reminder_to_all_still_uses_the_configured_list(ha):
+    out = await announcements.deliver("alice", "Reminder: Bins", "all", kind="reminder",
+                                      ref="todo:41", transport=ha.transport)
+    assert out.spoken and not out.no_satellite and ha.templates == []
+    assert ha.spoken == [{"entity_id": ["assist_satellite.everywhere"],
+                          "message": "Reminder: Bins"}]
 
 
 async def test_all_uses_the_configured_list_without_asking(ha):
@@ -288,12 +316,25 @@ def test_the_admin_test_announcement_to_one_device(ha, monkeypatch):
         (body["id"], "Verification test", {"device_id": "echo-verify-1"},
          "Test announcement")]
     assert announcements.feed("alice", "echo-kitchen") == []  # no real device sees it
-    # speak: through deliver, to that device's satellites (here: the configured list)
+    # speak: through deliver, to that device's satellite; with none it is said nowhere
     monkeypatch.setattr(announcements, "satellites", _no_satellites)
     res = client.post("/api/fork/voice/announce",
                       json={"device_id": "echo-verify-1", "speak": True})
+    assert res.json()["spoken"] is False and res.json()["ok"] is False
+    assert res.json()["problem"] == "no Echo for that device can speak it"
+    assert ha.spoken == []
+
+    async def one_satellite(**_):
+        return [announcements.Satellite("assist_satellite.kitchen_echo", "kitchen",
+                                        "Kitchen", "Kitchen Echo")]
+
+    monkeypatch.setattr(announcements, "satellites", one_satellite)
+    hello(device_id="echo-verify-2", name="Kitchen Echo", area="Kitchen")
+    res = client.post("/api/fork/voice/announce",
+                      json={"device_id": "echo-verify-2", "speak": True})
     assert res.json()["spoken"] is True and res.json()["ok"] is True
-    assert ha.spoken[-1]["message"] == satellite_routes.TEST_MESSAGE
+    assert ha.spoken[-1] == {"message": satellite_routes.TEST_MESSAGE,
+                             "entity_id": ["assist_satellite.kitchen_echo"]}
     assert client.post("/api/fork/voice/announce", json={"device_id": "x"},
                        headers={"x-token": "1"}).status_code == 403
     assert client.post("/api/fork/voice/announce",

@@ -13,7 +13,9 @@ check failed. Read-only, except:
 * a **test announcement**, only with ``--admin-user`` and ``--password-file`` (the route
   is admin-only): kept for the feed of a made-up device ``echo-verify-<time>``, so no
   screen shows it and nothing is spoken. With ``--speak`` it goes to ``--device-id`` (a
-  real Echo) instead, which shows it and says it aloud.
+  real Echo) instead, which shows it and says it aloud on that Echo's Home Assistant
+  satellite (by its name, else its room); when Home Assistant has none for it, it is said
+  nowhere and the check fails.
 * ``satellite/hello``, only with ``--device-id``: sends that device's id alone, which keeps
   its stored name, room and version and only refreshes its last-seen time.
 
@@ -407,7 +409,11 @@ def check_announcement(http: Http, opts: Options) -> Result:
                                   "must be the same owner)")
     if opts.speak:
         if not answer.get("spoken"):
-            return Result(name, FAIL, f"in the feed, not spoken: {answer.get('problem')}")
+            problem = str(answer.get("problem") or "")
+            hint = (" (Home Assistant needs an assist_satellite named like the Echo, or in "
+                    "its room; nothing was said anywhere else)"
+                    if problem.startswith("no Echo") else "")
+            return Result(name, FAIL, f"in the feed, not spoken: {problem}{hint}")
         return Result(name, PASS, "in the device's feed and spoken; the Echo shows it")
     return Result(name, PASS, f"in the feed of {device_id} only; not spoken, no screen "
                               "shows it")
@@ -457,7 +463,8 @@ def main(argv: list[str] | None = None, http: Http | None = None) -> int:
     ap.add_argument("--admin-user", default="", help="admin, for the test announcement")
     ap.add_argument("--password-file", help="a file holding that admin's password")
     ap.add_argument("--speak", action="store_true",
-                    help="send the test announcement to --device-id and say it aloud")
+                    help="send the test announcement to --device-id and say it aloud on "
+                         "its Home Assistant satellite (nowhere else)")
     ap.add_argument("--full-apk", action="store_true", help="download the whole APK")
     args = ap.parse_args(argv)
     token = (args.token or (_read(args.token_file) if args.token_file else "")
