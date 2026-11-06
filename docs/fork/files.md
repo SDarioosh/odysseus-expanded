@@ -189,8 +189,11 @@ is an old path of a module that moved into `fork/`; it only aliases the new modu
 - `fork/upstream.py`
 - `fork/voice/__init__.py`
 - `fork/voice/announce.py`
+- `fork/voice/announce_tool.py`
+- `fork/voice/announcements.py`
 - `fork/voice/chat_prefix.py`
 - `fork/voice/confirm.py`
+- `fork/voice/devices.py`
 - `fork/voice/echo_link.py`
 - `fork/voice/ha_routes.py`
 - `fork/voice/ha_settings.py`
@@ -511,6 +514,8 @@ is an old path of a module that moved into `fork/`; it only aliases the new modu
 - `tests/fork/test_turn_policy_characterization.py`
 - `tests/fork/test_upstream_drift.py`
 - `tests/fork/test_vision_auto_detect.py`
+- `tests/fork/test_voice_announce_tool.py`
+- `tests/fork/test_voice_announcements.py`
 - `tests/fork/test_voice_assistant.py`
 - `tests/fork/test_voice_enroll_routes.py`
 - `tests/fork/test_voice_interrupts.py`

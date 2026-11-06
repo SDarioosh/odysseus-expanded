@@ -57,6 +57,8 @@ for chat streams, and a voice answer can take longer (minutes on the sandbox's C
 | `GET /api/chat/voice/v1/models` | the same | `{"data": [{"id": "odysseus", …}]}`, for clients that list models when set up |
 | `GET /api/chat/voice/v1/actions?since=<ms>&limit=<n>` | the same | the changes voice made (below) |
 | `GET /api/chat/voice/v1/turns/latest?since=<ms>` | the same | the newest finished voice turn (below) |
+| `POST /api/chat/voice/v1/satellite/hello` | the same | the device's id, name, room and app version ([Rooms and devices](#rooms-and-devices)) |
+| `GET /api/chat/voice/v1/announcements?device_id=…&since=<ms>` | the same | the announcements and reminders meant for that device ([feed](#the-devices-feed)) |
 | `POST /api/fork/voice/token` | signed-in admin (browser) | makes a token with only the `voice` scope (the Settings card) |
 | `GET /api/fork/voice/ha` | the same | the saved Home Assistant address and the last setup's report |
 | `POST /api/fork/voice/ha/connect` | the same, same-origin | starts "Set up Home Assistant": answers HA's login address ([Setup](#setup-owner)) |
@@ -535,6 +537,9 @@ logged without the message. Later features (a spoken daily briefing) call it the
   `announce_reminder(title)` also says "Reminder: <title>", in the background: the
   reminder itself never waits for or fails on Home Assistant. Off until there is a Home
   Assistant address, `FORK_HA_TOKEN` and `FORK_VOICE_ANNOUNCE_ENTITIES` are set.
+- **Feed:** a reminder is also kept for the devices' feed with `kind: "reminder"`, its
+  to-do `ref` (`todo:<note id>`) and target every device, even without Home Assistant
+  (`announce_reminder(title, owner=…, ref=…)`). Per-reminder rooms can come later.
 - **Test:** `POST /api/fork/voice/announce` (signed-in admin, browser), `{"message"?: str}`
   → `{"ok": true|false, "problem": "…"|null}`.
 - **One Home Assistant address:** announcements and the Echo link use
@@ -546,6 +551,75 @@ logged without the message. Later features (a spoken daily briefing) call it the
   and every address must be one (`announce.check_url`). **Set up Home Assistant** and
   `scripts/ha_voice_setup.py` apply the same rule before signing in. A public host, a URL
   with credentials, a query or a fragment is refused.
+
+### Rooms and devices
+
+`fork/voice/devices.py`. Each Echo says who and where it is:
+
+`POST /api/chat/voice/v1/satellite/hello` (the `voice` token), a form: `device_id`
+(required, ≤ 128 characters), `device_name`, `area` (≤ 100), `app_version_code` (a whole
+number). Sent at start and hourly. Answer `{"ok": true}`. Every `POST …/satellite/turn`
+records the same (`device_id`, `device_name`, `area`); a field a request leaves blank keeps
+what was stored. One row per (owner, device) in `<DATA_DIR>/fork_voice.db`
+(`satellite_devices`) with its last-seen time; a device unheard for 90 days is dropped, at
+most 64 per owner.
+
+### Announcing to a room or device
+
+`fork/voice/announcements.py`: `await deliver(owner, message, target, kind=…, title=…,
+ref=…)` keeps the announcement for the devices' feed and speaks it. `target` is `"all"`,
+`{"area": "Kitchen"}` or `{"device_id": "…"}`:
+
+- `"all"`: the configured `FORK_VOICE_ANNOUNCE_ENTITIES`, as before (Home Assistant isn't
+  asked).
+- An area: Home Assistant's `assist_satellite.*` entities in that area. The hub asks once
+  per announcement with one **fixed** template through `POST <Home Assistant>/api/template`
+  (`areas()`, `area_entities()`, `area_name()`, the entities' names); what the owner said is
+  never put into a template. The area matches by id or name (`Living room` =
+  `living_room`).
+- A device: the satellite whose name starts with the device's name (exactly one), else the
+  satellites of the device's room.
+- No satellite found, or Home Assistant can't list them: the configured list.
+- The same rules as before: Home Assistant only on the owner's network (`check_url`), its
+  token from `FORK_HA_TOKEN`; never raises. Without a Home Assistant address and token the
+  announcement is only kept for the feed.
+
+#### The devices' feed
+
+`GET /api/chat/voice/v1/announcements?device_id=…&since=<epoch ms>` (the `voice` token):
+
+```json
+{"announcements": [
+  {"id": "an_1f2e3d4c5b6a7980", "at": 1762434000000, "kind": "reminder",
+   "title": "Take the bins out", "text": "Reminder: Take the bins out",
+   "target": {"all": true}, "ref": "todo:41", "expires_at": 1762437600000}
+]}
+```
+
+- `kind`: `reminder` or `announcement`. `target`: always an object: `{"all": true}`,
+  `{"area": "…"}` or `{"device_id": "…"}`. `ref`: the to-do note of a reminder, else null.
+- Only what is meant for that device: every device, its area (as its last hello or turn
+  said; compared like Home Assistant's ids) or its `device_id`; only the token owner's.
+- Made after `since`, not yet expired (`expires_at`, 1 h after it was made), oldest first,
+  at most 50. Rows are deleted 24 h after they were made. The device shows each `id` once.
+- `device_id` is required (422 without).
+
+### The announce tool
+
+`fork/voice/announce_tool.py`, in the brain's `home` tool group: "tell the kitchen dinner
+is ready". Arguments `message` and `to` (a room or device name; empty or "everywhere" for
+every room), matched against the devices above, then against Home Assistant's rooms that
+have a satellite. Offered to an admin (or single-user) owner while Home Assistant's address
+and token are set. Speaking aloud is a write:
+
+- **Chat:** it asks on an approval card like every brain write (`needs_approval`), and runs
+  only with that exact approval, which the tool claims for this exact call
+  (`run_approved`); without one it is refused and nothing is said.
+- **Voice:** it is on the allow-list of changes kept for a spoken "yes"
+  (`fork/voice/confirm.py`, `WRITABLE`): "Announce “Dinner is ready” in the Kitchen?". A
+  room nobody knows is refused. The ledger records it as `kind: "announcement"`.
+- A room the hub doesn't know is an error that names the known rooms; Home Assistant down
+  still shows it on the devices' screens (the result says it wasn't spoken).
 
 ### Settings
 
@@ -567,6 +641,10 @@ logged without the message. Later features (a spoken daily briefing) call it the
   dropped rather than used later, and a missing one never grants more.
 - The voice token can now also send audio to Athena's identify route; Athena only compares
   it and writes nothing.
+- The announce tool lets the owner speak in any room; a guest can't run it by voice with
+  `FORK_VOICE_PRIVATE=owner` (the "yes" is refused like every change), and in chat it
+  always needs the owner's approval. The feed holds reminder titles for 24 h, readable
+  with any of the owner's voice tokens.
 - Announcements speak reminder titles aloud in the room, to whoever is there; the
   Home Assistant token can control the owner's home, so it stays in `.env` only and is
   only ever sent to the private host.
@@ -674,7 +752,8 @@ the phone to Home Assistant's sign-in, and adds itself to Home Assistant.
   announcements are `fork/voice/satellite.py` and `announce.py`, optional here (the routes
   import the satellite module lazily and work without it).
 - Satellites and announcements: `fork/voice/satellite.py`, `satellite_routes.py`,
-  `announce.py`; the hook in `src/builtin_actions.py` (`ping_notes`). Barge-in:
+  `announce.py`, `announcements.py` (targets, the feed), `devices.py` (the registry),
+  `announce_tool.py` (the agent's tool); the hook in `src/builtin_actions.py` (`ping_notes`). Barge-in:
   `fork/voice/interrupts.py`; its sandbox: `scripts/voice_barge_sandbox/`.
 - In the brain: `read_only_turn` (`fork/brain/turn.py`: `shared_prefix`, `preset`,
   `gate`, `context_lines`, `no_memory`), `ToolRun.gate` and `read_only_refusal`

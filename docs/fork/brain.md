@@ -162,6 +162,7 @@ about 20 tools and ≤ 6k tokens of schemas (measured in the first PR).
 | Chats | `search_chats` | read |
 | Email | `list_email_accounts`, `list_emails`, `search_emails`, `read_email` | read |
 | Email | `draft_email`, `draft_email_reply`, `send_email`, `reply_to_email` | write, ask |
+| Home | `announce` (new fork tool, `fork/voice/announce_tool.py`: say a message in a room through Home Assistant; offered to an admin while Home Assistant is set up, [voice-assistant.md](voice-assistant.md#the-announce-tool)) | write, ask (runs only with the exact approval) |
 
 Deep research (`trigger_research`) is not in the set: it runs only through upstream's
 `/research` command (`static/js/slashCommands.js`; owner's decision), which the brain
@@ -275,7 +276,7 @@ Fork settings are environment variables in the table of `fork/common/settings.py
 |---|---|---|
 | `FORK_BRAIN` | `on` | The brain answers every chat turn of every chat (one global switch, no per-chat choice); `off` gives the turns back to upstream's agent |
 | `FORK_BRAIN_MAX_ROUNDS` | `8` | Tool rounds per turn |
-| `FORK_BRAIN_TOOL_GROUPS` | `web,athena,workspace,documents,beliefs,chats,email` | Groups in the tool set |
+| `FORK_BRAIN_TOOL_GROUPS` | `web,athena,workspace,documents,beliefs,chats,email,home` | Groups in the tool set |
 
 The brain is the default (owner's decision, 2026-10-31): an instance answers with it unless
 its environment sets `FORK_BRAIN=off`, which gives every turn back to upstream's agent
