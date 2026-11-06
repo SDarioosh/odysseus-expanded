@@ -5,15 +5,16 @@ is the owner's confirmation, so these need no spoken "yes". Scope ``voice``, the
 token check as the other voice routes (:func:`fork.voice.routes.voice_owner`)::
 
     POST …/todos/done         {"ref": "todo:<note id>:<item index>", "device_id": "…"}
-    POST …/reminders/done     {"ref": "todo:<note id>", "device_id": "…"}
+    POST …/reminders/done     {"ref": "todo:<note id>[:<item index>]", "device_id": "…"}
     POST …/action-items/done  {"id": "17", "device_id": "…"}
-    POST …/todos/undo         {"ref": "todo:<note id>:<item index>"}
-    POST …/action-items/undo  {"id": "17"}
+    POST …/todos/undo         {"ref": "todo:<note id>:<item index>", "device_id"?}
+    POST …/action-items/undo  {"id": "17", "device_id"?}
 
 * A to-do item is ticked: the same change as the notes page's tick (the item's ``done``).
-* A reminder (a whole note with a due date) is archived: what the notes page's ✓ Done does
+* A reminder (a whole note with a due date; the ref its announcement carries) is archived: what the notes page's ✓ Done does
   to a note (``PATCH archived: true``). The reminder scanner and the notes page skip
   archived notes, so it doesn't fire again, and it can be restored from the archive.
+  A reminder ref with an item index ticks that item instead, as ``todos/done``.
 * An Athena action item gets ``status: done`` through the hub's Athena link
   (``PATCH /action-items/{id}``, the relay's own write, ``fork/athena/call_recorder.py``).
 
@@ -177,7 +178,7 @@ def parse_todo_ref(value: Any) -> tuple[str, int]:
 def parse_reminder_ref(value: Any) -> str:
     m = REMINDER_REF.match(str(value or "").strip()) if isinstance(value, str) else None
     if not m:
-        raise Failure(400, "ref must be todo:<note id>")
+        raise Failure(400, "ref must be todo:<note id> or todo:<note id>:<item index>")
     return m.group(1)
 
 
@@ -239,7 +240,7 @@ def _save_items(db: Any, note: Any, items: list) -> None:
     db.commit()
 
 
-def todo_done(owner: str, ref: Any, device_id: Any) -> dict:
+def todo_done(owner: str, ref: Any, device_id: Any, *, kind: str = "todo") -> dict:
     note_id, index = parse_todo_ref(ref)
     device_id = parse_device_id(device_id)
     target = f"todo:{note_id}:{index}"
@@ -254,7 +255,7 @@ def todo_done(owner: str, ref: Any, device_id: Any) -> dict:
         item["done"] = True
         _save_items(db, note, items)
         where = str(note.title or "").strip()[:80] or TODOS_WHERE
-    action_id = _record(owner, device_id, kind="todo", title=title, where=where)
+    action_id = _record(owner, device_id, kind=kind, title=title, where=where)
     remember(owner, target, device_id, action_id=action_id, item_text=title)
     return {"ok": True, "already": False, "title": title}
 
@@ -291,6 +292,10 @@ def todo_undo(owner: str, ref: Any, now: float | None = None) -> dict:
 
 
 def reminder_done(owner: str, ref: Any, device_id: Any) -> dict:
+    """``todo:<note id>`` archives the reminder's note; ``todo:<note id>:<index>`` (a ref
+    naming one line) ticks that line, as :func:`todo_done`."""
+    if isinstance(ref, str) and TODO_REF.match(ref.strip()):
+        return todo_done(owner, ref, device_id, kind="reminder")
     note_id = parse_reminder_ref(ref)
     device_id = parse_device_id(device_id)
     with _note(owner, note_id) as (db, note):

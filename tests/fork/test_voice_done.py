@@ -268,9 +268,35 @@ def test_reminder_done_archives_the_note(db):
     assert len(ledger.actions("alice")) == 1
 
 
+def test_reminder_done_with_an_item_index_ticks_that_item(db):
+    add_note(db, "r8", title="Before the trip", items=ITEMS)
+    c = client()
+    r = post(c, "/reminders/done", {"ref": "todo:r8:0", "device_id": DEVICE})
+    assert r.status_code == 200
+    assert r.json() == {"ok": True, "already": False, "title": "Buy bread"}
+    assert get_note(db, "r8") == {"items": [{**ITEMS[0], "done": True}, *ITEMS[1:]],
+                                  "archived": False}
+    assert ledger.actions("alice")[0]["kind"] == "reminder"
+    r = post(c, "/reminders/done", {"ref": "todo:r8:0", "device_id": DEVICE})
+    assert r.json()["already"] is True
+    r = post(c, "/reminders/done", {"ref": "todo:r8:9", "device_id": DEVICE})
+    assert r.status_code == 404 and r.json() == {"error": "not found"}
+
+
+def test_undo_bodies_may_carry_the_device_id(db, athena):
+    add_note(db, "n41", items=ITEMS)
+    c = client()
+    post(c, "/todos/done", {"ref": "todo:n41:1", "device_id": DEVICE})
+    r = post(c, "/todos/undo", {"ref": "todo:n41:1", "device_id": DEVICE})
+    assert r.status_code == 200 and r.json()["already"] is False
+    post(c, "/action-items/done", {"id": "17", "device_id": DEVICE})
+    r = post(c, "/action-items/undo", {"id": "17", "device_id": "another-echo"})
+    assert r.status_code == 200 and r.json()["already"] is False
+
+
 def test_reminder_done_errors(db):
     c = client()
-    assert post(c, "/reminders/done", {"ref": "todo:r7:0", "device_id": DEVICE}).status_code == 400
+    assert post(c, "/reminders/done", {"ref": "todo:r7:x", "device_id": DEVICE}).status_code == 400
     assert post(c, "/reminders/done", {"ref": "todo:r7"}).status_code == 400
     r = post(c, "/reminders/done", {"ref": "todo:nope", "device_id": DEVICE})
     assert r.status_code == 404 and r.json() == {"error": "not found"}

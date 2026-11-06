@@ -289,14 +289,14 @@ so these need no spoken "yes". Same `voice` token as the other routes.
 POST …/todos/done         {"ref": "todo:41:2", "device_id": "…"} -> {"ok": true, "already": false, "title": "Call the plumber"}
 POST …/reminders/done     {"ref": "todo:41", "device_id": "…"}   -> {"ok": true, "already": false, "title": "Take the bins out"}
 POST …/action-items/done  {"id": "17", "device_id": "…"}         -> {"ok": true, "already": false, "title": "Send Sam the photos"}
-POST …/todos/undo         {"ref": "todo:41:2"}                   -> {"ok": true, "already": false, "title": "Call the plumber"}
-POST …/action-items/undo  {"id": "17"}                           -> {"ok": true, "already": false, "title": "Send Sam the photos"}
+POST …/todos/undo         {"ref": "todo:41:2", "device_id": "…"} -> {"ok": true, "already": false, "title": "Call the plumber"}
+POST …/action-items/undo  {"id": "17", "device_id": "…"}         -> {"ok": true, "already": false, "title": "Send Sam the photos"}
 ```
 
 | Route | What it changes |
 |---|---|
 | `todos/done` | ticks item 2 of note 41 (the `ref` of `GET …/today`), the same change as the notes page's tick: the item's `done` |
-| `reminders/done` | archives note 41 (the `ref` of a `kind: reminder` announcement). This is what the notes page's ✓ Done does to a note (`PATCH archived: true`, for a note with or without items, repeating or not), so a reminder finished on the Echo looks the same as one finished in the browser: the reminder scanner (`ping_notes`) and the notes page skip archived notes, so it doesn't fire again, and it can be restored from the notes archive. Ticking the note's one item or clearing its due date (the plan's other options) would leave a reminder the notes page still shows |
+| `reminders/done` | archives note 41 (the `ref` of a `kind: reminder` announcement). This is what the notes page's ✓ Done does to a note (`PATCH archived: true`, for a note with or without items, repeating or not), so a reminder finished on the Echo looks the same as one finished in the browser: the reminder scanner (`ping_notes`) and the notes page skip archived notes, so it doesn't fire again, and it can be restored from the notes archive. Ticking the note's one item or clearing its due date (the plan's other options) would leave a reminder the notes page still shows. The `ref` is taken as the feed carries it: a ref with an item index (`todo:41:2`) ticks that item instead, as `todos/done` |
 | `action-items/done` | Athena's `status: done` through the hub's Athena link (`PATCH /action-items/{id}`, the relay's own write; the item is first read with `GET /action-items?status=all`, for its title and whether it is already done). `id` is Athena's id as `GET …/today` gives it (`"17"`); a number and `"ai_17"` are read too |
 
 - **Idempotent:** a to-do item already ticked, a note already archived or an item already
@@ -310,6 +310,8 @@ POST …/action-items/undo  {"id": "17"}                           -> {"ok": tru
   didn't close (ticked in the browser, or closed again elsewhere after an undo): 409
   `{"error": "too late to undo"}`; already open: 200 with `"already": true`. A device's
   dones are kept for a day in `fork_voice.db` (table `device_done`), owner-scoped.
+  The undo bodies may carry the device's `device_id`; it is not needed (any device of
+  the owner may undo) and is ignored.
   A reminder has no undo route: unarchive it on the notes page.
 - **Errors:** 400 `{"error": "…"}` for a body that isn't a JSON object, a malformed
   `ref` or `id`, or no `device_id` (done routes; at most 128 characters); 404
