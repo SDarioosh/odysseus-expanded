@@ -188,9 +188,12 @@ def today_problem(body: Any) -> str | None:
     for key in TODAY_LISTS:
         if not isinstance(body.get(key), list):
             return f"{key} isn't a list"
-    for row in body["todos"] + body["focus"]:
+    for row in body["todos"]:
         if not isinstance(row, dict) or not str(row.get("ref", "")).startswith("todo:"):
             return "a to-do without a todo: ref"
+    for row in body["focus"]:  # a to-do, an event, a loop or a plan: todo:, event:, …
+        if not isinstance(row, dict) or not isinstance(row.get("ref"), str) or not row["ref"]:
+            return "a focus row without a ref"
     for row in body["events"]:
         if not isinstance(row, dict) or not row.get("start") or "all_day" not in row:
             return "an event without start or all_day"
@@ -289,6 +292,10 @@ def check_hello(http: Http, opts: Options) -> Result:
     return Result("satellite/hello", FAIL, _why(res))
 
 
+# "settings": the device's hub-managed settings changed (no card; fork/voice/device_settings.py)
+FEED_KINDS = ("reminder", "announcement", "settings")
+
+
 def feed_problem(body: Any) -> str | None:
     if not isinstance(body, dict) or not isinstance(body.get("announcements"), list):
         return "no announcements list"
@@ -297,7 +304,7 @@ def feed_problem(body: Any) -> str | None:
             return "an announcement isn't an object"
         if not str(row.get("id", "")).startswith("an_"):
             return "an announcement without an an_ id"
-        if row.get("kind") not in ("reminder", "announcement"):
+        if row.get("kind") not in FEED_KINDS:
             return f"unknown kind {row.get('kind')!r}"
         if not isinstance(row.get("target"), dict):
             return "an announcement whose target isn't an object"
