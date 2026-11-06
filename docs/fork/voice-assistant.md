@@ -878,7 +878,8 @@ install (Android shows its own prompt; no silent install).
   ```
 
   The script copies the APK to a temp file in `echo_app/` while working out its sha256,
-  renames it into place, then writes `release.json` the same way. It refuses a file that
+  renames it into place, then writes `release.json` the same way; two publishes at once
+  take turns (a lock on `echo_app/.publish.lock`). It refuses a file that
   isn't a zip, and a `--version-code` lower than the published one unless `--force` (an
   Echo would never install it). It doesn't read the APK's manifest: pass what the Echo
   build printed (`./gradlew printVersionName printVersionCode`). Releases signed with a

@@ -302,3 +302,57 @@ def test_the_admin_test_announcement_to_one_device(ha, monkeypatch):
 
 async def _no_satellites(**_):
     return []
+
+
+# ------------------------------------------------------------------- edge cases
+@pytest.mark.parametrize("code", ["²", "１２", "٣"])
+def test_hello_refuses_non_ascii_digits(api, code):
+    res = api.post(PREFIX + "/satellite/hello", headers=VOICE,
+                   data={"device_id": "echo-1", "app_version_code": code})
+    assert res.status_code == 422
+
+
+@pytest.mark.parametrize("since", [str(10 ** 30), str(-(10 ** 30)), "-5"])
+def test_the_feed_survives_any_since(api, since):
+    a = announcements.store("alice", "For everyone", "all")
+    res = api.get(PREFIX + "/announcements", headers=VOICE,
+                  params={"device_id": "echo-1", "since": since})
+    assert res.status_code == 200
+    expected = [] if since == str(10 ** 30) else [a["id"]]
+    assert [x["id"] for x in res.json()["announcements"]] == expected
+
+
+def test_the_feed_keeps_the_newest_fifty(data_dir):
+    now = 1_762_434_000.0
+    made = [announcements.store("alice", f"Item {i}", "all", now=now + i)["id"]
+            for i in range(60)]
+    got = [x["id"] for x in announcements.feed("alice", "echo-1", now=now + 61)]
+    assert got == made[-announcements.MAX_FEED:]
+
+
+def test_targets_match_rooms_by_slug_and_devices_exactly(data_dir):
+    hello(device_id="echo-1", name="Kids' Room", area="Kids’ Room")
+    hello(device_id="echo-2", name="Kitchen", area="kitchen")
+    k = announcements.store("alice", "Bedtime", {"area": "kids room"})
+    d = announcements.store("alice", "Only one", {"device_id": "ECHO-2"})
+    assert [x["id"] for x in announcements.feed("alice", "echo-1")] == [k["id"]]
+    assert announcements.feed("alice", "echo-2") == []  # device ids are exact
+    assert d["target"] == {"device_id": "ECHO-2"}
+
+
+def test_the_registry_is_written_off_the_event_loop(api, monkeypatch):
+    threads = []
+    real = devices.seen
+
+    def seen(*a, **kw):
+        try:
+            asyncio.get_running_loop()
+            threads.append("on the loop")
+        except RuntimeError:
+            threads.append("worker")
+        return real(*a, **kw)
+
+    monkeypatch.setattr(devices, "seen", seen)
+    api.post(PREFIX + "/satellite/hello", headers=VOICE, data={"device_id": "echo-1"})
+    api.post(PREFIX + "/satellite/turn", headers=VOICE, data={"device_id": "echo-1"})
+    assert threads == ["worker", "worker"]

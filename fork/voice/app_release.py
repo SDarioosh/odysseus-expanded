@@ -13,7 +13,8 @@ A device compares ``version_code``, never the name (semver ignores ``+odysseus.N
 
 Storage is ``<DATA_DIR>/echo_app/``: ``odysseus-echo.apk`` and ``release.json`` (the fields
 above). :func:`publish` puts a new release there, the APK first and then its
-``release.json``, each written to a temp file and renamed into place; the owner runs it
+``release.json``, each written to a temp file and renamed into place, one publish at a
+time (``.publish.lock``); the owner runs it
 through ``scripts/echo_release.py`` on the server. Nothing here reads the APK's manifest:
 the owner passes the version the Echo build printed.
 """
@@ -21,6 +22,8 @@ import hashlib
 import json
 import os
 import tempfile
+from collections.abc import Iterator
+from contextlib import contextmanager
 from pathlib import Path
 from typing import Any, BinaryIO
 
@@ -28,6 +31,7 @@ APP = "odysseus-echo"
 DIR_NAME = "echo_app"
 APK_NAME = "odysseus-echo.apk"
 RELEASE_NAME = "release.json"
+LOCK_NAME = ".publish.lock"
 APK_MEDIA_TYPE = "application/vnd.android.package-archive"
 NO_RELEASE = {"error": "no release"}
 FIELDS = ("app", "version_name", "version_code", "size", "sha256", "notes")
@@ -130,14 +134,39 @@ def publish(apk: str | os.PathLike, *, version_name: str, version_code: int,
     with source.open("rb") as fh:
         if fh.read(4) != b"PK\x03\x04":
             raise ReleaseError(f"{source}: not an APK (an APK is a zip file)")
+    folder = release_dir(data_dir)
+    folder.mkdir(parents=True, exist_ok=True)
+    with _publishing(folder):
+        return _publish(source, folder, version_name=version_name,
+                        version_code=version_code, notes=notes, force=force,
+                        data_dir=data_dir)
+
+
+@contextmanager
+def _publishing(folder: Path) -> Iterator[None]:
+    """One publish at a time (two at once could leave one's APK beside the other's
+    ``release.json``): an exclusive ``flock`` on ``.publish.lock`` in the folder."""
+    with open(folder / LOCK_NAME, "a+b") as fh:
+        try:
+            import fcntl
+        except ImportError:  # not POSIX: no lock
+            yield
+            return
+        fcntl.flock(fh.fileno(), fcntl.LOCK_EX)
+        try:
+            yield
+        finally:
+            fcntl.flock(fh.fileno(), fcntl.LOCK_UN)
+
+
+def _publish(source: Path, folder: Path, *, version_name: str, version_code: int,
+             notes: str, force: bool, data_dir: str | os.PathLike | None) -> dict:
     before = current(data_dir)
     if before and version_code < before["version_code"] and not force:
         raise ReleaseError(
             f"version code {version_code} is lower than the published "
             f"{before['version_code']} ({before['version_name']}); devices would never "
             "install it. Pass --force to publish it anyway.")
-    folder = release_dir(data_dir)
-    folder.mkdir(parents=True, exist_ok=True)
     fd, tmp_apk = _temp_in(folder, ".apk")
     tmp_json = None
     try:

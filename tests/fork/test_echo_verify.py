@@ -263,3 +263,22 @@ def test_main_reads_the_token_and_checks_arguments(tmp_path, monkeypatch, capsys
                 http=FakeHub())
     monkeypatch.setenv("ODYSSEUS_ECHO_TOKEN", TOKEN)
     assert ev.main(["--url", "http://x", "--no-voice-note"], http=FakeHub()) == 0
+
+
+# ------------------------------------------------------------------- edge cases
+def test_today_focus_may_name_events_loops_and_beliefs():
+    body = {**TODAY, "focus": [{"ref": "event:dentist", "title": "Dentist", "why": "At 3"},
+                               {"ref": "loop:7", "title": "Reply to Sam", "why": ""},
+                               {"ref": "todo:41:2", "title": "Call the plumber", "why": ""}]}
+    assert ev.today_problem(body) is None
+    assert ev.today_problem({**TODAY, "focus": [{"ref": "", "title": "x"}]}) is not None
+    assert ev.today_problem({**TODAY, "todos": [{"ref": "event:x", "title": "x"}]}) \
+        is not None
+
+
+def test_a_settings_item_in_the_feed_is_fine():
+    row = {"id": "an_1", "at": 1, "expires_at": 2, "kind": "settings",
+           "target": {"device_id": "echo-1"}, "title": "Settings",
+           "text": "Settings changed in Odysseus.", "ref": "settings:3"}
+    assert ev.feed_problem({"announcements": [row]}) is None
+    assert ev.feed_problem({"announcements": [{**row, "kind": "spam"}]}) is not None

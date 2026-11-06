@@ -239,3 +239,92 @@ def test_voice_router_serves_today(loaders):
     client = _client(setup_voice_routes())
     r = client.get(PREFIX + "/today", headers={"x-test-scopes": "voice"})
     assert r.status_code == 200 and r.json()["date"] == "2026-11-06"
+
+
+# ------------------------------------------------------------------- edge cases
+def _calendar(monkeypatch, *events):
+    import core.database as cdb
+    from tests.fork.brain_fakes import notes_db
+
+    factory = notes_db(monkeypatch)
+    with factory() as db:
+        db.add(cdb.CalendarCal(id="cal-a", owner="alice", name="Personal"))
+        db.add(cdb.CalendarCal(id="cal-b", owner="bob", name="Bob's"))
+        for ev in events:
+            db.add(cdb.CalendarEvent(**ev))
+        db.commit()
+    return factory
+
+
+def test_a_long_event_that_started_days_ago_is_today(monkeypatch, data_dir):
+    """A week's holiday (all day) and a conference (timed) that began before yesterday
+    are still on today's page; one that ended yesterday and Bob's aren't."""
+    _calendar(
+        monkeypatch,
+        dict(uid="holiday", calendar_id="cal-a", summary="Holiday", all_day=True,
+             dtstart=datetime(2026, 11, 2), dtend=datetime(2026, 11, 10)),
+        dict(uid="conf", calendar_id="cal-a", summary="Conference", is_utc=True,
+             dtstart=datetime(2026, 11, 3, 14), dtend=datetime(2026, 11, 7, 22)),
+        dict(uid="over", calendar_id="cal-a", summary="Over", all_day=True,
+             dtstart=datetime(2026, 11, 1), dtend=datetime(2026, 11, 6)),
+        dict(uid="bobs", calendar_id="cal-b", summary="Bob's trip", all_day=True,
+             dtstart=datetime(2026, 11, 1), dtend=datetime(2026, 11, 20)),
+    )
+    out = tr.shape_today(now_local=NOW, occurrences=tr.load_events("alice", NOW))
+    assert [(e["uid"], e["start"], e["end"]) for e in out["events"]] == [
+        ("holiday", "2026-11-02T00:00:00-05:00", "2026-11-10T00:00:00-05:00"),
+        ("conf", "2026-11-03T09:00:00-05:00", "2026-11-07T17:00:00-05:00"),
+    ]
+
+
+def test_all_day_events_on_a_dst_day_keep_local_midnights():
+    from zoneinfo import ZoneInfo
+
+    ny = ZoneInfo("America/New_York")
+    now = datetime(2026, 11, 1, 12, 0, tzinfo=ny)  # clocks went back at 02:00
+    occ = [{"uid": "fair", "summary": "Fair", "dtstart": "2026-11-01", "dtend": "2026-11-02",
+            "all_day": True},
+           {"uid": "late", "summary": "Late show", "dtstart": "2026-11-02T04:30:00Z",
+            "dtend": "2026-11-02T05:30:00Z", "all_day": False},  # 23:30 local
+           {"uid": "next", "summary": "Next day", "dtstart": "2026-11-02T05:00:00Z",
+            "dtend": "2026-11-02T06:00:00Z", "all_day": False}]  # 00:00 on the 2nd
+    out = tr.shape_today(now_local=now, occurrences=occ)
+    assert [(e["uid"], e["start"], e["end"]) for e in out["events"]] == [
+        ("fair", "2026-11-01T00:00:00-04:00", "2026-11-02T00:00:00-05:00"),
+        ("late", "2026-11-01T23:30:00-05:00", "2026-11-02T00:30:00-05:00"),
+    ]
+
+
+def test_odd_occurrences_and_athena_rows_never_break_the_page():
+    occ = [None, "x", {"uid": "", "dtstart": "2026-11-06"}, {"uid": "a", "dtstart": "soon"},
+           {"uid": "b", "dtstart": "2026-11-06T10:00:00", "dtend": "bad", "summary": None}]
+    rows = [None, {"id": None}, {"id": 1, "title": "   "}, {"id": 2, "text": ["x"]},
+            {"id": 0, "title": "Zero", "status": None}]
+    out = tr.shape_today(now_local=NOW, occurrences=occ, action_rows=rows)
+    assert [(e["uid"], e["title"], e["start"], e["end"]) for e in out["events"]] == [
+        ("b", "(no title)", "2026-11-06T10:00:00-05:00", "2026-11-06T10:00:00-05:00")]
+    assert [a["id"] for a in out["action_items"]] == ["2", "0"]
+    assert out["counts"]["action_items_open"] == 2
+
+
+def test_build_today_reads_the_owner_zone_off_the_event_loop(monkeypatch):
+    """The owner's zone is a database read: it runs in a worker thread, not on the loop."""
+    import threading
+
+    seen = []
+
+    def now_local(owner, now=None):
+        seen.append(threading.current_thread() is threading.main_thread())
+        return NOW
+
+    monkeypatch.setattr(tr, "_now_local", now_local)
+    for name in ("load_insight", "load_todos", "load_events"):
+        monkeypatch.setattr(tr, name, lambda o, n: None)
+    monkeypatch.setattr(tr, "load_filed", lambda o: set())
+
+    async def no_rows(owner):
+        return []
+
+    monkeypatch.setattr(tr, "load_action_rows", no_rows)
+    assert asyncio.run(tr.build_today("alice"))["date"] == "2026-11-06"
+    assert seen == [False]

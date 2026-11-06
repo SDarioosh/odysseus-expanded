@@ -397,3 +397,100 @@ def test_remove_action_is_owner_scoped(data_dir):
     assert ledger.remove_action("bob", a["id"]) is False
     assert ledger.remove_action("alice", a["id"]) is True
     assert ledger.actions("alice") == []
+
+
+# ------------------------------------------------------------------- edge cases
+def _set_items(factory, note_id, items):
+    from core.database import Note
+
+    s = factory()
+    try:
+        n = s.query(Note).filter(Note.id == note_id).first()
+        n.items = json.dumps(items)
+        s.commit()
+    finally:
+        s.close()
+
+
+def test_todo_undo_finds_the_line_after_lines_above_it_were_removed(db):
+    add_note(db, "n41", items=ITEMS)
+    items = [{"text": "A", "done": False}, {"text": "B", "done": False},
+             {"text": "C", "done": False}]
+    _set_items(db, "n41", items)
+    vd.todo_done("alice", "todo:n41:2", DEVICE)  # ticks C
+    _set_items(db, "n41", get_note(db, "n41")["items"][1:])  # A deleted: C is line 1
+    assert vd.todo_undo("alice", "todo:n41:2")["already"] is False
+    assert get_note(db, "n41")["items"] == [{"text": "B", "done": False},
+                                            {"text": "C", "done": False}]
+
+
+def test_todo_undo_reopens_the_ticked_one_of_two_equal_lines(db):
+    add_note(db, "n41", items=[{"text": "Milk", "done": False},
+                               {"text": "Eggs", "done": False},
+                               {"text": "Milk", "done": False}])
+    vd.todo_done("alice", "todo:n41:2", DEVICE)  # the second "Milk"
+    items = get_note(db, "n41")["items"]
+    _set_items(db, "n41", [{"text": "Bread", "done": False}] + items)  # lines move down
+    assert vd.todo_undo("alice", "todo:n41:2")["already"] is False
+    assert [i["done"] for i in get_note(db, "n41")["items"]] == [False] * 4
+
+
+def test_done_then_undo_then_done_then_undo(db):
+    add_note(db, "n41", items=ITEMS)
+    for _ in range(2):
+        assert vd.todo_done("alice", "todo:n41:0", DEVICE)["already"] is False
+        assert vd.todo_undo("alice", "todo:n41:0")["already"] is False
+    assert get_note(db, "n41")["items"][0]["done"] is False
+    assert ledger.actions("alice") == []
+
+
+def test_dones_of_two_lines_at_once_both_stick(db, monkeypatch):
+    """Two devices tick two lines of one note at the same moment: neither is lost."""
+    import threading
+
+    add_note(db, "n41", items=[{"text": f"Line {i}", "done": False} for i in range(6)])
+    real = vd._save_items
+    gate = threading.Barrier(2, timeout=0.5)
+
+    def slow_save(*a, **kw):
+        try:
+            gate.wait()  # both have read the note before either writes
+        except threading.BrokenBarrierError:
+            pass
+        return real(*a, **kw)
+
+    monkeypatch.setattr(vd, "_save_items", slow_save)
+    threads = [threading.Thread(target=vd.todo_done, args=("alice", f"todo:n41:{i}", DEVICE))
+               for i in (1, 4)]
+    for t in threads:
+        t.start()
+    for t in threads:
+        t.join()
+    assert [i["done"] for i in get_note(db, "n41")["items"]] == [
+        False, True, False, False, True, False]
+
+
+def test_a_done_of_an_archived_note_or_another_owners_is_handled(db):
+    add_note(db, "n50", items=ITEMS, archived=True)
+    add_note(db, "n51", owner="bob", items=ITEMS)
+    assert vd.todo_done("alice", "todo:n50:0", DEVICE)["already"] is False
+    assert vd.reminder_done("alice", "todo:n50", DEVICE)["already"] is True
+    for call in (lambda: vd.todo_done("alice", "todo:n51:0", DEVICE),
+                 lambda: vd.todo_undo("alice", "todo:n51:0"),
+                 lambda: vd.reminder_done("alice", "todo:n51", DEVICE)):
+        with pytest.raises(vd.Failure) as e:
+            call()
+        assert e.value.status == 404
+    assert get_note(db, "n51")["items"] == ITEMS
+
+
+@pytest.mark.parametrize("item, ok", [("ai_17", True), ("17", True), (17, True),
+                                      (" 17 ", True), ("ai_0", False), (True, False),
+                                      ("ai-17", False), ("1e3", False), (-17, False),
+                                      ("1" * 13, False), (None, False)])
+def test_action_item_id_formats(item, ok):
+    if ok:
+        assert vd.parse_item_id(item) == 17
+    else:
+        with pytest.raises(vd.Failure):
+            vd.parse_item_id(item)

@@ -45,6 +45,7 @@ logger = logging.getLogger(__name__)
 KEEP_SECONDS = 24 * 3600
 SHOW_SECONDS = 3600
 MAX_FEED = 50
+MAX_SINCE_MS = 2 ** 62  # SQLite's integers are 64-bit; a larger `since` is "after all"
 MAX_TITLE = 120
 # "settings": the device's hub-managed settings changed (fork/voice/device_settings.py);
 # the device refetches them and shows no card.
@@ -171,7 +172,7 @@ def feed(owner: Any, device_id: Any, *, since_ms: Any = 0,
     not yet expired, oldest first."""
     now = time.time() if now is None else float(now)
     try:
-        since = max(0, int(since_ms or 0))
+        since = min(max(0, int(since_ms or 0)), MAX_SINCE_MS)
     except (TypeError, ValueError):
         since = 0
     device_id = str(device_id or "")

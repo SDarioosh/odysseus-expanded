@@ -35,6 +35,7 @@ import json
 import logging
 import re
 import sqlite3
+import threading
 import time
 import uuid
 from collections.abc import Iterator
@@ -217,6 +218,11 @@ def _item_done(item: Any) -> bool:
     return isinstance(item, dict) and bool(item.get("done") or item.get("checked"))
 
 
+# A device's read-change-write of a note's items is one at a time, so two Echos (or two
+# quick taps) ticking two lines of one note don't overwrite each other's tick.
+_NOTES_LOCK = threading.Lock()
+
+
 @contextmanager
 def _note(owner: str, note_id: str) -> Iterator[tuple[Any, Any]]:
     """``(db session, the owner's note)``; :data:`NOT_FOUND` when there is none."""
@@ -244,7 +250,7 @@ def todo_done(owner: str, ref: Any, device_id: Any, *, kind: str = "todo") -> di
     note_id, index = parse_todo_ref(ref)
     device_id = parse_device_id(device_id)
     target = f"todo:{note_id}:{index}"
-    with _note(owner, note_id) as (db, note):
+    with _NOTES_LOCK, _note(owner, note_id) as (db, note):
         items = _items(note)
         if index >= len(items) or not isinstance(items[index], dict):
             raise NOT_FOUND
@@ -260,23 +266,34 @@ def todo_done(owner: str, ref: Any, device_id: Any, *, kind: str = "todo") -> di
     return {"ok": True, "already": False, "title": title}
 
 
+def _ticked_line(items: list, index: int, text: str) -> int:
+    """The line a device ticked: at its index, else by its text (lines moved or were
+    removed since); of equal lines, a ticked one. :data:`NOT_FOUND` when it's gone."""
+    here = index < len(items) and isinstance(items[index], dict)
+    if not text:
+        if not here:
+            raise NOT_FOUND
+        return index
+    same = [i for i, it in enumerate(items) if isinstance(it, dict) and _item_text(it) == text]
+    if not same:
+        raise NOT_FOUND
+    ticked = [i for i in same if _item_done(items[i])]
+    if ticked:
+        return index if index in ticked else ticked[0]
+    return index if index in same else same[0]
+
+
 def todo_undo(owner: str, ref: Any, now: float | None = None) -> dict:
     note_id, index = parse_todo_ref(ref)
     target = f"todo:{note_id}:{index}"
-    with _note(owner, note_id) as (db, note):
+    with _NOTES_LOCK, _note(owner, note_id) as (db, note):
         items = _items(note)
-        if index >= len(items) or not isinstance(items[index], dict):
-            raise NOT_FOUND
         done = last_done(owner, target, now)
         if done is None:
-            raise TOO_LATE
-        # The line the device ticked: at its index, else by its text (lines moved since).
-        text = done.get("item_text") or ""
-        at = index
-        if text and _item_text(items[index]) != text:
-            at = next((i for i, it in enumerate(items) if _item_text(it) == text), -1)
-            if at < 0:
+            if index >= len(items) or not isinstance(items[index], dict):
                 raise NOT_FOUND
+            raise TOO_LATE
+        at = _ticked_line(items, index, done.get("item_text") or "")
         item = items[at]
         if not _item_done(item):
             mark_undone(done["id"], now)
@@ -298,7 +315,7 @@ def reminder_done(owner: str, ref: Any, device_id: Any) -> dict:
         return todo_done(owner, ref, device_id, kind="reminder")
     note_id = parse_reminder_ref(ref)
     device_id = parse_device_id(device_id)
-    with _note(owner, note_id) as (db, note):
+    with _NOTES_LOCK, _note(owner, note_id) as (db, note):
         title = str(note.title or "").strip() or "Reminder"
         if note.archived:
             return {"ok": True, "already": True, "title": title}

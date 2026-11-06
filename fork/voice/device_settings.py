@@ -147,6 +147,15 @@ def _clean_id(device_id: Any) -> str:
     return devices.clean(device_id, devices.FIELD_LIMITS["device_id"])
 
 
+def _stored(text: Any) -> dict[str, Any]:
+    """A row's settings JSON; ``{}`` when it isn't an object (a damaged row)."""
+    try:
+        stored = json.loads(text)
+    except (TypeError, ValueError):
+        return {}
+    return stored if isinstance(stored, dict) else {}
+
+
 def get(owner: Any, device_id: Any) -> dict[str, Any]:
     """``{"version": n, "settings": {...}}`` for this owner's device; version 0 and no
     settings when the hub has never set any."""
@@ -156,10 +165,7 @@ def get(owner: Any, device_id: Any) -> dict[str, Any]:
                          (devices.owner_key(owner), _clean_id(device_id))).fetchone()
     if row is None:
         return {"version": 0, "settings": {}}
-    try:
-        stored = json.loads(row["settings"])
-    except ValueError:
-        stored = {}
+    stored = _stored(row["settings"])
     # Only known keys of the right type, even if the row was written by an older build.
     out = {}
     for k in KEYS:
@@ -195,7 +201,7 @@ def replace(owner: Any, device_id: Any, settings: Any, *, now: float | None = No
     with _connect(write=True) as db:
         row = db.execute("SELECT settings, version FROM device_settings"
                          " WHERE owner = ? AND device_id = ?", (key, device_id)).fetchone()
-        before = json.loads(row["settings"]) if row is not None else {}
+        before = _stored(row["settings"]) if row is not None else {}
         version = int(row["version"]) if row is not None else 0
         changed = sorted(k for k in set(before) | set(wanted) if before.get(k) != wanted.get(k))
         if changed:
