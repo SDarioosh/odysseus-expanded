@@ -169,6 +169,14 @@ def add_action(turn_id: str, owner: Any, *, action: str, kind: str, title: str,
     return _action(row)
 
 
+def remove_action(owner: Any, action_id: str) -> bool:
+    """Delete one of this owner's actions (a device's done that was undone)."""
+    with _connect(write=True) as db:
+        cur = db.execute("DELETE FROM actions WHERE id = ? AND owner = ?",
+                         (str(action_id), _owner(owner)))
+    return cur.rowcount > 0
+
+
 def _action(row: sqlite3.Row) -> dict:
     return {"id": row["id"], "at": iso(row["at"]), "action": row["action"],
             "kind": row["kind"], "title": row["title"], "detail": row["detail"],
