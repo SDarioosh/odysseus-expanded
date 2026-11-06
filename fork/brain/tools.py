@@ -41,6 +41,9 @@ What the brain adds is which calls run without asking and which ask:
   untrusted marking), and by upstream itself when a result of this turn is. ``tainted``
   records the last for this turn's exchange.
 
+``announce`` (``fork/voice/announce_tool.py``) is the fork's one write tool: it runs
+only with the owner's exact approval of that call, which it claims itself.
+
 The tools upstream doesn't have run here, owner-scoped: ``search_beliefs``
 (``fork/beliefs/search.py``) and ``search_documents`` (the owner's document library,
 ``fork/brain/documents.py``). A result of theirs with content is outside content: it arms
@@ -478,6 +481,10 @@ async def execute(run: ToolRun, name: str, content: str, *, exact_approval: Any 
     refused = refused or read_only_refusal(run, name, content)
     if refused:
         desc, result = _blocked(name, refused)
+        return content, desc, result
+    if name == toolset.ANNOUNCE:
+        from fork.voice.announce_tool import run_approved
+        desc, result = await run_approved(run, content, exact_approval)
         return content, desc, result
     if name in toolset.FORK_TOOLS:
         if name == toolset.SEARCH_BELIEFS:

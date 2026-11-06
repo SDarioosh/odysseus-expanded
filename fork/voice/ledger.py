@@ -28,7 +28,8 @@ DEFAULT_LIMIT = 8
 MAX_LIMIT = 50
 
 ACTIONS = frozenset({"created", "completed"})
-KINDS = frozenset({"todo", "reminder", "list_item", "note", "event", "action_item"})
+KINDS = frozenset({"todo", "reminder", "list_item", "note", "event", "action_item",
+                   "announcement"})
 
 SCHEMA = """
 CREATE TABLE IF NOT EXISTS turns (

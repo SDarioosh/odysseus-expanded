@@ -2432,9 +2432,9 @@ async def action_ping_notes(owner: str, **kwargs) -> Tuple[str, bool]:
                     )
                     if result.get("skipped"):
                         continue
-                    # Fork: also say it on the voice satellites (fork/voice/announce.py)
+                    # Fork: also say it on the voice satellites and the devices' feed (fork/voice/announce.py)
                     from fork.voice.announce import announce_reminder
-                    announce_reminder(title)
+                    announce_reminder(title, owner=n.owner or owner or "", ref=f"todo:{n.id}")
                     if result.get(delivery_key):
                         sent.append(title)
                     else:
