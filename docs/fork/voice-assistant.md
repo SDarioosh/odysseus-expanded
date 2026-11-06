@@ -331,7 +331,9 @@ POST …/action-items/undo  {"id": "17", "device_id": "…"}         -> {"ok": t
   `{"error": "not found"}` for a note that isn't the owner's or doesn't exist, an item
   index past the end, or an action item Athena doesn't have; 503 `{"error": "athena
   unavailable"}` when Athena isn't set up, is down, refuses the hub's token or takes
-  more than 5 s; 409 `{"error": "changed"}` (above) and
+  more than 5 s; 503 `{"error": "busy"}` on a database error (SQLite "database is
+  locked", disk I/O, any SQLAlchemy error; only the exception's type is logged, never the
+  line's text): the device tries again later; 409 `{"error": "changed"}` (above) and
   `{"error": "too late to undo"}` (undo routes only) are told apart by their text; 403
   without the `voice` scope.
 - Notes are only the token owner's (`Note.owner`). Athena has one owner, as for

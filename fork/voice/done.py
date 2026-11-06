@@ -35,7 +35,8 @@ are kept in ``<DATA_DIR>/fork_voice.db`` (table ``device_done``) for a day, owne
 
 Errors: 400 for a malformed body, ref, id or title; 404 ``{"error": "not found"}``; 409
 ``{"error": "changed"}`` (the line the device showed is gone) or ``{"error": "too late to
-undo"}``; 503 ``{"error": "athena unavailable"}`` when Athena can't be reached.
+undo"}``; 503 ``{"error": "athena unavailable"}`` when Athena can't be reached, 503
+``{"error": "busy"}`` on a database error (locked, …; only its type is logged).
 """
 from __future__ import annotations
 
@@ -99,6 +100,7 @@ NOT_FOUND = Failure(404, "not found")
 UNAVAILABLE = Failure(503, "athena unavailable")
 TOO_LATE = Failure(409, "too late to undo")
 CHANGED = Failure(409, "changed")
+BUSY = Failure(503, "busy")
 TITLE_CHARS = 200  # /today titles a line by its first 200 characters
 MAX_TITLE_IN = 2000
 
@@ -452,6 +454,17 @@ async def _body(request: Request) -> dict:
     return body
 
 
+def _db_errors() -> tuple[type[BaseException], ...]:
+    try:
+        from sqlalchemy.exc import SQLAlchemyError
+    except ImportError:  # pragma: no cover -- the hub always has SQLAlchemy
+        return (sqlite3.Error,)
+    return (sqlite3.Error, SQLAlchemyError)
+
+
+_DB_ERRORS = _db_errors()
+
+
 def setup_voice_done_routes() -> APIRouter:
     from fork.voice.routes import PREFIX, voice_owner
 
@@ -464,6 +477,9 @@ def setup_voice_done_routes() -> APIRouter:
             return await work(owner, body)
         except Failure as f:
             return JSONResponse(status_code=f.status, content={"error": f.error})
+        except _DB_ERRORS as exc:  # locked, disk I/O, …: try again later
+            logger.warning("voice done: database error %s", type(exc).__name__)
+            return JSONResponse(status_code=BUSY.status, content={"error": BUSY.error})
 
     @router.post(PREFIX + "/todos/done")
     async def todos_done(request: Request) -> Any:

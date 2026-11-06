@@ -596,3 +596,41 @@ def test_reminder_done_with_an_index_follows_its_title(db):
     r = post(c, "/reminders/done", {"ref": "todo:r9", "device_id": DEVICE, "title": "x"})
     assert r.status_code == 200 and get_note(db, "r9")["archived"] is True
 
+
+# ----------------------------------------------------------- database errors
+@pytest.mark.parametrize("path, body, fn", [
+    ("/todos/done", {"ref": "todo:n41:1", "device_id": DEVICE}, "todo_done"),
+    ("/todos/undo", {"ref": "todo:n41:1"}, "todo_undo"),
+    ("/reminders/done", {"ref": "todo:n41", "device_id": DEVICE}, "reminder_done"),
+])
+def test_a_database_error_is_503_busy(db, monkeypatch, caplog, path, body, fn):
+    import sqlite3
+
+    from sqlalchemy.exc import OperationalError
+
+    errors = iter([sqlite3.OperationalError("database is locked: Buy bread"),
+                   OperationalError("UPDATE notes", {}, Exception("database is locked"))])
+
+    def boom(*a, **kw):
+        raise next(errors)
+
+    monkeypatch.setattr(vd, fn, boom)
+    c = client()
+    for _ in range(2):
+        with caplog.at_level("WARNING", logger="fork.voice.done"):
+            r = post(c, path, body)
+        assert r.status_code == 503 and r.json() == {"error": "busy"}
+    assert "OperationalError" in caplog.text and "Buy bread" not in caplog.text
+
+
+def test_a_locked_device_done_table_is_503_busy(db, monkeypatch):
+    import sqlite3
+
+    add_note(db, "n41", items=ITEMS)
+
+    def locked(*a, **kw):
+        raise sqlite3.OperationalError("database is locked")
+
+    monkeypatch.setattr(vd, "last_done", locked)
+    r = post(client(), "/todos/undo", {"ref": "todo:n41:1"})
+    assert r.status_code == 503 and r.json() == {"error": "busy"}
