@@ -45,6 +45,8 @@ NOT_PASSED = {
     # scripts/ha_voice_setup.py, run by hand (no browser): the Home Assistant admin token
     # it signs in with and an optional voice token to give Home Assistant.
     "HA_TOKEN", "VOICE_TOKEN",
+    # scripts/echo_verify.py, run by the owner against a server: an Echo's token.
+    "ODYSSEUS_ECHO_TOKEN",
     # scripts/voice_barge_sandbox/, sandbox only: its working folder and the stand-in
     # model's delay.
     "BARGE_WORK", "SLOW_LLM_DELAY",

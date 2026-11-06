@@ -256,3 +256,49 @@ def test_the_feed_route(api):
     assert other.json() == {"announcements": []}
     assert api.get(PREFIX + "/announcements", headers=VOICE).status_code == 422
     assert api.get(PREFIX + "/announcements", params={"device_id": "echo-1"}).status_code == 403
+
+
+def test_the_admin_test_announcement_to_one_device(ha, monkeypatch):
+    """scripts/echo_verify.py: a test to a made-up device reaches only that device's feed
+    and is spoken only when asked."""
+    app = FastAPI()
+
+    @app.middleware("http")
+    async def fake_auth(request, call_next):
+        request.state.api_token = request.headers.get("x-token") == "1"
+        request.state.current_user = "alice"
+        return await call_next(request)
+
+    async def fake_send(message, entities=None, **_):
+        ha.spoken.append({"message": message, "entity_id": entities})
+
+    monkeypatch.setattr(announce, "send", fake_send)
+    app.include_router(satellite_routes.setup_satellite_routes())
+    from core.middleware import require_admin
+
+    app.dependency_overrides[require_admin] = lambda: None
+    client = TestClient(app)
+    res = client.post("/api/fork/voice/announce",
+                      json={"message": "Verification test", "device_id": "echo-verify-1"})
+    body = res.json()
+    assert body["ok"] is True and body["spoken"] is False and body["id"].startswith("an_")
+    assert ha.spoken == []
+    feed = announcements.feed("alice", "echo-verify-1")
+    assert [(i["id"], i["text"], i["target"], i["title"]) for i in feed] == [
+        (body["id"], "Verification test", {"device_id": "echo-verify-1"},
+         "Test announcement")]
+    assert announcements.feed("alice", "echo-kitchen") == []  # no real device sees it
+    # speak: through deliver, to that device's satellites (here: the configured list)
+    monkeypatch.setattr(announcements, "satellites", _no_satellites)
+    res = client.post("/api/fork/voice/announce",
+                      json={"device_id": "echo-verify-1", "speak": True})
+    assert res.json()["spoken"] is True and res.json()["ok"] is True
+    assert ha.spoken[-1]["message"] == satellite_routes.TEST_MESSAGE
+    assert client.post("/api/fork/voice/announce", json={"device_id": "x"},
+                       headers={"x-token": "1"}).status_code == 403
+    assert client.post("/api/fork/voice/announce",
+                       json={"device_id": "x" * 129}).status_code == 422
+
+
+async def _no_satellites(**_):
+    return []

@@ -623,7 +623,12 @@ logged without the message. Later features (a spoken daily briefing) call it the
   to-do `ref` (`todo:<note id>`) and target every device, even without Home Assistant
   (`announce_reminder(title, owner=…, ref=…)`). Per-reminder rooms can come later.
 - **Test:** `POST /api/fork/voice/announce` (signed-in admin, browser), `{"message"?: str}`
-  → `{"ok": true|false, "problem": "…"|null}`.
+  → `{"ok": true|false, "problem": "…"|null}`. With `"device_id"` it is an announcement to
+  that one device instead (titled "Test announcement"): kept for its feed only, or also
+  spoken with `"speak": true` (through `deliver`) → `{"ok", "problem", "id", "spoken"}`.
+  [`scripts/echo_verify.py`](#checking-a-server-for-the-echos) sends one to a made-up
+  device id, so no screen shows it and nothing is said. (A device target that matches no
+  satellite falls back to the configured list when spoken, so speaking is opt-in.)
 - **One Home Assistant address:** announcements and the Echo link use
   `fork/voice/ha_settings.py`'s `home_assistant_url()`: the address **Set up Home
   Assistant** saved (only after a setup that succeeded), or `FORK_HA_URL` when it is set,
@@ -920,6 +925,66 @@ the phone to Home Assistant's sign-in, and adds itself to Home Assistant.
 - If Odysseus asks you to sign in first, it opens its home page afterwards: go back to the
   Echo's page and tap Continue again.
 
+## Checking a server for the Echos
+
+`scripts/echo_verify.py` (standard library only) calls the routes an Echo calls, with an
+Echo's token (from **Link this Echo**: `voice` and `athena:ingest`), and prints one line per
+check, PASS, FAIL or SKIP; the exit code is 1 when one failed. Run it from any machine that
+reaches the hub (the server itself, or the Mac over Tailscale):
+
+```bash
+python scripts/echo_verify.py --url http://192.168.1.10:7000 --token-file echo.token
+# with a real Echo's id (odysseus-echo scripts/odysseus/verify_device.sh prints it) and an
+# admin sign-in for the test announcement:
+python scripts/echo_verify.py --url http://192.168.1.10:7000 --token-file echo.token \
+    --device-id <the Echo's id> --admin-user <admin> --password-file admin.txt
+```
+
+| Check | Route | PASS when |
+|---|---|---|
+| no token is refused | `GET …/today` without a token | 401 or 403 |
+| token has the voice scope | `GET …/models` | 200 with model `odysseus` |
+| today | `GET …/today` | the fields of [Today for devices](#today-for-devices); prints counts only |
+| app/latest, app/apk | `GET …/app/latest`, `…/app/apk` (`Range: bytes=0-3`) | a release with version code, size and sha256, and the APK answers 206 with a zip header and the sha256 as ETag; or 404 "no release" (apk skipped). `--full-apk` downloads it and checks the sha256 |
+| satellite/hello | `POST …/satellite/hello` | only with `--device-id`: sends the id alone, so the stored name, room and version stay; `{"ok": true}` |
+| announcements feed | `GET …/announcements` | the feed's shape, for `--device-id` or a made-up id |
+| Athena through the hub | `GET /api/codex/athena/health` | 200 (403: the token has no `athena:ingest`, link the Echo again) |
+| test voice note | `POST /api/codex/athena/chunk` (`codec=wav`, `kind=note`), then `…/sessions/{id}/end` | both answer ok |
+| test announcement | `POST /api/fork/voice/announce`, then the feed | only with `--admin-user` and `--password-file`: it is in that device's feed |
+
+What it changes, and nothing else:
+
+- **The test voice note** is 3 s of silence from device `echo-verify`, session
+  `echo-verify-<UTC time>`. Silence has no speech, so Athena keeps no conversation and deletes
+  the audio after processing; its session row stays (status `done`), because neither the
+  hub nor Athena has a route that deletes an audio session. `--no-voice-note` skips it.
+- **The test announcement** ("Odysseus verification test, please ignore (<time>).") goes to
+  the feed of a made-up device `echo-verify-<UTC time>`: no Echo shows it and nothing is
+  spoken; it expires after an hour and is deleted after a day. With `--speak` it goes to
+  `--device-id` instead: that Echo shows it and Home Assistant says it aloud. The token's
+  owner and the admin must be the same user, or the feed check fails.
+- **hello** with `--device-id` refreshes that device's last-seen time.
+
+The token is never printed, and of the owner's data only counts and versions are.
+
+### Sandbox run (2026-11-06)
+
+Round 1 end to end in the sandbox: the hub on 127.0.0.1:7010 (fictional notes and events),
+Athena's ingest API and MCP HTTP server from its checkout (energy VAD; no whisper-server or
+llama-server, so a note with sound in it fails at transcription, as expected), an Echo token
+made by `/echo/link`'s approve POST, `curl` and `echo_verify.py` over HTTP:
+
+| Check | Result |
+|---|---|
+| `/echo/link` approve → handoff fragment with `token`, `base_url`, `ha_url` | pass |
+| `GET …/models`, `…/today` (an event, a due to-do, an Athena action item), no token 401 | pass |
+| `GET …/app/latest`, `…/app/apk` (200, 206 to a Range, sha256 = ETag) after `echo_release.py` | pass; 404 "no release" before |
+| `POST …/satellite/hello` (stored; a bad version 422), `GET …/announcements` (422 without `device_id`) | pass |
+| Echo token on `/api/codex/athena/health` 200, on `…/conversations` 403 (no read scope) | pass |
+| 3 s WAV voice note, `kind=note`, through `/api/codex/athena/chunk`, `/end` | pass: Athena's session has `kind: "note"`, status `ended`; a stereo WAV and `kind=memo` 400 |
+| silent WAV note | Athena: status `done`, no conversation, audio deleted |
+| `echo_verify.py` with `--device-id`, admin sign-in | 10 passed |
+
 ## Later
 
 - The answer's link labels (conversation titles) in `links[].label`.
@@ -934,6 +999,7 @@ the phone to Home Assistant's sign-in, and adds itself to Home Assistant.
   `static/js/forkVoiceDevices.js`; tests `tests/fork/test_voice_device_settings.py`.
 - App updates: `fork/voice/app_release.py`, `scripts/echo_release.py`; tests
   `tests/fork/test_echo_app_release.py`.
+- Checking a server: `scripts/echo_verify.py`; tests `tests/fork/test_echo_verify.py`.
 - `fork/voice/routes.py`, `openai_api.py`, `sessions.py`, `speech.py`, `prompt.py`,
   `chat_prefix.py` (the chat's preset), `policy.py` (what runs), `confirm.py` (changes
   after a yes), `ledger.py` (turns and actions). The satellite's context and
