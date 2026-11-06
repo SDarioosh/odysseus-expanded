@@ -12,6 +12,15 @@
   that device's running voice turn short, so Home Assistant ends its run at once
   (``fork/voice/interrupts.py``); answers ``{"ok": true, "cut": <running turns cut>,
   "marked": <contexts marked before HA asked>}``.
+* ``POST /api/chat/voice/v1/satellite/hello`` (the same token), a form with ``device_id``
+  (required), ``device_name``, ``area``, ``app_version_code``: the device says who and
+  where it is, at start and hourly (``fork/voice/devices.py``; a turn records the same).
+  Answers ``{"ok": true}``.
+* ``GET /api/chat/voice/v1/announcements?device_id=...&since=<epoch ms>`` (the same token):
+  the announcements and reminders meant for that device (every device, its area or its
+  id), not yet expired (``fork/voice/announcements.py``):
+  ``{"announcements": [{"id", "at", "kind", "title", "text", "target", "ref",
+  "expires_at"}]}``.
 * ``POST /api/fork/voice/announce`` (signed-in admin), ``{"message"?: str}``: speak a test
   announcement through Home Assistant (``fork/voice/announce.py``); ``{"ok", "problem"}``.
 """
@@ -26,7 +35,7 @@ from pydantic import BaseModel, Field
 from starlette.datastructures import UploadFile
 
 from fork.voice import announce as voice_announce
-from fork.voice import interrupts, satellite
+from fork.voice import announcements, devices, interrupts, satellite
 from fork.voice.routes import PREFIX, voice_owner
 
 logger = logging.getLogger(__name__)
@@ -35,7 +44,9 @@ MAX_AUDIO_BYTES = 1024 * 1024  # 15 s of 16 kHz mono 16-bit WAV is ~480 KB
 MAX_BODY_BYTES = MAX_AUDIO_BYTES + 64 * 1024  # the form fields and multipart framing
 MAX_INTERRUPT_BYTES = 4 * 1024
 RESPONSE_WAIT_SECONDS = 0.5  # a quick check is answered in the response itself
-FIELD_LIMITS = {"device_id": 128, "device_name": 100, "area": 100, "wake_word": 64}
+FIELD_LIMITS = {"device_id": 128, "device_name": 100, "area": 100, "wake_word": 64,
+                "app_version_code": 12}
+MAX_HELLO_BYTES = 4 * 1024
 TEST_MESSAGE = "This is a test announcement from Odysseus."
 
 
@@ -90,6 +101,15 @@ async def _audio(form: Any) -> bytes | None:
     return data
 
 
+def _seen(owner: str, device_id: str, name: str | None, area: str | None,
+          version: int | None = None) -> None:
+    """Record the device in the registry; a failure never fails the request."""
+    try:
+        devices.seen(owner, device_id, name=name, area=area, app_version_code=version)
+    except Exception:  # noqa: BLE001
+        logger.warning("voice: recording a satellite device failed", exc_info=True)
+
+
 def setup_satellite_routes() -> APIRouter:
     from core.middleware import require_admin
 
@@ -118,6 +138,7 @@ def setup_satellite_routes() -> APIRouter:
             audio = await _audio(form)
         entry = satellite.register(owner, device_id=device_id, started_at_ms=started,
                                    audio=audio, **fields)
+        _seen(owner, device_id, fields.get("device_name"), fields.get("area"))
         if interrupts.adopt(owner, device_id):
             # Home Assistant asked before this post arrived: the context is that turn's,
             # so a barge-in on this device can end it (fork/voice/interrupts.py).
@@ -126,6 +147,38 @@ def setup_satellite_routes() -> APIRouter:
         ctx = await satellite.wait_for_check(entry, RESPONSE_WAIT_SECONDS)
         return {"ok": True, "context_id": ctx.context_id,
                 "speaker": ctx.speaker.as_json() if ctx.speaker else None}
+
+    @router.post(PREFIX + "/satellite/hello")
+    async def satellite_hello(request: Request) -> Any:
+        owner = voice_owner(request)
+        length = request.headers.get("content-length")
+        try:
+            too_big = length is not None and int(length) > MAX_HELLO_BYTES
+        except ValueError:
+            raise HTTPException(400, "Bad Content-Length") from None
+        if too_big:
+            raise HTTPException(413, "The request is too large")
+        kind = request.headers.get("content-type", "").split(";", 1)[0].strip().lower()
+        if kind not in ("multipart/form-data", "application/x-www-form-urlencoded"):
+            raise HTTPException(415, "Send a form")
+        async with request.form(max_files=0, max_fields=8) as form:
+            device_id = _text(form, "device_id", required=True)
+            name, area = _text(form, "device_name"), _text(form, "area")
+            version = _text(form, "app_version_code")
+        if version and not version.isdigit():
+            raise HTTPException(422, "app_version_code must be a whole number")
+        _seen(owner, device_id, name, area, int(version) if version else None)
+        return {"ok": True}
+
+    @router.get(PREFIX + "/announcements")
+    def announcement_feed(request: Request, device_id: str = "", since: int = 0) -> Any:
+        owner = voice_owner(request)
+        device_id = " ".join(device_id.split())
+        if not device_id:
+            raise HTTPException(422, "device_id is required")
+        if len(device_id) > FIELD_LIMITS["device_id"]:
+            raise HTTPException(422, "device_id is too long")
+        return {"announcements": announcements.feed(owner, device_id, since_ms=since)}
 
     @router.post(PREFIX + "/satellite/interrupt")
     async def satellite_interrupt(request: Request) -> Any:
