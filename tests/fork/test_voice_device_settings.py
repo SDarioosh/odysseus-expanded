@@ -265,3 +265,31 @@ console.log(JSON.stringify(out));
     assert out["ok"] == {"home.enabled": False, "followup.seconds": 8}
     assert out["bad"] == ["Listen: a whole number from 3 to 15"] * 4
     assert out["line"] == "Kitchen · app 1400030 · seen 5 min ago"
+
+
+# ------------------------------------------------------------------- edge cases
+@pytest.mark.parametrize("stored", ["not json", "[1, 2]", "7", "null"])
+def test_a_damaged_row_reads_as_nothing_set_and_can_be_replaced(data_dir, stored):
+    device_settings.replace("alice", "echo-1", {"home.enabled": False}, notify=False)
+    with device_settings._connect(write=True) as db:
+        db.execute("UPDATE device_settings SET settings = ?", (stored,))
+    assert device_settings.get("alice", "echo-1") == {"version": 1, "settings": {}}
+    out = device_settings.replace("alice", "echo-1", {"home.enabled": True}, notify=False)
+    assert out == {"version": 2, "settings": {"home.enabled": True}}
+
+
+def test_saves_at_once_each_get_their_own_version(data_dir):
+    from concurrent.futures import ThreadPoolExecutor
+
+    with ThreadPoolExecutor(8) as pool:
+        versions = list(pool.map(
+            lambda s: device_settings.replace("alice", "echo-1", {"followup.seconds": s},
+                                              notify=False)["version"], range(3, 15)))
+    assert sorted(versions) == list(range(1, 13))
+    assert device_settings.get("alice", "echo-1")["version"] == 12
+
+
+@pytest.mark.parametrize("value", [1.0, "8", 8.5, [8], {"v": 8}, float("nan")])
+def test_ints_must_be_whole_json_numbers(value):
+    with pytest.raises(device_settings.BadSettings):
+        device_settings.validate({"followup.seconds": value})
