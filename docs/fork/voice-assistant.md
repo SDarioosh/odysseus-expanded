@@ -57,6 +57,7 @@ for chat streams, and a voice answer can take longer (minutes on the sandbox's C
 | `GET /api/chat/voice/v1/models` | the same | `{"data": [{"id": "odysseus", …}]}`, for clients that list models when set up |
 | `GET /api/chat/voice/v1/actions?since=<ms>&limit=<n>` | the same | the changes voice made (below) |
 | `GET /api/chat/voice/v1/turns/latest?since=<ms>` | the same | the newest finished voice turn (below) |
+| `GET /api/chat/voice/v1/today` | the same | the owner's day at a glance for a device screen: insight headline and focus, today's events, due to-dos, Athena's open action items ([Today for devices](#today-for-devices)) |
 | `POST /api/fork/voice/token` | signed-in admin (browser) | makes a token with only the `voice` scope (the Settings card) |
 | `GET /api/fork/voice/ha` | the same | the saved Home Assistant address and the last setup's report |
 | `POST /api/fork/voice/ha/connect` | the same, same-origin | starts "Set up Home Assistant": answers HA's login address ([Setup](#setup-owner)) |
@@ -240,6 +241,34 @@ live; later features add to it.
 `device` and `speaker` come from the satellite's context (`POST …/satellite/turn`,
 `fork/voice/satellite.py`), claimed at the start of each question; both are null without
 it. Links have no labels yet (`label: null`).
+
+## Today for devices
+
+`GET …/today` (`fork/voice/today_route.py`), for the Echo's Today page: the token owner's
+day, read from stored data only (no model call). Times are ISO-8601 with the owner's
+offset (the insight's zone, `owner_timezone`); the device shows them in its own zone.
+
+```json
+{"date": "2026-11-06", "generated": "2026-11-06T07:45:00-05:00",
+ "headline": "Two meetings this afternoon; the boiler service is due.",
+ "focus": [{"ref": "todo:41:2", "title": "Call the plumber", "why": "Due today"}],
+ "events": [{"uid": "abc", "title": "Dentist", "start": "2026-11-06T15:00:00-05:00",
+             "end": "2026-11-06T15:30:00-05:00", "all_day": false, "location": "Main St"}],
+ "todos": [{"ref": "todo:41:2", "title": "Call the plumber", "due": "2026-11-06", "list": "Home"}],
+ "action_items": [{"id": "ai_17", "title": "Send Sam the photos", "source": "athena"}],
+ "counts": {"todos_open": 9, "action_items_open": 4}}
+```
+
+| Field | From |
+|---|---|
+| `headline`, `focus` | today's stored [Today insight](today-insight.md), in the owner's order ("↑ first" first, "not today" left out); `null` and `[]` until one is written. A focus to-do ticked since then is left out. Each row: `ref`, `title`, `why` |
+| `events` | the calendar occurrences that overlap today (recurring events expanded by the calendar route's `_expand_rrule`, cancelled ones left out), sorted by start, at most 10. An all-day event starts at local midnight of its first day and ends at local midnight after its last; `location` is `null` when empty |
+| `todos` | open items of to-do notes (checklist, todo, goal; not archived; the insight's rules, so undated shopping-type lists are left out): due today or overdue (oldest first), then items of pinned notes without a date; at most 8. `due` is the note's date or `null`; `list` the note's title. `ref` is `todo:<note id>:<item index>`, as in the insight |
+| `action_items` | Athena's open action items (`GET /action-items?status=open` through the hub's Athena link), without those already filed here as a to-do or event; at most 5. `title` is the item's short title, else its text. `[]` when Athena is down or takes more than 3 s |
+| `counts` | `todos_open`: every open to-do item (all dates); `action_items_open`: every open, unfiled action item. The device shows "and N more" from them |
+
+Each section is read on its own: one that fails is empty (and logged), and the route
+answers 200 whenever the token holds the `voice` scope.
 
 ## Private answers
 
