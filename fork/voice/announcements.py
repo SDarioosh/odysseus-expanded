@@ -169,15 +169,17 @@ def feed(owner: Any, device_id: Any, *, since_ms: Any = 0,
     not yet expired, oldest first."""
     now = time.time() if now is None else float(now)
     try:
-        since = max(0.0, float(since_ms or 0) / 1000.0)
+        since = max(0, int(since_ms or 0))
     except (TypeError, ValueError):
-        since = 0.0
+        since = 0
     device_id = str(device_id or "")
     device = devices.get(owner, device_id) if device_id else None
     area = device.area if device is not None else ""
     with _connect() as db:
         rows = db.execute(
-            "SELECT * FROM announcements WHERE owner = ? AND at > ? AND expires_at > ?"
+            # compared in the feed's own epoch ms, so `since` = an item's `at` skips it
+            "SELECT * FROM announcements WHERE owner = ?"
+            " AND CAST(ROUND(at * 1000) AS INTEGER) > ? AND expires_at > ?"
             " AND at >= ? ORDER BY at, rowid",
             (devices.owner_key(owner), since, now, now - KEEP_SECONDS)).fetchall()
     out = [_row(r) for r in rows]
