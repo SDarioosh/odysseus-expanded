@@ -228,6 +228,10 @@ def setup_app_release_routes() -> Any:
         return FileResponse(
             release_dir() / APK_NAME, media_type=APK_MEDIA_TYPE,
             filename=f"{APP}-{release['version_code']}.apk",
-            headers={"etag": f'"{release["sha256"]}"', "cache-control": "no-store"})
+            # `identity`: app.py's GZipMiddleware skips a response that already names its
+            # encoding, so the (already compressed) APK isn't gzipped again on every download
+            # and Content-Length stays the file's size, as contract C2 says.
+            headers={"etag": f'"{release["sha256"]}"', "cache-control": "no-store",
+                     "content-encoding": "identity"})
 
     return router

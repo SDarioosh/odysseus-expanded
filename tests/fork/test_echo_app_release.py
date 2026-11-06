@@ -129,6 +129,31 @@ def test_the_apk_is_served_with_its_headers(api, apk):
     assert part.status_code == 206 and part.content == BYTES[4:14]
 
 
+def test_the_apk_is_not_gzipped_by_the_app(data_dir, apk):
+    # app.py adds GZipMiddleware; the APK must reach the device byte for byte, with its size.
+    from starlette.middleware.gzip import GZipMiddleware
+    app = FastAPI()
+
+    @app.middleware("http")
+    async def fake_auth(request, call_next):
+        request.state.api_token = True
+        request.state.api_token_owner = "alice"
+        request.state.api_token_scopes = ["voice"]
+        return await call_next(request)
+
+    app.include_router(app_release.setup_app_release_routes())
+    app.add_middleware(GZipMiddleware, minimum_size=1024, compresslevel=6)
+    big = apk.parent / "big.apk"
+    big.write_bytes(b"PK\x03\x04" + b"a" * 50_000)
+    publish(big)
+    with TestClient(app) as client:
+        res = client.get(APK, headers={"accept-encoding": "gzip"})
+    assert res.status_code == 200
+    assert res.headers.get("content-encoding") in (None, "identity")
+    assert res.headers["content-length"] == str(big.stat().st_size)
+    assert res.content == big.read_bytes()
+
+
 # --------------------------------------------------------------------------------- script
 def test_the_script_publishes_and_checks_the_version(data_dir, apk, capsys):
     from scripts import echo_release
