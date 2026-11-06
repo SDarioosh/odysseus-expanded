@@ -46,7 +46,9 @@ KEEP_SECONDS = 24 * 3600
 SHOW_SECONDS = 3600
 MAX_FEED = 50
 MAX_TITLE = 120
-KINDS = frozenset({"reminder", "announcement"})
+# "settings": the device's hub-managed settings changed (fork/voice/device_settings.py);
+# the device refetches them and shows no card.
+KINDS = frozenset({"reminder", "announcement", "settings"})
 TEMPLATE_PATH = "/api/template"
 # Fixed: every satellite Home Assistant has in an area, with the area's id and name and
 # the entity's name. Never built from user input.

@@ -36,6 +36,9 @@ Nothing leaves the owner's network: every stage is local, and Home Assistant Clo
   refused; email is never run.
 - **The device's screen sees what a turn did:** `GET …/actions` and
   `GET …/turns/latest` (the turn ledger).
+- **Done from the device's screen:** a tap ticks a to-do, finishes a reminder or marks an
+  Athena action item done, without a spoken "yes" ([Done from a
+  device](#done-from-a-device)).
 - **Voice shares chat's prompt cache:** a voice prompt starts exactly like a chat
   prompt (same system prompt and tools), so the model server needs no second cache.
 - **Each voice conversation is a chat** in the **Voice** folder, so the owner can read
@@ -62,10 +65,13 @@ for chat streams, and a voice answer can take longer (minutes on the sandbox's C
 | `GET /api/chat/voice/v1/app/apk` | the same | that release's APK ([App updates](#app-updates)) |
 | `POST /api/chat/voice/v1/satellite/hello` | the same | the device's id, name, room and app version ([Rooms and devices](#rooms-and-devices)) |
 | `GET /api/chat/voice/v1/announcements?device_id=…&since=<ms>` | the same | the announcements and reminders meant for that device ([feed](#the-devices-feed)) |
+| `GET /api/chat/voice/v1/devices/{device_id}/settings` | the same | the settings the hub manages for that device ([Device settings](#device-settings)) |
 | `POST /api/fork/voice/token` | signed-in admin (browser) | makes a token with only the `voice` scope (the Settings card) |
 | `GET /api/fork/voice/ha` | the same | the saved Home Assistant address and the last setup's report |
 | `POST /api/fork/voice/ha/connect` | the same, same-origin | starts "Set up Home Assistant": answers HA's login address ([Setup](#setup-owner)) |
 | `GET /api/fork/voice/ha/callback` | the same | Home Assistant's redirect after the login: runs the setup, revokes the login, shows the steps |
+| `GET /api/fork/voice/devices` | signed-in admin (browser) | the admin's Echos with their hub-managed settings ([Device settings](#device-settings)) |
+| `PUT /api/fork/voice/devices/{device_id}/settings` | the same | sets one Echo's hub-managed settings |
 
 Only a bearer token with the `voice` scope may call the `/api/chat/voice/v1` routes: a browser login may
 not, and a token with only other scopes (`chat`, …) may not. The token is listed under
@@ -228,7 +234,9 @@ live; later features add to it.
 ```
 
 `kind` is `todo`, `reminder`, `list_item`, `note`, `event` or `action_item`; `action`
-`created` or `completed`; `source` `odysseus` or `athena`.
+`created` or `completed`; `source` `odysseus` or `athena`, or `device` for a Done tapped
+on a device's screen (then `turn_id` is `device:<device id>`: no voice turn made it;
+[Done from a device](#done-from-a-device)).
 
 `GET …/turns/latest?since=<epoch ms>`: the newest finished turn started at or after
 `since`, else `{"turn": null}`:
@@ -273,6 +281,49 @@ offset (the insight's zone, `owner_timezone`); the device shows them in its own 
 
 Each section is read on its own: one that fails is empty (and logged), and the route
 answers 200 whenever the token holds the `voice` scope.
+
+## Done from a device
+
+`fork/voice/done.py` (contract C5 of the Echo's round 2). The Echo's Today page and its
+reminder cards have Done buttons. A tap on the device's own screen is the confirmation,
+so these need no spoken "yes". Same `voice` token as the other routes.
+
+```
+POST …/todos/done         {"ref": "todo:41:2", "device_id": "…"} -> {"ok": true, "already": false, "title": "Call the plumber"}
+POST …/reminders/done     {"ref": "todo:41", "device_id": "…"}   -> {"ok": true, "already": false, "title": "Take the bins out"}
+POST …/action-items/done  {"id": "17", "device_id": "…"}         -> {"ok": true, "already": false, "title": "Send Sam the photos"}
+POST …/todos/undo         {"ref": "todo:41:2", "device_id": "…"} -> {"ok": true, "already": false, "title": "Call the plumber"}
+POST …/action-items/undo  {"id": "17", "device_id": "…"}         -> {"ok": true, "already": false, "title": "Send Sam the photos"}
+```
+
+| Route | What it changes |
+|---|---|
+| `todos/done` | ticks item 2 of note 41 (the `ref` of `GET …/today`), the same change as the notes page's tick: the item's `done` |
+| `reminders/done` | archives note 41 (the `ref` of a `kind: reminder` announcement). This is what the notes page's ✓ Done does to a note (`PATCH archived: true`, for a note with or without items, repeating or not), so a reminder finished on the Echo looks the same as one finished in the browser: the reminder scanner (`ping_notes`) and the notes page skip archived notes, so it doesn't fire again, and it can be restored from the notes archive. Ticking the note's one item or clearing its due date (the plan's other options) would leave a reminder the notes page still shows. The `ref` is taken as the feed carries it: a ref with an item index (`todo:41:2`) ticks that item instead, as `todos/done` |
+| `action-items/done` | Athena's `status: done` through the hub's Athena link (`PATCH /action-items/{id}`, the relay's own write; the item is first read with `GET /action-items?status=all`, for its title and whether it is already done). `id` is Athena's id as `GET …/today` gives it (`"17"`); a number and `"ai_17"` are read too |
+
+- **Idempotent:** a to-do item already ticked, a note already archived or an item already
+  done answers 200 with `"already": true` and changes nothing.
+- **Recorded:** each change is a `completed` action in the turn ledger (`kind` `todo`,
+  `reminder` or `action_item`; `where` the list's title, `To-dos` or `Athena`; `source`
+  `device`; `turn_id` `device:<device id>`), so `GET …/actions` shows it.
+- **Undo:** `todos/undo` and `action-items/undo` reopen what a device closed within 10
+  minutes of its done (any device of the same owner), and remove that ledger action. A
+  to-do line that moved since is found by its text. Later, or for something a device
+  didn't close (ticked in the browser, or closed again elsewhere after an undo): 409
+  `{"error": "too late to undo"}`; already open: 200 with `"already": true`. A device's
+  dones are kept for a day in `fork_voice.db` (table `device_done`), owner-scoped.
+  The undo bodies may carry the device's `device_id`; it is not needed (any device of
+  the owner may undo) and is ignored.
+  A reminder has no undo route: unarchive it on the notes page.
+- **Errors:** 400 `{"error": "…"}` for a body that isn't a JSON object, a malformed
+  `ref` or `id`, or no `device_id` (done routes; at most 128 characters); 404
+  `{"error": "not found"}` for a note that isn't the owner's or doesn't exist, an item
+  index past the end, or an action item Athena doesn't have; 503 `{"error": "athena
+  unavailable"}` when Athena isn't set up, is down, refuses the hub's token or takes
+  more than 5 s; 403 without the `voice` scope.
+- Notes are only the token owner's (`Note.owner`). Athena has one owner, as for
+  `GET …/today`.
 
 ## Private answers
 
@@ -572,7 +623,12 @@ logged without the message. Later features (a spoken daily briefing) call it the
   to-do `ref` (`todo:<note id>`) and target every device, even without Home Assistant
   (`announce_reminder(title, owner=…, ref=…)`). Per-reminder rooms can come later.
 - **Test:** `POST /api/fork/voice/announce` (signed-in admin, browser), `{"message"?: str}`
-  → `{"ok": true|false, "problem": "…"|null}`.
+  → `{"ok": true|false, "problem": "…"|null}`. With `"device_id"` it is an announcement to
+  that one device instead (titled "Test announcement"): kept for its feed only, or also
+  spoken with `"speak": true` (through `deliver`) → `{"ok", "problem", "id", "spoken"}`.
+  [`scripts/echo_verify.py`](#checking-a-server-for-the-echos) sends one to a made-up
+  device id, so no screen shows it and nothing is said. (A device target that matches no
+  satellite falls back to the configured list when spoken, so speaking is opt-in.)
 - **One Home Assistant address:** announcements and the Echo link use
   `fork/voice/ha_settings.py`'s `home_assistant_url()`: the address **Set up Home
   Assistant** saved (only after a setup that succeeded), or `FORK_HA_URL` when it is set,
@@ -594,6 +650,63 @@ records the same (`device_id`, `device_name`, `area`); a field a request leaves 
 what was stored. One row per (owner, device) in `<DATA_DIR>/fork_voice.db`
 (`satellite_devices`) with its last-seen time; a device unheard for 90 days is dropped, at
 most 64 per owner.
+
+### Device settings
+
+`fork/voice/device_settings.py` (store and checks), `device_settings_routes.py` (routes);
+contract C6 of the Echo plan (odysseus-echo `docs/odysseus/plans/2026-11-done-followup-settings-verify.md`).
+The owner sets some of each Echo's own settings from Odysseus; the device fetches them, so
+the hub never needs to reach the device.
+
+`GET /api/chat/voice/v1/devices/{device_id}/settings` (the `voice` token; the token owner's
+device only, another owner's id reads as unset):
+
+```json
+{"version": 7, "settings": {"kiosk.return_seconds": 600, "today.enabled": true}}
+```
+
+A key that is absent means "the device decides"; nothing set is `{"version": 0,
+"settings": {}}`. Answered with `Cache-Control: no-store`. The keys (only these are
+stored; the device ignores keys it doesn't know):
+
+| Key | Type | Device setting |
+|---|---|---|
+| `home.enabled` | bool | clock home screen |
+| `home.idle_seconds` | int 0..86400 (0 = never) | back to the clock after |
+| `home.weather_enabled` | bool | weather on the clock |
+| `today.enabled` | bool | Today page |
+| `kiosk.return_seconds` | int 0..86400 (0 = never) | back from other apps after |
+| `kiosk.auto_reload` | bool | reload a failed dashboard |
+| `record.enabled` | bool | recording |
+| `record.clock_button` | bool | record button on the clock |
+| `record.privacy_button` | `"record"` / `"mute"` | privacy button |
+| `followup.enabled` | bool | answer without the wake word |
+| `followup.seconds` | int 3..15 | how long it listens |
+
+- `version` goes up on every change (a save that changes nothing keeps it) and never goes
+  back, also when everything is left to the device again. One row per (owner, device) in
+  `<DATA_DIR>/fork_voice.db` (`device_settings`); it stays when the device leaves the
+  registry.
+- On every change the device's [feed](#the-devices-feed) gets a `kind: "settings"` item,
+  so the Echo (which polls the feed every 30 s) fetches the settings within 30 s. The
+  Echo also fetches them at start and after each hello (hourly). It shows no card for
+  that item.
+- Each change is logged with owner, device and the changed keys, never the values.
+
+**Settings card.** Settings → Integrations → Voice assistant → **Echo devices**
+(`static/js/forkVoiceDevices.js`, admin only) lists the admin's Echos from the
+[registry](#rooms-and-devices) (name, room, app version code, last seen); each opens to the
+keys above, each "Device decides" or a value, and **Save** sends the whole set:
+
+- `GET /api/fork/voice/devices` (signed-in admin, browser; no API token): `{"devices":
+  [{device_id, name, area, app_version_code, last_seen, version, settings}], "keys":
+  [{key, type, label, min?, max?, choices?, hint?}]}`, the admin's own devices (those whose
+  tokens the admin owns), most recently seen first.
+- `PUT /api/fork/voice/devices/{device_id}/settings` (the same), `{"settings": {key: value
+  or null}}`: the device's whole set (left out or null: the device decides). 400 for an
+  unknown key, a value of the wrong type (`1` is not `true`, `"60"` not `60`) or out of
+  range, or another body; 404 for a device not in the admin's registry. Answers `{"version",
+  "settings"}`.
 
 ### Announcing to a room or device
 
@@ -627,7 +740,11 @@ ref=…)` keeps the announcement for the devices' feed and speaks it. `target` i
 ]}
 ```
 
-- `kind`: `reminder` or `announcement`. `target`: always an object: `{"all": true}`,
+- `kind`: `reminder`, `announcement` or `settings`. A `settings` item (title "Settings",
+  `ref` `settings:<version>`, target that device, shown 10 minutes) only says the device's
+  [hub-managed settings](#device-settings) changed: the device fetches them again and
+  **shows no card and speaks nothing for it**. (Echo builds from before the hub-managed
+  settings show it as a card reading "Settings changed in Odysseus.") `target`: always an object: `{"all": true}`,
   `{"area": "…"}` or `{"device_id": "…"}`. `ref`: the to-do note of a reminder, else null.
 - Only what is meant for that device: every device, its area (as its last hello or turn
   said; compared like Home Assistant's ids) or its `device_id`; only the token owner's.
@@ -808,6 +925,66 @@ the phone to Home Assistant's sign-in, and adds itself to Home Assistant.
 - If Odysseus asks you to sign in first, it opens its home page afterwards: go back to the
   Echo's page and tap Continue again.
 
+## Checking a server for the Echos
+
+`scripts/echo_verify.py` (standard library only) calls the routes an Echo calls, with an
+Echo's token (from **Link this Echo**: `voice` and `athena:ingest`), and prints one line per
+check, PASS, FAIL or SKIP; the exit code is 1 when one failed. Run it from any machine that
+reaches the hub (the server itself, or the Mac over Tailscale):
+
+```bash
+python scripts/echo_verify.py --url http://192.168.1.10:7000 --token-file echo.token
+# with a real Echo's id (odysseus-echo scripts/odysseus/verify_device.sh prints it) and an
+# admin sign-in for the test announcement:
+python scripts/echo_verify.py --url http://192.168.1.10:7000 --token-file echo.token \
+    --device-id <the Echo's id> --admin-user <admin> --password-file admin.txt
+```
+
+| Check | Route | PASS when |
+|---|---|---|
+| no token is refused | `GET …/today` without a token | 401 or 403 |
+| token has the voice scope | `GET …/models` | 200 with model `odysseus` |
+| today | `GET …/today` | the fields of [Today for devices](#today-for-devices); prints counts only |
+| app/latest, app/apk | `GET …/app/latest`, `…/app/apk` (`Range: bytes=0-3`) | a release with version code, size and sha256, and the APK answers 206 with a zip header and the sha256 as ETag; or 404 "no release" (apk skipped). `--full-apk` downloads it and checks the sha256 |
+| satellite/hello | `POST …/satellite/hello` | only with `--device-id`: sends the id alone, so the stored name, room and version stay; `{"ok": true}` |
+| announcements feed | `GET …/announcements` | the feed's shape, for `--device-id` or a made-up id |
+| Athena through the hub | `GET /api/codex/athena/health` | 200 (403: the token has no `athena:ingest`, link the Echo again) |
+| test voice note | `POST /api/codex/athena/chunk` (`codec=wav`, `kind=note`), then `…/sessions/{id}/end` | both answer ok |
+| test announcement | `POST /api/fork/voice/announce`, then the feed | only with `--admin-user` and `--password-file`: it is in that device's feed |
+
+What it changes, and nothing else:
+
+- **The test voice note** is 3 s of silence from device `echo-verify`, session
+  `echo-verify-<UTC time>`. Silence has no speech, so Athena keeps no conversation and deletes
+  the audio after processing; its session row stays (status `done`), because neither the
+  hub nor Athena has a route that deletes an audio session. `--no-voice-note` skips it.
+- **The test announcement** ("Odysseus verification test, please ignore (<time>).") goes to
+  the feed of a made-up device `echo-verify-<UTC time>`: no Echo shows it and nothing is
+  spoken; it expires after an hour and is deleted after a day. With `--speak` it goes to
+  `--device-id` instead: that Echo shows it and Home Assistant says it aloud. The token's
+  owner and the admin must be the same user, or the feed check fails.
+- **hello** with `--device-id` refreshes that device's last-seen time.
+
+The token is never printed, and of the owner's data only counts and versions are.
+
+### Sandbox run (2026-11-06)
+
+Round 1 end to end in the sandbox: the hub on 127.0.0.1:7010 (fictional notes and events),
+Athena's ingest API and MCP HTTP server from its checkout (energy VAD; no whisper-server or
+llama-server, so a note with sound in it fails at transcription, as expected), an Echo token
+made by `/echo/link`'s approve POST, `curl` and `echo_verify.py` over HTTP:
+
+| Check | Result |
+|---|---|
+| `/echo/link` approve → handoff fragment with `token`, `base_url`, `ha_url` | pass |
+| `GET …/models`, `…/today` (an event, a due to-do, an Athena action item), no token 401 | pass |
+| `GET …/app/latest`, `…/app/apk` (200, 206 to a Range, sha256 = ETag) after `echo_release.py` | pass; 404 "no release" before |
+| `POST …/satellite/hello` (stored; a bad version 422), `GET …/announcements` (422 without `device_id`) | pass |
+| Echo token on `/api/codex/athena/health` 200, on `…/conversations` 403 (no read scope) | pass |
+| 3 s WAV voice note, `kind=note`, through `/api/codex/athena/chunk`, `/end` | pass: Athena's session has `kind: "note"`, status `ended`; a stereo WAV and `kind=memo` 400 |
+| silent WAV note | Athena: status `done`, no conversation, audio deleted |
+| `echo_verify.py` with `--device-id`, admin sign-in | 10 passed |
+
 ## Later
 
 - The answer's link labels (conversation titles) in `links[].label`.
@@ -818,8 +995,11 @@ the phone to Home Assistant's sign-in, and adds itself to Home Assistant.
 
 - Timings: `fork/voice/timings.py`, `timing_routes.py`, `scripts/voice_timings.py`; tests
   `tests/fork/test_voice_timings.py`.
+- Device settings: `fork/voice/device_settings.py`, `device_settings_routes.py`,
+  `static/js/forkVoiceDevices.js`; tests `tests/fork/test_voice_device_settings.py`.
 - App updates: `fork/voice/app_release.py`, `scripts/echo_release.py`; tests
   `tests/fork/test_echo_app_release.py`.
+- Checking a server: `scripts/echo_verify.py`; tests `tests/fork/test_echo_verify.py`.
 - `fork/voice/routes.py`, `openai_api.py`, `sessions.py`, `speech.py`, `prompt.py`,
   `chat_prefix.py` (the chat's preset), `policy.py` (what runs), `confirm.py` (changes
   after a yes), `ledger.py` (turns and actions). The satellite's context and
@@ -839,6 +1019,7 @@ the phone to Home Assistant's sign-in, and adds itself to Home Assistant.
 - Hooks: `routes/api_token_routes.py` (scope `voice`), `static/index.html` (the card's
   script tag), `requirements.txt` (`websockets`, for Home Assistant's websocket API); the
   routers are in `fork/routes/__init__.py`.
+- Done from a device: `fork/voice/done.py`; tests `tests/fork/test_voice_done.py`.
 - Tests: `tests/fork/test_voice_assistant.py`, `tests/fork/test_voice_satellite.py`,
   `tests/fork/test_voice_interrupts.py` (barge-in),
   `tests/fork/test_ha_voice_setup.py` (a fake Home Assistant), `tests/fork/test_echo_link.py`.
