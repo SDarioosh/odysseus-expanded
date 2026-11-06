@@ -62,10 +62,13 @@ for chat streams, and a voice answer can take longer (minutes on the sandbox's C
 | `GET /api/chat/voice/v1/app/apk` | the same | that release's APK ([App updates](#app-updates)) |
 | `POST /api/chat/voice/v1/satellite/hello` | the same | the device's id, name, room and app version ([Rooms and devices](#rooms-and-devices)) |
 | `GET /api/chat/voice/v1/announcements?device_id=…&since=<ms>` | the same | the announcements and reminders meant for that device ([feed](#the-devices-feed)) |
+| `GET /api/chat/voice/v1/devices/{device_id}/settings` | the same | the settings the hub manages for that device ([Device settings](#device-settings)) |
 | `POST /api/fork/voice/token` | signed-in admin (browser) | makes a token with only the `voice` scope (the Settings card) |
 | `GET /api/fork/voice/ha` | the same | the saved Home Assistant address and the last setup's report |
 | `POST /api/fork/voice/ha/connect` | the same, same-origin | starts "Set up Home Assistant": answers HA's login address ([Setup](#setup-owner)) |
 | `GET /api/fork/voice/ha/callback` | the same | Home Assistant's redirect after the login: runs the setup, revokes the login, shows the steps |
+| `GET /api/fork/voice/devices` | signed-in admin (browser) | the admin's Echos with their hub-managed settings ([Device settings](#device-settings)) |
+| `PUT /api/fork/voice/devices/{device_id}/settings` | the same | sets one Echo's hub-managed settings |
 
 Only a bearer token with the `voice` scope may call the `/api/chat/voice/v1` routes: a browser login may
 not, and a token with only other scopes (`chat`, …) may not. The token is listed under
@@ -595,6 +598,63 @@ what was stored. One row per (owner, device) in `<DATA_DIR>/fork_voice.db`
 (`satellite_devices`) with its last-seen time; a device unheard for 90 days is dropped, at
 most 64 per owner.
 
+### Device settings
+
+`fork/voice/device_settings.py` (store and checks), `device_settings_routes.py` (routes);
+contract C6 of the Echo plan (odysseus-echo `docs/odysseus/plans/2026-11-done-followup-settings-verify.md`).
+The owner sets some of each Echo's own settings from Odysseus; the device fetches them, so
+the hub never needs to reach the device.
+
+`GET /api/chat/voice/v1/devices/{device_id}/settings` (the `voice` token; the token owner's
+device only, another owner's id reads as unset):
+
+```json
+{"version": 7, "settings": {"kiosk.return_seconds": 600, "today.enabled": true}}
+```
+
+A key that is absent means "the device decides"; nothing set is `{"version": 0,
+"settings": {}}`. Answered with `Cache-Control: no-store`. The keys (only these are
+stored; the device ignores keys it doesn't know):
+
+| Key | Type | Device setting |
+|---|---|---|
+| `home.enabled` | bool | clock home screen |
+| `home.idle_seconds` | int 0..86400 (0 = never) | back to the clock after |
+| `home.weather_enabled` | bool | weather on the clock |
+| `today.enabled` | bool | Today page |
+| `kiosk.return_seconds` | int 0..86400 (0 = never) | back from other apps after |
+| `kiosk.auto_reload` | bool | reload a failed dashboard |
+| `record.enabled` | bool | recording |
+| `record.clock_button` | bool | record button on the clock |
+| `record.privacy_button` | `"record"` / `"mute"` | privacy button |
+| `followup.enabled` | bool | answer without the wake word |
+| `followup.seconds` | int 3..15 | how long it listens |
+
+- `version` goes up on every change (a save that changes nothing keeps it) and never goes
+  back, also when everything is left to the device again. One row per (owner, device) in
+  `<DATA_DIR>/fork_voice.db` (`device_settings`); it stays when the device leaves the
+  registry.
+- On every change the device's [feed](#the-devices-feed) gets a `kind: "settings"` item,
+  so the Echo (which polls the feed every 30 s) fetches the settings within 30 s. The
+  Echo also fetches them at start and after each hello (hourly). It shows no card for
+  that item.
+- Each change is logged with owner, device and the changed keys, never the values.
+
+**Settings card.** Settings → Integrations → Voice assistant → **Echo devices**
+(`static/js/forkVoiceDevices.js`, admin only) lists the admin's Echos from the
+[registry](#rooms-and-devices) (name, room, app version code, last seen); each opens to the
+keys above, each "Device decides" or a value, and **Save** sends the whole set:
+
+- `GET /api/fork/voice/devices` (signed-in admin, browser; no API token): `{"devices":
+  [{device_id, name, area, app_version_code, last_seen, version, settings}], "keys":
+  [{key, type, label, min?, max?, choices?, hint?}]}`, the admin's own devices (those whose
+  tokens the admin owns), most recently seen first.
+- `PUT /api/fork/voice/devices/{device_id}/settings` (the same), `{"settings": {key: value
+  or null}}`: the device's whole set (left out or null: the device decides). 400 for an
+  unknown key, a value of the wrong type (`1` is not `true`, `"60"` not `60`) or out of
+  range, or another body; 404 for a device not in the admin's registry. Answers `{"version",
+  "settings"}`.
+
 ### Announcing to a room or device
 
 `fork/voice/announcements.py`: `await deliver(owner, message, target, kind=…, title=…,
@@ -627,7 +687,11 @@ ref=…)` keeps the announcement for the devices' feed and speaks it. `target` i
 ]}
 ```
 
-- `kind`: `reminder` or `announcement`. `target`: always an object: `{"all": true}`,
+- `kind`: `reminder`, `announcement` or `settings`. A `settings` item (title "Settings",
+  `ref` `settings:<version>`, target that device, shown 10 minutes) only says the device's
+  [hub-managed settings](#device-settings) changed: the device fetches them again and
+  **shows no card and speaks nothing for it**. (Echo builds from before the hub-managed
+  settings show it as a card reading "Settings changed in Odysseus.") `target`: always an object: `{"all": true}`,
   `{"area": "…"}` or `{"device_id": "…"}`. `ref`: the to-do note of a reminder, else null.
 - Only what is meant for that device: every device, its area (as its last hello or turn
   said; compared like Home Assistant's ids) or its `device_id`; only the token owner's.
@@ -818,6 +882,8 @@ the phone to Home Assistant's sign-in, and adds itself to Home Assistant.
 
 - Timings: `fork/voice/timings.py`, `timing_routes.py`, `scripts/voice_timings.py`; tests
   `tests/fork/test_voice_timings.py`.
+- Device settings: `fork/voice/device_settings.py`, `device_settings_routes.py`,
+  `static/js/forkVoiceDevices.js`; tests `tests/fork/test_voice_device_settings.py`.
 - App updates: `fork/voice/app_release.py`, `scripts/echo_release.py`; tests
   `tests/fork/test_echo_app_release.py`.
 - `fork/voice/routes.py`, `openai_api.py`, `sessions.py`, `speech.py`, `prompt.py`,

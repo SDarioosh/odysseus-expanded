@@ -194,6 +194,8 @@ is an old path of a module that moved into `fork/`; it only aliases the new modu
 - `fork/voice/app_release.py`
 - `fork/voice/chat_prefix.py`
 - `fork/voice/confirm.py`
+- `fork/voice/device_settings.py`
+- `fork/voice/device_settings_routes.py`
 - `fork/voice/devices.py`
 - `fork/voice/echo_link.py`
 - `fork/voice/ha_routes.py`
@@ -333,6 +335,7 @@ is an old path of a module that moved into `fork/`; it only aliases the new modu
 - `static/js/forkRoundFlow.js`
 - `static/js/forkShareRecord.js`
 - `static/js/forkVoiceAssistant.js`
+- `static/js/forkVoiceDevices.js`
 - `static/js/forkVoiceEnroll.js`
 - `static/js/forkWhisperVocabulary.js`
 - `static/js/meetingBot.js`
@@ -521,6 +524,7 @@ is an old path of a module that moved into `fork/`; it only aliases the new modu
 - `tests/fork/test_voice_announce_tool.py`
 - `tests/fork/test_voice_announcements.py`
 - `tests/fork/test_voice_assistant.py`
+- `tests/fork/test_voice_device_settings.py`
 - `tests/fork/test_voice_enroll_routes.py`
 - `tests/fork/test_voice_interrupts.py`
 - `tests/fork/test_voice_satellite.py`
