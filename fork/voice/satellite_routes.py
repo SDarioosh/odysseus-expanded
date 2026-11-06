@@ -23,9 +23,14 @@
   "expires_at"}]}``.
 * ``POST /api/fork/voice/announce`` (signed-in admin), ``{"message"?: str}``: speak a test
   announcement through Home Assistant (``fork/voice/announce.py``); ``{"ok", "problem"}``.
+  With ``"device_id"`` it is an announcement to that one device instead: kept for its feed
+  and, only with ``"speak": true``, spoken (``announcements.deliver``); answers ``{"ok",
+  "problem", "id", "spoken"}``. ``scripts/echo_verify.py`` sends one to a made-up device
+  id, so it reaches no screen and no speaker.
 """
 from __future__ import annotations
 
+import asyncio
 import logging
 import time
 from typing import Any
@@ -52,6 +57,9 @@ TEST_MESSAGE = "This is a test announcement from Odysseus."
 
 class AnnounceTest(BaseModel):
     message: str = Field(default="", max_length=voice_announce.MAX_MESSAGE)
+    # A device's feed only (scripts/echo_verify.py); spoken only with speak.
+    device_id: str = Field(default="", max_length=FIELD_LIMITS["device_id"])
+    speak: bool = False
 
 
 def _text(form: Any, name: str, *, required: bool = False) -> str:
@@ -108,6 +116,25 @@ def _seen(owner: str, device_id: str, name: str | None, area: str | None,
         devices.seen(owner, device_id, name=name, area=area, app_version_code=version)
     except Exception:  # noqa: BLE001
         logger.warning("voice: recording a satellite device failed", exc_info=True)
+
+
+async def _device_test(request: Request, device_id: str, body: AnnounceTest) -> dict:
+    """A test announcement to one device: its feed only, or also spoken with ``speak``."""
+    from src.auth_helpers import effective_user
+
+    owner = effective_user(request) or ""
+    message = body.message.strip() or TEST_MESSAGE
+    target = {"device_id": device_id}
+    if body.speak:
+        out = await announcements.deliver(owner, message, target, title="Test announcement")
+        return {"ok": out.item is not None and out.spoken, "problem": out.problem,
+                "id": out.item["id"] if out.item else None, "spoken": out.spoken}
+    try:
+        item = await asyncio.to_thread(announcements.store, owner, message, target,
+                                       title="Test announcement")
+    except ValueError as exc:
+        return {"ok": False, "problem": str(exc), "id": None, "spoken": False}
+    return {"ok": True, "problem": None, "id": item["id"], "spoken": False}
 
 
 def setup_satellite_routes() -> APIRouter:
@@ -205,6 +232,9 @@ def setup_satellite_routes() -> APIRouter:
     async def announce_test(request: Request, body: AnnounceTest) -> Any:
         if getattr(request.state, "api_token", False):
             raise HTTPException(403, "Only a signed-in admin can send a test announcement")
+        device_id = " ".join(body.device_id.split())
+        if device_id:
+            return await _device_test(request, device_id, body)
         try:
             await voice_announce.send(body.message.strip() or TEST_MESSAGE)
         except voice_announce.Refused as exc:
