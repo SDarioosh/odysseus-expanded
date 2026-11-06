@@ -6,8 +6,10 @@
 // "Set up Home Assistant" (fork/voice/ha_routes.py) does the Home Assistant side in one
 // go: the owner signs in to HA once, Odysseus sets up the agent and the Assist pipeline,
 // then signs out of HA again. The card shows the last run's steps.
+// "Echo devices" (static/js/forkVoiceDevices.js) sets each Echo's hub-managed settings.
 
 import { api, el } from './forkDom.js';
+import { buildDevicesSection } from './forkVoiceDevices.js';
 
 const CARD_ID = 'fork-voice-assistant-card';
 
@@ -111,7 +113,7 @@ function buildCard() {
   const make = el('button', { type: 'button', class: 'admin-btn-add' }, 'Make a voice token');
   actions.append(make);
   const ha = buildHaSection();
-  card.append(sub, result, actions, msg, ha.box);
+  card.append(sub, result, actions, msg, ha.box, buildDevicesSection());
   return { card, make, result, msg, ha };
 }
 
