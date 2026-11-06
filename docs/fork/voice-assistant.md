@@ -431,9 +431,15 @@ Home Assistant. In Odysseus, `ODYSSEUS_TRUSTED_READONLY_MCP` must name Athena's 
 offered to voice.
 
 1. Enter the **Home Assistant address** (`http://homeassistant.local:8123`) and the
-   **Odysseus address as Home Assistant reaches it** (prefilled with the address the
-   browser uses, e.g. `https://odysseus.<tailnet>.ts.net`), and press **Set up Home
-   Assistant**.
+   **Odysseus address as Home Assistant reaches it**, and press **Set up Home
+   Assistant**. The second box starts with the address the browser uses (e.g.
+   `https://odysseus.<tailnet>.ts.net`), or, once a setup succeeded, the address that
+   setup used. When Home Assistant runs on the same server, give it the server's
+   home-network address (`http://192.168.1.10:7000`; `http://127.0.0.1:7000` when Home
+   Assistant uses the host's network): HA then talks to Odysseus without going through
+   Tailscale, and a Home Assistant that isn't on the tailnet (or can't resolve its
+   names) reaches it at all. The "Conversation agent" step fails with "Home Assistant
+   couldn't reach Odysseus at …" when HA can't reach the address given.
 2. Home Assistant's login page opens: sign in with an **administrator** account. Open
    Odysseus by its name (or a home-network IP) for this: Home Assistant refuses a
    sign-in for an app on a Tailscale IP (`100.x`).
@@ -927,9 +933,26 @@ the new one and the most recently used earlier one (so an Echo the phone never r
 works); unnamed Echos keep theirs (`echo_link.prune_echo_tokens`). Only Echo tokens are
 deleted: named `Echo <name> <date>`, holding nothing but `voice` and `athena:ingest`, and
 either remembered as made here or `voice`-only (made before the marks). A token you made by
-hand with the same name and scopes is never deleted. It sends the phone back to the Echo with `token`, `base_url` (`<the address you
-opened Odysseus at>/api/chat/voice/v1`) and `ha_url` (the Home Assistant address saved by
-**Set up Home Assistant** or set as `FORK_HA_URL`, or empty) in the URL fragment (`<Echo URL>#token=…`). The Echo's
+hand with the same name and scopes is never deleted. It sends the phone back to the Echo with `token`, `base_url` (`<Odysseus
+address>/api/chat/voice/v1`) and `ha_url` in the URL fragment (`<Echo URL>#token=…`).
+
+The approve page has both addresses for this Echo, to change before **Approve**:
+
+- **Odysseus address the Echo uses**: empty means the address you opened Odysseus at.
+- **Home Assistant address the Echo uses**: the Echo connects to it, and it also sends
+  your phone there to sign in to Home Assistant, so it must be one both reach. Empty: the
+  Echo asks for it on its own page.
+- The page starts with the addresses the last Echo **on the same network** got: an Echo
+  reached on the home network (its address is a home-network one) is offered the
+  home-network addresses, one reached over Tailscale the Tailscale ones, so pairing at
+  home uses the home network and pairing away uses Tailscale. The first time, the Home
+  Assistant address saved by **Set up Home Assistant** (or `FORK_HA_URL`) is offered when
+  it is on that network, else nothing. Kept in upstream's settings file as
+  `fork_voice_echo_addresses`.
+- Both must be on the owner's network, by the same rule as the Echo's address below
+  (private or Tailscale IPv4, or a name that is one label or ends in `.ts.net`, `.local`,
+  `.lan` or `.home.arpa`; never `localhost`). Anything else shows the page again with the
+  reason, and no token is made. The Echo's
 page passes them on to the Echo and clears them from the address bar. The Echo then sends
 the phone to Home Assistant's sign-in, and adds itself to Home Assistant.
 
