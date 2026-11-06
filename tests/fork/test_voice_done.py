@@ -444,6 +444,32 @@ def test_done_then_undo_then_done_then_undo(db):
     assert ledger.actions("alice") == []
 
 
+def test_dones_of_two_lines_at_once_both_stick(db, monkeypatch):
+    """Two devices tick two lines of one note at the same moment: neither is lost."""
+    import threading
+
+    add_note(db, "n41", items=[{"text": f"Line {i}", "done": False} for i in range(6)])
+    real = vd._save_items
+    gate = threading.Barrier(2, timeout=0.5)
+
+    def slow_save(*a, **kw):
+        try:
+            gate.wait()  # both have read the note before either writes
+        except threading.BrokenBarrierError:
+            pass
+        return real(*a, **kw)
+
+    monkeypatch.setattr(vd, "_save_items", slow_save)
+    threads = [threading.Thread(target=vd.todo_done, args=("alice", f"todo:n41:{i}", DEVICE))
+               for i in (1, 4)]
+    for t in threads:
+        t.start()
+    for t in threads:
+        t.join()
+    assert [i["done"] for i in get_note(db, "n41")["items"]] == [
+        False, True, False, False, True, False]
+
+
 def test_a_done_of_an_archived_note_or_another_owners_is_handled(db):
     add_note(db, "n50", items=ITEMS, archived=True)
     add_note(db, "n51", owner="bob", items=ITEMS)

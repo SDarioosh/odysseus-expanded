@@ -35,6 +35,7 @@ import json
 import logging
 import re
 import sqlite3
+import threading
 import time
 import uuid
 from collections.abc import Iterator
@@ -217,6 +218,11 @@ def _item_done(item: Any) -> bool:
     return isinstance(item, dict) and bool(item.get("done") or item.get("checked"))
 
 
+# A device's read-change-write of a note's items is one at a time, so two Echos (or two
+# quick taps) ticking two lines of one note don't overwrite each other's tick.
+_NOTES_LOCK = threading.Lock()
+
+
 @contextmanager
 def _note(owner: str, note_id: str) -> Iterator[tuple[Any, Any]]:
     """``(db session, the owner's note)``; :data:`NOT_FOUND` when there is none."""
@@ -244,7 +250,7 @@ def todo_done(owner: str, ref: Any, device_id: Any, *, kind: str = "todo") -> di
     note_id, index = parse_todo_ref(ref)
     device_id = parse_device_id(device_id)
     target = f"todo:{note_id}:{index}"
-    with _note(owner, note_id) as (db, note):
+    with _NOTES_LOCK, _note(owner, note_id) as (db, note):
         items = _items(note)
         if index >= len(items) or not isinstance(items[index], dict):
             raise NOT_FOUND
@@ -280,7 +286,7 @@ def _ticked_line(items: list, index: int, text: str) -> int:
 def todo_undo(owner: str, ref: Any, now: float | None = None) -> dict:
     note_id, index = parse_todo_ref(ref)
     target = f"todo:{note_id}:{index}"
-    with _note(owner, note_id) as (db, note):
+    with _NOTES_LOCK, _note(owner, note_id) as (db, note):
         items = _items(note)
         done = last_done(owner, target, now)
         if done is None:
@@ -309,7 +315,7 @@ def reminder_done(owner: str, ref: Any, device_id: Any) -> dict:
         return todo_done(owner, ref, device_id, kind="reminder")
     note_id = parse_reminder_ref(ref)
     device_id = parse_device_id(device_id)
-    with _note(owner, note_id) as (db, note):
+    with _NOTES_LOCK, _note(owner, note_id) as (db, note):
         title = str(note.title or "").strip() or "Reminder"
         if note.archived:
             return {"ok": True, "already": True, "title": title}
