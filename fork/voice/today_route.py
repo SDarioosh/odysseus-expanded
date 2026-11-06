@@ -262,7 +262,7 @@ async def _athena(owner: str) -> list[dict] | None:
 
 async def build_today(owner: str, now: datetime | None = None) -> dict:
     """The C1 answer for ``owner``; never raises for a section's failure."""
-    now_local = _now_local(owner, now)
+    now_local = await asyncio.to_thread(_now_local, owner, now)  # a database read
     insight, todos, events, filed, rows = await asyncio.gather(
         _section("insight", load_insight, owner, now_local),
         _section("to-dos", load_todos, owner, now_local),
