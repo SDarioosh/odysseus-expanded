@@ -50,14 +50,23 @@ function buildHaSection() {
                               'aria-label': 'Home Assistant address' });
   const odyUrl = el('input', { type: 'url', class: 'settings-select', value: window.location.origin,
                                'aria-label': 'Odysseus address as Home Assistant reaches it' });
+  const signinUrl = el('input', { type: 'url', class: 'settings-select',
+                                  placeholder: 'Empty: the Home Assistant address above',
+                                  'aria-label': 'Home Assistant address this browser signs in at' });
+  const signinHint = el('div', { class: 'admin-toggle-sub', style: 'margin:0 0 4px;' },
+    'Only when this browser can\u2019t reach the address above (away from home): Home '
+    + 'Assistant over Tailscale, e.g. http://<server>.<tailnet>.ts.net:8123. Odysseus itself '
+    + 'still talks to Home Assistant at the address above.');
   const actions = el('div', { style: 'text-align:right;padding:8px 0;' });
   const connect = el('button', { type: 'button', class: 'admin-btn-add' }, 'Set up Home Assistant');
   actions.append(connect);
   const msg = el('div', { style: 'font-size:11px;margin-top:4px;' });
   const last = el('div', { style: 'display:none;font-size:12px;margin:6px 0;white-space:pre-wrap;' });
   box.append(sub, labelled('Home Assistant address', haUrl),
-    labelled('Odysseus address (as Home Assistant reaches it)', odyUrl), actions, msg, last);
-  return { box, haUrl, odyUrl, connect, msg, last };
+    labelled('Odysseus address (as Home Assistant reaches it)', odyUrl),
+    labelled('Sign in to Home Assistant at (optional)', signinUrl), signinHint,
+    actions, msg, last);
+  return { box, haUrl, odyUrl, signinUrl, connect, msg, last };
 }
 
 function showReport(ha, state) {
@@ -73,6 +82,7 @@ async function loadHa(ha) {
     if (state.ha_url && !ha.haUrl.value) ha.haUrl.value = state.ha_url;
     // the address HA was last set up with (e.g. the server's home-network one), not the browser's
     if (state.odysseus_url) ha.odyUrl.value = state.odysseus_url;
+    if (state.signin_url && !ha.signinUrl.value) ha.signinUrl.value = state.signin_url;
     showReport(ha, state);
   } catch (e) { /* not an admin, or an older hub: the section still works */ }
 }
@@ -85,7 +95,8 @@ function wireHa(ha) {
       const answer = await api('/api/fork/voice/ha/connect', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ ha_url: ha.haUrl.value.trim(), odysseus_url: ha.odyUrl.value.trim() }),
+        body: JSON.stringify({ ha_url: ha.haUrl.value.trim(), odysseus_url: ha.odyUrl.value.trim(),
+                               signin_url: ha.signinUrl.value.trim() }),
       });
       if (!answer.authorize_url) throw new Error('No sign-in address');
       ha.msg.textContent = 'Opening Home Assistant\u2026';

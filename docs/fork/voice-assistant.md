@@ -440,6 +440,16 @@ offered to voice.
    Tailscale, and a Home Assistant that isn't on the tailnet (or can't resolve its
    names) reaches it at all. The "Conversation agent" step fails with "Home Assistant
    couldn't reach Odysseus at …" when HA can't reach the address given.
+
+   Away from home (over Tailscale), the browser can't open Home Assistant's home-network
+   address to sign in: fill in **Sign in to Home Assistant at (optional)** with Home
+   Assistant as the browser reaches it, e.g. `http://<server>.<tailnet>.ts.net:8123`.
+   Only the browser uses it (the sign-in page); Odysseus still exchanges the sign-in and
+   sets Home Assistant up at the **Home Assistant address**, and that is the address it
+   saves and uses. It must be on the owner's network by its form (a home-network or
+   Tailscale IPv4, or a name ending in `.ts.net`, `.local`, `.lan` or `.home.arpa`), and is
+   remembered for next time (`fork_voice_ha_signin_url`). Empty: the Home Assistant
+   address.
 2. Home Assistant's login page opens: sign in with an **administrator** account. Open
    Odysseus by its name (or a home-network IP) for this: Home Assistant refuses a
    sign-in for an app on a Tailscale IP (`100.x`).

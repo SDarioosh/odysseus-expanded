@@ -496,6 +496,10 @@ def web(monkeypatch):
     monkeypatch.setattr("fork.voice.ha_settings.set_odysseus_url", saved_ody.append)
     monkeypatch.setattr("fork.voice.ha_settings.get_odysseus_url",
                         lambda: saved_ody[-1] if saved_ody else "")
+    saved_signin = []
+    monkeypatch.setattr("fork.voice.ha_settings.set_signin_url", saved_signin.append)
+    monkeypatch.setattr("fork.voice.ha_settings.get_signin_url",
+                        lambda: saved_signin[-1] if saved_signin else "")
     fake = FakeHA()
     runs = []
 
@@ -526,7 +530,7 @@ def web(monkeypatch):
     client = TestClient(app, base_url=ODY)
     same = {"x-test-user": "alice", "origin": ODY, "sec-fetch-site": "same-origin"}
     return SimpleNamespace(client=client, fake=fake, runs=runs, saved=saved,
-                           saved_ody=saved_ody, same=same)
+                           saved_ody=saved_ody, saved_signin=saved_signin, same=same)
 
 
 def _connect(web, **body):
@@ -690,3 +694,60 @@ def test_a_failed_setup_saves_no_address(web):
                    params={"code": "good-code", "state": state}, headers=web.same)
     assert web.runs and web.fake.revoked == ["ha-refresh-fake"]
     assert web.saved == [] and web.saved_ody == []
+
+
+# ------------------------------------------------- signing in from away (over Tailscale)
+SIGNIN = "http://superserver.tail0000.ts.net:8123"
+
+
+def test_away_the_browser_signs_in_over_tailscale_and_odysseus_keeps_the_lan(web, monkeypatch):
+    exchanged = []
+    real = ha_setup.exchange_code
+    monkeypatch.setattr(ha_setup, "exchange_code",
+                        lambda url, *a, **k: exchanged.append(url) or real(url, *a, **k))
+    res = _connect(web, signin_url=SIGNIN + "/")
+    assert res.status_code == 200, res.text
+    url = urlsplit(res.json()["authorize_url"])
+    assert f"{url.scheme}://{url.netloc}{url.path}" == SIGNIN + "/auth/authorize"
+    state = parse_qs(url.query)["state"][0]
+    res = web.client.get("/api/fork/voice/ha/callback",
+                         params={"code": "good-code", "state": state}, headers=web.same)
+    assert res.status_code == 200, res.text
+    assert exchanged == [HA]  # the code is exchanged, and HA set up, at the LAN address
+    assert web.runs[0][1] == HA and web.fake.revoked == ["ha-refresh-fake"]
+    assert web.saved == [HA] and web.saved_signin == [SIGNIN]
+    status = web.client.get("/api/fork/voice/ha", headers=web.same).json()
+    assert status["ha_url"] == HA and status["signin_url"] == SIGNIN
+
+
+def test_without_a_signin_address_the_browser_signs_in_at_the_ha_address(web):
+    url = urlsplit(_connect(web, signin_url="  ").json()["authorize_url"])
+    assert f"{url.scheme}://{url.netloc}" == HA
+
+
+@pytest.mark.parametrize("bad", [
+    "https://ha.public.example.com",  # not on the owner's network
+    "http://8.8.8.8:8123",
+    "http://localhost:8123",
+    "javascript:alert(1)",
+    "http://user:pw@superserver.tail0000.ts.net:8123",
+])
+def test_a_signin_address_off_the_home_network_is_refused(web, bad):
+    res = _connect(web, signin_url=bad)
+    assert res.status_code == 400 and not web.runs
+
+
+def test_signin_address_is_saved_in_the_settings_file(tmp_path, monkeypatch):
+    from fork.voice import ha_settings
+    from src import settings
+
+    monkeypatch.setattr(settings, "SETTINGS_FILE", str(tmp_path / "settings.json"))
+    settings._invalidate_caches()
+    try:
+        assert ha_settings.get_signin_url() == ""
+        assert ha_settings.set_signin_url(SIGNIN + "/") == SIGNIN
+        assert ha_settings.get_signin_url() == SIGNIN
+        ha_settings.set_signin_url("")
+        assert ha_settings.get_signin_url() == ""
+    finally:
+        settings._invalidate_caches()
