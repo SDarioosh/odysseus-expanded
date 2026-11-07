@@ -179,6 +179,14 @@ def _last_question(sess: Any) -> str:
     return ""
 
 
+def _last_answer(sess: Any) -> str:
+    """The voice chat's previous answer, before this question is added."""
+    for m in reversed(list(getattr(sess, "history", None) or ())):
+        if getattr(m, "role", None) == "assistant":
+            return str(getattr(m, "content", "") or "")
+    return ""
+
+
 def _timing_start(owner: str, turn_id: str, ctx: Any, timer: Any) -> str | None:
     try:
         return timings.save_hub(owner, turn_id, getattr(ctx, "device_id", None), timer)
@@ -294,6 +302,9 @@ def setup_voice_routes() -> APIRouter:
             fixed = await confirmation_reply(
                 owner=owner, sess=sess, session_manager=session_manager, question=question.text,
                 turn_id=turn_id, personal=personal, module=module)
+        # A yes to a question the model asked without calling the tool: nothing waits for
+        # it, so the model is told to call the tool now and never asks the same again.
+        unheld = fixed is None and confirm.unheld_yes(question.text, _last_answer(sess))
         if fixed is not None:
             events = _fixed(fixed)
             confirmation = None
@@ -309,7 +320,8 @@ def setup_voice_routes() -> APIRouter:
                 request, sess=sess, session_id=session_id, message=question.text,
                 owner=owner, instructions=voice_prompt.INSTRUCTIONS,
                 services=(session_manager,), preset=default_preset(), gate=gate,
-                shared_prefix=True, context_lines=(asked_from(ctx),),
+                shared_prefix=True,
+                context_lines=(asked_from(ctx),) + ((confirm.UNHELD_NOTE,) if unheld else ()),
                 no_memory=not personal)
             if events is None:
                 interrupts.end(turn_id)
@@ -321,7 +333,8 @@ def setup_voice_routes() -> APIRouter:
                 p = confirm.pending(owner, session_id)
                 return p.question() if p is not None and p.turn_id == turn_id else None
 
-        answer = openai_api.Answer(streaming=question.stream, confirmation=confirmation)
+        answer = openai_api.Answer(streaming=question.stream, confirmation=confirmation,
+                                   no_question=confirm.UNHELD if unheld else None)
         events = interrupts.until_stopped(events, stop)
         timer.mark("ready")  # timing never fails the turn
         timing_row = _timing_start(owner, turn_id, ctx, timer)
