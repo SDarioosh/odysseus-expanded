@@ -237,6 +237,16 @@ HA_TOKEN = _setting(
     "FORK_HA_TOKEN", "", "secret",
     "A Home Assistant long-lived access token for announcements.",
     used_in=("fork/voice/announce.py",))
+MA_URL = _setting(
+    "FORK_MA_URL", "", "URL",
+    "Music Assistant's base URL on the home network (e.g. http://192.168.1.20:8095): the "
+    "Echo's library images are fetched from its imageproxy; unset: none from MA.",
+    used_in=("fork/voice/music_images.py",))
+MUSIC_IMAGES_INTERNET = _setting(
+    "FORK_MUSIC_IMAGES_INTERNET", "on", "on/off",
+    "Fetch the Echo's library images from public https image servers (streaming services' "
+    "cover art); off (0, false, no, off): only from Music Assistant.",
+    used_in=("fork/voice/music_images.py",))
 VOICE_ANNOUNCE_ENTITIES = _setting(
     "FORK_VOICE_ANNOUNCE_ENTITIES", "", "comma-separated entity ids",
     "The assist_satellite entities announcements are spoken on (unset: none).",
@@ -448,3 +458,11 @@ def ha_token() -> str:
 def voice_announce_entities() -> tuple[str, ...]:
     raw = VOICE_ANNOUNCE_ENTITIES.value() or ""
     return tuple(dict.fromkeys(p.strip() for p in raw.split(",") if p.strip()))
+
+
+def ma_url() -> str:
+    return (MA_URL.value() or "").strip()
+
+
+def music_images_internet() -> bool:
+    return flag(MUSIC_IMAGES_INTERNET.value(), True)

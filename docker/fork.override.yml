@@ -70,6 +70,10 @@ services:
       - FORK_HA_URL=${FORK_HA_URL:-}
       - FORK_HA_TOKEN=${FORK_HA_TOKEN:-}
       - FORK_VOICE_ANNOUNCE_ENTITIES=${FORK_VOICE_ANNOUNCE_ENTITIES:-}
+      # The Echo's Music page images (fork/voice/music_images.py): Music Assistant's
+      # address on the home network, and whether public cover-art servers may be used.
+      - FORK_MA_URL=${FORK_MA_URL:-}
+      - FORK_MUSIC_IMAGES_INTERNET=${FORK_MUSIC_IMAGES_INTERNET:-}
       # Links in handwritten notes sent to Athena (fork/ink/athena.py) when Settings has
       # no public URL; upstream's MCP OAuth redirect (src/mcp_oauth.py) reads it too.
       - APP_PUBLIC_URL=${APP_PUBLIC_URL:-}

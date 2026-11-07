@@ -48,6 +48,8 @@ that are off by default are on for `1`, `true`, `yes` or `on` (any case).
 | `FORK_VOICE_PRIVATE` | - | off or owner | `off` | Personal voice answers: off answers anyone near a satellite; owner only when Athena recognised the owner's voice (anything else means off). | `fork/voice/satellite.py` |
 | `FORK_HA_URL` | - | URL | (empty) | Home Assistant's address for voice features (announcements, the Echo link); unset: the one Set up Home Assistant saved. Only a local, private-network or Tailscale host is used. | `fork/voice/announce.py`, `fork/voice/ha_settings.py` |
 | `FORK_HA_TOKEN` | - | secret | (empty) | A Home Assistant long-lived access token for announcements. | `fork/voice/announce.py` |
+| `FORK_MA_URL` | - | URL | (empty) | Music Assistant's base URL on the home network (e.g. http://192.168.1.20:8095): the Echo's library images are fetched from its imageproxy; unset: none from MA. | `fork/voice/music_images.py` |
+| `FORK_MUSIC_IMAGES_INTERNET` | - | on/off | `on` | Fetch the Echo's library images from public https image servers (streaming services' cover art); off (0, false, no, off): only from Music Assistant. | `fork/voice/music_images.py` |
 | `FORK_VOICE_ANNOUNCE_ENTITIES` | - | comma-separated entity ids | (empty) | The assist_satellite entities announcements are spoken on (unset: none). | `fork/voice/announce.py` |
 | `INK_AUTO_SEND` | - | on/off | (empty) | Send pages the model read without [?] to Athena without review. | `fork/ink/transcribe.py` |
 | `APP_PUBLIC_URL` | - | URL | (empty) | The hub's address for links in notes sent to Athena when Settings has no Public URL (upstream's MCP OAuth redirect reads it too). | `fork/ink/athena.py` |

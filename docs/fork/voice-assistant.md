@@ -66,6 +66,7 @@ for chat streams, and a voice answer can take longer (minutes on the sandbox's C
 | `POST /api/chat/voice/v1/satellite/hello` | the same | the device's id, name, room and app version ([Rooms and devices](#rooms-and-devices)) |
 | `GET /api/chat/voice/v1/announcements?device_id=…&since=<ms>` | the same | the announcements and reminders meant for that device ([feed](#the-devices-feed)) |
 | `GET /api/chat/voice/v1/devices/{device_id}/settings` | the same | the settings the hub manages for that device ([Device settings](#device-settings)) |
+| `GET /api/chat/voice/v1/music/image?u=<url>&size=<n>` | the same | a Music Assistant library image, fetched and scaled by the hub ([Music page](#music-page)) |
 | `POST /api/fork/voice/token` | signed-in admin (browser) | makes a token with only the `voice` scope (the Settings card) |
 | `GET /api/fork/voice/ha` | the same | the saved Home Assistant address and the last setup's report |
 | `POST /api/fork/voice/ha/connect` | the same, same-origin | starts "Set up Home Assistant": answers HA's login address ([Setup](#setup-owner)) |
@@ -714,6 +715,8 @@ stored; the device ignores keys it doesn't know):
 | `record.privacy_button` | `"record"` / `"mute"` | privacy button |
 | `followup.enabled` | bool | answer without the wake word |
 | `followup.seconds` | int 3..15 | how long it listens |
+| `music.enabled` | bool | Music page (C7; shown only while HA is signed in and MA has players) |
+| `music.stay_while_playing` | bool | the Music page doesn't go back to the clock while something plays here (C7) |
 
 - `version` goes up on every change (a save that changes nothing keeps it) and never goes
   back, also when everything is left to the device again. One row per (owner, device) in
@@ -739,6 +742,43 @@ keys above, each "Device decides" or a value, and **Save** sends the whole set:
   unknown key, a value of the wrong type (`1` is not `true`, `"60"` not `60`) or out of
   range, or another body; 404 for a device not in the admin's registry. Answers `{"version",
   "settings"}`.
+
+### Music page
+
+The Echo's Music page (odysseus-echo `docs/odysseus/plans/2026-11-music.md`, contracts C7
+and C8) talks to Music Assistant through Home Assistant. The hub adds two things:
+
+- **Settings** (C7): `music.enabled` and `music.stay_while_playing`, two more
+  [device settings](#device-settings) (bool). Older Echos ignore them.
+- **Library images** (C8, `fork/voice/music_images.py`). Home Assistant proxies the
+  now-playing art but not library or search thumbnails, which point at MA's `imageproxy`
+  on its LAN address or at a streaming service's image server. The Echo never loads them
+  itself; it asks the hub:
+
+```
+GET /api/chat/voice/v1/music/image?u=<url>&size=<64..512, default 256>     (voice token)
+-> 200 image/jpeg (image/png when it has transparency), Cache-Control: max-age=604800
+   400 {"error": "bad url"}   403 {"error": "not allowed"}   404 {"error": "not found"}
+```
+
+- The hub fetches `u` only when it is MA's `imageproxy` on `FORK_MA_URL` (same scheme,
+  host and port; `<base>/imageproxy/<id>` or `<base>/imageproxy?path=…&provider=…`), or a
+  public `https` URL while `FORK_MUSIC_IMAGES_INTERNET` is on (the default; it reveals only
+  cover-art fetches to a service MA already streams from). Without `FORK_MA_URL` only the
+  second works. Off: those items get 403 and the Echo shows a placeholder.
+- SSRF guard: an internet host must resolve only to public addresses (no private, loopback,
+  link-local, Tailscale/CGNAT, multicast or reserved ones, nor IPv6 forms embedding them),
+  and the hub connects to the address it checked (no second lookup, TLS checked against the
+  URL's name, no proxy). Other ports or paths on MA's host are refused. Redirects are
+  followed by hand, at most 3, each hop decided again. The decision is pure and unit-tested
+  (`decide`, `check_addresses`).
+- 5 s to connect, 10 s in all; only `image/*` answers up to 5 MB. Anything else the
+  source answers (an error, HTML, a picture Pillow can't read, more than 40 megapixels)
+  is 404.
+- Scaled with Pillow to `size` on the longest side (never enlarged; `size` out of range is
+  clamped, not a number is 256), JPEG or PNG. Kept in `<DATA_DIR>/music_images/` (file name:
+  sha256 of the URL and the size) for 7 days, at most 200 MB, oldest out first.
+- Logs carry the status and the sizes only, never the URL or its query.
 
 ### Announcing to a room or device
 
@@ -816,6 +856,8 @@ and token are set. Speaking aloud is a write:
 | `FORK_HA_URL` | optional: overrides the address Set up Home Assistant saved, e.g. `http://192.168.1.20:8123` (local hosts only) |
 | `FORK_HA_TOKEN` | a Home Assistant long-lived access token (a secret: `.env` only) |
 | `FORK_VOICE_ANNOUNCE_ENTITIES` | comma list, e.g. `assist_satellite.kitchen_echo` |
+| `FORK_MA_URL` | optional: Music Assistant's base URL on the home network, e.g. `http://192.168.1.20:8095`, for the [Music page](#music-page) images |
+| `FORK_MUSIC_IMAGES_INTERNET` | on (default) or off: whether the Music page images may come from public `https` cover-art servers |
 
 ### Security trade-offs
 
@@ -1073,6 +1115,8 @@ fixtures of the Echo app's parser tests (odysseus-echo `app/src/test/resources/o
   `tests/fork/test_voice_timings.py`.
 - Device settings: `fork/voice/device_settings.py`, `device_settings_routes.py`,
   `static/js/forkVoiceDevices.js`; tests `tests/fork/test_voice_device_settings.py`.
+- Music page images: `fork/voice/music_images.py`; tests
+  `tests/fork/test_voice_music_images.py`.
 - App updates: `fork/voice/app_release.py`, `scripts/echo_release.py`; tests
   `tests/fork/test_echo_app_release.py`.
 - Checking a server: `scripts/echo_verify.py`; tests `tests/fork/test_echo_verify.py`.

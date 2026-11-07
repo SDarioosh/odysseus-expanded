@@ -97,6 +97,8 @@ complete); a setting left out of `.env` keeps the code's default:
   `FORK_BRAIN_TOOL_GROUPS` ([brain.md](brain.md#settings));
 - voice satellites: `FORK_VOICE_PRIVATE`, `FORK_HA_URL`, `FORK_HA_TOKEN` (a secret),
   `FORK_VOICE_ANNOUNCE_ENTITIES` ([voice-assistant.md](voice-assistant.md#satellites-owner-only-answers-and-announcements));
+- the Echo's Music page images: `FORK_MA_URL`, `FORK_MUSIC_IMAGES_INTERNET` (on unless
+  `.env` turns it off) ([voice-assistant.md](voice-assistant.md#music-page));
 - handwritten notes: `INK_AUTO_SEND`, and `APP_PUBLIC_URL` (link base when Settings has no
   public URL; upstream's MCP OAuth redirect reads it too).
 

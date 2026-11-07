@@ -21,7 +21,8 @@ ADMIN = {"x-test-user": "alice"}
 GOOD = {"home.enabled": True, "home.idle_seconds": 0, "home.weather_enabled": False,
         "today.enabled": True, "kiosk.return_seconds": 600, "kiosk.auto_reload": True,
         "record.enabled": False, "record.clock_button": True,
-        "record.privacy_button": "mute", "followup.enabled": True, "followup.seconds": 8}
+        "record.privacy_button": "mute", "followup.enabled": True, "followup.seconds": 8,
+        "music.enabled": True, "music.stay_while_playing": False}
 
 
 def hello(owner="alice", device_id="echo-1", name="Kitchen Echo", area="Kitchen"):
@@ -51,6 +52,8 @@ def test_every_c6_value_is_accepted_and_null_means_the_device_decides():
     {"followup.seconds": 2},
     {"followup.seconds": 16},
     {"record.privacy_button": "off"},
+    {"music.enabled": "on"},
+    {"music.stay_while_playing": 0},
     {"record.privacy_button": True},
     {"volume": 3},
     [],

@@ -2,8 +2,9 @@
 
 The owner sets, per device of the registry (``fork/voice/devices.py``), some of the
 Echo's own settings (contract C6: the clock home screen, Today, kiosk, recording,
-answering without the wake word). A key that is absent means "the device decides". The
-device fetches them (``GET /api/chat/voice/v1/devices/{device_id}/settings``,
+answering without the wake word; C7: the Music page). A key that is absent means "the
+device decides". The device fetches them
+(``GET /api/chat/voice/v1/devices/{device_id}/settings``,
 ``fork/voice/device_settings_routes.py``), so the hub never reaches the device: at start,
 after each hello, and when its announcements feed delivers an item of
 ``kind: "settings"``, which :func:`replace` puts there on every change.
@@ -52,7 +53,8 @@ class Key:
         return out
 
 
-# Contract C6, in the order the Settings card shows them. Only these keys are stored.
+# Contracts C6 and C7, in the order the Settings card shows them. Only these keys are
+# stored.
 KEYS: tuple[Key, ...] = (
     Key("home.enabled", "bool", "Clock home screen"),
     Key("home.idle_seconds", "int", "Back to the clock after (seconds)", 0, MAX_SECONDS,
@@ -67,6 +69,9 @@ KEYS: tuple[Key, ...] = (
     Key("record.privacy_button", "enum", "Privacy button", choices=("record", "mute")),
     Key("followup.enabled", "bool", "Answer without the wake word"),
     Key("followup.seconds", "int", "Listen for an answer for (seconds)", 3, 15),
+    # Contract C7 (the Music page).
+    Key("music.enabled", "bool", "Music page"),
+    Key("music.stay_while_playing", "bool", "Stay on the Music page while playing"),
 )
 BY_NAME = {k.name: k for k in KEYS}
 
@@ -132,8 +137,8 @@ def _check(key: Key, value: Any) -> Any:
 
 
 def validate(settings: Any) -> dict[str, Any]:
-    """The settings to store: only C6's keys, each of its type and range; a key that is
-    null is left out (the device decides). Raises :class:`BadSettings`."""
+    """The settings to store: only C6's and C7's keys, each of its type and range; a key
+    that is null is left out (the device decides). Raises :class:`BadSettings`."""
     if not isinstance(settings, dict):
         raise BadSettings("settings must be an object")
     unknown = sorted(str(k) for k in settings if k not in BY_NAME)
