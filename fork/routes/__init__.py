@@ -30,6 +30,7 @@ ROUTERS: tuple[tuple[str, str], ...] = (
     ("fork.voice.app_release", "setup_app_release_routes"),  # the Echo app's releases
     ("fork.voice.music_images", "setup_music_image_routes"),  # Echo Music page images
     ("fork.voice.device_settings_routes", "setup_device_settings_routes"),  # settings per Echo
+    ("fork.voice.wakeword_routes", "setup_wakeword_routes"),  # wake word clips for training
 )
 
 
