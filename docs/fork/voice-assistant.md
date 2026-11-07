@@ -766,18 +766,32 @@ GET /api/chat/voice/v1/music/image?u=<url>&size=<64..512, default 256>     (voic
   public `https` URL while `FORK_MUSIC_IMAGES_INTERNET` is on (the default; it reveals only
   cover-art fetches to a service MA already streams from). Without `FORK_MA_URL` only the
   second works. Off: those items get 403 and the Echo shows a placeholder.
+- MA's query form is no way into the LAN: MA fetches an http(s) `path` itself and reads
+  local files for `provider=builtin`. So an http(s) `path` must pass the internet rules on
+  its own (https, `FORK_MUSIC_IMAGES_INTERNET` on, its host resolving only to public
+  addresses; MA does its own lookup afterwards), any other scheme (`file:`, `data:`, …) is
+  refused, and so is a `path` with `..`, starting with `//`, or, for `builtin` (also when
+  `provider` is missing), an absolute one. `path` is unquoted until stable before these
+  checks. MA is reached only as the URL asked for: a redirect to MA's scheme, host and port
+  is refused, and a redirect from MA is decided as an internet URL.
 - SSRF guard: an internet host must resolve only to public addresses (no private, loopback,
   link-local, Tailscale/CGNAT, multicast or reserved ones, nor IPv6 forms embedding them),
   and the hub connects to the address it checked (no second lookup, TLS checked against the
   URL's name, no proxy). Other ports or paths on MA's host are refused. Redirects are
   followed by hand, at most 3, each hop decided again. The decision is pure and unit-tested
   (`decide`, `check_addresses`).
-- 5 s to connect, 10 s in all; only `image/*` answers up to 5 MB. Anything else the
-  source answers (an error, HTML, a picture Pillow can't read, more than 40 megapixels)
-  is 404.
-- Scaled with Pillow to `size` on the longest side (never enlarged; `size` out of range is
-  clamped, not a number is 256), JPEG or PNG. Kept in `<DATA_DIR>/music_images/` (file name:
-  sha256 of the URL and the size) for 7 days, at most 200 MB, oldest out first.
+- 5 s to connect, and one 10 s deadline over everything (DNS, every hop, the body), so a
+  lookup that never answers is a 404 too. Only `image/*` answers up to 5 MB as received:
+  the hub asks for `Accept-Encoding: identity` and refuses a content-encoded body (never
+  decompresses it). Anything else the source answers (an error, HTML, a picture Pillow
+  can't read, more than 40 megapixels) is 404.
+- Pillow reads JPEG, PNG, WebP and GIF only (animated: the first frame). Decoding and
+  scaling run in a worker thread, at most 2 at once, as do cache reads and writes; the
+  event loop never waits on them.
+- Scaled to `size` on the longest side (never enlarged; `size` out of range is clamped, not
+  a number is 256), JPEG or PNG. Kept in `<DATA_DIR>/music_images/` (file name: sha256 of
+  the URL and the size) for 7 days, at most 200 MB, oldest out first; the folder is swept
+  at most once per 50 stores or 5 minutes, and `*.tmp` leftovers older than an hour go too.
 - Logs carry the status and the sizes only, never the URL or its query.
 
 ### Announcing to a room or device

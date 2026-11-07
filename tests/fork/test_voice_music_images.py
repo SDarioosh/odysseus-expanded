@@ -5,9 +5,13 @@ fetcher and resolver, so nothing touches the network.
 """
 from __future__ import annotations
 
+import asyncio
+import gzip
 import io
 import logging
 import os
+import threading
+import time
 
 import httpx
 import pytest
@@ -90,6 +94,51 @@ def test_ma_imageproxy_both_forms_are_allowed(url):
 def test_other_urls_on_the_lan_are_refused(url):
     with pytest.raises(mi.NotAllowed):
         mi.decide(url, ma=MA, internet=True)
+
+
+def ma_query(path, provider=None):
+    from urllib.parse import urlencode
+
+    params = {"path": path} | ({"provider": provider} if provider else {})
+    return MA_URL + "/imageproxy?" + urlencode(params)
+
+
+INNER = "https://images.example.com/cover/ab12.jpg"
+
+
+@pytest.mark.parametrize("url", [
+    # MA fetches an http(s) path itself: it must pass the internet rules on its own.
+    ma_query("http://192.168.1.1/cgi-bin/x", "url"),
+    ma_query("https://10.0.0.5/admin", "url"),
+    ma_query("https://localhost/a.jpg", "url"),
+    ma_query("http://images.example.com/a.jpg", "url"),   # not https
+    ma_query("https://u:p@images.example.com/a.jpg", "url"),
+    ma_query("http%3A%2F%2F10.0.0.5%2Fadmin", "url"),    # encoded once more
+    # Other schemes, and builtin's local files.
+    ma_query("file:///etc/passwd", "builtin"),
+    ma_query("data:image/png;base64,AAAA", "builtin"),
+    ma_query("ftp://images.example.com/a.jpg", "url"),
+    ma_query("/data/secrets.png", "builtin"),
+    ma_query("/data/secrets.png"),                        # no provider: builtin
+    ma_query("../../etc/passwd", "filesystem_local"),
+    ma_query("covers/../../x.jpg", "builtin"),
+    ma_query("//10.0.0.5/share/a.jpg", "filesystem_smb"),
+    ma_query(""),
+    MA_URL + "/imageproxy?path=a.jpg&path=/etc/passwd&provider=builtin",
+])
+def test_ma_query_form_is_no_lan_proxy(url):
+    for internet in (True, False):
+        with pytest.raises(mi.NotAllowed):
+            mi.decide(url, ma=MA, internet=internet)
+
+
+def test_ma_query_form_with_a_public_https_path_needs_the_internet_setting():
+    target = mi.decide(ma_query(INNER, "spotify"), ma=MA, internet=True)
+    assert target.kind == "ma" and target.inner is not None
+    assert (target.inner.kind, target.inner.url) == ("internet", INNER)
+    with pytest.raises(mi.NotAllowed):
+        mi.decide(ma_query(INNER, "spotify"), ma=MA, internet=False)
+    assert mi.decide(ma_query("logo.png", "builtin"), ma=MA, internet=False).inner is None
 
 
 def test_ma_base_path_and_host_case():
@@ -225,6 +274,84 @@ def test_redirects_are_checked_at_every_hop(data_dir):
     assert len(net.calls) == 1
 
 
+def test_ma_query_form_checks_the_inner_host_by_dns(data_dir):
+    url = ma_query(INNER, "spotify")
+    net = FakeNet({url: mi.Fetched(200, "image/jpeg", picture(100, 100))},
+                  dns={"images.example.com": ["10.0.0.7"]})
+    with pytest.raises(mi.NotAllowed):
+        load(net, url)
+    assert net.calls == []
+    net.dns["images.example.com"] = [PUBLIC_IP]
+    assert load(net, url)[1] == "image/jpeg"
+    assert net.calls == [(url, None)]  # MA itself by name
+
+
+def test_a_redirect_into_ma_is_refused(data_dir):
+    for location in (PROXY_ID, ma_query("http://10.0.0.5/admin", "url")):
+        net = FakeNet({CDN: mi.Fetched(302, location=location)},
+                      dns={"images.example.com": [PUBLIC_IP]})
+        with pytest.raises(mi.NotAllowed):
+            load(net, CDN)
+        assert [u for u, _ in net.calls] == [CDN]
+
+
+def test_a_redirect_from_ma_is_an_internet_url(data_dir):
+    net = FakeNet({PROXY_ID: mi.Fetched(302, location=CDN),
+                   CDN: mi.Fetched(200, "image/jpeg", picture(100, 100))},
+                  dns={"images.example.com": [PUBLIC_IP]})
+    assert load(net, PROXY_ID)[1] == "image/jpeg"
+    assert net.calls == [(PROXY_ID, None), (CDN, PUBLIC_IP)]
+    with pytest.raises(mi.NotAllowed):
+        load(net, PROXY_ID, 128, internet=False)  # another size: not cached
+    net = FakeNet({PROXY_ID: mi.Fetched(302, location="/imageproxy/other")})
+    with pytest.raises(mi.NotAllowed):
+        load(net, PROXY_ID, 64)
+
+
+def test_one_deadline_covers_dns_and_every_hop(data_dir, monkeypatch):
+    monkeypatch.setattr(mi, "TOTAL_SECONDS", 0.2)
+
+    class Hanging(FakeNet):
+        async def resolve(self, host):
+            await asyncio.Event().wait()  # DNS that never answers
+
+    started = time.monotonic()
+    with pytest.raises(mi.NotFound):
+        load(Hanging(), CDN)
+    assert time.monotonic() - started < 2
+
+
+def test_scaling_runs_off_the_event_loop(data_dir, monkeypatch):
+    threads = []
+    real = mi.scale
+
+    def spy(data, size):
+        threads.append(threading.get_ident())
+        return real(data, size)
+
+    monkeypatch.setattr(mi, "scale", spy)
+    load(FakeNet({PROXY_ID: mi.Fetched(200, "image/jpeg", picture(100, 100))}), PROXY_ID)
+    assert threads and threads[0] != threading.get_ident()
+    assert mi._SCALING._value == mi.SCALE_SLOTS == 2
+
+
+def test_only_four_formats_are_read():
+    with pytest.raises(mi.NotFound):
+        mi.scale(picture(100, 100, "BMP"), 64)
+    with pytest.raises(mi.NotFound):
+        mi.scale(picture(100, 100, "TIFF"), 64)
+
+
+def test_an_animated_gif_gives_its_first_frame():
+    frames = [Image.new("RGB", (100, 100), c) for c in ((250, 0, 0), (0, 0, 250))]
+    out = io.BytesIO()
+    frames[0].save(out, "GIF", save_all=True, append_images=frames[1:])
+    data, ctype = mi.scale(out.getvalue(), 64)
+    with Image.open(io.BytesIO(data)) as img:
+        r, _g, b = img.convert("RGB").getpixel((32, 32))
+    assert ctype == "image/jpeg" and r > 200 and b < 50
+
+
 def test_a_relative_redirect_and_the_redirect_limit(data_dir):
     final = "https://images.example.com/cover/final.jpg"
     net = FakeNet({CDN: mi.Fetched(302, location="/cover/final.jpg"),
@@ -262,14 +389,21 @@ def test_http_fetch_caps_the_size_and_does_not_follow_redirects(monkeypatch):
     big = b"\xff" * (mi.MAX_BYTES + 10)
 
     def handler(request):
+        assert request.headers["accept-encoding"] == "identity"
         if request.url.path == "/big":
-            return httpx.Response(200, headers={"content-type": "image/jpeg"}, content=big)
+            return httpx.Response(200, headers={"content-type": "image/jpeg"},
+                                  stream=httpx.ByteStream(big))
+        if request.url.path == "/gzip":  # never decompressed, whatever its size
+            return httpx.Response(200, headers={"content-type": "image/png",
+                                                "content-encoding": "gzip"},
+                                  stream=httpx.ByteStream(gzip.compress(b"\0" * 4096)))
         if request.url.path == "/move":
             return httpx.Response(302, headers={"location": "http://127.0.0.1/"})
         assert request.headers["host"] == "images.example.com"
         assert request.url.host == PUBLIC_IP
         assert request.extensions["sni_hostname"] == "images.example.com"
-        return httpx.Response(200, headers={"content-type": "image/png; x=1"}, content=b"ok")
+        return httpx.Response(200, headers={"content-type": "image/png; x=1"},
+                              stream=httpx.ByteStream(b"ok"))
 
     real = httpx.AsyncClient
 
@@ -279,6 +413,8 @@ def test_http_fetch_caps_the_size_and_does_not_follow_redirects(monkeypatch):
     monkeypatch.setattr(mi.httpx, "AsyncClient", client)
     with pytest.raises(mi.NotFound):
         run(mi.http_fetch("https://images.example.com/big", None))
+    with pytest.raises(mi.NotFound):
+        run(mi.http_fetch("https://images.example.com/gzip", None))
     got = run(mi.http_fetch("https://images.example.com/move", None))
     assert got.status == 302 and got.location == "http://127.0.0.1/"
     got = run(mi.http_fetch("https://images.example.com/ok", PUBLIC_IP))
@@ -311,6 +447,24 @@ def test_the_cache_drops_the_oldest_past_the_cap(data_dir, monkeypatch):
     os.utime(folder / "old.png", (0, 0))
     mi.evict(now=2000.0)
     assert sorted(p.name for p in folder.iterdir()) == ["b.jpg", "c.jpg"]
+
+
+def test_eviction_is_throttled():
+    assert mi.evict_due(1000.0, None, 1)
+    assert not mi.evict_due(1000.0, 999.0, 1)
+    assert mi.evict_due(1000.0, 999.0, mi.EVICT_EVERY)
+    assert mi.evict_due(999.0 + mi.EVICT_SECONDS, 999.0, 1)
+    assert mi.evict_due(500.0, 999.0, 1)  # the clock went back
+
+
+def test_eviction_drops_old_tmp_leftovers(data_dir):
+    folder = data_dir / mi.CACHE_DIR
+    folder.mkdir()
+    for name, age in (("old.1.tmp", mi.TMP_SECONDS + 1), ("new.2.tmp", 10)):
+        (folder / name).write_bytes(b"x")
+        os.utime(folder / name, (10_000 - age, 10_000 - age))
+    mi.evict(now=10_000.0)
+    assert [p.name for p in folder.iterdir()] == ["new.2.tmp"]
 
 
 # ------------------------------------------------------------------------------ the route
