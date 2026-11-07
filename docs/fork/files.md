@@ -68,6 +68,7 @@ is an old path of a module that moved into `fork/`; it only aliases the new modu
 - `docs/fork/today-insight.md`
 - `docs/fork/upstream-sync.md`
 - `docs/fork/voice-assistant.md`
+- `docs/fork/voice-tts.md`
 
 ## fork/
 
