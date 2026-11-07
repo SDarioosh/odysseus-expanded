@@ -20,7 +20,8 @@ from dataclasses import dataclass, field
 from typing import Any
 
 from fork.voice import prompt as voice_prompt
-from fork.voice.speech import SpeechStream, end_with_question, end_without_question
+from fork.voice.speech import (SpeechStream, end_with_question, end_with_statement,
+                               end_without_question)
 
 logger = logging.getLogger(__name__)
 
@@ -108,6 +109,9 @@ class Answer:
     # (fork/voice/confirm.py); then the spoken answer ends with it
     confirmation: Callable[[], str | None] | None = None
     awaiting: str | None = None  # the question the answer ended with, once finished
+    # said in place of a last question when no change is kept: the turn answers a "yes"
+    # that had nothing to confirm, so asking again would loop (confirm.UNHELD)
+    no_question: str | None = None
     held: str = ""  # streamed text ending in "?", held until more comes or the end
     sent: str = ""  # what the client got so far, while streaming
     # the satellite's barge-in cut the turn short (fork/voice/interrupts.py): nothing
@@ -206,6 +210,8 @@ class Answer:
         spoken = self.speech.spoken
         question = self.confirmation() if self.confirmation is not None else None
         final = end_with_question(spoken, question) if question else end_without_question(spoken)
+        if not question and self.no_question and final.endswith("?"):
+            final = end_with_statement(final, self.no_question)
         if not final.startswith(self.sent.rstrip()):
             final = spoken  # never: only the held tail changes; then left as it is
         if question and final.endswith("?"):

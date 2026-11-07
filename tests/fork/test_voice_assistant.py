@@ -777,6 +777,66 @@ def test_a_proposal_expires(api):
     assert confirm.pending("alice", sid, now=later) is None
 
 
+REMIND = {"user": "ha-1", "model": "odysseus", "messages": [
+    {"role": "user", "content": "Make a reminder to feed the dogs today at 5 p.m."}]}
+
+
+def _asked_without_calling(api):
+    """The model's first answer asked in its own words and called no tool: the voice
+    chat ends with that question and no change is kept."""
+    api.answer = ["Add a reminder to feed the dogs today at five to your list?"]
+    body = api.post(URL, json=REMIND, headers=VOICE).json()
+    sess = api.sessions.sessions[body["odysseus"]["session_id"]]
+    sess.history = [SimpleNamespace(role="user", content=REMIND["messages"][0]["content"]),
+                    SimpleNamespace(role="assistant", content=api.answer[0])]
+    assert confirm.pending("alice", sess.id) is None
+    return sess
+
+
+def test_a_yes_with_nothing_kept_tells_the_model_to_call_the_tool(api):
+    """Seen on the Echo: the model asked without calling the tool, so every "yes" went
+    back to it and it asked the same question again, without end."""
+    _asked_without_calling(api)
+    body = api.post(URL, json=YES, headers=VOICE).json()
+    assert confirm.UNHELD_NOTE in api.turns[-1]["context_lines"]
+    # it only asked again: the question is replaced, so the next yes can't loop
+    assert body["choices"][0]["message"]["content"] == confirm.UNHELD
+    assert api.get(LATEST, headers=VOICE).json()["turn"]["awaiting_confirmation"] is None
+
+
+def test_a_yes_with_nothing_kept_then_asks_the_kept_changes_question(api):
+    sess = _asked_without_calling(api)
+    _propose(api, confirm.Change("created", "reminder", "Feed the dogs", "To-dos",
+                                 "I'll remind you: Feed the dogs.",
+                                 question="Set a reminder: Feed the dogs at 5:00 PM?"))
+    body = api.post(URL, json=YES, headers=VOICE).json()
+    assert body["choices"][0]["message"]["content"] == \
+        "Set a reminder: Feed the dogs at 5:00 PM?"
+    assert confirm.pending("alice", sess.id) is not None
+
+
+def test_a_new_question_after_an_unanswered_one_gets_no_note(api):
+    _asked_without_calling(api)
+    api.answer = ["It is sunny."]
+    other = {**YES, "messages": [{"role": "user", "content": "What's the weather?"}]}
+    api.post(URL, json=other, headers=VOICE)
+    assert confirm.UNHELD_NOTE not in api.turns[-1]["context_lines"]
+
+
+def test_the_voice_instructions_say_to_call_the_tool_before_asking():
+    from fork.voice.prompt import INSTRUCTIONS
+
+    assert "Call the tool first" in INSTRUCTIONS and "manage_notes" in INSTRUCTIONS
+
+
+def test_end_with_statement_replaces_the_last_questions():
+    from fork.voice.speech import end_with_statement
+
+    assert end_with_statement("Okay. Add it? Sure?", "Not done.") == "Okay. Not done."
+    assert end_with_statement("Add it?", "Not done.") == "Not done."
+    assert end_with_statement("Fine.", "Not done.") == "Fine. Not done."
+
+
 @pytest.mark.parametrize("text_, kind", [
     ("Yes.", "yes"), ("yeah, do it!", "yes"), ("Sure", "yes"), ("Okay, go ahead.", "yes"),
     ("Correct", "yes"), ("Please do", "yes"), ("No.", "no"), ("Cancel", "no"),

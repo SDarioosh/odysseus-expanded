@@ -42,6 +42,15 @@ DONE = "Done."
 DECLINED = "Okay, I won't."
 FAILED = "Sorry, that didn't work. Nothing was changed."
 CHANGED = "That has changed since, so I didn't do it. Nothing was changed."
+# A "yes" with no kept change: the model asked "Add X?" in its own words without calling
+# the tool, so nothing waits for the yes. The model is told to call it now; if it only
+# asks again, its question is replaced, so a yes never loops (:func:`unheld_yes`).
+UNHELD_NOTE = ("The owner just said yes to your last question, but no change is held for "
+               "it: you asked without calling the tool. If that question offered a change, "
+               "call its tool now (it is held for the owner's yes); don't ask the same "
+               "question again without calling it.")
+UNHELD = ("Sorry, I couldn't set that up by voice. Nothing was changed. You can add it in "
+          "the Odysseus app.")
 
 
 @dataclass(frozen=True)
@@ -165,6 +174,12 @@ def reply_kind(text: str) -> str:
     if _only(norm, NO):
         return "no"
     return "other"
+
+
+def unheld_yes(text: str, last_answer: str) -> bool:
+    """True when ``text`` is a yes to ``last_answer``, a question, while no change is
+    kept for it (checked by the caller)."""
+    return reply_kind(text) == "yes" and (last_answer or "").rstrip().endswith("?")
 
 
 # ------------------------------------------------------------------- the allow-list

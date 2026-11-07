@@ -203,3 +203,14 @@ def end_with_question(text: str, question: str) -> str:
             break
         out = out[:m.start(1)].rstrip()
     return (out + " " + q).strip()
+
+
+def end_with_statement(text: str, statement: str) -> str:
+    """``text`` with the questions it ends with (up to three) replaced by ``statement``."""
+    out = (text or "").rstrip()
+    for _ in range(3):
+        m = LAST_SENTENCE.search(out)
+        if not m:
+            break
+        out = out[:m.start(1)].rstrip()
+    return (out + " " + (statement or "").strip()).strip()

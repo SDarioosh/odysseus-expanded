@@ -190,6 +190,16 @@ no date. The voice instructions also ask for a `due_date` only when one was said
      ("Done. Added Dentist to your calendar.");
    - a refusal ("no", "cancel", "never mind", "don't"): dropped, "Okay, I won't.";
    - anything else: dropped, and answered as a new question.
+   - a "yes" with **nothing kept**, after an answer that ended with a question: the model
+     asked "Add X?" in its own words without calling the tool, so nothing waits for the
+     yes. The turn goes to the model with a note: call the tool now (the change is then
+     kept and the hub asks its own question once more). If it only asks again, its
+     question is replaced by "Sorry, I couldn't set that up by voice. Nothing was
+     changed. You can add it in the Odysseus app.", so a yes never loops
+     (`confirm.unheld_yes`, `UNHELD_NOTE`, `UNHELD`). The voice instructions also tell the
+     model to call the tool before asking, and that a reminder or to-do is
+     `manage_notes` `add`, not an Athena action item. Seen 2026-11-07 with a 9B default
+     model: it searched Athena's action items, asked, and asked again after every "Yes.".
    The "yes" and its reply are saved in the voice chat like a turn.
 3. A yes from a voice that isn't the owner's (private answers on) runs nothing.
 
