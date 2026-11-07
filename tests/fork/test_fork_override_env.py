@@ -262,6 +262,8 @@ def test_empty_value_means_unset_for_every_dollar_default_setting(monkeypatch):
         "FORK_HA_URL": fork_settings.ha_url,
         "FORK_HA_TOKEN": fork_settings.ha_token,
         "FORK_VOICE_ANNOUNCE_ENTITIES": fork_settings.voice_announce_entities,
+        "FORK_MA_URL": fork_settings.ma_url,
+        "FORK_MUSIC_IMAGES_INTERNET": fork_settings.music_images_internet,
     }
     # Former names: read only when the new name is unset or empty.
     legacy = {f"BARVIS_{n.removeprefix('MODULE_')}": n for n in readers if n.startswith("MODULE_")}

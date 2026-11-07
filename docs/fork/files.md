@@ -204,6 +204,7 @@ is an old path of a module that moved into `fork/`; it only aliases the new modu
 - `fork/voice/ha_setup.py`
 - `fork/voice/interrupts.py`
 - `fork/voice/ledger.py`
+- `fork/voice/music_images.py`
 - `fork/voice/openai_api.py`
 - `fork/voice/policy.py`
 - `fork/voice/prompt.py`
@@ -531,6 +532,7 @@ is an old path of a module that moved into `fork/`; it only aliases the new modu
 - `tests/fork/test_voice_done.py`
 - `tests/fork/test_voice_enroll_routes.py`
 - `tests/fork/test_voice_interrupts.py`
+- `tests/fork/test_voice_music_images.py`
 - `tests/fork/test_voice_satellite.py`
 - `tests/fork/test_voice_timings.py`
 - `tests/fork/test_voice_today.py`
