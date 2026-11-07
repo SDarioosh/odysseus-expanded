@@ -182,6 +182,14 @@ def completion_claim_patterns() -> dict:
     return {"bare_success": _BARE_SUCCESS, "non_report": _NON_REPORT_SCOPE}
 
 
+def owner_documents_filter(query: Any, user: Any) -> Any:
+    """``routes.document.document_helpers._owner_session_filter(query, user)``: a
+    documents query kept to ``user``'s documents (the open document of a brain turn)."""
+    from routes.document.document_helpers import _owner_session_filter
+
+    return _owner_session_filter(query, user)
+
+
 # name -> (upstream module, private attribute) for every function above that imports one
 PRIVATE_NAMES: dict[str, tuple[str, str]] = {
     "load_mcp_disabled_map": ("src.agent_loop", "_load_mcp_disabled_map"),
@@ -205,4 +213,5 @@ PRIVATE_NAMES: dict[str, tuple[str, str]] = {
     "unquoted_statements": ("src.agent_evidence", "_unquoted_statements"),
     "completion_claim_patterns:bare": ("src.agent_runtime.completion", "_BARE_SUCCESS"),
     "completion_claim_patterns:scope": ("src.agent_runtime.completion", "_NON_REPORT_SCOPE"),
+    "owner_documents_filter": ("routes.document.document_helpers", "_owner_session_filter"),
 }

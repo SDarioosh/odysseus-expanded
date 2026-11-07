@@ -113,6 +113,7 @@ is an old path of a module that moved into `fork/`; it only aliases the new modu
 - `fork/brain/claims.py`
 - `fork/brain/documents.py`
 - `fork/brain/history.py`
+- `fork/brain/open_document.py`
 - `fork/brain/prompt.py`
 - `fork/brain/query_guard.py`
 - `fork/brain/selection.py`
@@ -426,6 +427,7 @@ is an old path of a module that moved into `fork/`; it only aliases the new modu
 - `tests/fork/test_brain_hardening.py`
 - `tests/fork/test_brain_history.py`
 - `tests/fork/test_brain_hook.py`
+- `tests/fork/test_brain_open_document.py`
 - `tests/fork/test_brain_query_guard.py`
 - `tests/fork/test_brain_tools.py`
 - `tests/fork/test_brain_toolset.py`
