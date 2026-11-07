@@ -910,6 +910,61 @@ first follow-up: `fork/voice/sessions.py`). Home Assistant keeps a satellite's
 conversation for 5 minutes after its last turn, so a reply after waking the Echo again
 continues it too.
 
+## Wake word clips
+
+The Echo's "Hey Athena" wake word model (microWakeWord) was trained on synthetic voices
+only, so it often misses the owner. The Echo can send real clips of the owner saying the
+wake word to the hub; the owner downloads them and retrains the model. The Echo side is
+in `SDarioosh/odysseus-echo` (Menu → Odysseus → Wake word training).
+
+**Privacy.** The clips are recordings of the owner's voice. They are stored only on the
+hub, in `<DATA_DIR>/wakeword_clips/`, never logged (a stored clip logs its wake word, kind
+and device id only), never sent anywhere. The zip is for training on the owner's own
+machines; its `README.txt` says never to commit or upload it.
+
+**Upload.** `POST /api/chat/voice/v1/satellite/wakeword/clip` (API token with the `voice`
+scope, like the other satellite routes), `multipart/form-data` (Content-Length required,
+the body at most 400 KB of audio plus 64 KB):
+
+| Field | |
+|---|---|
+| `audio` (required) | WAV, 16 kHz mono 16-bit PCM (the `fmt ` chunk is checked), at most 10 s; more than 400 KB is 413, another format 415 |
+| `clip_id` (required) | made by the device, `[A-Za-z0-9-]{8,64}`; a clip id the token's owner already has answers `"already": true` and stores nothing |
+| `device_id` (required, ≤ 128), `device_name` (≤ 100) | also recorded in the [device registry](#rooms-and-devices) (a failure there doesn't fail the upload) |
+| `wake_word` (required) | the model id, `[a-z0-9_]{1,64}`, e.g. `hey_athena` |
+| `kind` (required) | `guided` (said on purpose in the training screen), `missed` (scored high-ish without waking, and the owner woke the Echo within seconds: likely a missed wake word), `heard` (the wake that followed such a miss) |
+| `score`, `threshold` | floats 0..1: the model's peak score in the clip, the device's cutoff |
+| `prompt` (≤ 100) | the guided style, e.g. "Normal voice", "Quietly", "From across the room" |
+| `recorded_at` | epoch ms, default now |
+
+Answers `{"ok": true, "id": <clip_id>, "already": false}`; 422 for a bad or missing field,
+507 `{"detail": …}` when the owner's store is full (3000 clips or 400 MB).
+
+**Storage** (`fork/voice/wakeword_clips.py`):
+`<DATA_DIR>/wakeword_clips/<owner>/<wake_word>/<kind>/<clip_id>.wav` and `<clip_id>.json`
+(the fields above plus `received_at`, `bytes`, `duration_ms`), each written atomically
+(a temp file, then a rename; the JSON last). `<owner>` is the owner's name in lower case
+when it is plain (`[a-z0-9][a-z0-9_-]*`), else `_h` and a hash of it.
+
+**Admin.** Settings → Integrations → Voice assistant → Echo devices → **Wake word clips**
+(`static/js/forkWakewordClips.js`): the wake word (a choice when there are several), the
+clips per kind, the newest clips (50, then "Show more") with kind, device, prompt, score,
+length and time, a player and Delete, and **Download for training (.zip)**. Routes
+(`fork/voice/wakeword_routes.py`; a signed-in admin in the browser, no API token, the
+admin's own clips):
+
+- `GET /api/fork/voice/wakeword/clips?wake_word=hey_athena`: `{"wake_words": [...],
+  "counts": {"guided", "missed", "heard"}, "clips": [{id, wake_word, kind, device_id,
+  device_name, score, threshold, prompt, recorded_at, duration_ms, bytes}]}`, newest
+  (`recorded_at`) first, at most 500. Without `wake_word`: every wake word's.
+- `GET /api/fork/voice/wakeword/clips/{clip_id}/audio`: the WAV (`audio/wav`).
+- `DELETE /api/fork/voice/wakeword/clips/{clip_id}`: `{"ok": true}`, 404 for an unknown
+  clip (or an id that isn't a clip id).
+- `GET /api/fork/voice/wakeword/export.zip?wake_word=hey_athena`: a zip (built in a temp
+  file, deleted after sending) of `README.txt`, `<wake_word>/<kind>/<clip_id>.wav` and
+  `<wake_word>/clips.jsonl` (one metadata row per clip, oldest first, with `file`, the
+  WAV's path under the wake word's folder). Without `wake_word`: every wake word's.
+
 ## Timings
 
 Every voice turn saves how long each step took, so slow steps can be found and the
@@ -1139,6 +1194,8 @@ fixtures of the Echo app's parser tests (odysseus-echo `app/src/test/resources/o
   `tests/fork/test_voice_timings.py`.
 - Device settings: `fork/voice/device_settings.py`, `device_settings_routes.py`,
   `static/js/forkVoiceDevices.js`; tests `tests/fork/test_voice_device_settings.py`.
+- Wake word clips: `fork/voice/wakeword_clips.py`, `wakeword_routes.py`,
+  `static/js/forkWakewordClips.js`; tests `tests/fork/test_wakeword_clips.py`.
 - Music page images: `fork/voice/music_images.py`; tests
   `tests/fork/test_voice_music_images.py`.
 - App updates: `fork/voice/app_release.py`, `scripts/echo_release.py`; tests
