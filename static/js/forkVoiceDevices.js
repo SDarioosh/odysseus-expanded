@@ -4,9 +4,11 @@
 // hub-managed settings (contract C6) or leave it to the device. Routes:
 // fork/voice/device_settings_routes.py (GET /api/fork/voice/devices,
 // PUT /api/fork/voice/devices/{id}/settings). A saved change reaches the Echo within 30 s
-// through its announcements feed.
+// through its announcements feed. Below the devices, "Wake word clips"
+// (static/js/forkWakewordClips.js).
 
 import { api, el } from './forkDom.js';
+import { buildWakewordClipsSection } from './forkWakewordClips.js';
 
 const DEVICE_DECIDES = '';
 
@@ -162,7 +164,7 @@ export function buildDevicesSection() {
     + 'within 30 s of a change.');
   sub.style.marginBottom = '6px';
   const list = el('div', {}, el('div', { class: 'admin-toggle-sub' }, 'Loading…'));
-  box.append(sub, list);
+  box.append(sub, list, buildWakewordClipsSection());
   load(list);
   return box;
 }
