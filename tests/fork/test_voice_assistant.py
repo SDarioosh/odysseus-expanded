@@ -324,6 +324,9 @@ def api(monkeypatch, data_dir):
     confirm.forget_all()
     # no satellite module unless a test adds one (the HUB-SATELLITE stream's file)
     monkeypatch.setitem(sys.modules, "fork.voice.satellite", None)
+    # The owner's zone comes from the database; a first import of core.database here
+    # would bind it to this test's empty data_dir for every later test.
+    monkeypatch.setattr("fork.common.local_time.owner_timezone_name", lambda owner: None)
     app = FastAPI()
     app.state.session_manager = FakeSessions()
     turns = []
@@ -412,6 +415,21 @@ def test_answer_is_spoken_text_with_the_links_apart(api):
     assert api.sessions.created[0].name == "Voice: Who brings the cake?"
 
 
+def test_a_turn_saves_how_long_each_step_took(api):
+    from fork.voice import timings
+
+    api.post(URL, json=ASK, headers=VOICE)
+    api.post(URL, json={**ASK, "stream": True}, headers=VOICE)
+    found = timings.rows("alice")
+    assert len(found) == 2
+    for row in found:
+        hub = row["hub"]
+        assert {"ready", "first_token", "first_text", "first_spoken", "done"} <= set(hub["marks"])
+        assert [t["name"] for t in hub["tools"]] == ["x"] and hub["outcome"] == "answered"
+        assert row["turn_id"] and not row["device"]
+    assert "Priya" not in json.dumps(found)  # numbers only, never what was said
+
+
 def test_streamed_answer_is_openai_chunks(api):
     res = api.post(URL, json={**ASK, "stream": True}, headers=VOICE)
     lines = [l[6:] for l in res.text.split("\n\n") if l.startswith("data: ")]
@@ -433,6 +451,43 @@ def test_a_follow_up_continues_the_chat_and_a_new_conversation_does_not(api):
     api.post(URL, json=ASK, headers=VOICE)  # no conversation: new chat
     sids = [t["sid"] for t in api.turns]
     assert sids[0] == sids[1] and len(set(sids)) == 3
+
+
+def _ha_turns(*said):
+    """A request as Home Assistant's agent sends it: no ``user`` field, the earlier turns
+    of its conversation in ``messages``."""
+    messages = [{"role": "system", "content": "You are Home Assistant."}]
+    for i, text_ in enumerate(said):
+        if i:
+            messages.append({"role": "assistant", "content": "Earlier answer?"})
+        messages.append({"role": "user", "content": text_})
+    return {"model": "odysseus", "stream": True, "messages": messages}
+
+
+def test_the_first_follow_up_of_a_conversation_continues_its_chat(api):
+    """Home Assistant names a conversation only by its earlier turns: the reply to the
+    first answer (the second request) must land in the first question's chat."""
+    api.post(URL, json=_ha_turns("Who brings the cake?"), headers=VOICE)
+    api.post(URL, json=_ha_turns("Who brings the cake?", "And the drinks?"), headers=VOICE)
+    api.post(URL, json=_ha_turns("Who brings the cake?", "And the drinks?", "Thanks"),
+             headers=VOICE)
+    api.post(URL, json=_ha_turns("Who brings the cake?"), headers=VOICE)  # a new one
+    sids = [t["sid"] for t in api.turns]
+    assert sids[0] == sids[1] == sids[2] and sids[3] != sids[0]
+    assert len(api.sessions.created) == 2
+
+
+def test_a_yes_in_the_first_follow_up_answers_the_kept_change(api, monkeypatch):
+    async def fake_run(p):
+        return [confirm.Outcome(c.change, True) for c in p.calls]
+    monkeypatch.setattr(confirm, "run", fake_run)
+    _propose(api)
+    ask = "Add the dentist on Tuesday at three"
+    api.post(URL, json={**_ha_turns(ask), "stream": False}, headers=VOICE)
+    api.on_turn = None
+    body = api.post(URL, json={**_ha_turns(ask, "Yes."), "stream": False},
+                    headers=VOICE).json()
+    assert body["choices"][0]["message"]["content"] == "Done. Added Dentist to your calendar."
 
 
 def test_a_conversation_goes_stale_after_the_follow_up_window():
@@ -559,6 +614,65 @@ def test_the_ledger_is_owner_scoped_and_newest_first(data_dir):
     assert ledger.actions("alice") == []
 
 
+@pytest.mark.parametrize("said", [
+    "Remind me to call Sam tomorrow at five", "Add milk to my to-dos for Friday",
+    "Remind me to stretch in 20 minutes", "Pay rent on the 1st", "Call Lee at 3pm",
+    "Water the plants every morning", "Buy a gift before Christmas", "Dentist at 9:30",
+    "Remind me on May 3 to renew", "Remind me tonight"])
+def test_words_that_say_when(said):
+    assert confirm.says_when(said)
+
+
+@pytest.mark.parametrize("said", [
+    "Add buy milk to my to-dos", "Make a todo to call the plumber", "Remind me to call Sam",
+    "Add a to-do: pick up the dry cleaning", "I may need batteries, add them to my to-dos"])
+def test_words_that_say_no_when(said):
+    assert not confirm.says_when(said)
+
+
+def test_an_unsaid_due_date_is_dropped_from_a_to_do():
+    call = json.dumps({"action": "add", "title": "Buy milk", "due_date": "tomorrow at 9am"})
+    out = json.loads(confirm.without_unsaid_due("manage_notes", call, "Add buy milk to my to-dos"))
+    assert out == {"action": "add", "title": "Buy milk", "note_type": "checklist"}
+    kept = confirm.without_unsaid_due("manage_notes", call, "Remind me tomorrow to buy milk")
+    assert kept == call
+    items = json.dumps({"action": "add", "title": "Shop", "due_date": "today",
+                        "checklist_items": [{"text": "eggs"}]})
+    assert json.loads(confirm.without_unsaid_due("manage_notes", items, "Make a shopping todo")) \
+        == {"action": "add", "title": "Shop", "checklist_items": [{"text": "eggs"}]}
+    other = json.dumps({"action": "update", "id": "ab", "due_date": "today"})
+    assert confirm.without_unsaid_due("manage_notes", other, "x") == other
+    event = json.dumps({"action": "create_event", "summary": "x", "due_date": "today"})
+    assert confirm.without_unsaid_due("manage_calendar", event, "x") == event
+
+
+async def test_a_to_do_keeps_no_due_date_the_owner_never_said(brain):
+    sess = brain.session()
+    brain.llm.rounds(
+        [calls(("manage_notes", {"action": "add", "title": "Buy milk",
+                                 "due_date": "tomorrow at 9am"}))],
+        [text("Add Buy milk to your to-dos?")])
+    await _voice(brain, sess, "Make a todo to buy milk")
+    p = confirm.pending(sess.owner, sess.id)
+    assert p is not None and len(p.calls) == 1
+    assert "due_date" not in json.loads(p.calls[0].content)
+    change = p.calls[0].change
+    assert (change.kind, change.due, change.question) == \
+        ("todo", None, "Add Buy milk to your to-dos?")
+
+
+async def test_a_date_said_in_the_previous_question_counts(brain):
+    from fork.voice.policy import VoiceGate
+
+    run = SimpleNamespace(request_text="Actually call it pick up the cake")
+    gate = VoiceGate(owner="alice", session_id="s-1", turn_id="t-1",
+                     earlier="Remind me to get the cake tomorrow at noon")
+    call = json.dumps({"action": "add", "title": "Pick up the cake", "due_date": "tomorrow noon"})
+    await gate(run, "manage_notes", call)
+    p = confirm.pending("alice", "s-1")
+    assert p is not None and p.calls[0].content == call and p.calls[0].change.kind == "reminder"
+
+
 def _propose(api, change=None):
     """The fake turn keeps a proposal, as the voice gate does for an allowed write."""
     change = change or confirm.Change("created", "event", "Dentist", "Calendar",
@@ -663,6 +777,66 @@ def test_a_proposal_expires(api):
     assert confirm.pending("alice", sid, now=later) is None
 
 
+REMIND = {"user": "ha-1", "model": "odysseus", "messages": [
+    {"role": "user", "content": "Make a reminder to feed the dogs today at 5 p.m."}]}
+
+
+def _asked_without_calling(api):
+    """The model's first answer asked in its own words and called no tool: the voice
+    chat ends with that question and no change is kept."""
+    api.answer = ["Add a reminder to feed the dogs today at five to your list?"]
+    body = api.post(URL, json=REMIND, headers=VOICE).json()
+    sess = api.sessions.sessions[body["odysseus"]["session_id"]]
+    sess.history = [SimpleNamespace(role="user", content=REMIND["messages"][0]["content"]),
+                    SimpleNamespace(role="assistant", content=api.answer[0])]
+    assert confirm.pending("alice", sess.id) is None
+    return sess
+
+
+def test_a_yes_with_nothing_kept_tells_the_model_to_call_the_tool(api):
+    """Seen on the Echo: the model asked without calling the tool, so every "yes" went
+    back to it and it asked the same question again, without end."""
+    _asked_without_calling(api)
+    body = api.post(URL, json=YES, headers=VOICE).json()
+    assert confirm.UNHELD_NOTE in api.turns[-1]["context_lines"]
+    # it only asked again: the question is replaced, so the next yes can't loop
+    assert body["choices"][0]["message"]["content"] == confirm.UNHELD
+    assert api.get(LATEST, headers=VOICE).json()["turn"]["awaiting_confirmation"] is None
+
+
+def test_a_yes_with_nothing_kept_then_asks_the_kept_changes_question(api):
+    sess = _asked_without_calling(api)
+    _propose(api, confirm.Change("created", "reminder", "Feed the dogs", "To-dos",
+                                 "I'll remind you: Feed the dogs.",
+                                 question="Set a reminder: Feed the dogs at 5:00 PM?"))
+    body = api.post(URL, json=YES, headers=VOICE).json()
+    assert body["choices"][0]["message"]["content"] == \
+        "Set a reminder: Feed the dogs at 5:00 PM?"
+    assert confirm.pending("alice", sess.id) is not None
+
+
+def test_a_new_question_after_an_unanswered_one_gets_no_note(api):
+    _asked_without_calling(api)
+    api.answer = ["It is sunny."]
+    other = {**YES, "messages": [{"role": "user", "content": "What's the weather?"}]}
+    api.post(URL, json=other, headers=VOICE)
+    assert confirm.UNHELD_NOTE not in api.turns[-1]["context_lines"]
+
+
+def test_the_voice_instructions_say_to_call_the_tool_before_asking():
+    from fork.voice.prompt import INSTRUCTIONS
+
+    assert "Call the tool first" in INSTRUCTIONS and "manage_notes" in INSTRUCTIONS
+
+
+def test_end_with_statement_replaces_the_last_questions():
+    from fork.voice.speech import end_with_statement
+
+    assert end_with_statement("Okay. Add it? Sure?", "Not done.") == "Okay. Not done."
+    assert end_with_statement("Add it?", "Not done.") == "Not done."
+    assert end_with_statement("Fine.", "Not done.") == "Fine. Not done."
+
+
 @pytest.mark.parametrize("text_, kind", [
     ("Yes.", "yes"), ("yeah, do it!", "yes"), ("Sure", "yes"), ("Okay, go ahead.", "yes"),
     ("Correct", "yes"), ("Please do", "yes"), ("No.", "no"), ("Cancel", "no"),
@@ -674,10 +848,16 @@ def test_reply_kind(text_, kind):
 
 @pytest.mark.parametrize("said, spoken", [
     (["Paris is the capital. Anything else?"], "Paris is the capital."),
-    (["Is it Paris?"], "Is it Paris."),
     (["It rains. ", "Would you like more details?"], "It rains."),
+    (["Anything else?"], "Anything else."),
+    # a real question keeps its "?": Home Assistant then listens for the answer
+    (["Is it Paris?"], "Is it Paris?"),
+    (["You have two notes about it. ", "Do you want me to read them?"],
+     "You have two notes about it. Do you want me to read them?"),
+    (["Nothing in your calendar. Want me to check the transcripts?"],
+     "Nothing in your calendar. Want me to check the transcripts?"),
 ])
-def test_only_a_confirmation_ends_with_a_question_mark(api, said, spoken):
+def test_a_real_question_ends_with_a_question_mark_and_an_offer_is_dropped(api, said, spoken):
     api.answer = said
     body = api.post(URL, json=ASK, headers=VOICE).json()
     assert body["choices"][0]["message"]["content"] == spoken

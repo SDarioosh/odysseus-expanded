@@ -3,7 +3,7 @@
 
 A voice turn can't be approved on a card, so a write the model calls is never run in its
 turn. If it is one of :data:`WRITABLE` (a to-do, reminder, list item, note or calendar
-event made, an Athena action item marked done), the exact call is kept as the voice
+event made, an Athena action item marked done, an announcement in a room), the exact call is kept as the voice
 conversation's :class:`Proposal` (:data:`PROPOSAL_SECONDS`, one per conversation: a new
 turn's proposal replaces the old) and the model is told :data:`PROPOSED`: not run yet,
 ask the owner in one short question. Every other write is refused as before
@@ -42,13 +42,22 @@ DONE = "Done."
 DECLINED = "Okay, I won't."
 FAILED = "Sorry, that didn't work. Nothing was changed."
 CHANGED = "That has changed since, so I didn't do it. Nothing was changed."
+# A "yes" with no kept change: the model asked "Add X?" in its own words without calling
+# the tool, so nothing waits for the yes. The model is told to call it now; if it only
+# asks again, its question is replaced, so a yes never loops (:func:`unheld_yes`).
+UNHELD_NOTE = ("The owner just said yes to your last question, but no change is held for "
+               "it: you asked without calling the tool. If that question offered a change, "
+               "call its tool now (it is held for the owner's yes); don't ask the same "
+               "question again without calling it.")
+UNHELD = ("Sorry, I couldn't set that up by voice. Nothing was changed. You can add it in "
+          "the Odysseus app.")
 
 
 @dataclass(frozen=True)
 class Change:
     """What a kept call does, as the ledger and the spoken reply say it."""
     action: str  # created | completed
-    kind: str  # todo | reminder | list_item | note | event | action_item
+    kind: str  # todo | reminder | list_item | note | event | action_item | announcement
     title: str
     where: str
     phrase: str  # "Added Dentist to your calendar."
@@ -167,6 +176,12 @@ def reply_kind(text: str) -> str:
     return "other"
 
 
+def unheld_yes(text: str, last_answer: str) -> bool:
+    """True when ``text`` is a yes to ``last_answer``, a question, while no change is
+    kept for it (checked by the caller)."""
+    return reply_kind(text) == "yes" and (last_answer or "").rstrip().endswith("?")
+
+
 # ------------------------------------------------------------------- the allow-list
 def _args(content: str) -> dict:
     try:
@@ -174,6 +189,48 @@ def _args(content: str) -> dict:
     except ValueError:
         return {}
     return args if isinstance(args, dict) else {}
+
+
+_NUM = ("one|two|three|four|five|six|seven|eight|nine|ten|eleven|twelve|"
+        "[0-9]{1,2}(?::[0-9]{2})?")
+# Words that say when. A due date is kept only when the owner said one of them: the model
+# sometimes adds a due date to a plain to-do (upstream's tool example shows one).
+WHEN = re.compile(
+    r"\b(?:today|tonight|tomorrow|tmrw|yesterday|morning|afternoon|evening|night|noon|"
+    r"midday|midnight|weekend|later|eod|end of (?:the )?day|every|daily|weekly|monthly|"
+    r"yearly|minutes?|mins?|hours?|hrs?|days?|weeks?|months?|years?|"
+    r"mon|tues?|wed|thur?s?|fri|sat|sun|"
+    r"(?:mon|tues|wednes|thurs|fri|satur|sun)days?|"
+    r"jan(?:uary)?|feb(?:ruary)?|april|june|july|aug(?:ust)?|sept?(?:ember)?|"
+    r"oct(?:ober)?|nov(?:ember)?|dec(?:ember)?|(?:march|may) (?:the )?[0-9]|"
+    r"christmas|thanksgiving|easter|new year'?s?|halloween|"
+    r"o'?clock|half past|quarter (?:past|to)|"
+    rf"(?:at|by|until|till|before|after|around) (?:{_NUM})|"
+    r"[0-9]{1,2}(?::[0-9]{2})? ?(?:am|pm|a ?m|p ?m)|[0-9]{1,2}:[0-9]{2}|"
+    r"[0-9]{1,2}(?:st|nd|rd|th)|[0-9]{1,2}/[0-9]{1,2}|[0-9]{4}-[0-9]{2}-[0-9]{2})\b")
+
+
+def says_when(text: Any) -> bool:
+    """True when the owner's words name a date or time."""
+    norm = " ".join(str(text or "").casefold().replace("’", "'").replace(".", " ").split())
+    return WHEN.search(norm) is not None
+
+
+def without_unsaid_due(name: str, content: str, said: str) -> str:
+    """``content`` of a ``manage_notes`` ``add`` without a ``due_date`` the owner never
+    said (a plain to-do then, not a reminder); any other call unchanged. The confirmation
+    question is built from the result, so the owner hears what will be saved."""
+    if name != "manage_notes":
+        return content
+    args = _args(content)
+    if str(args.get("action") or "").strip().lower() != "add" \
+            or not str(args.get("due_date") or "").strip() or says_when(said):
+        return content
+    args.pop("due_date", None)
+    items = args.get("checklist_items") or args.get("items")
+    if not items and not str(args.get("content") or "").strip() and not args.get("note_type"):
+        args["note_type"] = "checklist"  # a title alone is a to-do
+    return json.dumps(args)
 
 
 def _due(raw: Any) -> str | None:
@@ -369,6 +426,12 @@ async def athena_item_title(item_id: int) -> str | None:
     return None
 
 
+async def _announce(owner: Any, args: dict) -> Change | None:
+    """The ``announce`` tool: say a message in a room (``fork/voice/announce_tool.py``)."""
+    from fork.voice.announce_tool import describe as describe_announce
+    return await describe_announce(owner, args)
+
+
 async def _item_done(owner: Any, args: dict) -> Change | None:
     """Athena's ``update_action_item`` with ``status: done`` and nothing else."""
     if str(args.get("status") or "").strip().lower() != "done":
@@ -397,6 +460,7 @@ WRITABLE: tuple[Writable, ...] = (
     Writable("manage_notes", frozenset({"update"}), _list_items),
     Writable("manage_calendar", frozenset({"create_event"}), _event),
     Writable(ATHENA_UPDATE, None, _item_done),
+    Writable("announce", None, _announce),
 )
 
 

@@ -17,6 +17,12 @@ import logging
 logger = logging.getLogger(__name__)
 
 SETTING_KEY = "fork_voice_ha_url"
+# The Odysseus address Home Assistant was set up with (as HA reaches it, e.g. the server's
+# home-network address when HA runs on the same machine), so the form shows it next time
+# instead of the browser's address.
+ODYSSEUS_KEY = "fork_voice_ha_odysseus_url"
+# Where the browser signed in to HA when that wasn't the HA address (away from home).
+SIGNIN_KEY = "fork_voice_ha_signin_url"
 
 
 def get_ha_url() -> str:
@@ -39,6 +45,59 @@ def set_ha_url(url: str) -> str:
     value = check_ha_url(url) if (url or "").strip() else ""
     settings = dict(load_settings())
     settings[SETTING_KEY] = value
+    save_settings(settings)
+    return value
+
+
+def get_odysseus_url() -> str:
+    """The Odysseus address the last good setup gave Home Assistant, or "" when unset."""
+    try:
+        from src.settings import get_setting
+
+        value = get_setting(ODYSSEUS_KEY, "")
+    except Exception:
+        logger.warning("voice: couldn't read the Odysseus address for Home Assistant",
+                       exc_info=True)
+        return ""
+    return value.strip() if isinstance(value, str) else ""
+
+
+def set_odysseus_url(url: str) -> str:
+    """Save the Odysseus address HA was set up with (without the voice path)."""
+    from fork.athena.phone_pairing import check_url
+    from fork.voice.routes import PREFIX
+    from src.settings import load_settings, save_settings
+
+    value = check_url(url) if (url or "").strip() else ""
+    if value.endswith(PREFIX):
+        value = value[:-len(PREFIX)].rstrip("/")
+    settings = dict(load_settings())
+    settings[ODYSSEUS_KEY] = value
+    save_settings(settings)
+    return value
+
+
+def get_signin_url() -> str:
+    """The HA sign-in address the last good setup used ("" = the HA address)."""
+    try:
+        from src.settings import get_setting
+
+        value = get_setting(SIGNIN_KEY, "")
+    except Exception:
+        logger.warning("voice: couldn't read the Home Assistant sign-in address",
+                       exc_info=True)
+        return ""
+    return value.strip() if isinstance(value, str) else ""
+
+
+def set_signin_url(url: str) -> str:
+    """Save the HA sign-in address (checked like the HA address; "" clears it)."""
+    from fork.voice.ha_setup import check_ha_url
+    from src.settings import load_settings, save_settings
+
+    value = check_ha_url(url) if (url or "").strip() else ""
+    settings = dict(load_settings())
+    settings[SIGNIN_KEY] = value
     save_settings(settings)
     return value
 

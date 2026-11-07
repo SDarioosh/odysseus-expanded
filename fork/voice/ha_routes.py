@@ -4,19 +4,23 @@ Settings → Integrations → Voice assistant → **Set up Home Assistant**
 (``static/js/forkVoiceAssistant.js``):
 
 1. ``POST /api/fork/voice/ha/connect`` (signed-in admin, same-origin fetch) with
-   ``ha_url`` and ``odysseus_url`` (Odysseus as Home Assistant reaches it, default the
-   browser's origin) answers ``authorize_url``: HA's login page, with ``client_id`` the
+   ``ha_url``, ``odysseus_url`` (Odysseus as Home Assistant reaches it, default the
+   browser's origin) and optional ``signin_url`` (HA as this browser reaches it, when
+   that isn't ``ha_url``: away from home over Tailscale) answers ``authorize_url``: HA's
+   login page at ``signin_url`` (else ``ha_url``), with ``client_id`` the
    origin the browser uses for Odysseus and ``redirect_uri`` the callback below on it
    (HA accepts a redirect on the client id's own host). A random ``state`` is kept in
    memory, hashed, single use, for :data:`STATE_TTL`, bound to the admin.
 2. The owner signs in to HA (an administrator). HA sends the browser to
    ``GET /api/fork/voice/ha/callback?code=…&state=…``. The code is exchanged at HA's
-   ``/auth/token``; :func:`fork.voice.ha_setup.run_setup` makes the voice token and sets
+   ``/auth/token`` of ``ha_url`` (Odysseus's own address for HA; an HA code is good at
+   any address of that HA); :func:`fork.voice.ha_setup.run_setup` makes the voice token and sets
    up HA; HA's refresh token is then **always** revoked (``/auth/revoke``), so Odysseus
    keeps no HA login; the HA address is saved (``fork/voice/ha_settings.py``). The page
    shows each step's result.
 
-``GET /api/fork/voice/ha`` gives the card the saved address and the last run's report.
+``GET /api/fork/voice/ha`` gives the card the saved addresses (Home Assistant's, and
+Odysseus's as HA reaches it) and the last run's report.
 Only a signed-in admin's browser session may use these routes, never an API token.
 Connect is a POST (the session cookie is SameSite=Lax, and ``Sec-Fetch-Site`` must say
 same-origin): a link on another site can't start a run toward a Home Assistant of its
@@ -56,6 +60,9 @@ PAGE_WAIT = 35.0
 class Connect(BaseModel):
     ha_url: str
     odysseus_url: str = ""
+    # where the browser signs in to HA, when it can't reach ``ha_url`` (away from home,
+    # over Tailscale); "" = ``ha_url``. Odysseus itself always uses ``ha_url``.
+    signin_url: str = ""
 
 
 @dataclass
@@ -66,6 +73,7 @@ class Pending:
     client_id: str
     redirect_uri: str
     expires: float
+    signin_url: str = ""  # what the owner typed ("" = ha_url), saved after a good run
 
 
 class States:
@@ -156,6 +164,23 @@ def check_client_origin(origin: str) -> None:
                              "home-network address. Open Odysseus by its name and try again.")
 
 
+def check_signin_url(raw: str) -> str:
+    """The address the browser signs in to HA at ("" when left empty: the HA address), or
+    :class:`ValueError`. Only the browser opens it, so it isn't resolved here; it must be
+    on the owner's network by its form (a home-network or Tailscale IPv4, or a name that
+    is one label or ends in .ts.net, .local, .lan or .home.arpa)."""
+    if not (raw or "").strip():
+        return ""
+    from fork.voice.echo_link import home_host
+
+    url = ha_setup.check_ha_url(raw)
+    if home_host(urlsplit(url).hostname or "") is None:
+        raise ValueError("The sign-in address must be Home Assistant on your network: a "
+                         "home-network or Tailscale address, or a name ending in .ts.net, "
+                         ".local, .lan or .home.arpa.")
+    return url
+
+
 # ------------------------------------------------------------------------------- page
 def _page(title: str, body: str, status: int = 200) -> HTMLResponse:
     page = f"""<!DOCTYPE html>
@@ -223,9 +248,11 @@ async def _run(owner: str, pending: Pending, code: str, invalidate: Any) -> dict
                            "the Odysseus login under your HA profile → Security")
     if report.get("ok"):  # a failed setup's address isn't handed to Echos
         try:
-            from fork.voice.ha_settings import set_ha_url
+            from fork.voice.ha_settings import set_ha_url, set_odysseus_url, set_signin_url
 
             await asyncio.to_thread(set_ha_url, pending.ha_url)
+            await asyncio.to_thread(set_odysseus_url, pending.odysseus_url)
+            await asyncio.to_thread(set_signin_url, pending.signin_url)
         except Exception:
             logger.warning("voice: couldn't save the Home Assistant address", exc_info=True)
     report["revoked"] = revoked
@@ -253,10 +280,12 @@ def setup_ha_routes() -> APIRouter:
     @router.get(BASE)
     def status(request: Request) -> Any:
         owner = _admin_owner(request)
-        from fork.voice.ha_settings import get_ha_url
+        from fork.voice.ha_settings import get_ha_url, get_odysseus_url, get_signin_url
 
         run = RUNS.get(owner) or {}
-        return JSONResponse({"ha_url": get_ha_url(), "running": bool(run.get("running")),
+        return JSONResponse({"ha_url": get_ha_url(), "odysseus_url": get_odysseus_url(),
+                             "signin_url": get_signin_url(),
+                             "running": bool(run.get("running")),
                              "report": run.get("report")},
                             headers={"Cache-Control": "no-store"})
 
@@ -269,6 +298,7 @@ def setup_ha_routes() -> APIRouter:
             ha_url = ha_setup.check_ha_url(body.ha_url)
             odysseus_url = (body.odysseus_url or "").strip() or origin
             ha_setup.voice_base_url(odysseus_url)
+            signin_url = check_signin_url(body.signin_url)
         except ValueError as exc:
             raise HTTPException(400, str(exc)) from None
         from fork.voice.announce import Refused, check_url
@@ -286,9 +316,12 @@ def setup_ha_routes() -> APIRouter:
         state = STATES.create(Pending(owner=owner, ha_url=ha_url,
                                       odysseus_url=odysseus_url.rstrip("/"),
                                       client_id=client_id, redirect_uri=redirect_uri,
-                                      expires=time.time() + STATE_TTL))
+                                      expires=time.time() + STATE_TTL,
+                                      signin_url=signin_url))
+        # the browser signs in where it can reach HA; Odysseus exchanges the code at ha_url
         return JSONResponse({"authorize_url": ha_setup.authorize_url(
-            ha_url, client_id, redirect_uri, state)}, headers={"Cache-Control": "no-store"})
+            signin_url or ha_url, client_id, redirect_uri, state)},
+            headers={"Cache-Control": "no-store"})
 
     @router.get(CALLBACK)
     async def callback(request: Request) -> Any:

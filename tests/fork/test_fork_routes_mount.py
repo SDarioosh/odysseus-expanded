@@ -22,8 +22,12 @@ ORDER = [
     "setup_news_routes",
     "setup_voice_routes",
     "setup_satellite_routes",
+    "setup_timing_routes",
     "setup_ha_routes",
     "setup_echo_link_routes",
+    "setup_app_release_routes",
+    "setup_music_image_routes",
+    "setup_device_settings_routes",
 ]
 
 

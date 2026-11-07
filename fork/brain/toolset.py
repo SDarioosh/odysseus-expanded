@@ -6,7 +6,9 @@ schemas come from upstream's ``src/tool_schemas.py`` (``FUNCTION_TOOL_SCHEMAS``)
 MCP manager for Athena's tools (server ``convo``, or ``athena``: ``fork/athena/client.py``),
 from :data:`SEARCH_BELIEFS_SCHEMA` for the fork's own ``search_beliefs`` and from
 ``fork/brain/documents.py`` for the documents group (the fork's ``search_documents``, and
-upstream's two document tools with shorter descriptions).
+upstream's two document tools with shorter descriptions), and from
+``fork/voice/announce_tool.py`` for the ``home`` group's ``announce`` (a write: offered to
+an admin while Home Assistant is set up).
 
 The first resolved set of a chat is kept for that chat (:func:`for_chat`), so every
 message of a chat is offered the same tools in the same order; a slash skill
@@ -55,7 +57,10 @@ GROUPS: dict[str, tuple[str, ...]] = {
     "email": ("list_email_accounts", "list_emails", "search_emails", "read_email",
               "draft_email", "draft_email_reply", "send_email", "reply_to_email"),
     "images": ("generate_image",),
+    # the fork's announce tool (fork/voice/announce_tool.py), while Home Assistant is set up
+    "home": ("announce",),
 }
+ANNOUNCE = "announce"
 ATHENA_GROUP = "athena"
 
 # Tools that only read (built-in names). Athena's tools are read when the trusted
@@ -70,7 +75,7 @@ ACTION_TOOLS = frozenset({
     "manage_documents",
 })
 # The fork's own tools: run in fork code (fork/brain/tools.py), not upstream's runner.
-FORK_TOOLS = frozenset({SEARCH_BELIEFS, SEARCH_DOCUMENTS})
+FORK_TOOLS = frozenset({SEARCH_BELIEFS, SEARCH_DOCUMENTS, ANNOUNCE})
 
 NEVER = frozenset({
     "bash", "host_shell", "python", "read_file", "write_file", "edit_file", "apply_patch",
@@ -158,6 +163,9 @@ def _schema(name: str, builtin: dict[str, dict]) -> dict | None:
     if name in DOCUMENT_TOOLS:
         from fork.brain.documents import schema
         return schema(name, builtin)
+    if name == ANNOUNCE:
+        from fork.voice.announce_tool import SCHEMA
+        return SCHEMA
     return builtin.get(name)
 
 
@@ -190,6 +198,10 @@ def resolve(*, owner: Any, disabled: set[str] | frozenset[str] = frozenset(),
         for name in GROUPS[group]:
             if name in NEVER or name in blocked:
                 continue
+            if name == ANNOUNCE:
+                from fork.voice.announce_tool import available
+                if not available(owner):
+                    continue
             schema = _schema(name, builtin)
             if schema is not None:
                 out.append(schema)

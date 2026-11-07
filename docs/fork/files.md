@@ -114,6 +114,7 @@ is an old path of a module that moved into `fork/`; it only aliases the new modu
 - `fork/brain/claims.py`
 - `fork/brain/documents.py`
 - `fork/brain/history.py`
+- `fork/brain/open_document.py`
 - `fork/brain/prompt.py`
 - `fork/brain/query_guard.py`
 - `fork/brain/selection.py`
@@ -124,6 +125,7 @@ is an old path of a module that moved into `fork/`; it only aliases the new modu
 - `fork/common/__init__.py`
 - `fork/common/athena_names.py`
 - `fork/common/llm.py`
+- `fork/common/local_time.py`
 - `fork/common/settings.py`
 - `fork/common/state.py`
 - `fork/hub/__init__.py`
@@ -189,13 +191,22 @@ is an old path of a module that moved into `fork/`; it only aliases the new modu
 - `fork/upstream.py`
 - `fork/voice/__init__.py`
 - `fork/voice/announce.py`
+- `fork/voice/announce_tool.py`
+- `fork/voice/announcements.py`
+- `fork/voice/app_release.py`
 - `fork/voice/chat_prefix.py`
 - `fork/voice/confirm.py`
+- `fork/voice/device_settings.py`
+- `fork/voice/device_settings_routes.py`
+- `fork/voice/devices.py`
+- `fork/voice/done.py`
 - `fork/voice/echo_link.py`
 - `fork/voice/ha_routes.py`
 - `fork/voice/ha_settings.py`
 - `fork/voice/ha_setup.py`
+- `fork/voice/interrupts.py`
 - `fork/voice/ledger.py`
+- `fork/voice/music_images.py`
 - `fork/voice/openai_api.py`
 - `fork/voice/policy.py`
 - `fork/voice/prompt.py`
@@ -204,6 +215,9 @@ is an old path of a module that moved into `fork/`; it only aliases the new modu
 - `fork/voice/satellite_routes.py`
 - `fork/voice/sessions.py`
 - `fork/voice/speech.py`
+- `fork/voice/timing_routes.py`
+- `fork/voice/timings.py`
+- `fork/voice/today_route.py`
 
 ## routes/
 
@@ -228,6 +242,8 @@ is an old path of a module that moved into `fork/`; it only aliases the new modu
 - `scripts/belief_eval_scale.py`
 - `scripts/brain_eval.py`
 - `scripts/brain_fake_searxng.py`
+- `scripts/echo_release.py`
+- `scripts/echo_verify.py`
 - `scripts/eval_common.py`
 - `scripts/fixtures/insight_eval_day.json`
 - `scripts/fixtures/t5_weights_day.json`
@@ -239,6 +255,15 @@ is an old path of a module that moved into `fork/`; it only aliases the new modu
 - `scripts/modules_setup.py`
 - `scripts/unfile_voice_note_todos.py`
 - `scripts/upstream_drift.py`
+- `scripts/voice_barge_sandbox/echo_emulator.py`
+- `scripts/voice_barge_sandbox/fake_speech.py`
+- `scripts/voice_barge_sandbox/ha_custom_components/odysseus_sbx/__init__.py`
+- `scripts/voice_barge_sandbox/ha_custom_components/odysseus_sbx/config_flow.py`
+- `scripts/voice_barge_sandbox/ha_custom_components/odysseus_sbx/conversation.py`
+- `scripts/voice_barge_sandbox/ha_custom_components/odysseus_sbx/manifest.json`
+- `scripts/voice_barge_sandbox/ha_setup.py`
+- `scripts/voice_barge_sandbox/slow_llm.py`
+- `scripts/voice_timings.py`
 
 ## src/
 
@@ -315,6 +340,7 @@ is an old path of a module that moved into `fork/`; it only aliases the new modu
 - `static/js/forkRoundFlow.js`
 - `static/js/forkShareRecord.js`
 - `static/js/forkVoiceAssistant.js`
+- `static/js/forkVoiceDevices.js`
 - `static/js/forkVoiceEnroll.js`
 - `static/js/forkWhisperVocabulary.js`
 - `static/js/meetingBot.js`
@@ -402,17 +428,21 @@ is an old path of a module that moved into `fork/`; it only aliases the new modu
 - `tests/fork/test_brain_hardening.py`
 - `tests/fork/test_brain_history.py`
 - `tests/fork/test_brain_hook.py`
+- `tests/fork/test_brain_open_document.py`
 - `tests/fork/test_brain_query_guard.py`
 - `tests/fork/test_brain_tools.py`
 - `tests/fork/test_brain_toolset.py`
 - `tests/fork/test_brain_turn.py`
 - `tests/fork/test_builtin_task_authority.py`
+- `tests/fork/test_calendar_local_time.py`
 - `tests/fork/test_calendar_reminder_wall_time.py`
 - `tests/fork/test_call_recorder.py`
 - `tests/fork/test_chat_mode_scope.py`
 - `tests/fork/test_checklist_auto_archive.py`
 - `tests/fork/test_codex_todos_json.py`
+- `tests/fork/test_echo_app_release.py`
 - `tests/fork/test_echo_link.py`
+- `tests/fork/test_echo_verify.py`
 - `tests/fork/test_eval_common.py`
 - `tests/fork/test_eval_goldens.py`
 - `tests/fork/test_evidence_intake.py`
@@ -498,9 +528,17 @@ is an old path of a module that moved into `fork/`; it only aliases the new modu
 - `tests/fork/test_turn_policy_characterization.py`
 - `tests/fork/test_upstream_drift.py`
 - `tests/fork/test_vision_auto_detect.py`
+- `tests/fork/test_voice_announce_tool.py`
+- `tests/fork/test_voice_announcements.py`
 - `tests/fork/test_voice_assistant.py`
+- `tests/fork/test_voice_device_settings.py`
+- `tests/fork/test_voice_done.py`
 - `tests/fork/test_voice_enroll_routes.py`
+- `tests/fork/test_voice_interrupts.py`
+- `tests/fork/test_voice_music_images.py`
 - `tests/fork/test_voice_satellite.py`
+- `tests/fork/test_voice_timings.py`
+- `tests/fork/test_voice_today.py`
 - `tests/fork/test_web_read_recovery.py`
 - `tests/fork/test_web_turn_scope.py`
 - `tests/fork/test_whisper_vocabulary_routes.py`

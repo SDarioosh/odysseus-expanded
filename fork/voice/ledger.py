@@ -28,7 +28,8 @@ DEFAULT_LIMIT = 8
 MAX_LIMIT = 50
 
 ACTIONS = frozenset({"created", "completed"})
-KINDS = frozenset({"todo", "reminder", "list_item", "note", "event", "action_item"})
+KINDS = frozenset({"todo", "reminder", "list_item", "note", "event", "action_item",
+                   "announcement"})
 
 SCHEMA = """
 CREATE TABLE IF NOT EXISTS turns (
@@ -166,6 +167,14 @@ def add_action(turn_id: str, owner: Any, *, action: str, kind: str, title: str,
              detail, due, 1 if all_day else 0, str(where or ""), source))
         row = db.execute("SELECT * FROM actions WHERE id = ?", (action_id,)).fetchone()
     return _action(row)
+
+
+def remove_action(owner: Any, action_id: str) -> bool:
+    """Delete one of this owner's actions (a device's done that was undone)."""
+    with _connect(write=True) as db:
+        cur = db.execute("DELETE FROM actions WHERE id = ? AND owner = ?",
+                         (str(action_id), _owner(owner)))
+    return cur.rowcount > 0
 
 
 def _action(row: sqlite3.Row) -> dict:

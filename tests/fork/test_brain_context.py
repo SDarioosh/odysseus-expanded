@@ -100,19 +100,6 @@ async def test_the_hook_gives_an_open_email_turn_to_the_brain(monkeypatch, start
     assert started["selected_notes"] == ""
 
 
-async def test_an_open_document_with_selected_notes_stays_upstreams(monkeypatch):
-    monkeypatch.setenv("FORK_BRAIN", "on")
-    monkeypatch.setattr(brain_turn, "_start_turn", lambda *a, **k: (_ for _ in ()).throw(
-        AssertionError("brain took an upstream turn")))
-    try:
-        await _post(monkeypatch, notes=[("note-1", "alice", "Pack the tent")],
-                    active_doc_id="doc-1", selected_note_ids='["note-1"]')
-    except AssertionError:
-        raise
-    except Exception:  # noqa: BLE001 -- the stubbed upstream path
-        pass
-
-
 # ------------------------------------------------------------------ the prompt
 async def test_notes_reach_the_context_message_marked_untrusted_never_the_system(brain):
     sess = brain.session()

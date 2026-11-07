@@ -20,7 +20,8 @@ from dataclasses import dataclass, field
 from typing import Any
 
 from fork.voice import prompt as voice_prompt
-from fork.voice.speech import SpeechStream, end_with_question, end_without_question
+from fork.voice.speech import (SpeechStream, end_with_question, end_with_statement,
+                               end_without_question)
 
 logger = logging.getLogger(__name__)
 
@@ -39,6 +40,9 @@ class Question:
     conversation: str | None  # the client's conversation id, if it sent one
     first_question: str | None  # the first user message, when earlier turns were sent
     model: str = MODEL_ID
+    # the conversation's first user message: this question when it is the first one
+    # (remembered, so the next turn, which sends it as its first, continues the chat)
+    opening: str | None = None
 
 
 def _content_text(content: Any) -> str:
@@ -73,7 +77,8 @@ def parse(body: Any, *, conversation_header: str | None = None) -> Question:
     return Question(text=question, stream=body.get("stream") is True,
                     conversation=conversation,
                     first_question=users[0] if len(users) > 1 else None,
-                    model=model if isinstance(model, str) and model.strip() else MODEL_ID)
+                    model=model if isinstance(model, str) and model.strip() else MODEL_ID,
+                    opening=users[0])
 
 
 def error_body(message: str, kind: str = "invalid_request_error") -> dict:
@@ -101,11 +106,25 @@ class Answer:
     failed: bool = False
     tokens: tuple[int, int] = (0, 0)
     # the confirmation question while a proposal of this turn waits for a yes, or None
-    # (fork/voice/confirm.py); only then may the spoken answer end with "?"
+    # (fork/voice/confirm.py); then the spoken answer ends with it
     confirmation: Callable[[], str | None] | None = None
     awaiting: str | None = None  # the question the answer ended with, once finished
+    # said in place of a last question when no change is kept: the turn answers a "yes"
+    # that had nothing to confirm, so asking again would loop (confirm.UNHELD)
+    no_question: str | None = None
     held: str = ""  # streamed text ending in "?", held until more comes or the end
     sent: str = ""  # what the client got so far, while streaming
+    # the satellite's barge-in cut the turn short (fork/voice/interrupts.py): nothing
+    # more is said, not even an apology, so Home Assistant ends its run at once
+    interrupted: bool = False
+
+    def interrupt(self) -> None:
+        """The turn was cut short: the answer is what was already sent, nothing more."""
+        self.interrupted = True
+        self.speech.spoken = self.sent
+        self.speech.links = []
+        self.held = ""
+        self.awaiting = None
 
     def _out(self, piece: str) -> str:
         """A spoken piece out while streaming; one that ends with "?" is held back, so
@@ -182,12 +201,17 @@ class Answer:
         self.speech.finish()
 
     def finish(self) -> str:
-        """The rest to speak once the turn is over. The answer ends with "?" only when
-        it asks to confirm a kept change; then :attr:`awaiting` is that question."""
+        """The rest to speak once the turn is over. A kept change's confirmation question
+        replaces any question the model ended with (then :attr:`awaiting` is it); else a
+        filler offer at the end is dropped and a real question is kept."""
+        if self.interrupted:
+            return ""
         self._body()
         spoken = self.speech.spoken
         question = self.confirmation() if self.confirmation is not None else None
         final = end_with_question(spoken, question) if question else end_without_question(spoken)
+        if not question and self.no_question and final.endswith("?"):
+            final = end_with_statement(final, self.no_question)
         if not final.startswith(self.sent.rstrip()):
             final = spoken  # never: only the held tail changes; then left as it is
         if question and final.endswith("?"):
@@ -212,9 +236,14 @@ def _usage(answer: Answer) -> dict:
             "total_tokens": prompt + completion}
 
 
-async def collect(events: AsyncIterator[str], answer: Answer) -> str:
+async def collect(events: AsyncIterator[str], answer: Answer,
+                  interrupted: Callable[[], bool] | None = None) -> str:
+    """The whole answer. ``interrupted()`` true once the events end: the turn was cut
+    short (:meth:`Answer.interrupt`), and the answer is empty."""
     async for chunk in events:
         answer.feed(chunk)
+    if interrupted is not None and interrupted():
+        answer.interrupt()
     answer.finish()
     return answer.speech.spoken
 
@@ -240,9 +269,12 @@ def _chunk(cid: str, created: int, model: str, delta: dict, finish: str | None =
 
 async def stream(events: AsyncIterator[str], question: Question, answer: Answer,
                  session_id: str, turn_id: str | None = None,
-                 on_done: Callable[[Answer], None] | None = None) -> AsyncIterator[str]:
+                 on_done: Callable[[Answer], None] | None = None,
+                 interrupted: Callable[[], bool] | None = None) -> AsyncIterator[str]:
     """The answer as OpenAI stream chunks, one finished sentence at a time.
-    ``on_done(answer)`` runs once the answer is complete (the turn ledger)."""
+    ``on_done(answer)`` runs once the answer is complete (the turn ledger).
+    ``interrupted()`` true once the events end: the turn was cut short, and the stream
+    ends with what was already sent (:meth:`Answer.interrupt`)."""
     cid, created = "chatcmpl-" + uuid.uuid4().hex, int(time.time())
     yield _chunk(cid, created, question.model, {"role": "assistant", "content": ""})
     try:
@@ -253,6 +285,8 @@ async def stream(events: AsyncIterator[str], question: Question, answer: Answer,
     except Exception:  # noqa: BLE001 -- the client gets a spoken apology, not a cut stream
         logger.exception("voice: the turn failed while streaming")
         answer.failed = True
+    if interrupted is not None and interrupted():
+        answer.interrupt()
     piece = answer.finish()
     if piece:
         yield _chunk(cid, created, question.model, {"content": piece})

@@ -3,7 +3,9 @@
 ``POST /api/chat/voice/v1/chat/completions`` and ``GET /api/chat/voice/v1/models``
 (:data:`PREFIX` is the OpenAI base URL a client is given), OpenAI's shapes
 (``fork/voice/openai_api.py``), for a Home Assistant conversation agent, and the device
-screen's feeds ``GET …/actions`` and ``GET …/turns/latest`` (``fork/voice/ledger.py``).
+screen's feeds ``GET …/actions`` and ``GET …/turns/latest`` (``fork/voice/ledger.py``),
+and ``GET …/today``, the day at a glance (``fork/voice/today_route.py``), and the Done
+buttons' ``POST …/todos/done`` and the rest (``fork/voice/done.py``).
 Only an API token with the ``voice`` scope may call them (a browser login may not: these
 routes are for a device, and a token can be revoked on its own).
 
@@ -28,7 +30,7 @@ from typing import Any
 from fastapi import APIRouter, Depends, HTTPException, Request
 from fastapi.responses import JSONResponse, StreamingResponse
 
-from fork.voice import confirm, ledger, openai_api
+from fork.voice import confirm, interrupts, ledger, openai_api, timings
 from fork.voice import policy as voice_policy
 from fork.voice import prompt as voice_prompt
 from fork.voice import sessions as voice_sessions
@@ -169,6 +171,45 @@ async def confirmation_reply(*, owner: str, sess: Any, session_manager: Any,
     return text
 
 
+def _last_question(sess: Any) -> str:
+    """The voice chat's previous question, before this one is added."""
+    for m in reversed(list(getattr(sess, "history", None) or ())):
+        if getattr(m, "role", None) == "user":
+            return str(getattr(m, "content", "") or "")
+    return ""
+
+
+def _last_answer(sess: Any) -> str:
+    """The voice chat's previous answer, before this question is added."""
+    for m in reversed(list(getattr(sess, "history", None) or ())):
+        if getattr(m, "role", None) == "assistant":
+            return str(getattr(m, "content", "") or "")
+    return ""
+
+
+def _timing_start(owner: str, turn_id: str, ctx: Any, timer: Any) -> str | None:
+    try:
+        return timings.save_hub(owner, turn_id, getattr(ctx, "device_id", None), timer)
+    except Exception:  # noqa: BLE001 -- timing never breaks a turn
+        logger.warning("voice: saving the turn's timing failed", exc_info=True)
+        return None
+
+
+def _timing_end(row_id: str | None, timer: Any, answer: Any, *, interrupted: bool,
+                fixed: bool) -> None:
+    if row_id is None:
+        return
+    try:
+        if not answer.streaming:
+            timer.mark("first_spoken")  # the whole answer goes back at once
+        outcome = ("interrupted" if interrupted else "failed" if answer.failed
+                   else "fixed" if fixed else "answered")
+        timer.finish(outcome)
+        timings.update_hub(row_id, timer)
+    except Exception:  # noqa: BLE001
+        logger.warning("voice: saving the turn's timing failed", exc_info=True)
+
+
 def _error(status: int, message: str, kind: str = "invalid_request_error") -> JSONResponse:
     return JSONResponse(status_code=status, content=openai_api.error_body(message, kind))
 
@@ -217,6 +258,12 @@ def setup_voice_routes() -> APIRouter:
     @router.post(PREFIX + "/chat/completions")
     async def chat_completions(request: Request) -> Any:
         owner = voice_owner(request)
+        timer = timings.HubTimer()  # how long each step took (fork/voice/timings.py)
+        # No browser sends a zone: event times and "today" use the owner's.
+        from fork.common.local_time import use_owner_timezone
+        from src.user_time import clear_user_time_context
+        clear_user_time_context()
+        use_owner_timezone(owner)
         try:
             body = await request.json()
         except ValueError:
@@ -229,10 +276,15 @@ def setup_voice_routes() -> APIRouter:
         session_manager = getattr(request.app.state, "session_manager", None)
         if session_manager is None:
             return _error(503, "Odysseus isn't ready yet.", "server_error")
-        key = voice_sessions.conversation_key(explicit=question.conversation,
-                                              first_question=question.first_question)
+        # A first question starts a new chat, kept under itself so the follow-up (which
+        # sends it as its first) continues it; an explicit conversation id goes first.
+        key = voice_sessions.conversation_key(
+            explicit=question.conversation,
+            first_question=question.first_question or question.opening)
+        first = not question.conversation and question.first_question is None
         try:
-            sess = voice_sessions.chat_for(session_manager, owner, key, question.text)
+            sess = voice_sessions.chat_for(session_manager, owner, key, question.text,
+                                           new=first)
         except voice_sessions.NoModel as exc:
             return _error(503, str(exc), "server_error")
         module, ctx = await satellite_context(owner)
@@ -240,9 +292,19 @@ def setup_voice_routes() -> APIRouter:
         session_id = str(sess.id)
         turn_id = ledger.start_turn(owner, question.text, session_id=session_id,
                                     device=device_of(ctx), speaker=speaker_of(ctx))
-        fixed = await confirmation_reply(
-            owner=owner, sess=sess, session_manager=session_manager, question=question.text,
-            turn_id=turn_id, personal=personal, module=module)
+        # A barge-in on the asking device cuts this turn short (fork/voice/interrupts.py).
+        stop = interrupts.start(turn_id, owner, getattr(ctx, "device_id", None))
+        if getattr(ctx, "interrupted", False):
+            stop.set()  # the device was interrupted before Home Assistant asked
+        if stop.is_set():
+            fixed = ""
+        else:
+            fixed = await confirmation_reply(
+                owner=owner, sess=sess, session_manager=session_manager, question=question.text,
+                turn_id=turn_id, personal=personal, module=module)
+        # A yes to a question the model asked without calling the tool: nothing waits for
+        # it, so the model is told to call the tool now and never asks the same again.
+        unheld = fixed is None and confirm.unheld_yes(question.text, _last_answer(sess))
         if fixed is not None:
             events = _fixed(fixed)
             confirmation = None
@@ -252,14 +314,17 @@ def setup_voice_routes() -> APIRouter:
 
             gate = voice_policy.VoiceGate(owner=owner, session_id=session_id,
                                           turn_id=turn_id, personal=personal,
-                                          private_reply=private_reply(module))
+                                          private_reply=private_reply(module),
+                                          earlier=_last_question(sess))
             events = read_only_turn(
                 request, sess=sess, session_id=session_id, message=question.text,
                 owner=owner, instructions=voice_prompt.INSTRUCTIONS,
                 services=(session_manager,), preset=default_preset(), gate=gate,
-                shared_prefix=True, context_lines=(asked_from(ctx),),
+                shared_prefix=True,
+                context_lines=(asked_from(ctx),) + ((confirm.UNHELD_NOTE,) if unheld else ()),
                 no_memory=not personal)
             if events is None:
+                interrupts.end(turn_id)
                 ledger.finish_turn(turn_id, answer="")
                 return _error(503, "Voice answers need the brain (FORK_BRAIN) and an owner "
                                    "allowed to use the agent.", "server_error")
@@ -268,20 +333,38 @@ def setup_voice_routes() -> APIRouter:
                 p = confirm.pending(owner, session_id)
                 return p.question() if p is not None and p.turn_id == turn_id else None
 
-        answer = openai_api.Answer(streaming=question.stream, confirmation=confirmation)
+        answer = openai_api.Answer(streaming=question.stream, confirmation=confirmation,
+                                   no_question=confirm.UNHELD if unheld else None)
+        events = interrupts.until_stopped(events, stop)
+        timer.mark("ready")  # timing never fails the turn
+        timing_row = _timing_start(owner, turn_id, ctx, timer)
+        events = timings.observed(events, timer)
 
         def done(a: openai_api.Answer) -> None:
+            interrupts.end(turn_id)
+            if stop.is_set():
+                # Nobody heard it: no answer, and no change waits for a "yes".
+                a.interrupt()
+                p = confirm.pending(owner, session_id)
+                if p is not None and p.turn_id == turn_id:
+                    confirm.drop(owner, session_id)
+                logger.info("voice: turn %s was interrupted by its satellite", turn_id)
             ledger.finish_turn(turn_id, answer=a.speech.spoken, links=list(a.speech.links),
                                awaiting_confirmation=a.awaiting)
+            _timing_end(timing_row, timer, a, interrupted=stop.is_set(),
+                        fixed=fixed is not None)
 
         if question.stream:
             return StreamingResponse(
-                openai_api.stream(events, question, answer, session_id, turn_id, on_done=done),
+                timings.first_spoken(
+                    openai_api.stream(events, question, answer, session_id, turn_id,
+                                      on_done=done, interrupted=stop.is_set),
+                    timer, lambda: answer.sent),
                 media_type="text/event-stream",
                 headers={"Cache-Control": "no-cache, no-transform",
                          "X-Accel-Buffering": "no"})
         try:
-            await openai_api.collect(events, answer)
+            await openai_api.collect(events, answer, interrupted=stop.is_set)
         except Exception:  # noqa: BLE001 -- a spoken apology instead of a 500
             logger.exception("voice: the turn failed")
             answer.failed = True
@@ -292,4 +375,10 @@ def setup_voice_routes() -> APIRouter:
             logger.exception("voice: recording the turn failed")
         return openai_api.completion_body(question, answer, session_id, turn_id)
 
+    from fork.voice.today_route import setup_voice_today_routes
+
+    router.include_router(setup_voice_today_routes())  # GET …/today, for device screens
+    from fork.voice.done import setup_voice_done_routes
+
+    router.include_router(setup_voice_done_routes())  # Done / undo from a device's screen
     return router

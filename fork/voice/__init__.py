@@ -13,4 +13,6 @@
 * ``routes.py``: ``POST /api/chat/voice/v1/chat/completions``, ``GET …/v1/models``,
   ``GET …/v1/actions`` and ``GET …/v1/turns/latest`` for API tokens with the ``voice``
   scope; each question is a brain turn (``fork/brain/turn.py``, ``read_only_turn``).
+* ``app_release.py``: the Echo app's releases (``GET …/v1/app/latest``, ``…/app/apk``),
+  published by ``scripts/echo_release.py``.
 """

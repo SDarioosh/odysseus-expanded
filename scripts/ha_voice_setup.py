@@ -50,7 +50,7 @@ def known_owner(owner: str) -> bool:
 
 async def run(args: argparse.Namespace) -> dict:
     from fork.voice import ha_setup
-    from fork.voice.ha_settings import set_ha_url
+    from fork.voice.ha_settings import set_ha_url, set_odysseus_url
 
     ha_token = os.environ.get("HA_TOKEN") or args.ha_token
     if not ha_token:
@@ -68,6 +68,7 @@ async def run(args: argparse.Namespace) -> dict:
                               f"\"{report['token_name']}\".")
     if report.get("ok"):  # a failed setup's address isn't handed to Echos
         set_ha_url(args.ha_url)
+        set_odysseus_url(args.odysseus_url)
     return report
 
 

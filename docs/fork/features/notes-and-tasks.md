@@ -14,6 +14,14 @@ Files: `src/tools/calendar.py` (`_create_calendar_reminder`, a few lines), test 
 
 Upstreamable: yes
 
+## Calendar events in the wall time
+
+**Calendar events in the wall time.** Asked about an upcoming event, the model gave the wrong hour: `manage_calendar` `list_events` showed stored times as UTC (`2026-11-05T15:00:00Z -> …` for a 16:00 Berlin meeting), and the model read them as local. Each line now gives the user's wall time (`2026-11-05 Thu 16:00 -> 17:00`), the answer names the zone, and each event row starts with `local_start` and `local_end` (the stored `dtstart`/`dtend` are unchanged). A voice turn (`/api/chat/voice/v1/chat/completions`) has no browser to send the zone, so it used the server's (UTC in Docker); it now uses the owner's: their personal assistant's timezone, else any of their crew members' (Settings). Without one, the server's zone is still used. General bug fix; the voice part is fork-only.
+
+Files: `fork/common/local_time.py` (new), hook in `src/tools/calendar.py` (`list_events`), `fork/voice/routes.py` (`chat_completions`); test `tests/fork/test_calendar_local_time.py` (new)
+
+Upstreamable: yes (the `list_events` part)
+
 ## Structured notes for token clients
 
 **Structured notes for token clients.** `GET /api/codex/todos?format=json` (scope `todos:read`) returns the token owner's notes as data: id, title, type, label, pinned, due date, updated time, checklist items with their done flags (`checklist`, `todo` and `goal` notes, in stored order, since `toggle_item` addresses items by index), and plain-note content. Same selection and order as `manage_notes` `list` (not archived, calendar-reminder notes left out, pinned first, then most recently updated). Without `format=json` the route answers the chat-model text as before. For Athena's T5 PDA, whose phone relay shows the owner's checklists and ticks items through `toggle_item`; the notes UI routes refuse API tokens on purpose.
