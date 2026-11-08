@@ -126,7 +126,9 @@ is an old path of a module that moved into `fork/`; it only aliases the new modu
 - `fork/common/athena_names.py`
 - `fork/common/llm.py`
 - `fork/common/local_time.py`
+- `fork/common/owner.py`
 - `fork/common/settings.py`
+- `fork/common/sqlite.py`
 - `fork/common/state.py`
 - `fork/hub/__init__.py`
 - `fork/hub/builtin_task_authority.py`
@@ -448,6 +450,7 @@ is an old path of a module that moved into `fork/`; it only aliases the new modu
 - `tests/fork/test_evidence_intake.py`
 - `tests/fork/test_fork_atomic_writes.py`
 - `tests/fork/test_fork_common_llm.py`
+- `tests/fork/test_fork_common_sqlite.py`
 - `tests/fork/test_fork_common_state.py`
 - `tests/fork/test_fork_deploy.py`
 - `tests/fork/test_fork_dom.py`

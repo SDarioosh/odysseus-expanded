@@ -326,7 +326,8 @@ fork calls Athena, MCP tools and HTTP routes alike),
 [docs/fork/brain.md](docs/fork/brain.md)), `fork/voice/` (the voice assistant endpoint, satellites and announcements;
 [docs/fork/voice-assistant.md](docs/fork/voice-assistant.md)), `fork/hub/` (fixes to upstream's own
 features), `fork/routes/` (the other route files; `fork.routes.mount` includes all the
-fork's routers) and `fork/common/` (shared helpers). `fork/tasks.py` is the table of the
+fork's routers) and `fork/common/` (shared helpers; the voice stores open their SQLite file
+through `fork/common/sqlite.py` and key owners with `fork/common/owner.py`). `fork/tasks.py` is the table of the
 fork's scheduled tasks; `fork/upstream.py` is the one place that reads upstream's private
 `_` names (`tests/fork/test_fork_upstream.py` fails when one is gone upstream).
 Three larger features are each one module that callers import, which offers all their

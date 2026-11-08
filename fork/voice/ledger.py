@@ -16,11 +16,13 @@ import json
 import sqlite3
 import time
 import uuid
-from collections.abc import Iterator
-from contextlib import contextmanager
+from contextlib import AbstractContextManager
 from datetime import datetime, timezone
 from pathlib import Path
 from typing import Any
+
+from fork.common import sqlite as common_sqlite
+from fork.common.owner import owner_key as _owner
 
 DB_NAME = "fork_voice.db"
 KEEP_SECONDS = 7 * 24 * 3600
@@ -71,31 +73,8 @@ def db_path() -> Path:
     return Path(DATA_DIR) / DB_NAME
 
 
-@contextmanager
-def _connect(write: bool = False) -> Iterator[sqlite3.Connection]:
-    path = db_path()
-    path.parent.mkdir(parents=True, exist_ok=True)
-    db = sqlite3.connect(str(path), timeout=30, isolation_level=None)
-    db.row_factory = sqlite3.Row
-    try:
-        db.execute("PRAGMA journal_mode = WAL")
-        db.executescript(SCHEMA)
-        if write:
-            db.execute("BEGIN IMMEDIATE")
-        try:
-            yield db
-        except BaseException:
-            if write:
-                db.execute("ROLLBACK")
-            raise
-        if write:
-            db.execute("COMMIT")
-    finally:
-        db.close()
-
-
-def _owner(owner: Any) -> str:
-    return str(owner or "").strip().casefold()
+def _connect(write: bool = False) -> AbstractContextManager[sqlite3.Connection]:
+    return common_sqlite.connect(db_path(), SCHEMA, write)
 
 
 def iso(ts: float | None) -> str | None:

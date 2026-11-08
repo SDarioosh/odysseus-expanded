@@ -34,6 +34,8 @@ import time
 from collections.abc import AsyncIterator
 from dataclasses import dataclass, field
 
+from fork.common.owner import owner_key as _owner
+
 logger = logging.getLogger(__name__)
 
 
@@ -52,10 +54,6 @@ ADOPT_SECONDS = 3.0
 
 _lock = threading.Lock()
 _running: dict[str, _Running] = {}  # turn id -> the running turn
-
-
-def _owner(owner: object) -> str:
-    return str(owner or "").strip().casefold()
 
 
 def start(turn_id: str, owner: object, device_id: str | None) -> asyncio.Event:

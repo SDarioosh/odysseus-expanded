@@ -32,13 +32,13 @@ import logging
 import sqlite3
 import time
 import uuid
-from collections.abc import Iterator
-from contextlib import contextmanager
+from contextlib import AbstractContextManager
 from dataclasses import dataclass, field
 from typing import Any
 
 import httpx
 
+from fork.common import sqlite as common_sqlite
 from fork.voice import announce as voice_announce
 from fork.voice import devices
 
@@ -101,29 +101,10 @@ def normalize_target(target: Any) -> dict:
 
 
 # ----------------------------------------------------------------------- the feed
-@contextmanager
-def _connect(write: bool = False) -> Iterator[sqlite3.Connection]:
+def _connect(write: bool = False) -> AbstractContextManager[sqlite3.Connection]:
     from fork.voice.ledger import db_path
 
-    path = db_path()
-    path.parent.mkdir(parents=True, exist_ok=True)
-    db = sqlite3.connect(str(path), timeout=30, isolation_level=None)
-    db.row_factory = sqlite3.Row
-    try:
-        db.execute("PRAGMA journal_mode = WAL")
-        db.executescript(SCHEMA)
-        if write:
-            db.execute("BEGIN IMMEDIATE")
-        try:
-            yield db
-        except BaseException:
-            if write:
-                db.execute("ROLLBACK")
-            raise
-        if write:
-            db.execute("COMMIT")
-    finally:
-        db.close()
+    return common_sqlite.connect(db_path(), SCHEMA, write)
 
 
 def _row(row: sqlite3.Row) -> dict:

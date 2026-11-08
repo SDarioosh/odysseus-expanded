@@ -23,10 +23,13 @@ import sqlite3
 import statistics
 import time
 import uuid
-from collections.abc import AsyncIterator, Iterator
-from contextlib import contextmanager
+from collections.abc import AsyncIterator
+from contextlib import AbstractContextManager
 from pathlib import Path
 from typing import Any
+
+from fork.common import sqlite as common_sqlite
+from fork.common.owner import owner_key as _owner
 
 logger = logging.getLogger(__name__)
 
@@ -64,31 +67,9 @@ def db_path() -> Path:
     return Path(DATA_DIR) / DB_NAME
 
 
-@contextmanager
-def _connect(path: Path | None = None, write: bool = False) -> Iterator[sqlite3.Connection]:
-    path = path or db_path()
-    path.parent.mkdir(parents=True, exist_ok=True)
-    db = sqlite3.connect(str(path), timeout=30, isolation_level=None)
-    db.row_factory = sqlite3.Row
-    try:
-        db.execute("PRAGMA journal_mode = WAL")
-        db.executescript(SCHEMA)
-        if write:
-            db.execute("BEGIN IMMEDIATE")
-        try:
-            yield db
-        except BaseException:
-            if write:
-                db.execute("ROLLBACK")
-            raise
-        if write:
-            db.execute("COMMIT")
-    finally:
-        db.close()
-
-
-def _owner(owner: Any) -> str:
-    return str(owner or "").strip().casefold()
+def _connect(path: Path | None = None,
+             write: bool = False) -> AbstractContextManager[sqlite3.Connection]:
+    return common_sqlite.connect(path or db_path(), SCHEMA, write)
 
 
 def _prune(db: sqlite3.Connection, now: float) -> None:
