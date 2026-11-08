@@ -5,7 +5,10 @@
 ``(path, schema)`` pair it switches the file to WAL and runs ``schema`` (``CREATE ...
 IF NOT EXISTS`` statements); later opens skip both, unless the file has gone (then they
 run again). The key is the resolved path, so tests with a temp ``DATA_DIR`` each get
-their own. ``write=True`` wraps the block in ``BEGIN IMMEDIATE`` and commits it, or
+their own. ``columns`` (``(table, column, declaration)``) are columns added after the
+first schema: each one missing from an older file is added with ``ALTER TABLE ... ADD
+COLUMN`` in the same once-per-process step (so ``schema`` must not index them).
+``write=True`` wraps the block in ``BEGIN IMMEDIATE`` and commits it, or
 rolls it back when the block raises; a read runs without a transaction.
 
 Used by the voice stores in ``fork/voice/`` (ledger, devices, device settings,
@@ -23,21 +26,38 @@ from contextlib import contextmanager
 from pathlib import Path
 
 _lock = threading.Lock()
-_ready: set[tuple[str, str]] = set()  # (resolved path, schema) set up in this process
+_ready: set[tuple] = set()  # (resolved path, schema, columns) set up in this process
+
+Columns = tuple[tuple[str, str, str], ...]
 
 
-def _set_up(db: sqlite3.Connection, key: tuple[str, str], schema: str) -> None:
+def _add_columns(db: sqlite3.Connection, columns: Columns) -> None:
+    for table, column, declaration in columns:
+        have = {r[1] for r in db.execute(f"PRAGMA table_info({table})")}
+        if column in have:
+            continue
+        try:
+            db.execute(f"ALTER TABLE {table} ADD COLUMN {column} {declaration}")
+        except sqlite3.OperationalError as exc:  # another process added it first
+            if "duplicate column" not in str(exc).lower():
+                raise
+
+
+def _set_up(db: sqlite3.Connection, key: tuple, schema: str, columns: Columns = ()) -> None:
     db.execute("PRAGMA journal_mode = WAL")
     db.executescript(schema)
+    _add_columns(db, columns)
     _ready.add(key)
 
 
 @contextmanager
-def connect(path: Path | str, schema: str, write: bool = False) -> Iterator[sqlite3.Connection]:
-    """One connection to ``path`` with ``schema`` in place; a transaction when ``write``."""
+def connect(path: Path | str, schema: str, write: bool = False,
+            columns: Columns = ()) -> Iterator[sqlite3.Connection]:
+    """One connection to ``path`` with ``schema`` (and ``columns``) in place; a
+    transaction when ``write``."""
     path = Path(path)
     path.parent.mkdir(parents=True, exist_ok=True)
-    key = (str(path.resolve()), schema)
+    key = (str(path.resolve()), schema, tuple(columns))
     fresh = not path.exists()
     db = sqlite3.connect(str(path), timeout=30, isolation_level=None)
     db.row_factory = sqlite3.Row
@@ -45,7 +65,7 @@ def connect(path: Path | str, schema: str, write: bool = False) -> Iterator[sqli
         if fresh or key not in _ready:
             with _lock:
                 if fresh or key not in _ready:
-                    _set_up(db, key, schema)
+                    _set_up(db, key, schema, columns)
         if write:
             db.execute("BEGIN IMMEDIATE")
         try:
