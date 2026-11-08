@@ -224,15 +224,10 @@ def setup_voice_routes() -> APIRouter:
         from datetime import date
 
         from fork.athena.phone_pairing import create_api_token
-        from src.auth_helpers import get_current_user
+        from fork.voice.admin import signed_in_admin
 
-        from src.agent_runtime.authority import is_internal_tool_request
-
-        if is_internal_tool_request(request) or getattr(request.state, "api_token", False):
-            raise HTTPException(403, "Only a signed-in admin can make a voice token")
-        owner = get_current_user(request)
-        if not owner:
-            raise HTTPException(403, "Not signed in")
+        owner = signed_in_admin(request, "Only a signed-in admin can make a voice token",
+                                admin_checked=True)  # Depends(require_admin) above
         token = create_api_token(owner, f"{TOKEN_NAME} {date.today().isoformat()}", [SCOPE])
         invalidate = getattr(request.app.state, "invalidate_token_cache", None)
         if callable(invalidate):

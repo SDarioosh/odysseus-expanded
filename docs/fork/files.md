@@ -192,6 +192,7 @@ is an old path of a module that moved into `fork/`; it only aliases the new modu
 - `fork/tasks.py`
 - `fork/upstream.py`
 - `fork/voice/__init__.py`
+- `fork/voice/admin.py`
 - `fork/voice/announce.py`
 - `fork/voice/announce_tool.py`
 - `fork/voice/announcements.py`
