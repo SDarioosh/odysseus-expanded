@@ -555,19 +555,26 @@ def test_the_settings_card_makes_a_voice_only_token(monkeypatch):
 
 
 # --------------------------------------------------- the turn ledger and its feeds
-ACTIONS = voice_routes.PREFIX + "/actions"
 LATEST = voice_routes.PREFIX + "/turns/latest"
 YES = {"user": "ha-1", "model": "odysseus", "messages": [{"role": "user", "content": "Yes."}]}
 DENTIST = {"user": "ha-1", "model": "odysseus",
            "messages": [{"role": "user", "content": "Add the dentist on Tuesday at three"}]}
 
 
-def test_the_feeds_need_a_voice_token(api):
-    for url in (ACTIONS, LATEST):
-        assert api.get(url).status_code == 403
-        assert api.get(url, headers={"x-test-scopes": "chat"}).status_code == 403
-    assert api.get(ACTIONS, headers=VOICE).json() == {"actions": []}
+def ledger_actions(owner: str) -> list[dict]:
+    """This owner's rows in the ledger's actions table, newest first."""
+    with ledger._connect() as db:
+        rows = db.execute("SELECT * FROM actions WHERE owner = ? ORDER BY at DESC, rowid DESC",
+                          (owner,)).fetchall()
+    return [ledger._action(r) for r in rows]
+
+
+def test_the_feed_needs_a_voice_token(api):
+    assert api.get(LATEST).status_code == 403
+    assert api.get(LATEST, headers={"x-test-scopes": "chat"}).status_code == 403
     assert api.get(LATEST, headers=VOICE).json() == {"turn": None}
+    # the older /actions feed is gone: /turns/latest carries a turn's actions
+    assert api.get(voice_routes.PREFIX + "/actions", headers=VOICE).status_code == 404
 
 
 def test_a_turn_is_recorded_and_served_as_the_latest(api):
@@ -600,18 +607,16 @@ def test_the_ledger_is_owner_scoped_and_newest_first(data_dir):
                       where="Athena", source="athena", now=1002.0)
     ledger.add_action(t, "bob", action="created", kind="note", title="Bob's", where="Notes",
                       now=1003.0)
-    rows = ledger.actions("alice", since_ms=0, limit=8)
+    rows = ledger_actions("alice")
     assert [r["title"] for r in rows] == ["New", "Old"]
     assert set(rows[0]) == {"id", "at", "action", "kind", "title", "detail", "due",
                             "all_day", "where", "source", "turn_id"}
     assert rows[0]["at"] == "1970-01-01T00:16:42+00:00" and rows[0]["source"] == "athena"
-    assert [r["title"] for r in ledger.actions("alice", since_ms=1001500)] == ["New"]
-    assert len(ledger.actions("alice", limit=1)) == 1
     with pytest.raises(ValueError):
         ledger.add_action(t, "alice", action="deleted", kind="todo", title="x", where="y")
     # pruned after 7 days
     ledger.start_turn("alice", "later", now=1000.0 + ledger.KEEP_SECONDS + 10)
-    assert ledger.actions("alice") == []
+    assert ledger_actions("alice") == []
 
 
 @pytest.mark.parametrize("said", [
@@ -695,7 +700,7 @@ def test_a_proposal_ends_with_a_confirmation_question(api, said):
     assert spoken.endswith("?")
     turn = api.get(LATEST, headers=VOICE).json()["turn"]
     assert turn["awaiting_confirmation"] == spoken.split(". ")[-1]
-    assert api.get(ACTIONS, headers=VOICE).json() == {"actions": []}  # not run
+    assert ledger_actions("alice") == []  # not run
 
 
 @pytest.mark.parametrize("said", ["It is sunny. Would you like to hear more?",
@@ -740,7 +745,7 @@ def test_yes_runs_the_proposal_without_the_model(api, monkeypatch):
     assert body["choices"][0]["message"]["content"] == "Done. Added Dentist to your calendar."
     assert len([t for t in api.turns if "message" in t]) == 1  # no model turn for the yes
     assert len(ran) == 1 and ran[0].calls[0].name == "manage_calendar"
-    actions = api.get(ACTIONS, headers=VOICE).json()["actions"]
+    actions = ledger_actions("alice")
     assert [(a["action"], a["kind"], a["title"], a["where"], a["source"]) for a in actions] == [
         ("created", "event", "Dentist", "Calendar", "odysseus")]
     assert actions[0]["due"] == "2026-11-10T15:00:00+00:00" and actions[0]["all_day"] is False

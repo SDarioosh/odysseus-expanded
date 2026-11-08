@@ -3,7 +3,7 @@
 ``POST /api/chat/voice/v1/chat/completions`` and ``GET /api/chat/voice/v1/models``
 (:data:`PREFIX` is the OpenAI base URL a client is given), OpenAI's shapes
 (``fork/voice/openai_api.py``), for a Home Assistant conversation agent, and the device
-screen's feeds ``GET …/actions`` and ``GET …/turns/latest`` (``fork/voice/ledger.py``),
+screen's feed ``GET …/turns/latest`` (``fork/voice/ledger.py``),
 and ``GET …/today``, the day at a glance (``fork/voice/today_route.py``), and the Done
 buttons' ``POST …/todos/done`` and the rest (``fork/voice/done.py``).
 Only an API token with the ``voice`` scope may call them (a browser login may not: these
@@ -239,11 +239,6 @@ def setup_voice_routes() -> APIRouter:
     def list_models(request: Request) -> Any:
         voice_owner(request)
         return openai_api.models_body()
-
-    @router.get(PREFIX + "/actions")
-    def list_actions(request: Request, since: int = 0, limit: int = ledger.DEFAULT_LIMIT) -> Any:
-        owner = voice_owner(request)
-        return {"actions": ledger.actions(owner, since_ms=since, limit=limit)}
 
     @router.get(PREFIX + "/turns/latest")
     def latest_turn(request: Request, since: int = 0) -> Any:

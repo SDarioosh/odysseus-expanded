@@ -34,8 +34,8 @@ Nothing leaves the owner's network: every stage is local, and Home Assistant Clo
   item marked done: the model's call is kept, Odysseus asks "Add Dentist on Tuesday at
   three to your calendar?", and only "yes" runs it. Everything else that writes is
   refused; email is never run.
-- **The device's screen sees what a turn did:** `GET …/actions` and
-  `GET …/turns/latest` (the turn ledger).
+- **The device's screen sees what a turn did:** `GET …/turns/latest` (the turn
+  ledger).
 - **Done from the device's screen:** a tap ticks a to-do, finishes a reminder or marks an
   Athena action item done, without a spoken "yes" ([Done from a
   device](#done-from-a-device)).
@@ -58,7 +58,6 @@ for chat streams, and a voice answer can take longer (minutes on the sandbox's C
 |---|---|---|
 | `POST /api/chat/voice/v1/chat/completions` | API token with the `voice` scope | one voice question; OpenAI's chat-completion request and response, `stream: true` supported |
 | `GET /api/chat/voice/v1/models` | the same | `{"data": [{"id": "odysseus", …}]}`, for clients that list models when set up |
-| `GET /api/chat/voice/v1/actions?since=<ms>&limit=<n>` | the same | the changes voice made (below) |
 | `GET /api/chat/voice/v1/turns/latest?since=<ms>` | the same | the newest finished voice turn (below) |
 | `GET /api/chat/voice/v1/today` | the same | the owner's day at a glance for a device screen: insight headline and focus, today's events, due to-dos, Athena's open action items ([Today for devices](#today-for-devices)) |
 | `GET /api/chat/voice/v1/app/latest` | the same | the Echo app's release on offer, or 404 ([App updates](#app-updates)) |
@@ -230,24 +229,11 @@ with the question. A test checks that a voice turn's messages before the context
 and its tools equal a chat turn's. Assumption: the browser's documents toggle is on (a
 chat with it off is offered no `search_documents`).
 
-## Turns and actions (the screen's feeds)
+## Turns and actions (the screen's feed)
 
 `fork/voice/ledger.py`: one record per voice turn in `<DATA_DIR>/fork_voice.db`
 (SQLite), deleted after 7 days, owner-scoped. It is the one place a voice turn's facts
 live; later features add to it.
-
-`GET …/actions?since=<epoch ms>&limit=<n>` (newest first, default 8, at most 50):
-
-```json
-{"actions": [{"id": "…", "at": "2026-11-03T19:52:10+00:00", "action": "created",
-  "kind": "event", "title": "Dentist", "detail": null, "due": "2026-11-10T15:00:00-05:00",
-  "all_day": false, "where": "Calendar", "source": "odysseus", "turn_id": "…"}]}
-```
-
-`kind` is `todo`, `reminder`, `list_item`, `note`, `event` or `action_item`; `action`
-`created` or `completed`; `source` `odysseus` or `athena`, or `device` for a Done tapped
-on a device's screen (then `turn_id` is `device:<device id>`: no voice turn made it;
-[Done from a device](#done-from-a-device)).
 
 `GET …/turns/latest?since=<epoch ms>`: the newest finished turn started at or after
 `since`, else `{"turn": null}`:
@@ -255,11 +241,22 @@ on a device's screen (then `turn_id` is `device:<device id>`: no voice turn made
 ```json
 {"turn": {"id": "…", "started_at": "…", "ended_at": "…", "question": "…",
   "answer": "the spoken text", "links": [{"url": "https://…", "label": null}],
-  "actions": [], "awaiting_confirmation": "Add Dentist to your calendar?",
+  "actions": [{"id": "…", "at": "2026-11-03T19:52:10+00:00", "action": "created",
+    "kind": "event", "title": "Dentist", "detail": null, "due": "2026-11-10T15:00:00-05:00",
+    "all_day": false, "where": "Calendar", "source": "odysseus", "turn_id": "…"}],
+  "awaiting_confirmation": null,
   "device": {"id": "…", "name": "Kitchen Echo", "area": "Kitchen"},
   "speaker": {"verified": true, "is_owner": true, "name": "Sam"},
   "session_id": "<the chat's id>"}}
 ```
+
+`actions` are the changes the turn made, newest first: `kind` is `todo`, `reminder`,
+`list_item`, `note`, `event` or `action_item`; `action` `created` or `completed`;
+`source` `odysseus` or `athena`. A Done tapped on a device's screen is kept in the ledger
+too (`source` `device`, `turn_id` `device:<device id>`: no voice turn made it, so no
+turn shows it; [Done from a device](#done-from-a-device)). The older
+`GET …/actions` feed (every action, newest first) is gone (2026-11): the Echo reads
+`/turns/latest`.
 
 `device` and `speaker` come from the satellite's context (`POST …/satellite/turn`,
 `fork/voice/satellite.py`), claimed at the start of each question; both are null without
@@ -327,7 +324,7 @@ POST …/action-items/undo  {"id": "17", "device_id": "…"}         -> {"ok": t
   done answers 200 with `"already": true` and changes nothing.
 - **Recorded:** each change is a `completed` action in the turn ledger (`kind` `todo`,
   `reminder` or `action_item`; `where` the list's title, `To-dos` or `Athena`; `source`
-  `device`; `turn_id` `device:<device id>`), so `GET …/actions` shows it.
+  `device`; `turn_id` `device:<device id>`), which the undo removes again.
 - **Undo:** `todos/undo` and `action-items/undo` reopen what a device closed within 10
   minutes of its done (any device of the same owner), and remove that ledger action. A
   to-do line that moved since is found by its text. Later, or for something a device

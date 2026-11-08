@@ -4,8 +4,7 @@ One record per voice turn, and the changes a turn made, in one small SQLite file
 (``<DATA_DIR>/fork_voice.db``, stdlib sqlite3 like ``fork/brain/history.py``). It is the
 one place a voice turn's facts live: what was asked and answered, its links, the device
 and speaker it came from, a confirmation question still open, and its actions. The
-device's screen reads it through ``GET …/actions`` and ``GET …/turns/latest``
-(``fork/voice/routes.py``); later features add to these records here.
+device's screen reads it through ``GET …/turns/latest`` (``fork/voice/routes.py``); later features add to these records here.
 
 Rows older than :data:`KEEP_SECONDS` (7 days) are deleted on every write. Everything is
 owner-scoped: a reader only ever gets its own owner's rows.
@@ -26,8 +25,6 @@ from fork.common.owner import owner_key as _owner
 
 DB_NAME = "fork_voice.db"
 KEEP_SECONDS = 7 * 24 * 3600
-DEFAULT_LIMIT = 8
-MAX_LIMIT = 50
 
 ACTIONS = frozenset({"created", "completed"})
 KINDS = frozenset({"todo", "reminder", "list_item", "note", "event", "action_item",
@@ -168,20 +165,6 @@ def _since(since_ms: Any) -> float:
         return max(0.0, float(since_ms) / 1000.0)
     except (TypeError, ValueError):
         return 0.0
-
-
-def actions(owner: Any, *, since_ms: Any = 0, limit: Any = DEFAULT_LIMIT) -> list[dict]:
-    """This owner's voice actions at or after ``since_ms`` (epoch ms), newest first."""
-    try:
-        n = int(limit)
-    except (TypeError, ValueError):
-        n = DEFAULT_LIMIT
-    n = max(1, min(MAX_LIMIT, n))
-    with _connect() as db:
-        rows = db.execute(
-            "SELECT * FROM actions WHERE owner = ? AND at >= ? ORDER BY at DESC, rowid DESC"
-            " LIMIT ?", (_owner(owner), _since(since_ms), n)).fetchall()
-    return [_action(r) for r in rows]
 
 
 def _loads(value: Any, default: Any) -> Any:

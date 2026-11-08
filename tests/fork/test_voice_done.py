@@ -23,6 +23,14 @@ def db(monkeypatch, data_dir):
     return notes_db(monkeypatch)
 
 
+def ledger_actions(owner: str) -> list[dict]:
+    """This owner's rows in the ledger's actions table, newest first."""
+    with ledger._connect() as db:
+        rows = db.execute("SELECT * FROM actions WHERE owner = ? ORDER BY at DESC, rowid DESC",
+                          (owner,)).fetchall()
+    return [ledger._action(r) for r in rows]
+
+
 def add_note(factory, note_id, *, owner="alice", title="Home", items=None,
              due="2026-11-06T09:00", archived=False, note_type="checklist"):
     from core.database import Note
@@ -111,7 +119,7 @@ def test_todo_done_ticks_the_item_and_records_it(db):
     assert r.status_code == 200
     assert r.json() == {"ok": True, "already": False, "title": "Call the plumber"}
     assert [i["done"] for i in get_note(db, "n41")["items"]] == [False, True, True]
-    acts = ledger.actions("alice")
+    acts = ledger_actions("alice")
     assert len(acts) == 1
     a = acts[0]
     assert (a["action"], a["kind"], a["title"], a["where"], a["source"], a["turn_id"]) == (
@@ -126,7 +134,7 @@ def test_todo_done_is_idempotent(db):
     assert r.status_code == 200 and r.json()["already"] is True
     r = post(c, "/todos/done", {"ref": "todo:n41:2", "device_id": DEVICE})
     assert r.json() == {"ok": True, "already": True, "title": "Water the ferns"}
-    assert len(ledger.actions("alice")) == 1
+    assert len(ledger_actions("alice")) == 1
 
 
 @pytest.mark.parametrize("body", [
@@ -174,7 +182,7 @@ def test_owner_isolation(db):
     assert r.status_code == 200
     add_note(db, "a41", items=ITEMS)
     assert post(c, "/todos/undo", {"ref": "todo:a41:0"}).status_code == 409
-    assert ledger.actions("alice") == [] and len(ledger.actions("bob")) == 1
+    assert ledger_actions("alice") == [] and len(ledger_actions("bob")) == 1
 
 
 def test_scope_voice_required(db):
@@ -195,7 +203,7 @@ def test_todo_undo_reopens_within_the_window(db):
     assert r.status_code == 200
     assert r.json() == {"ok": True, "already": False, "title": "Call the plumber"}
     assert get_note(db, "n41")["items"][1]["done"] is False
-    assert ledger.actions("alice") == []  # the completed action is gone
+    assert ledger_actions("alice") == []  # the completed action is gone
     r = post(c, "/todos/undo", {"ref": "todo:n41:1"})
     assert r.status_code == 200 and r.json()["already"] is True
 
@@ -261,11 +269,11 @@ def test_reminder_done_archives_the_note(db):
     assert r.status_code == 200
     assert r.json() == {"ok": True, "already": False, "title": "Take the bins out"}
     assert get_note(db, "r7")["archived"] is True
-    a = ledger.actions("alice")[0]
+    a = ledger_actions("alice")[0]
     assert (a["action"], a["kind"], a["source"]) == ("completed", "reminder", "device")
     r = post(c, "/reminders/done", {"ref": "todo:r7", "device_id": DEVICE})
     assert r.status_code == 200 and r.json()["already"] is True
-    assert len(ledger.actions("alice")) == 1
+    assert len(ledger_actions("alice")) == 1
 
 
 def test_reminder_done_with_an_item_index_ticks_that_item(db):
@@ -276,7 +284,7 @@ def test_reminder_done_with_an_item_index_ticks_that_item(db):
     assert r.json() == {"ok": True, "already": False, "title": "Buy bread"}
     assert get_note(db, "r8") == {"items": [{**ITEMS[0], "done": True}, *ITEMS[1:]],
                                   "archived": False}
-    assert ledger.actions("alice")[0]["kind"] == "reminder"
+    assert ledger_actions("alice")[0]["kind"] == "reminder"
     r = post(c, "/reminders/done", {"ref": "todo:r8:0", "device_id": DEVICE})
     assert r.json()["already"] is True
     r = post(c, "/reminders/done", {"ref": "todo:r8:9", "device_id": DEVICE})
@@ -310,7 +318,7 @@ def test_action_item_done_through_athena(data_dir, athena):
     assert r.json() == {"ok": True, "already": False, "title": "Send Sam the photos"}
     assert athena.rows[17]["status"] == "done"
     assert ("PATCH", "/action-items/17", {"json": {"status": "done"}}) in athena.calls
-    a = ledger.actions("alice")[0]
+    a = ledger_actions("alice")[0]
     assert (a["action"], a["kind"], a["where"], a["source"]) == (
         "completed", "action_item", "Athena", "device")
     # idempotent; "ai_17" and a number are read too
@@ -319,7 +327,7 @@ def test_action_item_done_through_athena(data_dir, athena):
         assert r.status_code == 200 and r.json()["already"] is True
     r = post(c, "/action-items/done", {"id": 18, "device_id": DEVICE})
     assert r.json() == {"ok": True, "already": True, "title": "Book the hall"}
-    assert len(ledger.actions("alice")) == 1
+    assert len(ledger_actions("alice")) == 1
 
 
 def test_action_item_errors(data_dir, athena):
@@ -358,7 +366,7 @@ def test_action_item_undo(data_dir, athena):
     assert r.status_code == 200
     assert r.json() == {"ok": True, "already": False, "title": "Send Sam the photos"}
     assert athena.rows[17]["status"] == "open"
-    assert ledger.actions("alice") == []
+    assert ledger_actions("alice") == []
     assert post(c, "/action-items/undo", {"id": 17}).json()["already"] is True
     assert post(c, "/action-items/undo", {"id": 99}).status_code == 404
 
@@ -396,7 +404,7 @@ def test_remove_action_is_owner_scoped(data_dir):
                           where="To-dos")
     assert ledger.remove_action("bob", a["id"]) is False
     assert ledger.remove_action("alice", a["id"]) is True
-    assert ledger.actions("alice") == []
+    assert ledger_actions("alice") == []
 
 
 # ------------------------------------------------------------------- edge cases
@@ -441,7 +449,7 @@ def test_done_then_undo_then_done_then_undo(db):
         assert vd.todo_done("alice", "todo:n41:0", DEVICE)["already"] is False
         assert vd.todo_undo("alice", "todo:n41:0")["already"] is False
     assert get_note(db, "n41")["items"][0]["done"] is False
-    assert ledger.actions("alice") == []
+    assert ledger_actions("alice") == []
 
 
 def test_dones_of_two_lines_at_once_both_stick(db, monkeypatch):
@@ -526,7 +534,7 @@ def test_todo_done_follows_its_title_when_a_line_was_inserted_above(db):
     assert r.status_code == 200
     assert r.json() == {"ok": True, "already": False, "title": "Call the plumber"}
     assert [i["done"] for i in get_note(db, "n41")["items"]] == [False, False, True, True]
-    assert ledger.actions("alice")[0]["title"] == "Call the plumber"
+    assert ledger_actions("alice")[0]["title"] == "Call the plumber"
     # undo with the same ref reopens that line, not the one now at index 1
     r = post(c, "/todos/undo", {"ref": "todo:n41:1", "device_id": DEVICE})
     assert r.status_code == 200 and r.json()["already"] is False
@@ -555,7 +563,7 @@ def test_todo_done_of_a_line_no_longer_there_is_409_changed(db):
                                            "title": "Call the plumber"})
         assert r.status_code == 409 and r.json() == {"error": "changed"}
     assert get_note(db, "n41")["items"] == [ITEMS[0], ITEMS[2]]
-    assert ledger.actions("alice") == []
+    assert ledger_actions("alice") == []
 
 
 def test_todo_done_without_a_title_keeps_the_index_alone(db):
