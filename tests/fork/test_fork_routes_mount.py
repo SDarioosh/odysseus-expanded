@@ -28,6 +28,7 @@ ORDER = [
     "setup_app_release_routes",
     "setup_music_image_routes",
     "setup_device_settings_routes",
+    "setup_wakeword_routes",
 ]
 
 

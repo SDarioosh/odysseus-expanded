@@ -88,10 +88,13 @@ def device_id_param(raw: str) -> str:
     return device_id
 
 
+FORM_KINDS = ("multipart/form-data", "application/x-www-form-urlencoded")
+
+
 def _check_form(request: Request, max_bytes: int, *, need_length: bool = False,
-                wrong_kind: str = "Send a form") -> None:
+                wrong_kind: str = "Send a form", kinds: tuple[str, ...] = FORM_KINDS) -> None:
     """A form post's headers: Content-Length (411 without it when ``need_length``, 400
-    when not a number, 413 over ``max_bytes``) and a form Content-Type (415)."""
+    when not a number, 413 over ``max_bytes``) and a Content-Type in ``kinds`` (415)."""
     length = request.headers.get("content-length")
     if length is None and need_length:
         raise HTTPException(411, "Content-Length is required")
@@ -102,7 +105,7 @@ def _check_form(request: Request, max_bytes: int, *, need_length: bool = False,
     if too_big:
         raise HTTPException(413, "The request is too large")
     kind = request.headers.get("content-type", "").split(";", 1)[0].strip().lower()
-    if kind not in ("multipart/form-data", "application/x-www-form-urlencoded"):
+    if kind not in kinds:
         raise HTTPException(415, wrong_kind)
 
 
