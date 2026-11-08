@@ -188,8 +188,12 @@ def _last_answer(sess: Any) -> str:
 
 
 def _timing_start(owner: str, turn_id: str, ctx: Any, timer: Any) -> str | None:
+    # the context may have been adopted since the turn started (fork/voice/interrupts.py)
+    device_id, context_id = interrupts.context_of(turn_id)
     try:
-        return timings.save_hub(owner, turn_id, getattr(ctx, "device_id", None), timer)
+        return timings.save_hub(owner, turn_id,
+                                device_id or getattr(ctx, "device_id", None), timer,
+                                context_id=context_id or getattr(ctx, "context_id", None))
     except Exception:  # noqa: BLE001 -- timing never breaks a turn
         logger.warning("voice: saving the turn's timing failed", exc_info=True)
         return None
@@ -241,9 +245,11 @@ def setup_voice_routes() -> APIRouter:
         return openai_api.models_body()
 
     @router.get(PREFIX + "/turns/latest")
-    def latest_turn(request: Request, since: int = 0) -> Any:
+    def latest_turn(request: Request, since: int = 0, context_id: str = "") -> Any:
         owner = voice_owner(request)
-        return {"turn": ledger.latest_turn(owner, since_ms=since)}
+        # context_id (what POST …/satellite/turn answered) wins over since
+        return {"turn": ledger.latest_turn(owner, since_ms=since,
+                                           context_id=context_id.strip()[:64] or None)}
 
     @router.post(PREFIX + "/chat/completions")
     async def chat_completions(request: Request) -> Any:
@@ -281,9 +287,11 @@ def setup_voice_routes() -> APIRouter:
         personal = personal_allowed(module, ctx)
         session_id = str(sess.id)
         turn_id = ledger.start_turn(owner, question.text, session_id=session_id,
-                                    device=device_of(ctx), speaker=speaker_of(ctx))
+                                    device=device_of(ctx), speaker=speaker_of(ctx),
+                                    context_id=getattr(ctx, "context_id", None))
         # A barge-in on the asking device cuts this turn short (fork/voice/interrupts.py).
-        stop = interrupts.start(turn_id, owner, getattr(ctx, "device_id", None))
+        stop = interrupts.start(turn_id, owner, getattr(ctx, "device_id", None),
+                                getattr(ctx, "context_id", None))
         if getattr(ctx, "interrupted", False):
             stop.set()  # the device was interrupted before Home Assistant asked
         if stop.is_set():

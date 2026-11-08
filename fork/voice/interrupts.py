@@ -13,14 +13,17 @@ stops (its model call too, so the new question doesn't queue behind it) and Home
 Assistant gets an empty answer at once, which it doesn't speak; its run ends in about a
 second and the new question goes ahead.
 
-A turn is matched by the device that asked it: the satellite context it claimed
-(``fork/voice/satellite.py``). The Echo posts that context when the owner stops speaking,
-in the background, so Home Assistant's question can arrive first and find none; a context
-posted within :data:`ADOPT_SECONDS` after a turn without one started is that turn's
-(:func:`adopt`). A barge-in that finds no running turn of its device but a context nobody
-claimed yet (Home Assistant hasn't asked) marks it, and the turn that claims it answers
-empty at once. Any other turn without a context (another satellite, HA's text Assist) is
-never cut.
+A turn is matched by the satellite context it claimed (``fork/voice/satellite.py``). The
+Echo posts that context when the owner stops speaking, in the background, so Home
+Assistant's question can arrive first and find none; a context posted within
+:data:`ADOPT_SECONDS` after a turn without one started is that turn's (:func:`adopt`).
+The barge-in names the context (``context_id``, what ``POST …/satellite/turn``
+answered): the turn running with it is cut, or, when Home Assistant hasn't asked yet,
+the context is marked and the turn that claims it answers empty at once. A barge-in
+without an id, or with one the hub doesn't know (it restarted, the context expired),
+does the same by device: every running turn of that device, else its contexts nobody
+claimed. Any other turn without a context (another satellite, HA's text Assist) is never
+cut.
 
 In this process's memory only, like the satellite contexts.
 """
@@ -45,6 +48,7 @@ class _Running:
     device_id: str
     stop: asyncio.Event
     loop: asyncio.AbstractEventLoop
+    context_id: str = ""
     started: float = field(default_factory=time.monotonic)
 
 
@@ -56,14 +60,24 @@ _lock = threading.Lock()
 _running: dict[str, _Running] = {}  # turn id -> the running turn
 
 
-def start(turn_id: str, owner: object, device_id: str | None) -> asyncio.Event:
+def start(turn_id: str, owner: object, device_id: str | None,
+          context_id: str | None = None) -> asyncio.Event:
     """A voice turn starts; the event is set when its device interrupts it. ``device_id``
-    is None when the turn found no satellite context."""
+    and ``context_id`` are None when the turn found no satellite context."""
     stop = asyncio.Event()
     with _lock:
         _running[turn_id] = _Running(owner=_owner(owner), device_id=device_id or "",
-                                     stop=stop, loop=asyncio.get_running_loop())
+                                     stop=stop, loop=asyncio.get_running_loop(),
+                                     context_id=context_id or "")
     return stop
+
+
+def context_of(turn_id: str) -> tuple[str, str]:
+    """``(device id, context id)`` of a running turn, as :func:`adopt` may have set them
+    after it started; ``("", "")`` when it has none or isn't running."""
+    with _lock:
+        r = _running.get(turn_id)
+        return (r.device_id, r.context_id) if r is not None else ("", "")
 
 
 def end(turn_id: str) -> None:
@@ -77,29 +91,41 @@ def _cut(hits: list[_Running]) -> int:
     return len(hits)
 
 
-def adopt(owner: object, device_id: str) -> bool:
+def adopt(owner: object, device_id: str, context_id: str) -> str | None:
     """A satellite context for ``device_id`` was just posted: if exactly one turn of
     ``owner`` without a context started in the last :data:`ADOPT_SECONDS`, it is that
-    device's (Home Assistant asked before the post arrived). True when adopted; the
-    caller then marks the context claimed."""
+    device's (Home Assistant asked before the post arrived). Returns that turn's id when
+    adopted; the caller then marks the context claimed and stores its id on the turn."""
     key, now = _owner(owner), time.monotonic()
     with _lock:
-        found = [r for r in _running.values()
+        found = [(tid, r) for tid, r in _running.items()
                  if r.owner == key and not r.device_id and not r.stop.is_set()
                  and now - r.started <= ADOPT_SECONDS]
         if len(found) != 1 or not device_id:
-            return False
-        found[0].device_id = device_id
-    return True
+            return None
+        turn_id, r = found[0]
+        r.device_id, r.context_id = device_id, context_id or ""
+    return turn_id
 
 
-def interrupt(owner: object, device_id: str) -> tuple[int, int]:
+def interrupt(owner: object, device_id: str,
+              context_id: str | None = None) -> tuple[int, int]:
     """``device_id``'s wake word interrupted its turn: cut it short, or, when Home
-    Assistant hasn't asked yet, mark the device's waiting context.
-    ``(turns cut, contexts marked)``."""
+    Assistant hasn't asked yet, mark the waiting context. With ``context_id``, only that
+    context's turn or context; without it, or when the hub knows no such context, the
+    device's. ``(turns cut, contexts marked)``."""
     from fork.voice import satellite
 
     key = _owner(owner)
+    if context_id:
+        with _lock:
+            mine = [r for r in _running.values()
+                    if r.owner == key and r.context_id == context_id and not r.stop.is_set()]
+        if mine:
+            return _cut(mine), 0
+        marked = satellite.interrupt_context(str(owner), context_id)
+        if marked is not None:
+            return 0, marked
     if not device_id:
         return 0, 0
     with _lock:

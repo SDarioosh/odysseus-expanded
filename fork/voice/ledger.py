@@ -62,6 +62,10 @@ CREATE TABLE IF NOT EXISTS actions (
 CREATE INDEX IF NOT EXISTS actions_owner_at ON actions (owner, at);
 CREATE INDEX IF NOT EXISTS actions_turn ON actions (turn_id);
 """
+# Added after the first schema (fork/common/sqlite.py adds them to an older file): the
+# satellite context the turn claimed (fork/voice/satellite.py), so the device that posted
+# it finds this turn by its id.
+COLUMNS = (("turns", "context_id", "TEXT"),)
 
 
 def db_path() -> Path:
@@ -71,7 +75,7 @@ def db_path() -> Path:
 
 
 def _connect(write: bool = False) -> AbstractContextManager[sqlite3.Connection]:
-    return common_sqlite.connect(db_path(), SCHEMA, write)
+    return common_sqlite.connect(db_path(), SCHEMA, write, columns=COLUMNS)
 
 
 def iso(ts: float | None) -> str | None:
@@ -92,18 +96,25 @@ def _json(value: Any) -> str | None:
 
 def start_turn(owner: Any, question: str, *, session_id: str | None = None,
                device: dict | None = None, speaker: dict | None = None,
-               now: float | None = None) -> str:
+               context_id: str | None = None, now: float | None = None) -> str:
     """A new turn record; returns its id. Finished by :func:`finish_turn`."""
     now = time.time() if now is None else float(now)
     turn_id = uuid.uuid4().hex
     with _connect(write=True) as db:
         _prune(db, now)
         db.execute(
-            "INSERT INTO turns (id, owner, started_at, question, device, speaker, session_id)"
-            " VALUES (?, ?, ?, ?, ?, ?, ?)",
+            "INSERT INTO turns (id, owner, started_at, question, device, speaker, session_id,"
+            " context_id) VALUES (?, ?, ?, ?, ?, ?, ?, ?)",
             (turn_id, _owner(owner), now, str(question or ""), _json(device),
-             _json(speaker), session_id))
+             _json(speaker), session_id, context_id or None))
     return turn_id
+
+
+def set_context(turn_id: str, context_id: str) -> None:
+    """The satellite context posted after the turn started (fork/voice/interrupts.py
+    ``adopt``) is this turn's."""
+    with _connect(write=True) as db:
+        db.execute("UPDATE turns SET context_id = ? WHERE id = ?", (context_id, turn_id))
 
 
 def finish_turn(turn_id: str, *, answer: str, links: list | None = None,
@@ -176,13 +187,20 @@ def _loads(value: Any, default: Any) -> Any:
         return default
 
 
-def latest_turn(owner: Any, *, since_ms: Any = 0) -> dict | None:
-    """The newest finished turn of this owner started at or after ``since_ms``."""
+def latest_turn(owner: Any, *, since_ms: Any = 0, context_id: str | None = None
+                ) -> dict | None:
+    """The newest finished turn of this owner started at or after ``since_ms``; with
+    ``context_id``, the finished turn that claimed that satellite context instead (None
+    while it runs or when no turn has it)."""
+    if context_id:
+        where, args = "context_id = ?", (str(context_id),)
+    else:
+        where, args = "started_at >= ?", (_since(since_ms),)
     with _connect() as db:
         row = db.execute(
-            "SELECT * FROM turns WHERE owner = ? AND started_at >= ? AND ended_at IS NOT NULL"
+            f"SELECT * FROM turns WHERE owner = ? AND {where} AND ended_at IS NOT NULL"
             " ORDER BY started_at DESC, rowid DESC LIMIT 1",
-            (_owner(owner), _since(since_ms))).fetchone()
+            (_owner(owner), *args)).fetchone()
         if row is None:
             return None
         acts = db.execute("SELECT * FROM actions WHERE turn_id = ? ORDER BY at DESC, rowid DESC",
@@ -193,5 +211,5 @@ def latest_turn(owner: Any, *, since_ms: Any = 0) -> dict | None:
         "links": _loads(row["links"], []), "actions": [_action(a) for a in acts],
         "awaiting_confirmation": row["awaiting_confirmation"],
         "device": _loads(row["device"], None), "speaker": _loads(row["speaker"], None),
-        "session_id": row["session_id"],
+        "session_id": row["session_id"], "context_id": row["context_id"],
     }

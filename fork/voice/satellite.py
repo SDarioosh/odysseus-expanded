@@ -248,6 +248,19 @@ def interrupt_unclaimed(owner: str, device_id: str) -> int:
     return marked
 
 
+def interrupt_context(owner: str, context_id: str) -> int | None:
+    """A barge-in naming ``context_id``: mark that context, so a turn that claims it
+    later answers empty at once. 1 when it was still unclaimed, 0 when a turn already
+    took it, None when this owner has no such context (expired, or a restart)."""
+    now = _now()
+    with _lock:
+        for e in _prune(_contexts.get(owner, []), now):
+            if e.ctx.context_id == context_id:
+                e.ctx = replace(e.ctx, interrupted=True)
+                return 0 if e.claimed else 1
+    return None
+
+
 def mark_claimed(entry: _Entry) -> None:
     """The context belongs to a turn that is already running (fork/voice/interrupts.py
     ``adopt``): no later turn may claim it."""
