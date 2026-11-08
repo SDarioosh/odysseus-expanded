@@ -8,11 +8,10 @@
   chat's (one prompt cache for both).
 * ``policy.py``: what a voice turn's tool calls may run (no email, private answers).
 * ``confirm.py``: the changes voice may make after a spoken "yes" (the allow-list).
-* ``ledger.py``: one record per voice turn and the changes it made (the screen's feeds).
+* ``ledger.py``: one record per voice turn and the changes it made (the screen's feed).
 * ``openai_api.py``: the OpenAI chat-completions shapes Home Assistant sends and reads.
-* ``routes.py``: ``POST /api/chat/voice/v1/chat/completions``, ``GET …/v1/models``,
-  ``GET …/v1/actions`` and ``GET …/v1/turns/latest`` for API tokens with the ``voice``
-  scope; each question is a brain turn (``fork/brain/turn.py``, ``read_only_turn``).
+* ``routes.py``: ``POST /api/chat/voice/v1/chat/completions``, ``GET …/v1/models``
+  and ``GET …/v1/turns/latest`` for API tokens with the ``voice`` scope; each question is a brain turn (``fork/brain/turn.py``, ``read_only_turn``).
 * ``app_release.py``: the Echo app's releases (``GET …/v1/app/latest``, ``…/app/apk``),
   published by ``scripts/echo_release.py``.
 """

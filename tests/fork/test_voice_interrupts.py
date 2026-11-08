@@ -20,6 +20,7 @@ ASK = {"model": "odysseus", "messages": [{"role": "user", "content": "What did P
 URL = voice_routes.PREFIX + "/chat/completions"
 TURN = voice_routes.PREFIX + "/satellite/turn"
 INTERRUPT = voice_routes.PREFIX + "/satellite/interrupt"
+LATEST = voice_routes.PREFIX + "/turns/latest"
 ECHO = {"device_id": "echo-kitchen", "device_name": "Kitchen Echo", "area": "Kitchen",
         "wake_word": "hey_athena"}
 
@@ -106,14 +107,18 @@ def hub(monkeypatch, data_dir):
     return state
 
 
-async def _post_context(hub, device="echo-kitchen", owner="alice"):
+async def _post_context(hub, device="echo-kitchen", owner="alice") -> str:
     res = await hub.client.post(TURN, data={**ECHO, "device_id": device},
                                 headers={**VOICE, "x-test-owner": owner})
     assert res.status_code == 200
+    return res.json()["context_id"]
 
 
-async def _interrupt(hub, device="echo-kitchen", owner="alice"):
-    res = await hub.client.post(INTERRUPT, data={"device_id": device},
+async def _interrupt(hub, device="echo-kitchen", owner="alice", context_id=None):
+    data = {"device_id": device}
+    if context_id is not None:
+        data["context_id"] = context_id
+    res = await hub.client.post(INTERRUPT, data=data,
                                 headers={**VOICE, "x-test-owner": owner})
     assert res.status_code == 200
     return res.json()
@@ -240,6 +245,92 @@ async def test_an_interrupted_turn_keeps_no_change_waiting_for_a_yes(hub, monkey
     assert ledger.latest_turn("alice")["awaiting_confirmation"] is None
 
 
+# ------------------------------------------------- the context id (POST …/satellite/turn)
+async def _latest(hub, **params):
+    res = await hub.client.get(LATEST, params=params, headers=VOICE)
+    assert res.status_code == 200
+    return res.json()["turn"]
+
+
+async def test_the_latest_turn_by_its_context_id(hub):
+    ctx = await _post_context(hub)
+    ask = asyncio.create_task(_ask(hub))
+    await asyncio.wait_for(hub.started.wait(), 5)
+    assert await _latest(hub, context_id=ctx) is None  # still running
+    hub.model_done.set()
+    await asyncio.wait_for(ask, 5)
+    turn = await _latest(hub, context_id=ctx)
+    assert turn["context_id"] == ctx and turn["answer"] == "Priya said the budget is fine."
+    # the id wins over since (a time after the turn would find none)
+    future = int((ledger.time.time() + 60) * 1000)
+    assert (await _latest(hub, context_id=ctx, since=future))["id"] == turn["id"]
+    assert await _latest(hub, since=future) is None
+    assert (await _latest(hub))["id"] == turn["id"]  # without an id: as before
+    assert await _latest(hub, context_id="0" * 32) is None  # unknown id
+    other = await hub.client.get(LATEST, params={"context_id": ctx},
+                                 headers={**VOICE, "x-test-owner": "bob"})
+    assert other.json() == {"turn": None}  # another owner's context
+
+
+async def test_a_turn_without_a_context_has_no_context_id(hub):
+    hub.model_done.set()
+    await asyncio.wait_for(_ask(hub), 5)
+    assert (await _latest(hub))["context_id"] is None
+
+
+async def test_an_adopted_context_is_stored_on_its_turn(hub):
+    from fork.voice import timings
+
+    ask = asyncio.create_task(_ask(hub))  # Home Assistant asked before the Echo posted
+    await asyncio.wait_for(hub.started.wait(), 5)
+    ctx = await _post_context(hub)
+    hub.model_done.set()
+    await asyncio.wait_for(ask, 5)
+    turn = await _latest(hub, context_id=ctx)
+    assert turn is not None and turn["context_id"] == ctx
+    [row] = timings.rows("alice")
+    assert row["context_id"] == ctx and row["device_id"] == "echo-kitchen"
+    assert row["turn_id"] == turn["id"]
+
+
+async def test_a_barge_in_with_the_context_id_cuts_that_turn(hub):
+    ctx = await _post_context(hub)
+    ask = asyncio.create_task(_ask(hub))
+    await asyncio.wait_for(hub.started.wait(), 5)
+    assert await _interrupt(hub, context_id=ctx) == {"ok": True, "cut": 1, "marked": 0}
+    assert (await asyncio.wait_for(ask, 5)).json()["choices"][0]["message"]["content"] == ""
+
+
+async def test_a_barge_in_naming_an_older_context_leaves_the_running_turn(hub):
+    old = await _post_context(hub)
+    assert await satellite.claim("alice", wait_seconds=0) is not None  # its turn is over
+    await _post_context(hub)
+    ask = asyncio.create_task(_ask(hub))
+    await asyncio.wait_for(hub.started.wait(), 5)
+    # same device, but the id names the earlier context: not device-wide
+    assert await _interrupt(hub, context_id=old) == {"ok": True, "cut": 0, "marked": 0}
+    hub.model_done.set()
+    res = await asyncio.wait_for(ask, 5)
+    assert res.json()["choices"][0]["message"]["content"] == "Priya said the budget is fine."
+
+
+async def test_a_barge_in_with_an_unknown_context_id_works_by_device(hub):
+    await _post_context(hub)
+    ask = asyncio.create_task(_ask(hub))
+    await asyncio.wait_for(hub.started.wait(), 5)
+    assert await _interrupt(hub, context_id="0" * 32) == {"ok": True, "cut": 1, "marked": 0}
+    assert (await asyncio.wait_for(ask, 5)).json()["choices"][0]["message"]["content"] == ""
+
+
+async def test_a_barge_in_with_the_id_before_ha_asked_marks_that_context(hub):
+    ctx = await _post_context(hub)
+    assert await _interrupt(hub, context_id=ctx) == {"ok": True, "cut": 0, "marked": 1}
+    res = await asyncio.wait_for(_ask(hub), 5)
+    assert res.json()["choices"][0]["message"]["content"] == ""
+    assert hub.turns == 0
+    assert (await _latest(hub, context_id=ctx))["answer"] == ""
+
+
 # ------------------------------------------------------------------- the route
 async def test_the_interrupt_route_needs_a_voice_token_and_a_device(hub):
     res = await hub.client.post(INTERRUPT, data={"device_id": "echo-kitchen"})
@@ -252,6 +343,9 @@ async def test_the_interrupt_route_needs_a_voice_token_and_a_device(hub):
     res = await hub.client.post(INTERRUPT, json={"device_id": "echo-kitchen"}, headers=VOICE)
     assert res.status_code == 415
     res = await hub.client.post(INTERRUPT, data={"device_id": "x" * 200}, headers=VOICE)
+    assert res.status_code == 422
+    res = await hub.client.post(INTERRUPT, data={"device_id": "echo-kitchen",
+                                                 "context_id": "x" * 200}, headers=VOICE)
     assert res.status_code == 422
 
 
@@ -306,3 +400,24 @@ async def test_a_marked_context_is_claimed_as_interrupted():
     satellite.register("alice", device_id="echo-kitchen")
     ctx = await satellite.claim("alice")
     assert ctx.interrupted is False
+
+
+def test_an_old_ledger_without_the_context_column_still_works(data_dir):
+    import sqlite3
+
+    from fork.common import sqlite as common_sqlite
+
+    old = ledger.SCHEMA  # the columns added later are not in it
+    path = ledger.db_path()
+    path.parent.mkdir(parents=True, exist_ok=True)
+    with sqlite3.connect(path) as raw:
+        raw.executescript(old)
+        raw.execute("INSERT INTO turns (id, owner, started_at, ended_at, question, answer)"
+                    " VALUES ('t0', 'alice', ?, ?, 'Old question', 'Old answer')",
+                    (ledger.time.time(), ledger.time.time()))
+    common_sqlite._ready.clear()  # as after an upgrade: a new process opens the old file
+    turn = ledger.latest_turn("alice")
+    assert turn["id"] == "t0" and turn["context_id"] is None
+    new = ledger.start_turn("alice", "New question", context_id="ctx-1")
+    ledger.finish_turn(new, answer="New answer")
+    assert ledger.latest_turn("alice", context_id="ctx-1")["id"] == new

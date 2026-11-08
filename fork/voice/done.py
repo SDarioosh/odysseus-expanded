@@ -50,12 +50,14 @@ import threading
 import time
 import uuid
 from collections.abc import Iterator
-from contextlib import contextmanager
+from contextlib import AbstractContextManager, contextmanager
 from typing import Any
 
 from fastapi import APIRouter, Request
 from fastapi.responses import JSONResponse
 
+from fork.common import sqlite as common_sqlite
+from fork.common.owner import owner_key as _owner
 from fork.voice import ledger
 
 logger = logging.getLogger(__name__)
@@ -107,31 +109,8 @@ MAX_TITLE_IN = 2000
 
 
 # ------------------------------------------------------------------- device dones
-@contextmanager
-def _connect(write: bool = False) -> Iterator[sqlite3.Connection]:
-    path = ledger.db_path()
-    path.parent.mkdir(parents=True, exist_ok=True)
-    db = sqlite3.connect(str(path), timeout=30, isolation_level=None)
-    db.row_factory = sqlite3.Row
-    try:
-        db.execute("PRAGMA journal_mode = WAL")
-        db.executescript(SCHEMA)
-        if write:
-            db.execute("BEGIN IMMEDIATE")
-        try:
-            yield db
-        except BaseException:
-            if write:
-                db.execute("ROLLBACK")
-            raise
-        if write:
-            db.execute("COMMIT")
-    finally:
-        db.close()
-
-
-def _owner(owner: Any) -> str:
-    return str(owner or "").strip().casefold()
+def _connect(write: bool = False) -> AbstractContextManager[sqlite3.Connection]:
+    return common_sqlite.connect(ledger.db_path(), SCHEMA, write)
 
 
 def remember(owner: Any, target: str, device_id: str, *, action_id: str | None,

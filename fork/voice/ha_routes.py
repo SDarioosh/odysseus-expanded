@@ -45,6 +45,7 @@ from fastapi.responses import HTMLResponse, JSONResponse
 from pydantic import BaseModel
 
 from fork.voice import ha_setup
+from fork.voice.admin import signed_in_admin
 
 logger = logging.getLogger(__name__)
 
@@ -116,17 +117,7 @@ _TASKS: set[asyncio.Task] = set()
 
 # ----------------------------------------------------------------------------- checks
 def _admin_owner(request: Request) -> str:
-    from core.middleware import require_admin
-    from src.agent_runtime.authority import is_internal_tool_request
-    from src.auth_helpers import get_current_user
-
-    if getattr(request.state, "api_token", False) or is_internal_tool_request(request):
-        raise HTTPException(403, "Only a signed-in admin can set up Home Assistant.")
-    require_admin(request)
-    owner = get_current_user(request)
-    if not owner:
-        raise HTTPException(403, "Not signed in")
-    return str(owner)
+    return signed_in_admin(request, "Only a signed-in admin can set up Home Assistant.")
 
 
 def browser_origin(request: Request) -> str:

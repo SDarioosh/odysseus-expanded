@@ -3,7 +3,7 @@
 ``POST /api/chat/voice/v1/chat/completions`` and ``GET /api/chat/voice/v1/models``
 (:data:`PREFIX` is the OpenAI base URL a client is given), OpenAI's shapes
 (``fork/voice/openai_api.py``), for a Home Assistant conversation agent, and the device
-screen's feeds ``GET …/actions`` and ``GET …/turns/latest`` (``fork/voice/ledger.py``),
+screen's feed ``GET …/turns/latest`` (``fork/voice/ledger.py``),
 and ``GET …/today``, the day at a glance (``fork/voice/today_route.py``), and the Done
 buttons' ``POST …/todos/done`` and the rest (``fork/voice/done.py``).
 Only an API token with the ``voice`` scope may call them (a browser login may not: these
@@ -188,8 +188,12 @@ def _last_answer(sess: Any) -> str:
 
 
 def _timing_start(owner: str, turn_id: str, ctx: Any, timer: Any) -> str | None:
+    # the context may have been adopted since the turn started (fork/voice/interrupts.py)
+    device_id, context_id = interrupts.context_of(turn_id)
     try:
-        return timings.save_hub(owner, turn_id, getattr(ctx, "device_id", None), timer)
+        return timings.save_hub(owner, turn_id,
+                                device_id or getattr(ctx, "device_id", None), timer,
+                                context_id=context_id or getattr(ctx, "context_id", None))
     except Exception:  # noqa: BLE001 -- timing never breaks a turn
         logger.warning("voice: saving the turn's timing failed", exc_info=True)
         return None
@@ -224,15 +228,10 @@ def setup_voice_routes() -> APIRouter:
         from datetime import date
 
         from fork.athena.phone_pairing import create_api_token
-        from src.auth_helpers import get_current_user
+        from fork.voice.admin import signed_in_admin
 
-        from src.agent_runtime.authority import is_internal_tool_request
-
-        if is_internal_tool_request(request) or getattr(request.state, "api_token", False):
-            raise HTTPException(403, "Only a signed-in admin can make a voice token")
-        owner = get_current_user(request)
-        if not owner:
-            raise HTTPException(403, "Not signed in")
+        owner = signed_in_admin(request, "Only a signed-in admin can make a voice token",
+                                admin_checked=True)  # Depends(require_admin) above
         token = create_api_token(owner, f"{TOKEN_NAME} {date.today().isoformat()}", [SCOPE])
         invalidate = getattr(request.app.state, "invalidate_token_cache", None)
         if callable(invalidate):
@@ -245,15 +244,12 @@ def setup_voice_routes() -> APIRouter:
         voice_owner(request)
         return openai_api.models_body()
 
-    @router.get(PREFIX + "/actions")
-    def list_actions(request: Request, since: int = 0, limit: int = ledger.DEFAULT_LIMIT) -> Any:
-        owner = voice_owner(request)
-        return {"actions": ledger.actions(owner, since_ms=since, limit=limit)}
-
     @router.get(PREFIX + "/turns/latest")
-    def latest_turn(request: Request, since: int = 0) -> Any:
+    def latest_turn(request: Request, since: int = 0, context_id: str = "") -> Any:
         owner = voice_owner(request)
-        return {"turn": ledger.latest_turn(owner, since_ms=since)}
+        # context_id (what POST …/satellite/turn answered) wins over since
+        return {"turn": ledger.latest_turn(owner, since_ms=since,
+                                           context_id=context_id.strip()[:64] or None)}
 
     @router.post(PREFIX + "/chat/completions")
     async def chat_completions(request: Request) -> Any:
@@ -291,9 +287,11 @@ def setup_voice_routes() -> APIRouter:
         personal = personal_allowed(module, ctx)
         session_id = str(sess.id)
         turn_id = ledger.start_turn(owner, question.text, session_id=session_id,
-                                    device=device_of(ctx), speaker=speaker_of(ctx))
+                                    device=device_of(ctx), speaker=speaker_of(ctx),
+                                    context_id=getattr(ctx, "context_id", None))
         # A barge-in on the asking device cuts this turn short (fork/voice/interrupts.py).
-        stop = interrupts.start(turn_id, owner, getattr(ctx, "device_id", None))
+        stop = interrupts.start(turn_id, owner, getattr(ctx, "device_id", None),
+                                getattr(ctx, "context_id", None))
         if getattr(ctx, "interrupted", False):
             stop.set()  # the device was interrupted before Home Assistant asked
         if stop.is_set():

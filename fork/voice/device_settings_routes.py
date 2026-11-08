@@ -20,35 +20,18 @@ from fastapi import APIRouter, HTTPException, Request
 from fastapi.responses import JSONResponse
 
 from fork.voice import device_settings, devices
+from fork.voice.admin import signed_in_admin
 from fork.voice.routes import PREFIX, voice_owner
+from fork.voice.satellite_routes import device_id_param as _device_id
 
 ADMIN_BASE = "/api/fork/voice/devices"
 MAX_BODY_BYTES = 4 * 1024
 NO_STORE = {"Cache-Control": "no-store"}
 
 
-def _device_id(raw: str) -> str:
-    device_id = " ".join(str(raw or "").split())
-    if not device_id:
-        raise HTTPException(422, "device_id is required")
-    if len(device_id) > devices.FIELD_LIMITS["device_id"]:
-        raise HTTPException(422, "device_id is too long")
-    return device_id
-
-
 def _admin_owner(request: Request) -> str:
     """The signed-in admin (a browser session; API tokens and tool loopback refused)."""
-    from core.middleware import require_admin
-    from src.agent_runtime.authority import is_internal_tool_request
-    from src.auth_helpers import get_current_user
-
-    if getattr(request.state, "api_token", False) or is_internal_tool_request(request):
-        raise HTTPException(403, "Only a signed-in admin can change device settings")
-    require_admin(request)
-    owner = get_current_user(request)
-    if not owner:
-        raise HTTPException(403, "Not signed in")
-    return str(owner)
+    return signed_in_admin(request, "Only a signed-in admin can change device settings")
 
 
 def device_list(owner: str) -> dict[str, Any]:

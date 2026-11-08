@@ -10,8 +10,10 @@ Two clocks measure one turn, and each keeps its own durations, so no step mixes 
   started and stopped, transcript, speech output asked for, first audio, done), so it
   sees Home Assistant's speech-to-text and text-to-speech.
 
-Both land in one row per turn in ``<DATA_DIR>/fork_voice_timings.db``, joined by device
-and time (:func:`save_device`). Rows hold numbers, the device id and tool names only:
+Both land in one row per turn in ``<DATA_DIR>/fork_voice_timings.db``, joined by the
+satellite context id the turn claimed and the device reports (:func:`save_device`), or,
+for a report without one, by device and time. Rows hold numbers, the device and context
+ids and tool names only:
 never the question, the answer or audio. Kept :data:`KEEP_DAYS` days.
 ``scripts/voice_timings.py`` prints them, step by step.
 """
@@ -23,10 +25,13 @@ import sqlite3
 import statistics
 import time
 import uuid
-from collections.abc import AsyncIterator, Iterator
-from contextlib import contextmanager
+from collections.abc import AsyncIterator
+from contextlib import AbstractContextManager
 from pathlib import Path
 from typing import Any
+
+from fork.common import sqlite as common_sqlite
+from fork.common.owner import owner_key as _owner
 
 logger = logging.getLogger(__name__)
 
@@ -56,6 +61,10 @@ CREATE TABLE IF NOT EXISTS timings (
 );
 CREATE INDEX IF NOT EXISTS timings_owner_at ON timings (owner, at);
 """
+# Added after the first schema (fork/common/sqlite.py adds it to an older file): the
+# satellite context of the turn (fork/voice/satellite.py), the device report's exact key.
+COLUMNS = (("timings", "context_id", "TEXT"),)
+MAX_CONTEXT_ID = 64
 
 
 def db_path() -> Path:
@@ -64,31 +73,9 @@ def db_path() -> Path:
     return Path(DATA_DIR) / DB_NAME
 
 
-@contextmanager
-def _connect(path: Path | None = None, write: bool = False) -> Iterator[sqlite3.Connection]:
-    path = path or db_path()
-    path.parent.mkdir(parents=True, exist_ok=True)
-    db = sqlite3.connect(str(path), timeout=30, isolation_level=None)
-    db.row_factory = sqlite3.Row
-    try:
-        db.execute("PRAGMA journal_mode = WAL")
-        db.executescript(SCHEMA)
-        if write:
-            db.execute("BEGIN IMMEDIATE")
-        try:
-            yield db
-        except BaseException:
-            if write:
-                db.execute("ROLLBACK")
-            raise
-        if write:
-            db.execute("COMMIT")
-    finally:
-        db.close()
-
-
-def _owner(owner: Any) -> str:
-    return str(owner or "").strip().casefold()
+def _connect(path: Path | None = None,
+             write: bool = False) -> AbstractContextManager[sqlite3.Connection]:
+    return common_sqlite.connect(path or db_path(), SCHEMA, write, columns=COLUMNS)
 
 
 def _prune(db: sqlite3.Connection, now: float) -> None:
@@ -194,18 +181,27 @@ async def first_spoken(out: AsyncIterator[str], timer: HubTimer,
 
 
 def save_hub(owner: Any, turn_id: str | None, device_id: str | None, timer: HubTimer,
-             *, path: Path | None = None) -> str:
+             *, context_id: str | None = None, path: Path | None = None) -> str:
     """The hub's half of a turn's row, written when the turn starts (so a device report
     that arrives first still finds it); returns the row id for :func:`update_hub`."""
     row_id = uuid.uuid4().hex
     now = time.time()
     with _connect(path, write=True) as db:
         _prune(db, now)
-        db.execute("INSERT INTO timings (id, owner, at, turn_id, device_id, hub)"
-                   " VALUES (?, ?, ?, ?, ?, ?)",
+        db.execute("INSERT INTO timings (id, owner, at, turn_id, device_id, hub, context_id)"
+                   " VALUES (?, ?, ?, ?, ?, ?, ?)",
                    (row_id, _owner(owner), timer.received, turn_id, device_id or None,
-                    json.dumps(timer.as_json())))
+                    json.dumps(timer.as_json()), context_id or None))
     return row_id
+
+
+def set_context(turn_id: str, device_id: str, context_id: str, *,
+                path: Path | None = None) -> None:
+    """The satellite context posted after the turn started (fork/voice/interrupts.py
+    ``adopt``) is this turn's: its row gets the device and context ids."""
+    with _connect(path, write=True) as db:
+        db.execute("UPDATE timings SET device_id = ?, context_id = ? WHERE turn_id = ?",
+                   (device_id or None, context_id, turn_id))
 
 
 def update_hub(row_id: str, timer: HubTimer, *, path: Path | None = None) -> None:
@@ -222,7 +218,8 @@ class BadReport(ValueError):
 
 def clean_device(body: Any) -> dict:
     """The device's report, checked: ``{"device_id", "started_at" (epoch ms of the wake
-    word), "marks": {stage: ms after it}, "flags": {name: bool}, "start_mode"?}``."""
+    word), "marks": {stage: ms after it}, "flags": {name: bool}, "start_mode"?,
+    "context_id"?}`` (the id ``POST …/satellite/turn`` answered; empty means none)."""
     if not isinstance(body, dict):
         raise BadReport("The body must be a JSON object.")
     device_id = body.get("device_id")
@@ -247,33 +244,51 @@ def clean_device(body: Any) -> dict:
     flags = {name: bool(flags_raw.get(name)) for name in DEVICE_FLAGS if name in flags_raw}
     mode = body.get("start_mode")
     mode = mode[:32] if isinstance(mode, str) else None
+    context_id = body.get("context_id")
+    if context_id is not None and (not isinstance(context_id, str)
+                                   or len(context_id) > MAX_CONTEXT_ID):
+        raise BadReport(f"context_id must be text (at most {MAX_CONTEXT_ID} characters).")
     return {"device_id": device_id.strip(), "started_at": started, "marks": marks,
-            "flags": flags, "start_mode": mode}
+            "flags": flags, "start_mode": mode, "context_id": (context_id or "").strip() or None}
 
 
 def save_device(owner: Any, report: dict, *, path: Path | None = None) -> str | None:
-    """Joins a device report to the hub row of its turn: same owner, the same device (or
-    a hub row that knows no device), the hub's request between the wake word and the
-    device's end. Without one (Home Assistant answered the command itself, or the hub
-    never saw the turn) the report gets a row of its own. Returns the joined turn id."""
+    """Joins a device report to the hub row of its turn: with the report's
+    ``context_id``, the row of the turn that claimed that context. Without one, or when
+    no turn claimed it, by window: same owner, the same device (or a hub row that knows
+    no device), the hub's request between the wake word and the device's end (a row of
+    another context is left to its own report). With neither (Home Assistant answered the
+    command itself, or the hub never saw the turn) the report gets a row of its own.
+    Returns the joined turn id."""
     owner = _owner(owner)
     wake = report["started_at"] / 1000.0
     end = wake + max(report["marks"].values(), default=0) / 1000.0
+    context_id = report.get("context_id") or None
     device = json.dumps({k: report[k] for k in ("started_at", "marks", "flags", "start_mode")})
     with _connect(path, write=True) as db:
         _prune(db, time.time())
-        row = db.execute(
-            "SELECT id, turn_id FROM timings WHERE owner = ? AND device IS NULL AND hub IS NOT NULL"
-            " AND (device_id = ? OR device_id IS NULL) AND at BETWEEN ? AND ?"
-            " ORDER BY (device_id IS NULL), ABS(at - ?) LIMIT 1",
-            (owner, report["device_id"], wake - MATCH_SLACK_SECONDS, end + MATCH_SLACK_SECONDS,
-             wake)).fetchone()
+        row = None
+        if context_id:
+            row = db.execute(
+                "SELECT id, turn_id FROM timings WHERE owner = ? AND context_id = ?"
+                " AND device IS NULL AND hub IS NOT NULL ORDER BY at DESC LIMIT 1",
+                (owner, context_id)).fetchone()
+        if row is None:
+            row = db.execute(
+                "SELECT id, turn_id FROM timings WHERE owner = ? AND device IS NULL"
+                " AND hub IS NOT NULL AND (device_id = ? OR device_id IS NULL)"
+                " AND (? IS NULL OR context_id IS NULL) AND at BETWEEN ? AND ?"
+                " ORDER BY (device_id IS NULL), ABS(at - ?) LIMIT 1",
+                (owner, report["device_id"], context_id, wake - MATCH_SLACK_SECONDS,
+                 end + MATCH_SLACK_SECONDS, wake)).fetchone()
         if row is not None:
-            db.execute("UPDATE timings SET device = ?, device_id = ? WHERE id = ?",
-                       (device, report["device_id"], row["id"]))
+            db.execute("UPDATE timings SET device = ?, device_id = ?,"
+                       " context_id = COALESCE(context_id, ?) WHERE id = ?",
+                       (device, report["device_id"], context_id, row["id"]))
             return row["turn_id"]
-        db.execute("INSERT INTO timings (id, owner, at, device_id, device) VALUES (?, ?, ?, ?, ?)",
-                   (uuid.uuid4().hex, owner, wake, report["device_id"], device))
+        db.execute("INSERT INTO timings (id, owner, at, device_id, device, context_id)"
+                   " VALUES (?, ?, ?, ?, ?, ?)",
+                   (uuid.uuid4().hex, owner, wake, report["device_id"], device, context_id))
     return None
 
 
@@ -336,7 +351,7 @@ def rows(owner: Any | None = None, *, since: float = 0.0, path: Path | None = No
     out = []
     for r in found:
         out.append({"id": r["id"], "owner": r["owner"], "at": r["at"], "turn_id": r["turn_id"],
-                    "device_id": r["device_id"],
+                    "device_id": r["device_id"], "context_id": r["context_id"],
                     "hub": json.loads(r["hub"]) if r["hub"] else None,
                     "device": json.loads(r["device"]) if r["device"] else None})
     return out

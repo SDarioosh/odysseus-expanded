@@ -15,10 +15,12 @@ from __future__ import annotations
 import re
 import sqlite3
 import time
-from collections.abc import Iterator
-from contextlib import contextmanager
+from contextlib import AbstractContextManager
 from dataclasses import dataclass
 from typing import Any
+
+from fork.common import sqlite as common_sqlite
+from fork.common.owner import owner_key
 
 KEEP_DAYS = 90
 MAX_DEVICES = 64  # per owner: the oldest are dropped
@@ -52,33 +54,10 @@ class Device:
                 "last_seen": int(self.last_seen * 1000)}
 
 
-@contextmanager
-def _connect(write: bool = False) -> Iterator[sqlite3.Connection]:
+def _connect(write: bool = False) -> AbstractContextManager[sqlite3.Connection]:
     from fork.voice.ledger import db_path
 
-    path = db_path()
-    path.parent.mkdir(parents=True, exist_ok=True)
-    db = sqlite3.connect(str(path), timeout=30, isolation_level=None)
-    db.row_factory = sqlite3.Row
-    try:
-        db.execute("PRAGMA journal_mode = WAL")
-        db.executescript(SCHEMA)
-        if write:
-            db.execute("BEGIN IMMEDIATE")
-        try:
-            yield db
-        except BaseException:
-            if write:
-                db.execute("ROLLBACK")
-            raise
-        if write:
-            db.execute("COMMIT")
-    finally:
-        db.close()
-
-
-def owner_key(owner: Any) -> str:
-    return str(owner or "").strip().casefold()
+    return common_sqlite.connect(db_path(), SCHEMA, write)
 
 
 def clean(value: Any, limit: int) -> str:

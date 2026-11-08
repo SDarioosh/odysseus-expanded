@@ -34,8 +34,8 @@ Nothing leaves the owner's network: every stage is local, and Home Assistant Clo
   item marked done: the model's call is kept, Odysseus asks "Add Dentist on Tuesday at
   three to your calendar?", and only "yes" runs it. Everything else that writes is
   refused; email is never run.
-- **The device's screen sees what a turn did:** `GET …/actions` and
-  `GET …/turns/latest` (the turn ledger).
+- **The device's screen sees what a turn did:** `GET …/turns/latest` (the turn
+  ledger).
 - **Done from the device's screen:** a tap ticks a to-do, finishes a reminder or marks an
   Athena action item done, without a spoken "yes" ([Done from a
   device](#done-from-a-device)).
@@ -58,8 +58,10 @@ for chat streams, and a voice answer can take longer (minutes on the sandbox's C
 |---|---|---|
 | `POST /api/chat/voice/v1/chat/completions` | API token with the `voice` scope | one voice question; OpenAI's chat-completion request and response, `stream: true` supported |
 | `GET /api/chat/voice/v1/models` | the same | `{"data": [{"id": "odysseus", …}]}`, for clients that list models when set up |
-| `GET /api/chat/voice/v1/actions?since=<ms>&limit=<n>` | the same | the changes voice made (below) |
-| `GET /api/chat/voice/v1/turns/latest?since=<ms>` | the same | the newest finished voice turn (below) |
+| `GET /api/chat/voice/v1/turns/latest?since=<ms>` or `?context_id=<id>` | the same | the newest finished voice turn, or the one that served that satellite context ([Turns and actions](#turns-and-actions-the-screens-feed)) |
+| `POST /api/chat/voice/v1/satellite/turn` | the same | the satellite context of the next turn; answers its `context_id` ([Satellite context](#satellite-context)) |
+| `POST /api/chat/voice/v1/satellite/interrupt` | the same | a barge-in: cuts that context's (or device's) running turn ([Barge-in](#barge-in)) |
+| `POST /api/chat/voice/v1/satellite/timing` | the same | the Echo's stage times of a turn, joined to the hub's by `context_id` ([Timings](#timings)) |
 | `GET /api/chat/voice/v1/today` | the same | the owner's day at a glance for a device screen: insight headline and focus, today's events, due to-dos, Athena's open action items ([Today for devices](#today-for-devices)) |
 | `GET /api/chat/voice/v1/app/latest` | the same | the Echo app's release on offer, or 404 ([App updates](#app-updates)) |
 | `GET /api/chat/voice/v1/app/apk` | the same | that release's APK ([App updates](#app-updates)) |
@@ -230,36 +232,37 @@ with the question. A test checks that a voice turn's messages before the context
 and its tools equal a chat turn's. Assumption: the browser's documents toggle is on (a
 chat with it off is offered no `search_documents`).
 
-## Turns and actions (the screen's feeds)
+## Turns and actions (the screen's feed)
 
 `fork/voice/ledger.py`: one record per voice turn in `<DATA_DIR>/fork_voice.db`
 (SQLite), deleted after 7 days, owner-scoped. It is the one place a voice turn's facts
 live; later features add to it.
 
-`GET …/actions?since=<epoch ms>&limit=<n>` (newest first, default 8, at most 50):
-
-```json
-{"actions": [{"id": "…", "at": "2026-11-03T19:52:10+00:00", "action": "created",
-  "kind": "event", "title": "Dentist", "detail": null, "due": "2026-11-10T15:00:00-05:00",
-  "all_day": false, "where": "Calendar", "source": "odysseus", "turn_id": "…"}]}
-```
-
-`kind` is `todo`, `reminder`, `list_item`, `note`, `event` or `action_item`; `action`
-`created` or `completed`; `source` `odysseus` or `athena`, or `device` for a Done tapped
-on a device's screen (then `turn_id` is `device:<device id>`: no voice turn made it;
-[Done from a device](#done-from-a-device)).
-
 `GET …/turns/latest?since=<epoch ms>`: the newest finished turn started at or after
-`since`, else `{"turn": null}`:
+`since`, else `{"turn": null}`. `GET …/turns/latest?context_id=<id>` (the id `POST
+…/satellite/turn` answered): the finished turn that served that satellite context, else
+`{"turn": null}` (it is still running, or no turn claimed it, or the id is unknown or
+another owner's); when both are given, `context_id` wins:
 
 ```json
 {"turn": {"id": "…", "started_at": "…", "ended_at": "…", "question": "…",
   "answer": "the spoken text", "links": [{"url": "https://…", "label": null}],
-  "actions": [], "awaiting_confirmation": "Add Dentist to your calendar?",
+  "actions": [{"id": "…", "at": "2026-11-03T19:52:10+00:00", "action": "created",
+    "kind": "event", "title": "Dentist", "detail": null, "due": "2026-11-10T15:00:00-05:00",
+    "all_day": false, "where": "Calendar", "source": "odysseus", "turn_id": "…"}],
+  "awaiting_confirmation": null,
   "device": {"id": "…", "name": "Kitchen Echo", "area": "Kitchen"},
   "speaker": {"verified": true, "is_owner": true, "name": "Sam"},
-  "session_id": "<the chat's id>"}}
+  "session_id": "<the chat's id>", "context_id": "<the satellite context's id> | null"}}
 ```
+
+`actions` are the changes the turn made, newest first: `kind` is `todo`, `reminder`,
+`list_item`, `note`, `event` or `action_item`; `action` `created` or `completed`;
+`source` `odysseus` or `athena`. A Done tapped on a device's screen is kept in the ledger
+too (`source` `device`, `turn_id` `device:<device id>`: no voice turn made it, so no
+turn shows it; [Done from a device](#done-from-a-device)). The older
+`GET …/actions` feed (every action, newest first) is gone (2026-11): the Echo reads
+`/turns/latest`.
 
 `device` and `speaker` come from the satellite's context (`POST …/satellite/turn`,
 `fork/voice/satellite.py`), claimed at the start of each question; both are null without
@@ -327,7 +330,7 @@ POST …/action-items/undo  {"id": "17", "device_id": "…"}         -> {"ok": t
   done answers 200 with `"already": true` and changes nothing.
 - **Recorded:** each change is a `completed` action in the turn ledger (`kind` `todo`,
   `reminder` or `action_item`; `where` the list's title, `To-dos` or `Athena`; `source`
-  `device`; `turn_id` `device:<device id>`), so `GET …/actions` shows it.
+  `device`; `turn_id` `device:<device id>`), which the undo removes again.
 - **Undo:** `todos/undo` and `action-items/undo` reopen what a device closed within 10
   minutes of its done (any device of the same owner), and remove that ledger action. A
   to-do line that moved since is found by its text. Later, or for something a device
@@ -575,10 +578,15 @@ The request needs a `Content-Length` (411 without, 413 above ~1.06 MB), so an ov
 upload is refused before it is read. Answer: `{"ok": true, "context_id": "…",
 "speaker": {"verified", "is_owner", "name", "score"} | null}`; `speaker` is null without
 audio, when Athena couldn't check, or while the check still runs (the route waits at most
-0.5 s for it).
+0.5 s for it). `context_id` names this turn from then on: the Echo sends it back with
+`GET …/turns/latest`, `POST …/satellite/interrupt` and `POST …/satellite/timing`, and the
+hub stores it on the turn (ledger `turns.context_id`) and on its timing row, so those
+three find the turn exactly. Each of them still works without it (the Echo sends none
+when this post failed), by time or device as before.
 
 The hub keeps the context **in memory** for 30 s, per token owner (at most 8 per owner, 64
-owners). The voice turn takes it with `claim(owner, wait_seconds=3.0)`: the newest
+owners). Home Assistant's request doesn't carry the device, so the voice turn still finds
+its context by time, with `claim(owner, wait_seconds=3.0)`: the newest
 unclaimed context of that owner posted in the last 10 s (`CLAIM_SECONDS`), each claimed
 once; the owner's older unclaimed contexts are dropped then (they belong to turns Home
 Assistant answered itself), so their speaker never counts for a later turn. If the speaker
@@ -612,17 +620,22 @@ device went quiet instead of taking the new question.
 So on a barge-in the Echo also posts:
 
 `POST /api/chat/voice/v1/satellite/interrupt` (the `voice` token), a form with
-`device_id` (the id it posts with `/satellite/turn`). The hub cuts that device's running
-voice turn short: the turn and its model call stop (the new question doesn't queue behind
+`device_id` (required, the id it posts with `/satellite/turn`) and optional `context_id`
+(at most 64 characters, what `/satellite/turn` answered). The hub cuts that context's
+running voice turn short (without an id, the device's): the turn and its model call stop (the new question doesn't queue behind
 it on the model server), and Home Assistant gets what was already said, usually nothing
 (no apology), which it doesn't speak; it ends the run within about a second. Answer:
 `{"ok": true, "cut": <turns cut>, "marked": <contexts marked>}`.
 
-- **Which turn:** the one whose satellite context came from that device. The Echo posts
-  the context in the background, so Home Assistant's question can arrive first: a context
-  posted within 3 s (`ADOPT_SECONDS`) after a turn without one started belongs to that
-  turn. When Home Assistant hasn't asked yet, the device's waiting context is marked and
-  the turn that claims it answers empty at once. A turn without a context (another
+- **Which turn:** with `context_id`, the turn running with that context; when Home
+  Assistant hasn't asked yet, that context is marked and the turn that claims it answers
+  empty at once; when a turn already took it and ended, nothing is cut (`cut: 0, marked:
+  0`), even if another turn of the device runs. Without `context_id`, or with one the hub
+  doesn't know (it restarted, the context expired), by device as before: every running
+  turn whose context came from that device, else the device's contexts nobody claimed.
+  The Echo posts the context in the background, so Home Assistant's question can arrive
+  first: a context posted within 3 s (`ADOPT_SECONDS`) after a turn without one started
+  belongs to that turn (and its id is stored on it). A turn without a context (another
   satellite, Home Assistant's text Assist) is never cut.
 - **The cut turn:** the ledger keeps the question with the answer said so far (usually
   empty); a change it kept for a "yes" is dropped (nobody heard the question).
@@ -945,12 +958,19 @@ when Home Assistant speaks a streamed answer as it comes) is Home Assistant's ow
   "started_at" (epoch ms of the wake word), "marks": {"started", "listening",
   "voice_started", "voice_stopped", "awaiting_response", "awaiting_tts", "starting_tts",
   "streaming_tts", "completed_tts", "ended": ms after the wake word}, "flags":
-  {"thinking_sound", "barge_in", "voice_check"}, "start_mode"}` (any mark may be missing).
-  It joins the turn of the same device whose request came between the wake word and the
-  Echo's end (10 s slack); a command Home Assistant answered itself gets a row of its own,
-  with the Echo's times only.
-- Stored in `<DATA_DIR>/fork_voice_timings.db`, 90 days: numbers, the device id and tool
-  names only, never the question, the answer or audio.
+  {"thinking_sound", "barge_in", "voice_check"}, "start_mode", "context_id"}` (any mark
+  may be missing; `context_id` is optional, at most 64 characters: what `POST
+  …/satellite/turn` answered). With `context_id` it joins the turn that claimed that
+  context, exactly (whatever the two clocks say). Without one (`/satellite/turn` failed,
+  an older Echo), or when no turn claimed it, it joins the turn of the same device (or of
+  no known device) whose request came between the wake word and the Echo's end (10 s
+  slack, `MATCH_SLACK_SECONDS`), skipping turns of another context when the report has
+  an id; a command Home Assistant answered itself gets a row of its own, with the Echo's
+  times only. Answer: `{"ok": true, "turn_id": <the joined turn> | null}`.
+- Stored in `<DATA_DIR>/fork_voice_timings.db`, 90 days: numbers, the device and context
+  ids and tool names only, never the question, the answer or audio. The `context_id`
+  column (like the ledger's) is added to an older file when the hub first opens it
+  (`fork/common/sqlite.py`, `columns`).
 - **Read them:** `python scripts/voice_timings.py` (last 7 days; `--days 1`, `--last 10`
   for the newest turns one by one, `--csv timings.csv` for a spreadsheet), or
   `GET /api/fork/voice/timings?days=7` signed in as admin (JSON).

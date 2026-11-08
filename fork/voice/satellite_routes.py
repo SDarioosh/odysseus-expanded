@@ -8,10 +8,11 @@
   ``{"ok": true, "context_id", "speaker"}`` (``speaker`` null while the check still runs,
   without audio, or when Athena couldn't check). The audio is never stored or logged.
 * ``POST /api/chat/voice/v1/satellite/interrupt`` (the same token), a form with
-  ``device_id``: the device's wake word interrupted its turn (a barge-in). The hub cuts
-  that device's running voice turn short, so Home Assistant ends its run at once
-  (``fork/voice/interrupts.py``); answers ``{"ok": true, "cut": <running turns cut>,
-  "marked": <contexts marked before HA asked>}``.
+  ``device_id`` and optional ``context_id`` (what ``…/satellite/turn`` answered): the
+  device's wake word interrupted its turn (a barge-in). The hub cuts that context's
+  running voice turn short (without an id, or one it doesn't know, the device's), so
+  Home Assistant ends its run at once (``fork/voice/interrupts.py``); answers ``{"ok":
+  true, "cut": <running turns cut>, "marked": <contexts marked before HA asked>}``.
 * ``POST /api/chat/voice/v1/satellite/hello`` (the same token), a form with ``device_id``
   (required), ``device_name``, ``area``, ``app_version_code``: the device says who and
   where it is, at start and hourly (``fork/voice/devices.py``; a turn records the same).
@@ -50,7 +51,7 @@ MAX_BODY_BYTES = MAX_AUDIO_BYTES + 64 * 1024  # the form fields and multipart fr
 MAX_INTERRUPT_BYTES = 4 * 1024
 RESPONSE_WAIT_SECONDS = 0.5  # a quick check is answered in the response itself
 FIELD_LIMITS = {"device_id": 128, "device_name": 100, "area": 100, "wake_word": 64,
-                "app_version_code": 12}
+                "app_version_code": 12, "context_id": 64}
 MAX_HELLO_BYTES = 4 * 1024
 TEST_MESSAGE = "This is a test announcement from Odysseus."
 
@@ -74,6 +75,35 @@ def _text(form: Any, name: str, *, required: bool = False) -> str:
     if len(value) > FIELD_LIMITS[name]:
         raise HTTPException(422, f"{name} is too long (at most {FIELD_LIMITS[name]} characters)")
     return value
+
+
+def device_id_param(raw: str) -> str:
+    """A ``device_id`` query or path parameter, whitespace collapsed (422 when empty or
+    longer than :data:`FIELD_LIMITS`)."""
+    device_id = " ".join(str(raw or "").split())
+    if not device_id:
+        raise HTTPException(422, "device_id is required")
+    if len(device_id) > FIELD_LIMITS["device_id"]:
+        raise HTTPException(422, "device_id is too long")
+    return device_id
+
+
+def _check_form(request: Request, max_bytes: int, *, need_length: bool = False,
+                wrong_kind: str = "Send a form") -> None:
+    """A form post's headers: Content-Length (411 without it when ``need_length``, 400
+    when not a number, 413 over ``max_bytes``) and a form Content-Type (415)."""
+    length = request.headers.get("content-length")
+    if length is None and need_length:
+        raise HTTPException(411, "Content-Length is required")
+    try:
+        too_big = length is not None and int(length) > max_bytes
+    except ValueError:
+        raise HTTPException(400, "Bad Content-Length") from None
+    if too_big:
+        raise HTTPException(413, "The request is too large")
+    kind = request.headers.get("content-type", "").split(";", 1)[0].strip().lower()
+    if kind not in ("multipart/form-data", "application/x-www-form-urlencoded"):
+        raise HTTPException(415, wrong_kind)
 
 
 def _started_at(form: Any) -> int:
@@ -118,6 +148,17 @@ def _seen(owner: str, device_id: str, name: str | None, area: str | None,
         logger.warning("voice: recording a satellite device failed", exc_info=True)
 
 
+def _adopted(turn_id: str, device_id: str, context_id: str) -> None:
+    """Store an adopted context's id on its turn and timing row; never fails the post."""
+    from fork.voice import ledger, timings
+
+    try:
+        ledger.set_context(turn_id, context_id)
+        timings.set_context(turn_id, device_id, context_id)
+    except Exception:  # noqa: BLE001
+        logger.warning("voice: storing an adopted satellite context failed", exc_info=True)
+
+
 async def _device_test(request: Request, device_id: str, body: AnnounceTest) -> dict:
     """A test announcement to one device: its feed only, or also spoken with ``speak``."""
     from src.auth_helpers import effective_user
@@ -145,18 +186,8 @@ def setup_satellite_routes() -> APIRouter:
     @router.post(PREFIX + "/satellite/turn")
     async def satellite_turn(request: Request) -> Any:
         owner = voice_owner(request)
-        length = request.headers.get("content-length")
-        if length is None:
-            raise HTTPException(411, "Content-Length is required")
-        try:
-            too_big = int(length) > MAX_BODY_BYTES
-        except ValueError:
-            raise HTTPException(400, "Bad Content-Length") from None
-        if too_big:
-            raise HTTPException(413, "The request is too large")
-        kind = request.headers.get("content-type", "").split(";", 1)[0].strip().lower()
-        if kind not in ("multipart/form-data", "application/x-www-form-urlencoded"):
-            raise HTTPException(415, "Send multipart/form-data")
+        _check_form(request, MAX_BODY_BYTES, need_length=True,
+                    wrong_kind="Send multipart/form-data")
         async with request.form(max_files=1, max_fields=16) as form:
             device_id = _text(form, "device_id", required=True)
             fields = {name: _text(form, name)
@@ -167,10 +198,13 @@ def setup_satellite_routes() -> APIRouter:
                                    audio=audio, **fields)
         await asyncio.to_thread(_seen, owner, device_id, fields.get("device_name"),
                                 fields.get("area"))
-        if interrupts.adopt(owner, device_id):
+        adopted = interrupts.adopt(owner, device_id, entry.ctx.context_id)
+        if adopted:
             # Home Assistant asked before this post arrived: the context is that turn's,
-            # so a barge-in on this device can end it (fork/voice/interrupts.py).
+            # so a barge-in on this device can end it (fork/voice/interrupts.py), and
+            # its id finds the turn and its timing.
             satellite.mark_claimed(entry)
+            await asyncio.to_thread(_adopted, adopted, device_id, entry.ctx.context_id)
         del audio  # only the speaker check's task holds it now
         ctx = await satellite.wait_for_check(entry, RESPONSE_WAIT_SECONDS)
         return {"ok": True, "context_id": ctx.context_id,
@@ -179,16 +213,7 @@ def setup_satellite_routes() -> APIRouter:
     @router.post(PREFIX + "/satellite/hello")
     async def satellite_hello(request: Request) -> Any:
         owner = voice_owner(request)
-        length = request.headers.get("content-length")
-        try:
-            too_big = length is not None and int(length) > MAX_HELLO_BYTES
-        except ValueError:
-            raise HTTPException(400, "Bad Content-Length") from None
-        if too_big:
-            raise HTTPException(413, "The request is too large")
-        kind = request.headers.get("content-type", "").split(";", 1)[0].strip().lower()
-        if kind not in ("multipart/form-data", "application/x-www-form-urlencoded"):
-            raise HTTPException(415, "Send a form")
+        _check_form(request, MAX_HELLO_BYTES)
         async with request.form(max_files=0, max_fields=8) as form:
             device_id = _text(form, "device_id", required=True)
             name, area = _text(form, "device_name"), _text(form, "area")
@@ -202,29 +227,17 @@ def setup_satellite_routes() -> APIRouter:
     @router.get(PREFIX + "/announcements")
     def announcement_feed(request: Request, device_id: str = "", since: int = 0) -> Any:
         owner = voice_owner(request)
-        device_id = " ".join(device_id.split())
-        if not device_id:
-            raise HTTPException(422, "device_id is required")
-        if len(device_id) > FIELD_LIMITS["device_id"]:
-            raise HTTPException(422, "device_id is too long")
+        device_id = device_id_param(device_id)
         return {"announcements": announcements.feed(owner, device_id, since_ms=since)}
 
     @router.post(PREFIX + "/satellite/interrupt")
     async def satellite_interrupt(request: Request) -> Any:
         owner = voice_owner(request)
-        length = request.headers.get("content-length")
-        try:
-            too_big = length is not None and int(length) > MAX_INTERRUPT_BYTES
-        except ValueError:
-            raise HTTPException(400, "Bad Content-Length") from None
-        if too_big:
-            raise HTTPException(413, "The request is too large")
-        kind = request.headers.get("content-type", "").split(";", 1)[0].strip().lower()
-        if kind not in ("multipart/form-data", "application/x-www-form-urlencoded"):
-            raise HTTPException(415, "Send a form")
+        _check_form(request, MAX_INTERRUPT_BYTES)
         async with request.form(max_files=0, max_fields=4) as form:
             device_id = _text(form, "device_id", required=True)
-        cut, marked = interrupts.interrupt(owner, device_id)
+            context_id = _text(form, "context_id")
+        cut, marked = interrupts.interrupt(owner, device_id, context_id or None)
         if cut or marked:
             logger.info("voice: barge-in on a satellite cut %d running turn(s), marked %d "
                         "waiting context(s)", cut, marked)

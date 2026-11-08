@@ -119,12 +119,56 @@ def test_two_turns_of_one_device_each_get_their_own_report(data_dir):
     assert timings.save_device("alice", timings.clean_device(report())) == "turn-1"
 
 
+def test_a_report_with_its_context_id_joins_that_turn_exactly(data_dir):
+    timings.save_hub("alice", "turn-1", "echo-kitchen", hub_timer(WAKE_MS / 1000 + 3.5),
+                     context_id="ctx-1")
+    timings.save_hub("alice", "turn-2", "echo-kitchen", hub_timer(WAKE_MS / 1000 + 3.0),
+                     context_id="ctx-2")
+    # the window would pick turn-2 (nearer); the id names turn-1, even with the device's
+    # clock an hour off
+    off = report(context_id="ctx-1", started_at=WAKE_MS - 3_600_000)
+    assert timings.save_device("alice", timings.clean_device(off)) == "turn-1"
+    assert timings.save_device("bob", timings.clean_device(report(context_id="ctx-2"))) is None
+
+
+def test_a_report_without_or_with_an_unknown_context_id_joins_by_window(data_dir):
+    timings.save_hub("alice", "turn-1", "echo-kitchen", hub_timer(WAKE_MS / 1000 + 3.5),
+                     context_id="ctx-1")
+    # an unknown id leaves the rows of other contexts to their own reports
+    assert timings.save_device("alice", timings.clean_device(report(context_id="ctx-x"))) is None
+    timings.save_hub("alice", "turn-2", "echo-kitchen", hub_timer(WAKE_MS / 1000 + 3.5))
+    assert timings.save_device("alice", timings.clean_device(report(context_id="ctx-y"))) == "turn-2"
+    assert next(r for r in timings.rows("alice") if r["turn_id"] == "turn-2")["context_id"] == "ctx-y"
+    # an older app sends no id: by window, as before
+    assert timings.save_device("alice", timings.clean_device(report())) == "turn-1"
+
+
+def test_an_old_timings_file_without_the_context_column_still_works(data_dir):
+    import sqlite3
+
+    from fork.common import sqlite as common_sqlite
+
+    path = timings.db_path()
+    path.parent.mkdir(parents=True, exist_ok=True)
+    with sqlite3.connect(path) as raw:
+        raw.executescript(timings.SCHEMA)
+        raw.execute("INSERT INTO timings (id, owner, at, turn_id, device_id, hub) VALUES"
+                    " ('r0', 'alice', ?, 'turn-0', 'echo-kitchen', '{}')", (time.time(),))
+    common_sqlite._ready.clear()
+    assert [r["context_id"] for r in timings.rows("alice")] == [None]
+    timings.save_hub("alice", "turn-1", "echo-kitchen", hub_timer(WAKE_MS / 1000 + 3.5),
+                     context_id="ctx-1")
+    assert timings.save_device("alice", timings.clean_device(report(context_id="ctx-1"))) == "turn-1"
+
+
 @pytest.mark.parametrize("bad", [
     None, [], {"started_at": WAKE_MS, "marks": {}},
     {"device_id": "x", "started_at": "soon", "marks": {}},
     {"device_id": "x", "started_at": WAKE_MS, "marks": {"ended": -1}},
     {"device_id": "x", "started_at": WAKE_MS, "marks": {"ended": True}},
     {"device_id": "x" * 200, "started_at": WAKE_MS, "marks": {}},
+    {"device_id": "x", "started_at": WAKE_MS, "marks": {}, "context_id": 7},
+    {"device_id": "x", "started_at": WAKE_MS, "marks": {}, "context_id": "c" * 65},
 ])
 def test_a_bad_report_is_refused(bad):
     with pytest.raises(timings.BadReport):
@@ -174,6 +218,13 @@ def test_the_device_reports_its_stages(api):
     timings.save_hub("alice", "turn-1", "echo-kitchen", hub_timer(WAKE_MS / 1000 + 3.5))
     res = api.post(URL, json=report(), headers=VOICE)
     assert res.status_code == 200 and res.json() == {"ok": True, "turn_id": "turn-1"}
+
+
+def test_the_device_reports_its_context_id(api):
+    timings.save_hub("alice", "turn-1", "echo-kitchen", hub_timer(WAKE_MS / 1000 + 3.5),
+                     context_id="ctx-1")
+    res = api.post(URL, json=report(context_id="ctx-1"), headers=VOICE)
+    assert res.json() == {"ok": True, "turn_id": "turn-1"}
 
 
 def test_a_bad_or_large_report_is_refused(api):

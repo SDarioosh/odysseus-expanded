@@ -54,10 +54,11 @@ from datetime import date, datetime
 from typing import Any
 from urllib.parse import quote, urlencode, urlsplit
 
-from fastapi import APIRouter, HTTPException, Request
+from fastapi import APIRouter, Request
 from fastapi.responses import HTMLResponse
 
 from fork.athena.phone_pairing import RateLimit
+from fork.voice.admin import signed_in_admin
 
 logger = logging.getLogger(__name__)
 
@@ -380,20 +381,9 @@ def browser_origin(request: Request) -> str:
 
 def _admin_owner(request: Request) -> str:
     """The signed-in admin (browser session), or :class:`LinkError` (403)."""
-    from core.middleware import require_admin
-    from src.agent_runtime.authority import is_internal_tool_request
-    from src.auth_helpers import get_current_user
-
-    if getattr(request.state, "api_token", False) or is_internal_tool_request(request):
-        raise LinkError(403, "Only a signed-in admin can link an Echo.")
-    try:
-        require_admin(request)
-    except HTTPException:
-        raise LinkError(403, "Only an Odysseus admin can link an Echo.") from None
-    owner = get_current_user(request)
-    if not owner:
-        raise LinkError(403, "Sign in to Odysseus first.")
-    return str(owner)
+    return signed_in_admin(request, "Only a signed-in admin can link an Echo.",
+                           not_admin="Only an Odysseus admin can link an Echo.",
+                           not_signed_in="Sign in to Odysseus first.", error=LinkError)
 
 
 class _Approvals:
