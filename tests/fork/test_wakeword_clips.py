@@ -6,7 +6,9 @@ import io
 import json
 import logging
 import math
+import shutil
 import struct
+import subprocess
 import zipfile
 from pathlib import Path
 
@@ -342,3 +344,26 @@ def test_mounted_with_the_fork_routers():
 
     assert ("fork.voice.wakeword_routes", "setup_wakeword_routes") in ROUTERS
 
+
+# --------------------------------------------------------------------- the block's JS
+@pytest.mark.skipif(shutil.which("node") is None, reason="needs node")
+def test_the_block_formats_clips():
+    script = """
+const m = await import(process.argv[1]);
+console.log(JSON.stringify({
+  counts: m.countsLine({guided: 12, missed: 3}),
+  line: m.clipLine({kind: 'missed', device_name: 'Kitchen Echo', prompt: 'Quietly',
+                    score: 0.42, threshold: 0.6, duration_ms: 1234, recorded_at: 5},
+                   {formatTime: (ms) => 'at ' + ms}),
+  bare: m.clipLine({kind: 'heard', device_id: 'echo-1', score: null}),
+  query: [m.wordQuery(''), m.wordQuery('hey_athena')],
+}));
+"""
+    url = (REPO / "static" / "js" / "forkWakewordClips.js").as_uri()
+    done = subprocess.run(["node", "--input-type=module", "-e", script, url],
+                          capture_output=True, text=True, check=True, timeout=30)
+    out = json.loads(done.stdout)
+    assert out["counts"] == "Guided 12 · Missed 3 · Heard 0"
+    assert out["line"] == "missed · Kitchen Echo · “Quietly” · score 0.42/0.60 · 1.2 s · at 5"
+    assert out["bare"] == "heard · echo-1"
+    assert out["query"] == ["", "?wake_word=hey_athena"]

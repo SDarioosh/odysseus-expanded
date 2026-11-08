@@ -347,6 +347,7 @@ is an old path of a module that moved into `fork/`; it only aliases the new modu
 - `static/js/forkVoiceAssistant.js`
 - `static/js/forkVoiceDevices.js`
 - `static/js/forkVoiceEnroll.js`
+- `static/js/forkWakewordClips.js`
 - `static/js/forkWhisperVocabulary.js`
 - `static/js/meetingBot.js`
 - `static/js/news.js`
