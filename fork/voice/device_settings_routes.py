@@ -22,19 +22,11 @@ from fastapi.responses import JSONResponse
 from fork.voice import device_settings, devices
 from fork.voice.admin import signed_in_admin
 from fork.voice.routes import PREFIX, voice_owner
+from fork.voice.satellite_routes import device_id_param as _device_id
 
 ADMIN_BASE = "/api/fork/voice/devices"
 MAX_BODY_BYTES = 4 * 1024
 NO_STORE = {"Cache-Control": "no-store"}
-
-
-def _device_id(raw: str) -> str:
-    device_id = " ".join(str(raw or "").split())
-    if not device_id:
-        raise HTTPException(422, "device_id is required")
-    if len(device_id) > devices.FIELD_LIMITS["device_id"]:
-        raise HTTPException(422, "device_id is too long")
-    return device_id
 
 
 def _admin_owner(request: Request) -> str:

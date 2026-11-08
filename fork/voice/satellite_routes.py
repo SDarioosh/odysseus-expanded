@@ -76,6 +76,35 @@ def _text(form: Any, name: str, *, required: bool = False) -> str:
     return value
 
 
+def device_id_param(raw: str) -> str:
+    """A ``device_id`` query or path parameter, whitespace collapsed (422 when empty or
+    longer than :data:`FIELD_LIMITS`)."""
+    device_id = " ".join(str(raw or "").split())
+    if not device_id:
+        raise HTTPException(422, "device_id is required")
+    if len(device_id) > FIELD_LIMITS["device_id"]:
+        raise HTTPException(422, "device_id is too long")
+    return device_id
+
+
+def _check_form(request: Request, max_bytes: int, *, need_length: bool = False,
+                wrong_kind: str = "Send a form") -> None:
+    """A form post's headers: Content-Length (411 without it when ``need_length``, 400
+    when not a number, 413 over ``max_bytes``) and a form Content-Type (415)."""
+    length = request.headers.get("content-length")
+    if length is None and need_length:
+        raise HTTPException(411, "Content-Length is required")
+    try:
+        too_big = length is not None and int(length) > max_bytes
+    except ValueError:
+        raise HTTPException(400, "Bad Content-Length") from None
+    if too_big:
+        raise HTTPException(413, "The request is too large")
+    kind = request.headers.get("content-type", "").split(";", 1)[0].strip().lower()
+    if kind not in ("multipart/form-data", "application/x-www-form-urlencoded"):
+        raise HTTPException(415, wrong_kind)
+
+
 def _started_at(form: Any) -> int:
     raw = form.get("started_at")
     if raw is None or (isinstance(raw, str) and not raw.strip()):
@@ -145,18 +174,8 @@ def setup_satellite_routes() -> APIRouter:
     @router.post(PREFIX + "/satellite/turn")
     async def satellite_turn(request: Request) -> Any:
         owner = voice_owner(request)
-        length = request.headers.get("content-length")
-        if length is None:
-            raise HTTPException(411, "Content-Length is required")
-        try:
-            too_big = int(length) > MAX_BODY_BYTES
-        except ValueError:
-            raise HTTPException(400, "Bad Content-Length") from None
-        if too_big:
-            raise HTTPException(413, "The request is too large")
-        kind = request.headers.get("content-type", "").split(";", 1)[0].strip().lower()
-        if kind not in ("multipart/form-data", "application/x-www-form-urlencoded"):
-            raise HTTPException(415, "Send multipart/form-data")
+        _check_form(request, MAX_BODY_BYTES, need_length=True,
+                    wrong_kind="Send multipart/form-data")
         async with request.form(max_files=1, max_fields=16) as form:
             device_id = _text(form, "device_id", required=True)
             fields = {name: _text(form, name)
@@ -179,16 +198,7 @@ def setup_satellite_routes() -> APIRouter:
     @router.post(PREFIX + "/satellite/hello")
     async def satellite_hello(request: Request) -> Any:
         owner = voice_owner(request)
-        length = request.headers.get("content-length")
-        try:
-            too_big = length is not None and int(length) > MAX_HELLO_BYTES
-        except ValueError:
-            raise HTTPException(400, "Bad Content-Length") from None
-        if too_big:
-            raise HTTPException(413, "The request is too large")
-        kind = request.headers.get("content-type", "").split(";", 1)[0].strip().lower()
-        if kind not in ("multipart/form-data", "application/x-www-form-urlencoded"):
-            raise HTTPException(415, "Send a form")
+        _check_form(request, MAX_HELLO_BYTES)
         async with request.form(max_files=0, max_fields=8) as form:
             device_id = _text(form, "device_id", required=True)
             name, area = _text(form, "device_name"), _text(form, "area")
@@ -202,26 +212,13 @@ def setup_satellite_routes() -> APIRouter:
     @router.get(PREFIX + "/announcements")
     def announcement_feed(request: Request, device_id: str = "", since: int = 0) -> Any:
         owner = voice_owner(request)
-        device_id = " ".join(device_id.split())
-        if not device_id:
-            raise HTTPException(422, "device_id is required")
-        if len(device_id) > FIELD_LIMITS["device_id"]:
-            raise HTTPException(422, "device_id is too long")
+        device_id = device_id_param(device_id)
         return {"announcements": announcements.feed(owner, device_id, since_ms=since)}
 
     @router.post(PREFIX + "/satellite/interrupt")
     async def satellite_interrupt(request: Request) -> Any:
         owner = voice_owner(request)
-        length = request.headers.get("content-length")
-        try:
-            too_big = length is not None and int(length) > MAX_INTERRUPT_BYTES
-        except ValueError:
-            raise HTTPException(400, "Bad Content-Length") from None
-        if too_big:
-            raise HTTPException(413, "The request is too large")
-        kind = request.headers.get("content-type", "").split(";", 1)[0].strip().lower()
-        if kind not in ("multipart/form-data", "application/x-www-form-urlencoded"):
-            raise HTTPException(415, "Send a form")
+        _check_form(request, MAX_INTERRUPT_BYTES)
         async with request.form(max_files=0, max_fields=4) as form:
             device_id = _text(form, "device_id", required=True)
         cut, marked = interrupts.interrupt(owner, device_id)
