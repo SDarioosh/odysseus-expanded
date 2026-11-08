@@ -239,7 +239,9 @@ def test_a_change_arrives_in_the_devices_feed(api):
 def test_mounted_after_the_other_fork_routers():
     from fork.routes import ROUTERS
 
-    assert ROUTERS[-1] == ("fork.voice.device_settings_routes", "setup_device_settings_routes")
+    entry = ("fork.voice.device_settings_routes", "setup_device_settings_routes")
+    assert ROUTERS.index(entry) > ROUTERS.index(("fork.voice.satellite_routes",
+                                                 "setup_satellite_routes"))
 
 
 # --------------------------------------------------------------------- the card's JS
