@@ -71,6 +71,11 @@ branches) are kept in [status-history.md](status-history.md).
   Athena client, shared helpers, fewer upstream hooks. Five phases in lanes for subagents
   with an overseer. Planned, not started.
 
+- **Polish backlog** ([polish-backlog.md](polish-backlog.md)): what to add so the hub,
+  Athena and the Echo app feel polished (failure alerts, a status page, READMEs, backups,
+  setup), and new features for the Echo. A checklist from the 2026-11-12 survey; not
+  started.
+
 0. **Module tools without a slash command** (PR SDarioosh/odysseus-expanded#24). A plain question
    with a module cue (conversation words, a person the module knows) runs in agent mode
    and is offered the trusted modules' read tools, through the existing slash-skill

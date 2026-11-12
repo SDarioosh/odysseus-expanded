@@ -60,6 +60,7 @@ is an old path of a module that moved into `fork/`; it only aliases the new modu
 - `docs/fork/people-context.md`
 - `docs/fork/personal-context-prior-art.md`
 - `docs/fork/personal-context.md`
+- `docs/fork/polish-backlog.md`
 - `docs/fork/qc-ink-h2-2026-10-26.md`
 - `docs/fork/roadmap.md`
 - `docs/fork/sandbox.md`
