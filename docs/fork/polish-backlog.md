@@ -1,7 +1,7 @@
 # Polish backlog: Athena, Odysseus and Odysseus Echo
 
 _As of 2026-11-12._ Things to add so the three projects feel polished and clean to use,
-and the new features that would put the Echo beside the commercial smart displays. It
+and the new features that would put the Echo and the hub beside the commercial products. It
 covers this repo (the hub), [Athena](https://github.com/SDarioosh/Athena) and
 [odysseus-echo](https://github.com/SDarioosh/odysseus-echo). Tick an item when its PR is
 merged.
@@ -299,3 +299,70 @@ The app does not use the camera at all today.
   alarm set, do-not-disturb on). Home Assistant can run them; the Echo needs a way to start
   and see them.
 - [ ] Bluetooth speaker mode: play from a phone to the Echo.
+
+## New features for Odysseus (odysseus-expanded)
+
+What to add so the hub stands beside the commercial assistants (ChatGPT, Gemini, Limitless,
+Alexa). It already has more features than most of them; what they do better is answer fast
+and correctly, speak up on their own, and be one place rather than many pages. Items marked
+*planned* are already in [context-growth.md](context-growth.md) or the
+[roadmap](roadmap.md). The rest were checked with keyword searches on 2026-11-12, so "not
+found" means that, not a full audit.
+
+Start with answer quality and shared search, because every other feature sits on them.
+Then the Review inbox and source cards, which are hub-only. Then briefings and people
+pages.
+
+### Answers that feel right
+
+- [ ] Answer quality first. The Athena eval is at 9/20 against a 15/20 target
+  ([modules/athena.md](modules/athena.md#eval-and-current-score)), and "regular tools" with
+  every tool on still overflows the 32k context.
+- [ ] One search across everything (*planned*, roadmap item 7). The model has to pick the
+  right module tool today, and picking wrong is where answers fail.
+- [ ] Source cards under answers, built by the hub from the tool results. A model-written
+  "Sources:" footer was tried and dropped.
+- [ ] Use what it knows without being asked (*planned*): confirmed beliefs in the chat
+  context.
+
+### Speaking up on its own
+
+- [ ] Briefing before a meeting, and a page per person (*planned*,
+  [people-context.md](people-context.md)).
+- [ ] Weekly review: what you promised, what is still open, who you haven't answered, what
+  changed in what the system believes. No recap found in the fork.
+- [ ] Evening wrap-up: what got done, what moves to tomorrow, tomorrow's first meeting. The
+  morning has Today and the news brief; the evening has nothing.
+- [ ] In the moment (*planned*, later): offer to file a promise or a date while the
+  conversation is still going.
+
+### One place, not many pages
+
+- [ ] One Review inbox. Things waiting on the owner are spread over the Athena page
+  (suggested action items, "who is this?"), the beliefs page, handwritten-note review and
+  tool approvals. One queue with a count.
+- [ ] A day timeline: conversations, texts, meetings, notes and to-dos done, in order, on
+  one scrollable day.
+- [ ] Command palette and a global search box. Upstream has a palette for the editor only.
+- [ ] Notification history in the app. Pushes go out through ntfy and are gone; a bell with
+  the last week's items.
+
+### Capture from anywhere
+
+- [ ] A real phone app: the hub in a WebView plus the relay in one app (planned in Athena's
+  `docs/android-app-plan.md`). Brings a share target, a home-screen widget for a voice note
+  and proper notifications.
+- [ ] Hands-free voice conversation on the phone and Mac. Dictation exists
+  (`static/js/voiceRecorder.js`); no spoken back-and-forth mode was found. The Echo
+  pipeline ([voice-assistant.md](voice-assistant.md)) could be reused.
+- [ ] Save this page: a browser button or share action that files an article or a selection
+  as a note with its link.
+- [ ] More sources (*planned*, owner picks): places, photos, browser history, health,
+  screen.
+
+### Trust and control
+
+- [ ] Privacy dashboard: what was recorded today, by which device, what is kept and for how
+  long, and one switch that pauses every microphone (watch, Echos, phone).
+- [ ] Household members: what a guest or family member can ask and see, with their own
+  calendar and lists. Athena knows voices and the Echo is in shared rooms.
