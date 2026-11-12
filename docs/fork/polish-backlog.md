@@ -1,7 +1,7 @@
 # Polish backlog: Athena, Odysseus and Odysseus Echo
 
 _As of 2026-11-12._ Things to add so the three projects feel polished and clean to use,
-and the new features that would put the Echo and the hub beside the commercial products. It
+and the new features that would put the Echo, the hub and Athena beside the commercial products. It
 covers this repo (the hub), [Athena](https://github.com/SDarioosh/Athena) and
 [odysseus-echo](https://github.com/SDarioosh/odysseus-echo). Tick an item when its PR is
 merged.
@@ -366,3 +366,66 @@ pages.
   long, and one switch that pauses every microphone (watch, Echos, phone).
 - [ ] Household members: what a guest or family member can ask and see, with their own
   calendar and lists. Athena knows voices and the Echo is in shared rooms.
+
+## New features for Athena
+
+What to add so Athena stands beside the commercial recorders (Limitless, Bee, Omi, Plaud,
+Otter, Fireflies, Granola). It already covers what they are known for, and adds text
+messages, handwritten notes and a forget that reaches the transcript. The gaps are in what
+happens during and right after a recording, and in how many kinds of conversation it can
+capture. Items were checked with keyword searches in the server code on 2026-11-12, so "not
+found" means that, not a full audit.
+
+Start with progress after Stop and device status, which remove the "did it record?" doubt.
+Then mark-this-moment and summary templates, which are small and change every recording.
+Mac audio capture is the biggest reach gain.
+
+### During a recording
+
+- [ ] Mark this moment: a button press on the watch or Echo that flags the last 30 seconds
+  as important, so the summary leads with it. Not found.
+- [ ] Live transcript. Processing starts only when a session ends. A rolling transcript
+  would allow live captions on the Echo and the hub's planned "in the moment" offers.
+- [ ] Recording status everywhere: one view of every recorder with recording or idle,
+  battery, chunks waiting to upload and last sync. The Android relay shows the watch's
+  battery; nothing shows all devices together.
+
+### Right after
+
+- [ ] Progress and time to summary: after Stop, show "transcribing… naming speakers…
+  summarizing" and push when it is ready. A recording is invisible until it finishes today.
+- [ ] Summary by kind of conversation: templates for a one-to-one, a team meeting, a
+  doctor's visit, a lecture or a sales call. One prompt set serves everything except voice
+  notes today.
+- [ ] Chapters: long recordings split into titled sections with timestamps.
+- [ ] Follow-up draft: after a meeting, a ready email to the attendees with decisions and
+  who owes what, drafted in the hub's email. The export exists; the draft does not.
+- [ ] Guess who the unnamed speaker is, from the calendar event's attendees and the
+  meeting's participant list.
+
+### More kinds of conversation
+
+- [ ] Other meeting platforms: record the Mac's own audio during any call, which covers
+  Teams, Meet and the rest with no bot. The bot is Zoom-only.
+- [ ] Phone calls. The hub records calls in a browser; ordinary phone calls aren't captured.
+- [ ] Other languages: auto-detect per recording, and translation of the summary. The
+  language is one fixed setting, `en`.
+- [ ] Drop in a file: upload an existing recording (a voice memo, a lecture) from the hub.
+  Not confirmed whether a one-file upload exists beside the chunk API.
+
+### Looking back
+
+- [ ] Weekly and monthly digest. Only the daily digest exists.
+- [ ] Decisions log: a dated list of what was decided and with whom. Decisions are stored
+  as facts today.
+- [ ] Topics over time: every time one subject came up, as a thread across conversations,
+  texts and notes.
+- [ ] Talk-time and meeting stats: who spoke how much, hours of meetings this week. Not
+  found.
+
+### Trust in the transcript
+
+- [ ] Show uncertainty: mark words and speaker labels the system is unsure of. A "speaker
+  unsure" flag was proposed and not decided.
+- [ ] Hear the line: play the few seconds behind a transcript line. Needs short clips kept,
+  which conflicts with deleting audio by default; owner's call.
