@@ -583,7 +583,9 @@ await check('h2_03_undo_key_in_text_tab', async () => {
   return { ok: strokes === 1, strokes };
 });
 
-// No tab change while the pen is down.
+// No tab change while the pen is down: a tap on the Text tab (a palm) is ignored. The
+// tabs aren't disabled for the stroke: changing the toolbar costs a style recalc of the
+// whole app at every pen down and up.
 await check('h2_04_no_tab_switch_mid_stroke', async () => {
   const page = await openPage(browser, { user: 'quin' });
   await newNote(page);
@@ -599,7 +601,7 @@ await check('h2_04_no_tab_switch_mid_stroke', async () => {
     return { disabled, viewMid, strokes: view.strokeCount(), points: view._state.note.pages[0].strokes[0].points.length };
   });
   await page.close();
-  return { ok: got.disabled && got.viewMid === 'ink' && got.strokes === 1 && got.points === 3, ...got };
+  return { ok: !got.disabled && got.viewMid === 'ink' && got.strokes === 1 && got.points === 3, ...got };
 });
 
 // A slow transcript answer for one note never shows in another.

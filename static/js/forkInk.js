@@ -12,7 +12,7 @@
 //   rotation keep them aligned. Low latency: pointerrawupdate where Chrome sends it,
 //   getCoalescedEvents(), Chrome's predicted points drawn ahead of the pen, one opaque
 //   desynchronized canvas, and only what changed is redrawn (see "render").
-// - Autosave every AUTOSAVE_MS and when the app is hidden: IndexedDB first, then the
+// - Autosave once the pen has rested SAVE_IDLE_MS, and when the app is hidden: IndexedDB first, then the
 //   hub (PUT /api/ink/notes/<id>, routes/ink_routes.py). Notes that couldn't reach the
 //   hub wait in IndexedDB and sync later. Last edit wins: when the hub has a newer
 //   edit (409), its version replaces this one, and the view says so. Each signed-in
@@ -48,6 +48,11 @@ const MAX_PAGE_PX = 1100; // CSS px: widest a page gets at zoom 1 on a big scree
 const MIN_ZOOM = 0.5;
 const MAX_ZOOM = 4;
 const AUTOSAVE_MS = 3000;
+// Autosave waits until the pen has rested this long: a save does ~20-30 ms of work on
+// the main thread (copying the note, IndexedDB, the request), which run between two
+// strokes of a word delayed the next one.
+const SAVE_IDLE_MS = 1200;
+const STATUS_QUIET_MS = 600;  // the status line changes only when the pen has rested this long
 const RETRY_MS = 30000;
 const ERASER_PX = 14;
 const RULE_TOP = 120;
@@ -396,6 +401,11 @@ function saveBooks(user, books) {
   try { localStorage.setItem(booksKey(user), JSON.stringify(books)); } catch (_) { /* private mode */ }
 }
 
+// Write a DOM value only when it changes (see syncTools).
+const setAttr = (node, name, value) => { if (node.getAttribute(name) !== value) node.setAttribute(name, value); };
+const setProp = (node, name, value) => { if (node[name] !== value) node[name] = value; };
+const setText = (node, text) => { if (node.textContent !== text) node.textContent = text; };
+
 // ------------------------------------------------------------------- drawing
 function strokePath(ctx, pts, map) {
   const [x0, y0] = map(pts[0]);
@@ -555,6 +565,10 @@ export function mountInk(root, options = {}) {
   let lastItems = [];
   let timers = [];
   let suspended = false;
+  let penUpAt = -Infinity;      // performance.now() when the pen last lifted
+  let dirtySince = 0;           // performance.now() of the first edit not saved yet
+  let statusNext = null;        // the status line waiting for the pen to rest (setStatus)
+  let statusTimer = 0;
 
   // ---------------------------------------------------------------- DOM
   root.textContent = '';
@@ -693,8 +707,9 @@ export function mountInk(root, options = {}) {
   const offX = () => Math.round(state.sx * scale() * dpr) / dpr;
   const offY = () => Math.round(state.sy * scale() * dpr) / dpr;
   const toScreen = (x, y) => { const k = scale(); return [x * k - offX(), y * k - offY()]; };
-  function toDoc(clientX, clientY) {
-    const r = live.getBoundingClientRect();
+  // `r`: the canvas's box when the caller has it (a stroke keeps the one from its
+  // start, so a pen sample never forces a layout).
+  function toDoc(clientX, clientY, r = live.getBoundingClientRect()) {
     const k = scale();
     return [(clientX - r.left + offX()) / k, (clientY - r.top + offY()) / k];
   }
@@ -1259,7 +1274,7 @@ export function mountInk(root, options = {}) {
   // A point on the stroke's page, kept inside the page: ink outside it would be
   // clipped away when the stroke ends.
   function pointOf(e, lv) {
-    const [x, y] = toDoc(e.clientX, e.clientY);
+    const [x, y] = toDoc(e.clientX, e.clientY, lv.rect);
     if (lv.eraser) lv.pageIndex = pageAt(y); // the eraser follows the pen onto another page
     const page = state.note.pages[lv.pageIndex];
     const cx = Math.max(0, Math.min(page.width, x));
@@ -1303,7 +1318,8 @@ export function mountInk(root, options = {}) {
 
   function startLive(e, eraser) {
     if (!state.note) return;
-    const [, docY] = toDoc(e.clientX, e.clientY);
+    const rect = live.getBoundingClientRect();
+    const [, docY] = toDoc(e.clientX, e.clientY, rect);
     const pageIndex = pageAt(docY);
     const isEraser = eraser || state.eraser;
     if (!isEraser) {
@@ -1318,7 +1334,7 @@ export function mountInk(root, options = {}) {
       }
     }
     const lv = { pageIndex, eraser: isEraser, t0: e.timeStamp, removed: [], cursor: null,
-      drawn: 0, tailBox: null, ringBox: null,
+      drawn: 0, tailBox: null, ringBox: null, rect,
       stroke: isEraser ? null : { id: shortId(), pen: currentPen(), at: Date.now(), points: [] } };
     state.live = lv;
     const p = pointOf(e, lv);
@@ -1338,6 +1354,7 @@ export function mountInk(root, options = {}) {
   function endLive({ dropShort = false } = {}) {
     const lv = state.live;
     state.live = null;
+    if (lv) penUpAt = performance.now();
     if (lv && lv.eraser) {
       if (lv.removed.length) pushAction({ type: 'erase', removed: lv.removed });
       presentBox(lv.ringBox);
@@ -1390,11 +1407,11 @@ export function mountInk(root, options = {}) {
         if (last && Math.abs(last[0] - p[0]) < 0.3 && Math.abs(last[1] - p[1]) < 0.3) continue;
         if (pts.length >= MAX_STROKE_POINTS) {
           // A very long stroke goes on as a new one, from the same point.
-          const { pageIndex, t0 } = cur;
+          const { pageIndex, t0, rect } = cur;
           liveInk(cur, []);
           endLive();
           state.live = { pageIndex, eraser: false, t0, removed: [], cursor: null, drawn: 0,
-            tailBox: null, ringBox: null,
+            tailBox: null, ringBox: null, rect,
             stroke: { id: shortId(), pen: { ...cur.stroke.pen }, at: Date.now(), points: [last] } };
           state.live.stroke.points.push(p);
           continue;
@@ -1543,47 +1560,68 @@ export function mountInk(root, options = {}) {
     render();
   }
 
+  // Every DOM change here costs a style recalc of the whole app (its many :has() rules
+  // make any change invalidate the page: ~15 ms on a Lenovo Tab Plus), so only what
+  // actually changed is written, and nothing changes because a pen touched or lifted:
+  // the buttons and tabs ignore a press while the pen is down instead (undo, redo, the
+  // tabs, Photo, Page and the notebook arrows all check state.live).
   function syncTools() {
-    for (const b of penBtns) b.setAttribute('aria-pressed', String(!state.eraser && b.dataset.pen === state.pen));
-    eraserBtn.setAttribute('aria-pressed', String(state.eraser));
-    widthBtn.textContent = state.width === 'thin' ? 'Thin' : 'Medium';
+    for (const b of penBtns) setAttr(b, 'aria-pressed', String(!state.eraser && b.dataset.pen === state.pen));
+    setAttr(eraserBtn, 'aria-pressed', String(state.eraser));
+    setText(widthBtn, state.width === 'thin' ? 'Thin' : 'Medium');
     const paper = state.note ? paperOf(state.note) : 'lined';
-    paperBtn.textContent = PAPERS.find((p) => p.key === paper).label;
-    undoBtn.disabled = !state.undo.length || !!state.live;
-    redoBtn.disabled = !state.redo.length || !!state.live;
-    addPageBtn.disabled = !!(state.note && state.note.pages.length >= MAX_PAGES);
-    photoBtn.disabled = addPageBtn.disabled || !!state.live;
-    tabInk.setAttribute('aria-selected', String(state.view === 'ink'));
-    tabText.setAttribute('aria-selected', String(state.view === 'text'));
-    tabInk.disabled = !!state.live;
-    tabText.disabled = !!state.live; // no tab change while the pen is down
-    addPageBtn.title = addPageBtn.disabled ? `A note has at most ${MAX_PAGES} pages` : 'Add a page';
+    setText(paperBtn, PAPERS.find((p) => p.key === paper).label);
+    setProp(undoBtn, 'disabled', !state.undo.length);
+    setProp(redoBtn, 'disabled', !state.redo.length);
+    const full = !!(state.note && state.note.pages.length >= MAX_PAGES);
+    setAttr(tabInk, 'aria-selected', String(state.view === 'ink'));
+    setAttr(tabText, 'aria-selected', String(state.view === 'text'));
     // In a notebook: Back goes to it, ‹ › flip its pages, and Page adds the next page.
     const book = state.note && state.note.notebook ? bookById(state.note.notebook) : null;
-    bookGroup.hidden = !book;
-    backBtn.title = book ? `Back to ${book.name}` : 'All notes';
-    backBtn.setAttribute('aria-label', backBtn.title);
+    setProp(bookGroup, 'hidden', !book);
+    setAttr(backBtn, 'title', book ? `Back to ${book.name}` : 'All notes');
+    setAttr(backBtn, 'aria-label', backBtn.title);
+    setProp(photoBtn, 'disabled', full);
     if (book) {
       const order = bookOrder(book.id);
       const i = order.indexOf(state.note.id);
-      bookLabel.textContent = i >= 0 ? `${book.name} · page ${i + 1} of ${order.length}` : book.name;
-      prevNoteBtn.disabled = i <= 0 || !!state.live;
-      nextNoteBtn.disabled = i < 0 || i >= order.length - 1 || !!state.live;
-      addPageBtn.disabled = !!state.live;
-      addPageBtn.title = `Add the next page to ${book.name}`;
+      setText(bookLabel, i >= 0 ? `${book.name} · page ${i + 1} of ${order.length}` : book.name);
+      setProp(prevNoteBtn, 'disabled', i <= 0);
+      setProp(nextNoteBtn, 'disabled', i < 0 || i >= order.length - 1);
+      setProp(addPageBtn, 'disabled', false);
+      setAttr(addPageBtn, 'title', `Add the next page to ${book.name}`);
+    } else {
+      setProp(addPageBtn, 'disabled', full);
+      setAttr(addPageBtn, 'title', full ? `A note has at most ${MAX_PAGES} pages` : 'Add a page');
     }
   }
 
   // -------------------------------------------------------------- saving
+  // The status line changes only while the pen rests (STATUS_QUIET_MS after it lifts):
+  // a change costs a style recalc of the whole app (see syncTools), which written while
+  // writing held up the next stroke's first points. The last text asked for wins.
+  const penBusy = () => !!state.live || performance.now() - penUpAt < STATUS_QUIET_MS;
   function setStatus(text, error = false) {
-    status.textContent = text;
-    status.classList.toggle('error', !!error);
+    statusNext = { text, error: !!error };
+    if (penBusy()) { if (!statusTimer) statusTimer = setTimeout(showStatus, STATUS_QUIET_MS); return; }
+    showStatus();
+  }
+  function showStatus() {
+    clearTimeout(statusTimer);
+    statusTimer = 0;
+    if (!statusNext) return;
+    if (penBusy()) { statusTimer = setTimeout(showStatus, STATUS_QUIET_MS); return; }
+    const { text, error } = statusNext;
+    statusNext = null;
+    setText(status, text);
+    if (status.classList.contains('error') !== error) status.classList.toggle('error', error);
   }
 
   function markDirty() {
     if (!state.note) return;
     state.note.edited_at = Math.max(Date.now(), (state.note.edited_at || 0) + 1);
     state.note.synced = false;
+    if (!state.dirty) dirtySince = performance.now();
     state.dirty = true;
     syncTools();
     setStatus('Not saved yet');
@@ -1652,6 +1690,10 @@ export function mountInk(root, options = {}) {
       if (isOpen()) setStatus('Hub not reachable: saved on this device, syncs later');
       return;
     }
+    // A saved answer can arrive mid-stroke: what follows reads and writes the whole note
+    // in IndexedDB (~10-15 ms on a tablet), so it waits for the pen to lift. (A conflict
+    // or a deletion is handled at once: it drops the stroke being drawn.)
+    if (res.ok) while (state.live) await new Promise((resolve) => { setTimeout(resolve, 100); });
     if (db !== store) return; // another user signed in meanwhile
     const latest = await db.get('notes', id);
     if (!latest) return;      // deleted on this device meanwhile: don't bring it back
@@ -2931,7 +2973,13 @@ export function mountInk(root, options = {}) {
   function resume() {
     suspended = false;
     if (timers.length) return;
-    timers.push(setInterval(() => { if (state.dirty) persist(); }, AUTOSAVE_MS));
+    // Saved once the pen has rested SAVE_IDLE_MS (never between two strokes of a word),
+    // or, written without such a rest, AUTOSAVE_MS * 5 after the first unsaved edit.
+    timers.push(setInterval(() => {
+      if (!state.dirty || state.live) return;
+      const t = performance.now();
+      if (t - penUpAt >= SAVE_IDLE_MS || t - dirtySince >= AUTOSAVE_MS * 5) persist();
+    }, AUTOSAVE_MS / 6));
     timers.push(setInterval(() => flushQueue(), RETRY_MS));
     document.addEventListener('pointermove', notePen, { passive: true, capture: true });
     window.addEventListener('blur', onBlur);
