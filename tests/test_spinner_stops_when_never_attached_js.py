@@ -317,3 +317,42 @@ def test_restarted_spinner_gets_a_fresh_grace_window():
     assert out["stopped"] is False
     assert out["running"] is True
     assert out["pending"] == 1
+
+
+@pytest.mark.skipif(not _HAS_NODE, reason="node binary not on PATH")
+def test_whirlpool_off_screen_pauses_and_resumes_when_shown():
+    # Connected but not shown (a display:none panel, e.g. the chat's pull-to-refresh
+    # spinner): the connected check never stops it, so it drew every frame behind
+    # everything and kept the page compositing (the Write view's ink came late on a
+    # tablet). An IntersectionObserver pauses it until it is shown again.
+    body = """
+    let report = null; let observed = null; let disconnected = false;
+    globalThis.IntersectionObserver = class {
+      constructor(cb) { report = cb; }
+      observe(el) { observed = el; }
+      disconnect() { disconnected = true; }
+    };
+    const sp = new Spinner('', 'clean', 'whirlpool');
+    sp.createElement();
+    sp.element.isConnected = true;
+    sp.start();
+    pump(5);
+    report([{ isIntersecting: false }]);   // its panel is hidden
+    pump(1);                                // the frame already queued arms none
+    const hiddenMark = frameMark();
+    pump(30);
+    const whileHidden = { drawn: framesSince(hiddenMark), pending: framesPending(), running: sp.isRunning };
+    report([{ isIntersecting: true }]);
+    const shownMark = frameMark();
+    pump(10);
+    const drawnAfterShow = framesSince(shownMark);
+    sp.stop();
+    console.log(JSON.stringify({ observedCanvas: observed === sp._wpCanvas, whileHidden, drawnAfterShow,
+      disconnected, pendingAfterStop: framesPending() }));
+    """
+    out = _run(body)
+    assert out["observedCanvas"] is True
+    assert out["whileHidden"] == {"drawn": 0, "pending": 0, "running": True}, "drew while off screen"
+    assert out["drawnAfterShow"] == 10, "did not resume when shown"
+    assert out["disconnected"] is True, "stop() left the observer behind"
+    assert out["pendingAfterStop"] == 0

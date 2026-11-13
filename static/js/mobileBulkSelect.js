@@ -5,8 +5,13 @@ const CARD_SELECTORS = '.memory-item[data-memory-id], .skill-card[data-skill-nam
 const HOLD_MS = 450;
 const MOVE_CANCEL_PX = 10;
 
+// Fork: light card binding (docs/fork/features/chat-ui.md). matchMedia, not innerWidth: reading innerWidth right after a DOM change forces a
+// style and layout pass, and this runs after every change to the page (see below).
+const _narrow = window.matchMedia ? window.matchMedia('(max-width: 768px)') : null;
+const _touch = 'ontouchstart' in window || navigator.maxTouchPoints > 0;
+
 function _mobileSelectEnabled() {
-  return window.innerWidth <= 768 && ('ontouchstart' in window || navigator.maxTouchPoints > 0);
+  return _touch && (_narrow ? _narrow.matches : window.innerWidth <= 768);
 }
 
 function _selectButtonFor(card) {
@@ -78,4 +83,18 @@ function bindCards(root = document) {
 }
 
 bindCards();
-new MutationObserver(() => bindCards()).observe(document.documentElement, { childList: true, subtree: true });
+// Fork: light card binding (docs/fork/features/chat-ui.md). Narrowed (rotation, resize) with cards already shown: bind those too.
+_narrow?.addEventListener?.('change', () => bindCards());
+// Only cards that were just added need binding: look inside the added elements, not the
+// whole document (this observer sees every change to the page, e.g. each pen stroke's
+// toolbar update in the Write view).
+new MutationObserver((records) => {
+  if (!_mobileSelectEnabled()) return;
+  for (const r of records) {
+    for (const node of r.addedNodes) {
+      if (node.nodeType !== 1) continue;
+      if (node.matches(CARD_SELECTORS)) _bind(node);
+      if (node.firstElementChild) node.querySelectorAll(CARD_SELECTORS).forEach(_bind);
+    }
+  }
+}).observe(document.documentElement, { childList: true, subtree: true });
