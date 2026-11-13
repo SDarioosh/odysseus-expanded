@@ -141,6 +141,7 @@ the link goes to its details (what it does, its files, whether it can go upstrea
 - [Handwritten notes, stage H6: auto-send and photo import](docs/fork/handwritten-notes.md#handwritten-notes-stage-h6-auto-send-and-photo-import): `INK_AUTO_SEND` and photo pages.
 - [Handwritten notes only in Write](docs/fork/handwritten-notes.md#handwritten-notes-only-in-write): the Notes window leaves handwritten notes out; links to them open Write.
 - [Handwritten notes: notebooks](docs/fork/handwritten-notes.md#handwritten-notes-notebooks): named, ordered groups of handwritten notes.
+- [Handwritten notes: Write keeps up on a tablet](docs/fork/handwritten-notes.md#handwritten-notes-write-keeps-up-on-a-tablet): no lag writing or erasing on a tablet; the app under Write idles.
 
 ### Notes, calendar and tasks
 
@@ -156,6 +157,7 @@ the link goes to its details (what it does, its files, whether it can go upstrea
 - [Open an event or note from a link](docs/fork/features/chat-ui.md#open-an-event-or-note-from-a-link): `/#event-<uid>` and `/#open=notes&note=<id>` open on a fresh page load.
 - [Centered chat title in Nobody mode](docs/fork/features/chat-ui.md#centered-chat-title-in-nobody-mode): the chat title no longer shifts when the Nobody eye appears.
 - [A run that ended while the page was away shows its answer](docs/fork/features/chat-ui.md#a-run-that-ended-while-the-page-was-away-shows-its-answer): the chat reloads a run that ended while the page was away.
+- [The app idles behind the Write window](docs/fork/features/chat-ui.md#the-app-idles-behind-the-write-window): the reminder pulse, a hidden spinner and card binding no longer keep the GPU and the main thread busy (general bugs).
 - [An agent answer reads as one flow](docs/fork/features/chat-ui.md#an-agent-answer-reads-as-one-flow): text, tool step, then only the new part of the answer, for any number of tool steps, live and after a reload; text before a tool call no longer shows twice or below the tool step.
 
 ### The brain (chat agent loop)
@@ -279,6 +281,7 @@ to be offered) upstream, "with discussion" a change upstream may want in another
 | `src/tools/calendar.py` | `list_events`, the answer | `fork/common/local_time.py` | event times in the user's wall time, not UTC | yes |
 | `src/turn_contract.py` | `selected_tools_for_request`, model-discovery rule | `fork/routing/web_turn_scope.py` | comparisons and web lookups are web questions | yes, with discussion |
 | `static/css/01-agent-chat.css` | `.chat-meta-overlay` with the Nobody eye | none | the chat title stays centered | yes |
+| `static/css/01-agent-chat.css` | `.rail-notes-badge.fired`, `.tool-notes-dot`, `@keyframes rail-notes-pulse` | none | the reminder pulse is composited and pulses 4 times | yes |
 | `static/index.html` | script tags, end of body | `static/js/forkChatAsk.js` | `/?ask=` prefills a new chat | yes, with discussion |
 | `static/index.html` | script tags | `static/js/forkEntityHash.js` | open `#event-…` / `#open=notes&note=…` on load (and the fork's `#open=news…`, opened by `forkModuleWindows.js`) | yes |
 | `static/index.html` | script tags | `static/js/forkModuleWindows.js` | the six Athena sidebar entries (News last), module windows, rail buttons, transcript links | no |
@@ -300,6 +303,7 @@ to be offered) upstream, "with discussion" a change upstream may want in another
 | `static/js/keyboard-shortcuts.js` | `_defaultKeybinds` | `static/js/forkModuleShortcuts.js` | Open Records / Today / News / … (unbound) | no |
 | `static/js/keyboard-shortcuts.js` | `initKeyboardShortcuts`, window triggers | `static/js/forkModuleShortcuts.js` | "Toggle Window" includes the module windows | no |
 | `static/js/keyboard-shortcuts.js` | `initKeyboardShortcuts`, `_toolBtns` | `static/js/forkModuleShortcuts.js` | shortcut buttons | no |
+| `static/js/mobileBulkSelect.js` | `_mobileSelectEnabled`, the `MutationObserver` | none | no layout read per DOM change; binds only added cards | yes |
 | `static/js/settings.js` | imports | `static/js/forkModuleShortcuts.js` | import the fork's shortcut tables | no |
 | `static/js/settings.js` | `SHORTCUT_DEFAULTS` | `static/js/forkModuleShortcuts.js` | defaults | no |
 | `static/js/settings.js` | `SHORTCUT_ICONS` | `static/js/forkModuleShortcuts.js` | icons | no |
@@ -307,6 +311,7 @@ to be offered) upstream, "with discussion" a change upstream may want in another
 | `static/js/settings.js` | `SHORTCUT_CATEGORIES` | `static/js/forkModuleShortcuts.js` | the module windows under Open Tools | no |
 | `static/js/slashCommands.js` | imports | `static/js/forkModuleShortcuts.js` | import `FORK_OPEN_TARGETS` | no |
 | `static/js/slashCommands.js` | `_cmdOpen`, targets | `static/js/forkModuleShortcuts.js` | `/open records`, `meetings`, `today`, `write`, `wisdom`, `news` and their aliases | no |
+| `static/js/spinner.js` | `_drawWhirlpool`, `start`, `stop`, `_armOffscreenPause` | none | the whirlpool pauses while off screen | yes |
 | `tests/helpers/test_settings_shell_coordinator.mjs` | `REAL_MODULES` | `static/js/forkModuleShortcuts.js` | the settings.js import loads in the test shell | no |
 | `tests/test_reserved_username_admin_escalation.py` | `test_legacy_reserved_username_session_cannot_pass_admin_gate` | none | evict the fresh `core.middleware` with `monkeypatch` | yes |
 

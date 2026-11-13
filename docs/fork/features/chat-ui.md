@@ -51,3 +51,15 @@ Checked end to end in the sandbox (the app, a scripted model, a browser) for: te
 Files: `static/js/forkRoundFlow.js` (new), `fork/hub/round_flow.py` (new); hooks in `static/js/chat.js` (import, stream setup, text deltas, `agent_step`, `teacher_takeover`, `final_response`, `_replaceLiveTurnWithSavedAssistantMessage`), `static/js/chatRenderer.js` (import, `addMessage`) and `routes/chat_routes.py` (`_AgentRenderState.consume`, `metadata`); tests `tests/fork/test_fork_round_flow.py`, `tests/fork/test_round_flow_saved.py` (new)
 
 Upstreamable: yes
+
+## The app idles behind the Write window
+
+**The app idles behind the Write window.** Three general fixes found while measuring Write on a tablet (Lenovo Tab Plus, Brave): the app kept the GPU busy and the main thread stalling even with nobody touching it.
+
+- The notes reminder pulse (`.tool-notes-dot`, `.rail-notes-badge.fired`) animated `box-shadow` forever. The dot sits in the sidebar, which has a backdrop blur, so every frame repainted, re-rastered and re-blurred the sidebar: 97% GPU at idle on the tablet. Now the pulse is a ring on `::after` that only changes `opacity` and `transform` (run by the compositor), and it pulses 4 times (about 6 s) when the badge or dot appears, then stays solid: even composited, a pulse inside the blurred sidebar re-runs the blur every frame (60% GPU). Idle GPU in the chat after the pulse: 2%.
+- The whirlpool spinner stopped only when its element left the document or the tab was hidden. One inside a hidden panel (the chat's pull-to-refresh, `display: none`) drew every frame for good. An `IntersectionObserver` now pauses it while it isn't on screen and resumes it when it shows.
+- `mobileBulkSelect.js` ran `bindCards()` on every DOM change in the page: it read `window.innerWidth` (which forces a style and layout pass right after a change; ~15 ms on the tablet, as the app's `:has()` rules restyle the whole page) and searched the whole document. It now checks `matchMedia` and binds only cards inside the added elements, plus all cards when the window becomes narrow.
+
+Files: `static/css/01-agent-chat.css`, `static/js/spinner.js`, `static/js/mobileBulkSelect.js`; test `tests/test_spinner_stops_when_never_attached_js.py` (one new case). Used by [Write keeps up on a tablet](../handwritten-notes.md#handwritten-notes-write-keeps-up-on-a-tablet).
+
+Upstreamable: yes

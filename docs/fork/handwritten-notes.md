@@ -325,6 +325,32 @@ As planned, with these details settled while building it:
   writing canvas is back, with the same picture, when the fingers lift or the pen comes
   down. The scroll is rounded to whole device pixels, so lines, dots and ink move
   together without shimmering.
+- **Lag on the Lenovo Tab Plus (2026-11-13):** writing and erasing lagged badly although
+  the view's own work was small. Measured over adb (stylus input injected, Chrome traces
+  of the tablet's Brave): with nobody touching the screen the GPU was 97% busy, and every
+  pen down and up held the main thread ~25 ms. Causes and fixes:
+  - The app under the full-screen window kept animating: the notes reminder pulse
+    (`box-shadow`, in the sidebar, which has a backdrop blur) repainted, re-rastered and
+    re-blurred it every frame, and a hidden spinner drew every frame. While Write is
+    shown full screen, `fork-ink.css` pauses the animations of the app under it and drops
+    its backdrop blur; the pulse and the spinner were also fixed in upstream's files
+    ([chat-ui.md](features/chat-ui.md#the-app-idles-behind-the-write-window)).
+  - The app's CSS has many page-wide `:has()` rules, so any DOM change restyles the whole
+    page (~15 ms on the tablet). The view changed the toolbar at every pen down and up
+    (disabling undo, redo and the tabs, and the status line). Now it writes only values
+    that changed, nothing changes because the pen touched or lifted (the buttons and tabs
+    ignore a press while the pen is down instead of being disabled), and the status line
+    changes only once the pen has rested 0.6 s. Upstream's `mobileBulkSelect.js` read
+    `innerWidth` after every DOM change, which forced that restyle at once; fixed there.
+  - Autosave waits until the pen has rested 1.2 s (at most 15 s while writing without a
+    rest), so its main-thread work (copying the note, IndexedDB, the request; ~20-30 ms)
+    never lands between two strokes of a word. The hub's answer to a save waits for the
+    pen to lift before the view rewrites the note in IndexedDB (a conflict or a deletion
+    is still handled at once).
+  - A stroke reads the canvas's position once, at its start, not at every pen sample.
+
+  After: GPU 1% idle and 34-47% while drawing or erasing, pen down 0.3 ms and up ~1.2 ms,
+  input to screen p50 3.8 ms and p99 6 ms (was 4.9 and 26.7 ms).
 - **Render:** the hub draws the same smoothed curve as the canvas, and highlighter
   marks are laid down as one layer on both, so overlaps don't get darker.
 - **Offline start: not yet.** The idle-time import is in, but it doesn't put Write in
@@ -745,7 +771,7 @@ features and the hooks into upstream files.
 
 ### Handwritten notes, stage H1: Write (pen capture)
 
-**Handwritten notes, stage H1: Write (pen capture).** A **Write** window (sidebar entry after Today and a rail button, both added by `forkModuleWindows.js`; `/open write`; "Open Write" in Settings → Shortcuts, unbound) for writing with a pen on a tablet, full screen on a touch screen. Pointer Events: the pen (and the mouse, for desktop testing) draws; touch never draws and is ignored while a pen is down or was seen in the last 1.5 s (palm rejection), otherwise one finger scrolls and two fingers zoom (`touch-action: none`, pan and zoom in code). Preset pens (black, blue, red, green, a yellow highlighter drawn under the ink), thin/medium, pressure ignored; a stroke eraser, also on the pen's barrel button while held; unlimited undo/redo; `getCoalescedEvents()` and a desynchronized canvas; fixed-width pages, vertical scroll, lined, dotted or blank paper per note that isn't ink (`paper`; `ruled` kept for older views), Add page. Autosave every 3 s and when the app is hidden: IndexedDB first, then `PUT /api/ink/notes/<id>`; notes that didn't reach the hub wait and sync when it's back (last edit wins, said in the view); each signed-in user has their own device store, so a shared browser never shows or uploads another user's notes. The view never builds a note the hub refuses (60 pages, long strokes continue as new ones), and the ink routes only touch notes labelled `handwritten`. Each note is an ordinary note (`label` `handwritten`, `image_url` a PNG of page 1 drawn on the server, at most once a minute while writing and when the page is left); its strokes are in `DATA_DIR/ink/<owner>/<note_id>.json`. A sweep (when Write lists notes) drops strokes of notes deleted elsewhere and keeps a queued save from bringing them back. Every call into upstream notes code is in the adapter section of `src/ink_notes.py`. `forkInk.js` and `fork-ink.css` are loaded in idle time after the app starts, as the plan's offline start; that needs the service worker to control the app page, which upstream's `/static/` scope doesn't (open question 4 in the plan). Once the app is open, Write works offline. Plan: [docs/fork/handwritten-notes.md](handwritten-notes.md).
+**Handwritten notes, stage H1: Write (pen capture).** A **Write** window (sidebar entry after Today and a rail button, both added by `forkModuleWindows.js`; `/open write`; "Open Write" in Settings → Shortcuts, unbound) for writing with a pen on a tablet, full screen on a touch screen. Pointer Events: the pen (and the mouse, for desktop testing) draws; touch never draws and is ignored while a pen is down or was seen in the last 1.5 s (palm rejection), otherwise one finger scrolls and two fingers zoom (`touch-action: none`, pan and zoom in code). Preset pens (black, blue, red, green, a yellow highlighter drawn under the ink), thin/medium, pressure ignored; a stroke eraser, also on the pen's barrel button while held; unlimited undo/redo; `getCoalescedEvents()` and a desynchronized canvas; fixed-width pages, vertical scroll, lined, dotted or blank paper per note that isn't ink (`paper`; `ruled` kept for older views), Add page. Autosave once the pen has rested 1.2 s (at most 15 s while writing without a rest) and when the app is hidden: IndexedDB first, then `PUT /api/ink/notes/<id>`; notes that didn't reach the hub wait and sync when it's back (last edit wins, said in the view); each signed-in user has their own device store, so a shared browser never shows or uploads another user's notes. The view never builds a note the hub refuses (60 pages, long strokes continue as new ones), and the ink routes only touch notes labelled `handwritten`. Each note is an ordinary note (`label` `handwritten`, `image_url` a PNG of page 1 drawn on the server, at most once a minute while writing and when the page is left); its strokes are in `DATA_DIR/ink/<owner>/<note_id>.json`. A sweep (when Write lists notes) drops strokes of notes deleted elsewhere and keeps a queued save from bringing them back. Every call into upstream notes code is in the adapter section of `src/ink_notes.py`. `forkInk.js` and `fork-ink.css` are loaded in idle time after the app starts, as the plan's offline start; that needs the service worker to control the app page, which upstream's `/static/` scope doesn't (open question 4 in the plan). Once the app is open, Write works offline. Plan: [docs/fork/handwritten-notes.md](handwritten-notes.md).
 
 Files: `src/ink_notes.py`, `routes/ink_routes.py`, `static/js/forkInk.js`, `static/css/fork-ink.css` (new); `static/js/forkModuleWindows.js`, `static/js/forkModuleShortcuts.js` (now also exports `FORK_OPEN_TARGETS`), `static/css/fork-modules.css`; hooks in `app.py` (include the ink router) and `static/js/slashCommands.js` (the `/open` targets line now spreads `FORK_OPEN_TARGETS`, plus its import); tests `tests/fork/test_ink_notes.py`, `tests/fork/test_ink_routes.py`, `tests/fork/test_ink_upstream_contract.py`, `tests/fork/test_ink_palm_rejection.py`, `tests/fork/test_ink_perf.py` with `tests/helpers/ink_pointer_e2e.mjs` (new), `tests/fork/test_fork_module_windows.py`
 
@@ -796,5 +822,13 @@ Upstreamable: no
 **Handwritten notes: notebooks.** The Write list has **Notebooks** and **Quick notes**. A notebook is a named, ordered group of handwritten notes, its pages; a note in no notebook is a quick note (one-off, as before). In a notebook, New page (and the editor's Page button) makes the next page, ‹ › flip its pages and Back returns to it; a note can be moved into or out of a notebook; renaming is in the notebook; deleting a notebook keeps its pages as quick notes. Each page stays its own note (transcribed, reviewed and sent to Athena on its own, with its own date). Stored in `<DATA_DIR>/ink/<owner>/_notebooks.json` (page order per notebook); a page made offline is filed by its first save. Routes `POST`/`PATCH`/`DELETE /api/ink/notebooks…`, `PUT /api/ink/notes/{id}/notebook`; `GET /api/ink/notes` also lists the notebooks. [docs/fork/handwritten-notes.md](handwritten-notes.md#notebooks)
 
 Files: `src/ink_notebooks.py` (new), fork files `src/ink_notes.py`, `routes/ink_routes.py`, `static/js/forkInk.js`, `static/css/fork-ink.css`; tests `tests/fork/test_ink_notebooks.py`, `tests/helpers/ink_notebooks_e2e.mjs` (new)
+
+Upstreamable: no new hook
+
+### Handwritten notes: Write keeps up on a tablet
+
+**Handwritten notes: Write keeps up on a tablet.** Writing and erasing in Write no longer lag on a tablet (measured on the Lenovo Tab Plus): while Write is shown full screen the app under it stops animating and drops its backdrop blur; the view changes no DOM at pen down or up (the toolbar writes only changed values, the status line waits until the pen rests); autosave waits until the pen has rested 1.2 s; a stroke reads the canvas's position once. Idle GPU went from 97% to 1%, pen down from ~25 ms to 0.3 ms, input to screen p99 from 26.7 to 6 ms. Details: [Built in H1](#built-in-h1), "Lag on the Lenovo Tab Plus".
+
+Files: fork files `static/js/forkInk.js`, `static/css/fork-ink.css`; test `tests/helpers/ink_review_e2e.mjs` (h2_04: a tap on the Text tab mid-stroke is ignored; the tab is no longer disabled). The upstream fixes it needs: [The app idles behind the Write window](features/chat-ui.md#the-app-idles-behind-the-write-window).
 
 Upstreamable: no new hook
