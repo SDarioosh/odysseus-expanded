@@ -18,6 +18,20 @@
     height: 100vh !important; height: 100dvh !important; max-width: none !important;
     max-height: none !important; border-radius: 0 !important; transform: none !important;
   }
+  /* The app under the full-screen window can't be seen, but the browser still composites
+     it: its animations (the notes reminder pulse, any spinner) and its backdrop blur
+     (the sidebar's) cost GPU time every frame, and on a tablet the pen's ink then came
+     late. While Write is shown they are paused and the blur dropped; they come back as
+     it closes or is minimized (both add .hidden). Toasts and dialogs over it are left
+     alone. */
+  html:has(#fork-ink-modal:not(.hidden)) :is(#sidebar, #chat-container, #icon-rail, #hamburger-btn),
+  html:has(#fork-ink-modal:not(.hidden)) :is(#sidebar, #chat-container, #icon-rail) *,
+  html:has(#fork-ink-modal:not(.hidden)) :is(#sidebar, #chat-container, #icon-rail) *::before,
+  html:has(#fork-ink-modal:not(.hidden)) :is(#sidebar, #chat-container, #icon-rail) *::after {
+    animation-play-state: paused !important;
+    backdrop-filter: none !important;
+    -webkit-backdrop-filter: none !important;
+  }
 }
 
 .ink-root { display: flex; flex-direction: column; flex: 1; min-height: 0; height: 100%; outline: none; }

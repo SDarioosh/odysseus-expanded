@@ -738,11 +738,28 @@ body.bg-pattern-ascii-fireflies {
     }
     .rail-notes-badge.fired {
       background: var(--red);
-      animation: rail-notes-pulse 1.6s ease-in-out infinite;
+    }
+    /* Fork: a light reminder pulse (docs/fork/features/chat-ui.md). The pulse is a ring on a pseudo-element that only fades and grows (opacity and
+       transform: the compositor runs it). Animating box-shadow repainted and re-rastered
+       the sidebar, and re-ran its backdrop blur, every frame, forever: on a tablet that
+       kept the GPU busy and the Write view's ink came late. Even composited, a pulse in
+       the blurred sidebar re-runs the blur each frame, so it pulses 4 times (about 6 s)
+       when the badge or dot appears, then stays solid. */
+    .rail-notes-badge.fired::after,
+    .tool-notes-dot::after {
+      content: '';
+      position: absolute;
+      inset: 0;
+      border-radius: inherit;
+      box-shadow: 0 0 0 4px color-mix(in srgb, var(--red) 22%, transparent);
+      opacity: 0;
+      transform: scale(0.75);
+      pointer-events: none;
+      animation: rail-notes-pulse 1.6s ease-in-out 4;
     }
     @keyframes rail-notes-pulse {
-      0%, 100% { box-shadow: 0 0 0 1px var(--bg), 0 0 0 0 color-mix(in srgb, var(--red) 50%, transparent); }
-      50% { box-shadow: 0 0 0 1px var(--bg), 0 0 0 4px color-mix(in srgb, var(--red) 15%, transparent); }
+      0%, 100% { opacity: 0; transform: scale(0.75); }
+      50% { opacity: 1; transform: scale(1); }
     }
     /* Main sidebar notes button — dot when a reminder has fired */
     .tool-notes-dot {
@@ -758,7 +775,6 @@ body.bg-pattern-ascii-fireflies {
       left: -4px;
       flex-shrink: 0;
       align-self: center;
-      animation: rail-notes-pulse 1.6s ease-in-out infinite;
       pointer-events: none;
     }
     /* Individual card — subtle accent border tint when a reminder has fired */
