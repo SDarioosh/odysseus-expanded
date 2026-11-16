@@ -14,7 +14,9 @@ Sidecar (``version`` 1)::
                 "strokes": [{"id", "pen": {"color", "width", "highlighter"},
                              "at": int, "points": [[x, y, t], ...]}],
                 "transcript": {"text", "model", "status", "strokes_hash", "at"},
-                "photo": {"file", "hash", "width", "height", "at"}}],  # H6: photo pages
+                "photo": {"file", "hash", "width", "height", "at"},   # H6: photo pages
+                "pdf": {"page", "width_pt", "height_pt"}}],  # PDF pages (datasheets)
+     "pdf": {"file", "hash", "name", "pages", "at"},  # only on a note imported from a PDF
      "athena": {"sent_hash", "sent_at", "conversation_id"},
      "render": {"hash", "image_url", "at"}}   # page 1's image, last drawn ``at``
 
@@ -31,6 +33,22 @@ highlighter, which the recognizer never sees); a page dropped by a save, and the
 folder with the sidecar, lose their photo files. The page stays ``PAGE_WIDTH`` x
 ``PAGE_HEIGHT``; the photo is drawn fitted into it, centred, at the top.
 
+A **PDF note** (a datasheet imported by :func:`add_pdf`) has the note-level ``pdf``: the
+file is kept unchanged in ``<ink folder>/pdfs/<note_id>.pdf`` (:func:`pdf_path`), ``hash``
+its sha256, ``name`` the uploaded file name (cleaned), ``pages`` its page count, ``at``
+when it was imported. Each PDF page became a **PDF page** of the note (page id ``pd`` +
+12 hex) with ``pdf``: ``page`` (from 1) and ``width_pt``/``height_pt`` as displayed
+(rotation applied); the page is ``PAGE_WIDTH`` wide and as tall as the PDF page in
+proportion (:func:`fork.ink.pdf.page_height`, ``MIN``/``MAX_PAGE_HEIGHT`` there). Like
+``photo``, a save from the Write view never sets or changes ``pdf`` (kept by page id) and
+must keep a PDF page's height; every other page stays ``PAGE_WIDTH`` x ``PAGE_HEIGHT``.
+Unlike a photo page, a PDF page takes pen ink and the highlighter; the recognizer reads
+only its ink (``fork/ink/transcribe.py``) and a PDF note is never sent to Athena
+(``fork/ink/athena.py``). Blank pages added to a PDF note count toward ``MAX_PAGES``, its
+PDF pages toward ``fork.ink.pdf.MAX_PDF_PAGES``. Rendered PDF pages are cached in
+``<ink folder>/pdfs/cache/<note_id>/<page_id>-<width>.png`` (:func:`pdf_page_image`); the
+file and the cache go with the note (delete, sweep), not with a page a save removes.
+
 Last edit wins: a save whose ``edited_at`` is older than the stored one is refused
 (:class:`Stale`) and the client takes the stored version.
 
@@ -45,6 +63,7 @@ from __future__ import annotations
 import hashlib
 import io
 import json
+import os
 import re
 import shutil
 import threading
@@ -157,6 +176,30 @@ def photo_path(owner: str | None, note_id: str, page_id: str) -> Path:
 
 def is_photo(page: dict[str, Any]) -> bool:
     return isinstance(page, dict) and isinstance(page.get("photo"), dict)
+
+
+def is_pdf(page: dict[str, Any]) -> bool:
+    """A PDF page (a page of an imported datasheet)."""
+    return isinstance(page, dict) and isinstance(page.get("pdf"), dict)
+
+
+def is_pdf_note(stored: dict[str, Any] | None) -> bool:
+    """A note imported from a PDF (its sidecar has the note-level ``pdf``)."""
+    return isinstance(stored, dict) and isinstance(stored.get("pdf"), dict)
+
+
+def pdf_path(owner: str | None, note_id: str) -> Path:
+    """Where a PDF note's file is: ``<ink folder>/pdfs/<note_id>.pdf``."""
+    if not valid_note_id(note_id):
+        raise InkError("Invalid note id")
+    return ink_dir(owner) / "pdfs" / f"{note_id}.pdf"
+
+
+def pdf_cache_dir(owner: str | None, note_id: str) -> Path:
+    """Rendered PDF pages of a note: ``<ink folder>/pdfs/cache/<note_id>``."""
+    if not valid_note_id(note_id):
+        raise InkError("Invalid note id")
+    return ink_dir(owner) / "pdfs" / "cache" / note_id
 
 
 def _tombstone_path(owner: str | None) -> Path:
@@ -277,10 +320,13 @@ def clean_document(body: Any) -> dict[str, Any]:
     Raises :class:`InkError` on anything malformed."""
     if not isinstance(body, dict):
         raise InkError("body must be an object")
+    from fork.ink import pdf as ink_pdf  # imports this module
+
     pages = body.get("pages")
     if not isinstance(pages, list) or not pages:
         raise InkError("a note has at least one page")
-    if len(pages) > MAX_PAGES:
+    # PDF pages count apart (MAX_PDF_PAGES); _merge checks each kind once it knows them.
+    if len(pages) > MAX_PAGES + ink_pdf.MAX_PDF_PAGES:
         raise InkError(f"at most {MAX_PAGES} pages")
     edited_at = int(_num(body.get("edited_at", 0), 0, 1e14, "edited_at"))
     seen_pages: set[str] = set()
@@ -294,9 +340,13 @@ def clean_document(body: Any) -> dict[str, Any]:
             raise InkError("page id is invalid or repeated")
         seen_pages.add(pid)
         # Every page is the Write view's page size, so a request can't ask the renderer
-        # for a huge bitmap.
+        # for a huge bitmap. A PDF page is as tall as its PDF page: any height in the PDF
+        # range passes here, and _merge holds every page to its stored size.
         width = _num(page.get("width", PAGE_WIDTH), PAGE_WIDTH, PAGE_WIDTH, "page width")
-        height = _num(page.get("height", PAGE_HEIGHT), PAGE_HEIGHT, PAGE_HEIGHT, "page height")
+        height = _num(page.get("height", PAGE_HEIGHT), ink_pdf.MIN_PAGE_HEIGHT,
+                      ink_pdf.MAX_PAGE_HEIGHT, "page height")
+        if height != int(height):
+            raise InkError("page height is out of range")
         strokes = page.get("strokes") or []
         if not isinstance(strokes, list):
             raise InkError("strokes must be a list")
@@ -324,10 +374,14 @@ def paper_of(doc: dict[str, Any]) -> str:
 
 def strokes_hash(page: dict[str, Any]) -> str:
     """Stable hash of a page's strokes (what H2 compares to know a page changed), and of
-    its photo on a photo page (H6; a page without one hashes as before)."""
+    its photo on a photo page (H6) or its PDF page on a PDF page (a page without either
+    hashes as before)."""
     parts = [page.get("width"), page.get("height"), page.get("strokes") or []]
     if is_photo(page):
         parts.append({"photo": page["photo"].get("hash")})
+    if is_pdf(page):
+        p = page["pdf"]
+        parts.append({"pdf": [p.get("page"), p.get("width_pt"), p.get("height_pt")]})
     raw = json.dumps(parts, separators=(",", ":"), sort_keys=True)
     return hashlib.sha256(raw.encode("utf-8")).hexdigest()
 
@@ -335,10 +389,11 @@ def strokes_hash(page: dict[str, Any]) -> str:
 # ------------------------------------------------------------------------ render
 def render_page_png(page: dict[str, Any], *, scale: float = RENDER_SCALE,
                     highlighter: bool = True, photo: Path | None = None,
-                    fmt: str = "PNG") -> bytes:
+                    background: Any = None, fmt: str = "PNG") -> bytes:
     """A PNG of one page: white paper, highlighter under the ink, no ruling. The same
     strokes always give the same bytes. ``photo`` (a photo page's file, H6) is drawn
-    first, fitted into the page; ``fmt`` ``"JPEG"`` suits a page with a photo."""
+    first, fitted into the page; ``background`` (a Pillow image, a PDF page's render) is
+    drawn first over the whole page; ``fmt`` ``"JPEG"`` suits a page with either."""
     from PIL import Image, ImageDraw
 
     width = max(1, int(round(page.get("width", PAGE_WIDTH) * scale)))
@@ -346,6 +401,11 @@ def render_page_png(page: dict[str, Any], *, scale: float = RENDER_SCALE,
     base = Image.new("RGBA", (width, height), (255, 255, 255, 255))
     if photo is not None:
         _paste_photo(base, photo)
+    if background is not None:
+        bg = background.convert("RGBA")
+        if bg.size != base.size:
+            bg = bg.resize(base.size, Image.LANCZOS)
+        base.paste(bg, (0, 0))
     strokes = page.get("strokes") or []
     marks = [s for s in strokes if s["pen"].get("highlighter")] if highlighter else []
     ink = [s for s in strokes if not s["pen"].get("highlighter")]
@@ -372,6 +432,18 @@ def photo_box(photo_w: float, photo_h: float, page_w: float, page_h: float
     k = min(page_w / max(1.0, photo_w), page_h / max(1.0, photo_h))
     w, h = photo_w * k, photo_h * k
     return (page_w - w) / 2, 0.0, w, h
+
+
+def _pdf_background(store: str | None, note_id: str, page: dict[str, Any]):
+    """A PDF page rendered ``PAGE_WIDTH`` px wide (page 1's image), or None when the file
+    can't be read (the page is drawn without it)."""
+    from fork.ink import pdf as ink_pdf  # imports this module
+
+    try:
+        return ink_pdf.render_image(pdf_path(store, note_id), int(page["pdf"]["page"]),
+                                    int(round(page.get("width", PAGE_WIDTH) * RENDER_SCALE)))
+    except (OSError, ValueError, TypeError, KeyError, RuntimeError):  # RuntimeError: pdfium
+        return None
 
 
 def _paste_photo(base, path: Path) -> None:
@@ -523,8 +595,11 @@ def _store_owner(owner: str | None, note_id: str) -> str | None:
 
 def _merge(current: dict[str, Any] | None, doc: dict[str, Any], note_id: str
            ) -> dict[str, Any]:
-    """The new strokes, keeping each page's ``transcript`` (by page id) and the note's
-    ``athena`` and ``render`` from the stored sidecar."""
+    """The new strokes, keeping each page's ``transcript``, ``photo`` and ``pdf`` (by
+    page id) and the note's ``athena``, ``render`` and ``pdf`` from the stored sidecar.
+    A PDF page keeps its stored height; every other page is ``PAGE_HEIGHT`` tall."""
+    from fork.ink import pdf as ink_pdf  # imports this module
+
     current = current or {}
     old_pages = {p.get("id"): p for p in current.get("pages") or [] if isinstance(p, dict)}
     pages = []
@@ -532,18 +607,32 @@ def _merge(current: dict[str, Any] | None, doc: dict[str, Any], note_id: str
         old = old_pages.get(page["id"]) or {}
         transcript = old.get("transcript") if isinstance(old.get("transcript"), dict) else None
         new = {**page, "transcript": transcript or _empty_transcript()}
+        if is_pdf(old):  # only add_pdf makes a PDF page; it takes pen ink and highlighter
+            if page["height"] != old.get("height"):
+                raise InkError("A PDF page keeps the height of its PDF page")
+            new["pdf"] = old["pdf"]
+        elif page["height"] != PAGE_HEIGHT:
+            raise InkError("page height is out of range")
         if is_photo(old):  # H6: only add_photos makes a photo page
             if any(not s["pen"].get("highlighter") for s in page["strokes"]):
                 raise InkError("A photo page takes only the highlighter, not pen ink")
             new["photo"] = old["photo"]
         pages.append(new)
+    pdf_pages = sum(1 for p in pages if is_pdf(p))
+    if len(pages) - pdf_pages > MAX_PAGES:
+        raise InkError(f"at most {MAX_PAGES} pages")
+    if pdf_pages > ink_pdf.MAX_PDF_PAGES:  # can't happen: a save never adds one
+        raise InkError(f"at most {ink_pdf.MAX_PDF_PAGES} PDF pages")
     athena = current.get("athena") if isinstance(current.get("athena"), dict) else None
     render = current.get("render") if isinstance(current.get("render"), dict) else None
-    return {"version": VERSION, "note_id": note_id, "paper": doc["paper"],
-            "ruled": doc["ruled"],
-            "edited_at": doc["edited_at"], "saved_at": _now_iso(), "pages": pages,
-            "athena": athena or _empty_athena(),
-            "render": render or {"hash": None, "image_url": None, "at": None}}
+    out = {"version": VERSION, "note_id": note_id, "paper": doc["paper"],
+           "ruled": doc["ruled"],
+           "edited_at": doc["edited_at"], "saved_at": _now_iso(), "pages": pages,
+           "athena": athena or _empty_athena(),
+           "render": render or {"hash": None, "image_url": None, "at": None}}
+    if is_pdf_note(current):  # the imported PDF: never set or changed by a save
+        out["pdf"] = current["pdf"]
+    return out
 
 
 def _render_if_changed(owner: str | None, note_id: str, stored: dict[str, Any], *,
@@ -560,6 +649,14 @@ def _render_if_changed(owner: str | None, note_id: str, stored: dict[str, Any], 
         path = photo_path(_store_owner(owner, note_id) if store is None else store,
                           note_id, first["id"])
         url = save_page_image(owner, render_page_png(first, photo=path, fmt="JPEG"),
+                              filename="handwritten.jpg")
+        if url is None:
+            return
+    elif is_pdf(first):  # the PDF page with the ink on it, as a JPEG
+        background = _pdf_background(_store_owner(owner, note_id) if store is None else store,
+                                     note_id, first)
+        url = save_page_image(owner, render_page_png(first, background=background,
+                                                     fmt="JPEG"),
                               filename="handwritten.jpg")
         if url is None:
             return
@@ -605,6 +702,7 @@ def _remove_sidecar(owner: str | None, note_id: str) -> None:
     except FileNotFoundError:
         pass
     _remove_photos(owner, note_id)  # H6: a note's photos go with its sidecar
+    _remove_pdf(owner, note_id)     # and a PDF note's file and rendered pages
 
 
 def _remove_photos(owner: str | None, note_id: str) -> None:
@@ -613,16 +711,30 @@ def _remove_photos(owner: str | None, note_id: str) -> None:
         shutil.rmtree(folder, ignore_errors=True)
 
 
+def _remove_pdf(owner: str | None, note_id: str) -> None:
+    pdf_path(owner, note_id).unlink(missing_ok=True)
+    folder = pdf_cache_dir(owner, note_id)
+    if folder.is_dir():
+        shutil.rmtree(folder, ignore_errors=True)
+
+
 def _drop_photos(store: str | None, note_id: str, before: dict[str, Any] | None,
                  after: dict[str, Any]) -> None:
-    """Delete the photo files of photo pages a save removed."""
-    kept = {p.get("id") for p in after.get("pages") or [] if is_photo(p)}
+    """Delete the photo files of photo pages a save removed, and the rendered images of
+    PDF pages it removed (the PDF itself stays: it never changes after import)."""
+    kept = {p.get("id") for p in after.get("pages") or [] if is_photo(p) or is_pdf(p)}
     for page in (before or {}).get("pages") or []:
-        if is_photo(page) and page.get("id") not in kept:
+        if page.get("id") in kept:
+            continue
+        if is_photo(page):
             try:
                 photo_path(store, note_id, page["id"]).unlink()
             except (FileNotFoundError, InkError):
                 pass
+        elif is_pdf(page) and isinstance(page.get("id"), str) \
+                and _SHORT_ID_RE.match(page["id"]):
+            for path in pdf_cache_dir(store, note_id).glob(f"{page['id']}-*.png"):
+                path.unlink(missing_ok=True)
 
 
 def sent_to_athena(stored: dict[str, Any] | None) -> bool:
@@ -752,7 +864,8 @@ def add_photos(owner: str | None, note_id: str, photos: list[dict[str, Any]], *,
         base = current if current is not None else {
             "paper": paper if paper in PAPERS else "blank", "edited_at": 0, "pages": []}
         pages = [p for p in base.get("pages") or [] if isinstance(p, dict)]
-        if len(pages) + len(photos) > MAX_PAGES:
+        # PDF pages count apart (fork/ink/pdf.py MAX_PDF_PAGES)
+        if sum(1 for p in pages if not is_pdf(p)) + len(photos) > MAX_PAGES:
             raise InkError(f"A note has at most {MAX_PAGES} pages: this note is full", 413)
         ids = [p.get("id") for p in pages]
         at = ids.index(after) + 1 if after in ids else len(pages)
@@ -780,6 +893,8 @@ def add_photos(owner: str | None, note_id: str, photos: list[dict[str, Any]], *,
                       "saved_at": _now_iso(), "pages": pages,
                       "athena": athena or _empty_athena(),
                       "render": render or {"hash": None, "image_url": None, "at": None}}
+            if is_pdf_note(base):  # photos added to a datasheet
+                stored["pdf"] = base["pdf"]
             _render_if_changed(owner, note_id, stored, final=True,
                                now=time.time() if now is None else now, store=store)
             _write_json(sidecar_path(store, note_id), stored)
@@ -807,6 +922,187 @@ def photo_file(owner: str | None, note_id: str, page_id: str) -> Path | None:
         return None
     path = photo_path(store, note_id, page_id)
     return path if path.is_file() else None
+
+
+# ----------------------------------------------------------- PDF datasheets
+MAX_PDF_NAME = 200
+_NAME_JUNK = re.compile(r"[\x00-\x1f\x7f]+")
+
+
+def clean_pdf_name(name: Any) -> str:
+    """The uploaded file's name as stored: no folders, no control characters, at most
+    ``MAX_PDF_NAME`` characters (the ``.pdf`` kept), ``datasheet.pdf`` when nothing is
+    left."""
+    name = name if isinstance(name, str) else ""
+    name = _NAME_JUNK.sub(" ", name.replace("\\", "/").rsplit("/", 1)[-1]).strip()
+    if len(name) > MAX_PDF_NAME:
+        stem, dot, ext = name.rpartition(".")
+        keep = "." + ext if dot and 0 < len(ext) <= 8 else ""
+        name = (stem if keep else name)[:MAX_PDF_NAME - len(keep)].rstrip() + keep
+    return name or "datasheet.pdf"
+
+
+def _pdf_title(name: str) -> str:
+    stem = name[:-4] if name.lower().endswith(".pdf") else name
+    return stem.strip()[:MAX_TITLE] or default_title()
+
+
+def add_pdf(owner: str | None, note_id: str, data: bytes, *, name: Any = None,
+            title: str | None = None, edited_at: Any = 0, paper: str | None = None,
+            now: float | None = None) -> dict[str, Any]:
+    """Import a PDF (a datasheet) as a new handwritten note of the owner, one PDF page
+    per page of the PDF (see the module docstring). The id is made by the client, like
+    a first save. ``name`` is the uploaded file name (stored cleaned, :func:`clean_pdf_name`),
+    ``title`` defaults to it without ``.pdf``, ``paper`` (the paper of blank pages added
+    later) to blank. Page 1's image is the PDF page with any ink. Returns the stored note
+    (:func:`public`, plus ``notebook``). Raises :class:`InkError`: 409 when the note
+    exists already (a PDF starts a new note), 410 deleted, 404 another owner's id, and
+    :func:`fork.ink.pdf.inspect_pdf`'s 400 and 413."""
+    from fork.ink import notebooks as ink_notebooks  # imports this module
+    from fork.ink import pdf as ink_pdf  # imports this module
+
+    if not valid_note_id(note_id):
+        raise InkError("Invalid note id")
+    edited_at = int(_num(edited_at or 0, 0, 1e14, "edited_at"))
+    name = clean_pdf_name(name)
+    if title is not None:
+        if not isinstance(title, str):
+            raise InkError("title must be a string")
+        title = title.strip()[:MAX_TITLE]
+    if not title:
+        title = _pdf_title(name)
+
+    def check_new() -> None:
+        if note_id_taken(note_id):
+            if existing_note_ids(owner, [note_id]):
+                raise InkError("A PDF starts a new note", 409)
+            raise InkError("Note not found", 404)
+
+    check_new()  # before reading the PDF
+    info = ink_pdf.inspect_pdf(data)
+    store = _store_owner(owner, note_id)
+    with _lock(store):
+        check_new()  # created meanwhile
+        current = load_sidecar(store, note_id)
+        _, created = _ensure_note(owner, note_id, store, current, title)
+        path = pdf_path(store, note_id)
+        try:
+            _write_bytes(path, bytes(data))
+            pages = []
+            for p in info["pages"]:
+                pages.append({
+                    "id": "pd" + uuid.uuid4().hex[:12], "width": PAGE_WIDTH,
+                    "height": ink_pdf.page_height(p["width_pt"], p["height_pt"]),
+                    "strokes": [], "transcript": _empty_transcript(),
+                    "pdf": {"page": p["page"], "width_pt": p["width_pt"],
+                            "height_pt": p["height_pt"]}})
+            paper_now = paper if paper in PAPERS else "blank"
+            stored = {"version": VERSION, "note_id": note_id, "paper": paper_now,
+                      "ruled": paper_now == "lined", "edited_at": edited_at,
+                      "saved_at": _now_iso(), "pages": pages,
+                      "pdf": {"file": f"pdfs/{note_id}.pdf", "hash": info["hash"],
+                              "name": name, "pages": len(pages), "at": _now_iso()},
+                      "athena": _empty_athena(),
+                      "render": {"hash": None, "image_url": None, "at": None}}
+            _render_if_changed(owner, note_id, stored, final=True,
+                               now=time.time() if now is None else now, store=store)
+            _write_json(sidecar_path(store, note_id), stored)
+        except BaseException:
+            if created:  # no note without its pages
+                delete_note(owner, note_id)
+                _remove_sidecar(store, note_id)
+            raise
+        out = public(stored, note_title(owner, note_id))
+    out["notebook"] = ink_notebooks.notebook_of(owner, note_id)
+    return out
+
+
+def _pdf_note(owner: str | None, note_id: str) -> tuple[str | None, dict[str, Any]] | None:
+    """``(store, sidecar)`` of the owner's handwritten note when it is a PDF note."""
+    if not valid_note_id(note_id) or not existing_note_ids(owner, [note_id]):
+        return None
+    store = _store_owner(owner, note_id)
+    with _lock(store):
+        stored = load_sidecar(store, note_id)
+    return (store, stored) if is_pdf_note(stored) else None
+
+
+def pdf_file(owner: str | None, note_id: str) -> Path | None:
+    """The stored PDF of the owner's PDF note (the file as uploaded), else None (not
+    this owner's handwritten note, not a PDF note, or the file is missing).
+
+    To read a PDF page's text, pair it with the note's pages: :func:`load` (``owner``,
+    ``note_id``) answers the note with the owner check done, and each PDF page in its
+    ``pages`` has ``pdf.page`` (from 1), the page number to pass to
+    :func:`fork.ink.pdf.page_words` with this path. (Inside this module the sidecar is
+    read with ``load_sidecar(_store_owner(owner, note_id), note_id)`` after
+    ``existing_note_ids`` checked the owner; code elsewhere uses :func:`load`.)"""
+    found = _pdf_note(owner, note_id)
+    if found is None:
+        return None
+    path = pdf_path(found[0], note_id)
+    return path if path.is_file() else None
+
+
+def pdf_page_image(owner: str | None, note_id: str, page_id: str,
+                   width_px: int) -> Path | None:
+    """The PNG of a PDF page of the owner's note, rendered ``width_px`` wide (the route
+    passes a ``fork.ink.pdf.WIDTH_TIERS`` value), from the cache
+    ``<ink folder>/pdfs/cache/<note_id>/<page_id>-<width>.png`` or rendered into it now.
+    None for a page that isn't a PDF page of this owner's note, or a missing file."""
+    from fork.ink import pdf as ink_pdf  # imports this module
+
+    if not isinstance(page_id, str) or not _SHORT_ID_RE.match(page_id):
+        return None
+    found = _pdf_note(owner, note_id)
+    if found is None:
+        return None
+    store, stored = found
+    page = next((p for p in stored.get("pages") or []
+                 if isinstance(p, dict) and p.get("id") == page_id), None)
+    if page is None or not is_pdf(page):
+        return None
+    width_px = ink_pdf.capped_width(int(width_px), page.get("height") or PAGE_HEIGHT)
+    cache = pdf_cache_dir(store, note_id)
+    cached = cache / f"{page_id}-{width_px}.png"
+    if cached.is_file():
+        try:
+            os.utime(cached)  # recently used: kept by _trim_pdf_cache
+        except OSError:
+            pass
+        return cached
+    try:
+        png = ink_pdf.render_page(pdf_path(store, note_id), int(page["pdf"]["page"]), width_px)
+    except (OSError, ValueError, TypeError, KeyError, RuntimeError):  # RuntimeError: pdfium
+        return None
+    _write_bytes(cached, png)  # a page id's image never changes: no lock needed
+    _trim_pdf_cache(cache, keep=cached)
+    return cached
+
+
+# A note's rendered pages are a cache: past this size the least recently used go (a
+# 500-page datasheet at every tier would otherwise keep gigabytes).
+MAX_PDF_CACHE_BYTES = 300 * 1024 * 1024
+
+
+def _trim_pdf_cache(cache: Path, *, keep: Path, limit: int = MAX_PDF_CACHE_BYTES) -> None:
+    """Delete the least recently used PNGs of ``cache`` until it is under 80% of
+    ``limit``, once it is over ``limit``; never ``keep`` (the one just rendered)."""
+    try:
+        files = [(e.stat().st_mtime, e.stat().st_size, Path(e.path))
+                 for e in os.scandir(cache) if e.is_file() and e.name.endswith(".png")]
+    except OSError:
+        return
+    total = sum(size for _, size, _ in files)
+    if total <= limit:
+        return
+    for _, size, path in sorted(files):
+        if total <= limit * 0.8:
+            break
+        if path == keep:
+            continue
+        path.unlink(missing_ok=True)
+        total -= size
 
 
 def owner_folders() -> list[str | None]:
@@ -838,6 +1134,7 @@ def sweep_folder(owner: str | None) -> list[str]:
     with _lock(owner):  # no save, delete or tombstone write of this owner meanwhile
         ids = sidecar_ids(owner)
         _sweep_photos(owner, set(ids))
+        _sweep_pdfs(owner, set(ids))
         if not ids:
             return []
         # Any note with that id keeps its strokes (also one relabelled in Notes).
@@ -865,6 +1162,22 @@ def _sweep_photos(owner: str | None, sidecars: set[str]) -> None:
             shutil.rmtree(folder, ignore_errors=True)
 
 
+def _sweep_pdfs(owner: str | None, sidecars: set[str]) -> None:
+    """PDF files and rendered-page folders without a sidecar (an import cut short, or a
+    render that finished after the note was deleted) are removed. Call under the lock."""
+    root = ink_dir(owner) / "pdfs"
+    if not root.is_dir():
+        return
+    for path in root.glob("*.pdf"):
+        if valid_note_id(path.stem) and path.stem not in sidecars:
+            path.unlink(missing_ok=True)
+    cache = root / "cache"
+    if cache.is_dir():
+        for folder in cache.iterdir():
+            if folder.is_dir() and valid_note_id(folder.name) and folder.name not in sidecars:
+                shutil.rmtree(folder, ignore_errors=True)
+
+
 def list_notes(owner: str | None) -> list[dict[str, Any]]:
     """The owner's handwritten notes, newest first, after a sweep. ``notebook`` is the
     id of the notebook a note is a page of (``src/ink_notebooks.py``), or ``None``."""
@@ -884,7 +1197,11 @@ def list_notes(owner: str | None) -> list[dict[str, Any]]:
                     # H2: pages to review, failed, being read (src/ink_transcribe.py)
                     "transcripts": _transcript_summary(stored),
                     # H4: not_sent, sent or changed (src/ink_athena.py)
-                    "athena": _athena_state(stored)})
+                    "athena": _athena_state(stored),
+                    # a datasheet: the PDF's name and page count, else None
+                    "pdf": ({"name": stored["pdf"].get("name"),
+                             "pages": stored["pdf"].get("pages")}
+                            if is_pdf_note(stored) else None)})
     return out
 
 

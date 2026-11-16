@@ -54,6 +54,20 @@ Stage H6, photos of paper pages (``src/ink_notes.py`` ``add_photos``):
   ``Content-Length``, 413 too large or the note full.
 * ``GET /api/ink/notes/{id}/photos/{page_id}``: the stored photo (JPEG) of a photo page.
 
+PDF datasheets (``fork/ink/pdf.py``, ``fork/ink/notes.py`` ``add_pdf``): a PDF becomes one
+handwritten note whose pages are PDF pages (pen ink and highlighter on them).
+
+* ``POST /api/ink/notes/{id}/pdf`` (multipart): ``pdf`` (the file, at most
+  ``pdf.MAX_PDF_BYTES`` and ``pdf.MAX_PDF_PAGES`` pages), optional ``title`` (default the
+  file name without ``.pdf``), ``edited_at`` (ms) and ``paper`` (default ``blank``).
+  Creates the note (client-made id); answers it like ``GET``. 409 when the note exists
+  already (a PDF starts a new note), 400 not a readable PDF (or password protected, or a
+  page too narrow or too wide), 410 deleted, 411 no ``Content-Length``, 413 too large.
+* ``GET /api/ink/notes/{id}/pdf``: the PDF as uploaded (an attachment, its file name).
+* ``GET /api/ink/notes/{id}/pdf/{page_id}.png?w=<px>``: a PDF page rendered at
+  ``pdf.tier(w)`` px wide (cached for good: a page id's image never changes). 404 for a
+  page that isn't a PDF page.
+
 Notebooks (``src/ink_notebooks.py``): a notebook is a named, ordered group of handwritten
 notes, its pages; a note in no notebook is a quick note.
 
@@ -89,6 +103,7 @@ from fastapi.responses import FileResponse, JSONResponse
 from fork.ink import athena
 from fork.ink import notebooks as nb
 from fork.ink import notes as ink
+from fork.ink import pdf as ink_pdf
 from fork.ink import transcribe as tr
 from src.auth_helpers import require_user
 
@@ -108,6 +123,11 @@ _PAGE_ID = re.compile(r"^[A-Za-z0-9_-]{1,64}$")
 MAX_REVIEW_BODY = 256 * 1024
 # H6: every photo of one upload at its largest, plus the form around them.
 MAX_PHOTO_BODY = ink.MAX_PHOTOS_PER_UPLOAD * ink.MAX_PHOTO_BYTES + 64 * 1024
+# A PDF at its largest, plus the form around it.
+MAX_PDF_BODY = ink_pdf.MAX_PDF_BYTES + 64 * 1024
+# A rendered PDF page never changes (a page id is one page of one stored PDF).
+PDF_IMAGE_HEADERS = {"Cache-Control": "private, max-age=604800, immutable",
+                     "X-Content-Type-Options": "nosniff"}
 
 
 async def _json_body(request: Request, limit: int) -> dict[str, Any]:
@@ -318,6 +338,61 @@ def setup_ink_routes() -> APIRouter:
         # A page's photo never changes (a new photo is a new page).
         return FileResponse(path, media_type="image/jpeg", headers={
             "Cache-Control": "private, max-age=3600", "X-Content-Type-Options": "nosniff"})
+
+    @router.post("/notes/{note_id}/pdf")
+    async def add_pdf(request: Request, note_id: str):
+        owner = _owner(request)
+        _check_id(note_id)
+        length = request.headers.get("content-length") or ""
+        if not length.isdigit():
+            raise HTTPException(411, "The upload needs a Content-Length")
+        if int(length) > MAX_PDF_BODY:
+            raise HTTPException(413, "The PDF is too large")
+        if not (request.headers.get("content-type") or "").startswith("multipart/form-data"):
+            raise HTTPException(400, "Send the PDF as multipart/form-data")
+        form = await request.form(max_files=1, max_fields=16, max_part_size=64 * 1024)
+        try:
+            files = [v for k, v in form.multi_items() if k == "pdf" and not isinstance(v, str)]
+            if len(files) != 1:
+                raise HTTPException(400, "Send one PDF")
+            fields = {k: v for k, v in form.multi_items() if isinstance(v, str)}
+            edited = fields.get("edited_at") or "0"
+            if not (edited.isascii() and edited.isdigit()):
+                raise HTTPException(400, "edited_at must be a number")
+            data = await files[0].read(ink_pdf.MAX_PDF_BYTES + 1)
+            return await asyncio.to_thread(
+                ink.add_pdf, owner, note_id, data, name=files[0].filename,
+                title=fields.get("title"), edited_at=int(edited), paper=fields.get("paper"))
+        except ink.InkError as exc:
+            raise HTTPException(exc.status, str(exc)) from None
+        finally:
+            await form.close()
+
+    @router.get("/notes/{note_id}/pdf")
+    async def get_pdf(request: Request, note_id: str):
+        owner = _owner(request)
+        _check_id(note_id)
+        path = await asyncio.to_thread(ink.pdf_file, owner, note_id)
+        note = await asyncio.to_thread(ink.load, owner, note_id) if path else None
+        if path is None or note is None or not isinstance(note.get("pdf"), dict):
+            raise HTTPException(404, "PDF not found")
+        name = ink.clean_pdf_name(note["pdf"].get("name"))
+        return FileResponse(path, media_type="application/pdf", filename=name,
+                            content_disposition_type="attachment",
+                            headers={"Cache-Control": "private, max-age=3600",
+                                     "X-Content-Type-Options": "nosniff"})
+
+    @router.get("/notes/{note_id}/pdf/{page_id}.png")
+    async def get_pdf_page(request: Request, note_id: str, page_id: str, w: int = 1200):
+        owner = _owner(request)
+        _check_id(note_id)
+        if not _PAGE_ID.match(page_id):
+            raise HTTPException(404, "Page not found")
+        width = ink_pdf.tier(max(1, w))
+        path = await asyncio.to_thread(ink.pdf_page_image, owner, note_id, page_id, width)
+        if path is None:
+            raise HTTPException(404, "Page not found")
+        return FileResponse(path, media_type="image/png", headers=PDF_IMAGE_HEADERS)
 
     return router
 
