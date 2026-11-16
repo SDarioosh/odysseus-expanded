@@ -64,6 +64,15 @@ handwritten note whose pages are PDF pages (pen ink and highlighter on them).
   already (a PDF starts a new note), 400 not a readable PDF (or password protected, or a
   page too narrow or too wide), 410 deleted, 411 no ``Content-Length``, 413 too large.
 * ``GET /api/ink/notes/{id}/pdf``: the PDF as uploaded (an attachment, its file name).
+  With ``?marks=1``: a copy with the pen, the highlighter and what was written as PDF
+  annotations, built on demand (``fork/ink/pdf_export.py``), named
+  ``<name> (marked).pdf``; the stored file never changes.
+* ``POST /api/ink/notes/{id}/pdf`` with JSON ``{document_id, edited_at, title?, paper?}``
+  (``Content-Type: application/json``): the same import from a PDF in the owner's Library
+  (``fork/ink/library.py``); same limits and 409/410; 404 when the document isn't the
+  owner's PDF or its file is gone. The Library document is not changed or linked.
+* ``GET /api/ink/library-pdfs``: ``{"documents": [{id, title, updated_at}]}``, the
+  owner's Library documents that are PDFs, newest first.
 * ``GET /api/ink/notes/{id}/pdf/{page_id}.png?w=<px>``: a PDF page rendered at
   ``pdf.tier(w)`` px wide (cached for good: a page id's image never changes). 404 for a
   page that isn't a PDF page.
@@ -98,15 +107,17 @@ import re
 from typing import Any
 
 from fastapi import APIRouter, BackgroundTasks, HTTPException, Request
-from fastapi.responses import FileResponse, JSONResponse
+from fastapi.responses import FileResponse, JSONResponse, Response
 
 from fork.ink import athena
 from fork.ink import mark_reading
 from fork.ink import notebooks as nb
 from fork.ink import notes as ink
+from fork.ink import library
 from fork.ink import pdf as ink_pdf
+from fork.ink import pdf_export
 from fork.ink import transcribe as tr
-from src.auth_helpers import require_user
+from src.auth_helpers import get_current_user, require_user
 
 MAX_BODY = 12 * 1024 * 1024
 
@@ -142,6 +153,45 @@ async def _json_body(request: Request, limit: int) -> dict[str, Any]:
     if not isinstance(body, dict):
         raise HTTPException(400, "Body must be an object")
     return body
+
+
+def _attachment(name: str) -> str:
+    """A Content-Disposition for a download named ``name`` (any characters)."""
+    from urllib.parse import quote
+
+    plain = "".join(ch if 32 <= ord(ch) < 127 and ch not in '"\\' else "_" for ch in name)
+    return f"attachment; filename=\"{plain}\"; filename*=utf-8''{quote(name, safe='')}"
+
+
+async def _add_library_pdf(request: Request, owner: str | None, note_id: str):
+    """``POST /notes/{id}/pdf`` with JSON ``{document_id, edited_at, title?, paper?}``:
+    a new datasheet note from a PDF in the owner's Library (``fork/ink/library.py``)."""
+    body = await _json_body(request, 8 * 1024)
+    doc_id = body.get("document_id")
+    if not isinstance(doc_id, str) or not doc_id.strip():
+        raise HTTPException(400, "document_id is required")
+    edited = body.get("edited_at", 0)
+    if isinstance(edited, str) and edited.isascii() and edited.isdigit():
+        edited = int(edited)
+    if isinstance(edited, bool) or not isinstance(edited, int) or edited < 0:
+        raise HTTPException(400, "edited_at must be a number")
+    title = body.get("title")
+    if title is not None and not isinstance(title, str):
+        raise HTTPException(400, "title must be a string")
+    paper = body.get("paper")
+    user = get_current_user(request)  # upstream's Library checks owners with this
+    auth_manager = getattr(getattr(request.app, "state", None), "auth_manager", None)
+    try:
+        if await asyncio.to_thread(ink.existing_note_ids, owner, [note_id]):
+            raise ink.InkError("A PDF starts a new note", 409)  # before reading the file
+        data, name, doc_title = await asyncio.to_thread(library.document_pdf, user,
+                                                        doc_id.strip(), auth_manager)
+        return await asyncio.to_thread(
+            ink.add_pdf, owner, note_id, data, name=name,
+            title=(title or "").strip() or doc_title or None,
+            edited_at=edited, paper=paper if isinstance(paper, str) else None)
+    except ink.InkError as exc:
+        raise HTTPException(exc.status, str(exc)) from None
 
 
 def setup_ink_routes() -> APIRouter:
@@ -347,6 +397,8 @@ def setup_ink_routes() -> APIRouter:
     async def add_pdf(request: Request, note_id: str):
         owner = _owner(request)
         _check_id(note_id)
+        if (request.headers.get("content-type") or "").startswith("application/json"):
+            return await _add_library_pdf(request, owner, note_id)
         length = request.headers.get("content-length") or ""
         if not length.isdigit():
             raise HTTPException(411, "The upload needs a Content-Length")
@@ -373,9 +425,21 @@ def setup_ink_routes() -> APIRouter:
             await form.close()
 
     @router.get("/notes/{note_id}/pdf")
-    async def get_pdf(request: Request, note_id: str):
+    async def get_pdf(request: Request, note_id: str, marks: bool = False):
         owner = _owner(request)
         _check_id(note_id)
+        if marks:  # a copy with the marks as PDF annotations (fork/ink/pdf_export.py)
+            try:
+                made = await asyncio.to_thread(pdf_export.export, owner, note_id)
+            except ink.InkError as exc:
+                raise HTTPException(exc.status, str(exc)) from None
+            except (OSError, ValueError):
+                made = None
+            if made is None:
+                raise HTTPException(404, "PDF not found")
+            return Response(made[0], media_type="application/pdf", headers={
+                "Content-Disposition": _attachment(made[1]),
+                "Cache-Control": "private, no-store", "X-Content-Type-Options": "nosniff"})
         path = await asyncio.to_thread(ink.pdf_file, owner, note_id)
         note = await asyncio.to_thread(ink.load, owner, note_id) if path else None
         if path is None or note is None or not isinstance(note.get("pdf"), dict):
@@ -385,6 +449,12 @@ def setup_ink_routes() -> APIRouter:
                             content_disposition_type="attachment",
                             headers={"Cache-Control": "private, max-age=3600",
                                      "X-Content-Type-Options": "nosniff"})
+
+    @router.get("/library-pdfs")
+    async def library_pdfs(request: Request):
+        _owner(request)  # signed in (API tokens refused), as every route here
+        user = get_current_user(request)
+        return {"documents": await asyncio.to_thread(library.pdf_documents, user)}
 
     @router.get("/notes/{note_id}/pdf/{page_id}.png")
     async def get_pdf_page(request: Request, note_id: str, page_id: str, w: int = 1200):
