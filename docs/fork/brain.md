@@ -678,10 +678,13 @@ note about the ZX-100's enable pin?" is answered from their marks.
   without its hyphen ("pulldown", "zx100"). Best score first, then newest.
 - **Arguments.** `query` (required), `limit` (1-20, default 10). The search runs in a
   thread, for the run's owner only.
-- **Result.** One block per mark: the datasheet's title (and PDF name), page, kind
-  (highlight, underline, handwritten note), `printed text it covers:` the PDF text, `handwritten by you:` what was
-  written ("(corrected by you)" for a reading the owner corrected; "isn't read yet" or
-  "couldn't be read" otherwise), `printed line beside it:` the near line (`printed line it points to:` for an arrow), and `[open](/#open=write&note=…&page=…&mark=…)`,
+- **Result.** A first line asking for each mark's link in the answer, then one block per
+  mark: the datasheet's title, part numbers and PDF name, page, kind (highlight,
+  underline, circled, arrow, handwritten note), `printed text it covers:` the PDF text,
+  for a note one sentence `the owner wrote by hand: "…", next to the printed line "…"`
+  ("with an arrow to" when an arrow points it; "(corrected by the owner)"; "isn't read
+  yet" or "couldn't be read" otherwise), `printed line beside it:` the near line of a
+  mark without writing, and `[open](/#open=write&note=…&page=…&mark=…)`,
   which opens Write at the mark. Texts cut to 300 characters. Nothing found says so.
   A result with marks arms the run (`distrust`): the PDF's text is outside content and
   the handwriting is the owner's.

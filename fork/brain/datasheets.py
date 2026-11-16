@@ -94,18 +94,26 @@ def block(hit: dict[str, Any]) -> str:
         label = "printed line it points to" if kind == "arrow" else "printed text it covers"
         lines.append(f"  {label}: {_cut(mark['text'])}")
     written, reading = str(mark.get("written") or "").strip(), mark.get("reading")
+    near = str(mark.get("near") or "").strip()
     if written:
-        lines.append(f"  handwritten by you: {_cut(written)}"
-                     + (" (corrected by you)" if reading == "reviewed" else ""))
+        # One sentence with the handwriting first and the printed line as its place: a 4B
+        # model quoted a separate "printed line" row as what the owner wrote.
+        where = ""
+        if near:
+            how = "with an arrow to" if mark.get("points_to") else "next to"
+            where = f", {how} the printed line \"{_cut(near)}\""
+            near = ""
+        lines.append(f"  the owner wrote by hand: \"{_cut(written)}\"{where}"
+                     + (" (corrected by the owner)" if reading == "reviewed" else ""))
     elif kind == "ink" and reading == "read":
         lines.append("  a drawing (no words)")
     elif kind == "ink" and reading in ("waiting", "pending"):
         lines.append("  what you wrote isn't read yet")
     elif kind == "ink" and reading == "failed":
         lines.append("  what you wrote couldn't be read")
-    if mark.get("near"):
+    if near:
         label = "printed line it points to" if mark.get("points_to") else "printed line beside it"
-        lines.append(f"  {label}: {_cut(mark['near'])}")
+        lines.append(f"  {label}: {_cut(near)}")
     lines.append(f"  [open]({link(hit.get('note_id'), mark.get('page_id'), mark.get('id'))})")
     return "\n".join(lines)
 

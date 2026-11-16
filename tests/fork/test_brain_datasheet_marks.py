@@ -71,7 +71,7 @@ def test_a_block_shows_the_parts_circles_and_arrows():
                          "  printed line it points to: Output"]
     hit["mark"] = {**hit["mark"], "kind": "ink", "text": "", "near": "EN pin",
                    "written": "pull down", "reading": "read", "points_to": True}
-    assert "  printed line it points to: EN pin" in brain_datasheets.block(hit)
+    assert '  the owner wrote by hand: "pull down", with an arrow to the printed line "EN pin"' in brain_datasheets.block(hit)
 
 
 # ------------------------------------------------------------ fictional notes
@@ -172,8 +172,9 @@ async def test_the_tool_answers_with_the_mark_and_its_link(brain):
     # The part number guessed on import (fork/ink/parts.py) in brackets after the title.
     assert first.splitlines()[0] == \
         "ZX-100 Buck Regulator [ZX-100] (zx100-datasheet.pdf), page 2, handwritten note"
-    assert "  handwritten by you: check EN pull-down (corrected by you)" in first
-    assert "  printed line beside it: EN to GND -0.3 V to VIN" in first
+    assert ('  the owner wrote by hand: "check EN pull-down", next to the printed line '
+            '"EN to GND -0.3 V to VIN" (corrected by the owner)') in first
+    assert "printed line beside it" not in first  # said once, in the sentence above
     assert f"[open](/#open=write&note={note_id}&page={pages[1]}&mark=m-hw1)" in first
     assert second.startswith("ZX-100 Buck Regulator [ZX-100] (zx100-datasheet.pdf), page 1, "
                              "highlight")
@@ -297,7 +298,7 @@ async def test_a_turn_finds_the_mark_end_to_end(brain):
     t = brain.start(sess, "what did I note about the ZX-100's enable pin?")
     [_ async for _ in brain_turn._run_new_turn(t)]
     tool_msg = [m for m in brain.llm.requests[1]["messages"] if m.get("role") == "tool"][-1]
-    assert "check EN pull-down (corrected by you)" in tool_msg["content"]
+    assert '"check EN pull-down"' in tool_msg["content"]
     assert "/#open=write&note=" in tool_msg["content"]
     assert t.run.tainted is True
 
