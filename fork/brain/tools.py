@@ -41,8 +41,10 @@ What the brain adds is which calls run without asking and which ask:
   untrusted marking), and by upstream itself when a result of this turn is. ``tainted``
   records the last for this turn's exchange.
 
-``announce`` (``fork/voice/announce_tool.py``) is the fork's one write tool: it runs
-only with the owner's exact approval of that call, which it claims itself.
+``announce`` (``fork/voice/announce_tool.py``) and ``alarm``'s ``set`` and ``cancel``
+(``fork/voice/alarm_tool.py``) are the fork's write tools: they run only with the
+owner's exact approval of that call, which they claim themselves (by voice the gate runs
+``alarm`` itself, with the asking device).
 
 The tools upstream doesn't have run here, owner-scoped: ``search_beliefs``
 (``fork/beliefs/search.py``) and ``search_documents`` (the owner's document library,
@@ -476,7 +478,8 @@ async def execute(run: ToolRun, name: str, content: str, *, exact_approval: Any 
             logger.warning("brain: tool gate failed", exc_info=True)
             gated = READ_ONLY_REFUSED
         if isinstance(gated, dict):
-            return content, f"{name}: NOT RUN", dict(gated)
+            gated = dict(gated)
+            return content, gated.pop("description", None) or f"{name}: NOT RUN", gated
         refused = gated
     refused = refused or read_only_refusal(run, name, content)
     if refused:
@@ -485,6 +488,10 @@ async def execute(run: ToolRun, name: str, content: str, *, exact_approval: Any 
     if name == toolset.ANNOUNCE:
         from fork.voice.announce_tool import run_approved
         desc, result = await run_approved(run, content, exact_approval)
+        return content, desc, result
+    if name == toolset.ALARM:
+        from fork.voice.alarm_tool import run_approved as run_alarm
+        desc, result = await run_alarm(run, content, exact_approval)
         return content, desc, result
     if name in toolset.FORK_TOOLS:
         if name == toolset.SEARCH_BELIEFS:

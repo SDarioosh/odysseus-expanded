@@ -10,10 +10,12 @@ decided here, at execution, by :class:`VoiceGate` (``ToolRun.gate``, called by
 2. with ``FORK_VOICE_PRIVATE=owner`` and a voice that isn't the owner's
    (``fork/voice/satellite.py``, ``personal_allowed``), the personal tools are refused
    with its ``PRIVATE_REPLY``; web and weather stay;
-3. reads fall through to the brain's read-only checks;
-4. a write of the allow-list (``fork/voice/confirm.py``) is kept as a proposal, not run
+3. the ``alarm`` tool runs at once on the asking device (``device_id``), no spoken "yes":
+   it only changes an alarm clock on the Echo (``fork/voice/alarm_tool.py``);
+4. reads fall through to the brain's read-only checks;
+5. a write of the allow-list (``fork/voice/confirm.py``) is kept as a proposal, not run
    (a to-do's due date the owner never said is dropped first: ``without_unsaid_due``);
-5. every other write falls through to the brain's read-only refusal.
+6. every other write falls through to the brain's read-only refusal.
 """
 from __future__ import annotations
 
@@ -50,6 +52,7 @@ class VoiceGate:
     personal: bool = True  # this speaker may get personal answers
     private_reply: str = PRIVATE_REPLY
     earlier: str = ""  # the conversation's previous question (a date said there counts)
+    device_id: str = ""  # the satellite that asked (fork/voice/satellite.py), if any
 
     async def __call__(self, run: Any, name: str, content: str) -> str | dict | None:
         """Instead of running the call: a refusal (str), the result of a kept proposal
@@ -60,6 +63,10 @@ class VoiceGate:
             return EMAIL_REFUSED
         if not self.personal and is_personal(name):
             return self.private_reply
+        if name == toolset.ALARM:
+            from fork.voice.alarm_tool import run_voice
+            return await run_voice(self.owner, content, device_id=self.device_id or None,
+                                   turn_id=self.turn_id)
         try:
             if toolset.is_read(name, content):
                 return None

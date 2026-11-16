@@ -31,6 +31,7 @@ ROUTERS: tuple[tuple[str, str], ...] = (
     ("fork.voice.music_images", "setup_music_image_routes"),  # Echo Music page images
     ("fork.voice.device_settings_routes", "setup_device_settings_routes"),  # settings per Echo
     ("fork.voice.wakeword_routes", "setup_wakeword_routes"),  # wake word clips for training
+    ("fork.voice.alarm_routes", "setup_alarm_routes"),  # alarms per Echo
 )
 
 

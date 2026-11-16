@@ -194,6 +194,10 @@ is an old path of a module that moved into `fork/`; it only aliases the new modu
 - `fork/upstream.py`
 - `fork/voice/__init__.py`
 - `fork/voice/admin.py`
+- `fork/voice/alarm_routes.py`
+- `fork/voice/alarm_rules.py`
+- `fork/voice/alarm_tool.py`
+- `fork/voice/alarms.py`
 - `fork/voice/announce.py`
 - `fork/voice/announce_tool.py`
 - `fork/voice/announcements.py`
@@ -536,6 +540,8 @@ is an old path of a module that moved into `fork/`; it only aliases the new modu
 - `tests/fork/test_turn_policy_characterization.py`
 - `tests/fork/test_upstream_drift.py`
 - `tests/fork/test_vision_auto_detect.py`
+- `tests/fork/test_voice_alarms.py`
+- `tests/fork/test_voice_alarms_rules.py`
 - `tests/fork/test_voice_announce_tool.py`
 - `tests/fork/test_voice_announcements.py`
 - `tests/fork/test_voice_assistant.py`

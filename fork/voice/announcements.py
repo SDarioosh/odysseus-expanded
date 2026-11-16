@@ -50,8 +50,9 @@ MAX_FEED = 50
 MAX_SINCE_MS = 2 ** 62  # SQLite's integers are 64-bit; a larger `since` is "after all"
 MAX_TITLE = 120
 # "settings": the device's hub-managed settings changed (fork/voice/device_settings.py);
-# the device refetches them and shows no card.
-KINDS = frozenset({"reminder", "announcement", "settings"})
+# the device refetches them and shows no card. "alarms": the device's alarms changed
+# (fork/voice/alarms.py); the device refetches them and shows no card.
+KINDS = frozenset({"reminder", "announcement", "settings", "alarms"})
 TEMPLATE_PATH = "/api/template"
 # Fixed: every satellite Home Assistant has in an area, with the area's id and name and
 # the entity's name. Never built from user input.

@@ -295,7 +295,7 @@ def check_hello(http: Http, opts: Options) -> Result:
 
 
 # "settings": the device's hub-managed settings changed (no card; fork/voice/device_settings.py)
-FEED_KINDS = ("reminder", "announcement", "settings")
+FEED_KINDS = ("reminder", "announcement", "settings", "alarms")
 
 
 def feed_problem(body: Any) -> str | None:

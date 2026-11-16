@@ -8,7 +8,9 @@ from :data:`SEARCH_BELIEFS_SCHEMA` for the fork's own ``search_beliefs`` and fro
 ``fork/brain/documents.py`` for the documents group (the fork's ``search_documents``, and
 upstream's two document tools with shorter descriptions), and from
 ``fork/voice/announce_tool.py`` for the ``home`` group's ``announce`` (a write: offered to
-an admin while Home Assistant is set up).
+an admin while Home Assistant is set up) and from ``fork/voice/alarm_tool.py`` for its
+``alarm`` (offered to an admin while the hub knows an Echo; ``list`` reads, the rest
+writes).
 
 The first resolved set of a chat is kept for that chat (:func:`for_chat`), so every
 message of a chat is offered the same tools in the same order; a slash skill
@@ -57,10 +59,12 @@ GROUPS: dict[str, tuple[str, ...]] = {
     "email": ("list_email_accounts", "list_emails", "search_emails", "read_email",
               "draft_email", "draft_email_reply", "send_email", "reply_to_email"),
     "images": ("generate_image",),
-    # the fork's announce tool (fork/voice/announce_tool.py), while Home Assistant is set up
-    "home": ("announce",),
+    # the fork's announce tool (fork/voice/announce_tool.py), while Home Assistant is set
+    # up; the Echo alarms (fork/voice/alarm_tool.py), while an Echo is known
+    "home": ("announce", "alarm"),
 }
 ANNOUNCE = "announce"
+ALARM = "alarm"
 ATHENA_GROUP = "athena"
 
 # Tools that only read (built-in names). Athena's tools are read when the trusted
@@ -75,7 +79,7 @@ ACTION_TOOLS = frozenset({
     "manage_documents",
 })
 # The fork's own tools: run in fork code (fork/brain/tools.py), not upstream's runner.
-FORK_TOOLS = frozenset({SEARCH_BELIEFS, SEARCH_DOCUMENTS, ANNOUNCE})
+FORK_TOOLS = frozenset({SEARCH_BELIEFS, SEARCH_DOCUMENTS, ANNOUNCE, ALARM})
 
 NEVER = frozenset({
     "bash", "host_shell", "python", "read_file", "write_file", "edit_file", "apply_patch",
@@ -166,6 +170,9 @@ def _schema(name: str, builtin: dict[str, dict]) -> dict | None:
     if name == ANNOUNCE:
         from fork.voice.announce_tool import SCHEMA
         return SCHEMA
+    if name == ALARM:
+        from fork.voice.alarm_tool import SCHEMA as ALARM_SCHEMA
+        return ALARM_SCHEMA
     return builtin.get(name)
 
 
@@ -201,6 +208,10 @@ def resolve(*, owner: Any, disabled: set[str] | frozenset[str] = frozenset(),
             if name == ANNOUNCE:
                 from fork.voice.announce_tool import available
                 if not available(owner):
+                    continue
+            if name == ALARM:
+                from fork.voice.alarm_tool import available as alarm_available
+                if not alarm_available(owner):
                     continue
             schema = _schema(name, builtin)
             if schema is not None:
@@ -311,7 +322,7 @@ def _action(name: str, content: Any) -> str | None:
 def can_read(name: str) -> bool:
     """True when some call of this tool only reads: a read tool, a personal store with
     read actions, a trusted read-only MCP tool. A read-only turn is offered only these."""
-    if name in READ_TOOLS:
+    if name in READ_TOOLS or name == ALARM:  # alarm: its list op
         return True
     if name in ACTION_TOOLS:
         from fork.routing.personal_read_grants import store_read_actions
@@ -331,6 +342,9 @@ def is_read(name: str, content: Any = "{}") -> bool:
     """True when this call only reads (runs without asking); else it is a write."""
     if name in READ_TOOLS:
         return True
+    if name == ALARM:
+        from fork.voice.alarm_tool import is_read as alarm_is_read
+        return alarm_is_read(content)
     if name in ACTION_TOOLS:
         from fork.routing.personal_read_grants import store_read_actions
         return _action(name, content) in store_read_actions(name)
