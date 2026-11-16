@@ -111,6 +111,20 @@ ODYSSEUS_DATA_DIR=$SBX/odysseus-data ODYSSEUS_TRUSTED_READONLY_MCP=convo \
 ChromaDB isn't running, so the log shows `VectorRAG init failed` and
 `MemoryVectorStore init failed`. That's expected; chat and MCP work without it.
 
+Two limits of a shared 4-core CPU sandbox (seen 2026-11-16, datasheets check):
+
+- A brain turn's prompt (~7k tokens) can take minutes to read, longer than upstream's
+  60 s wait for the first token, which then ends the turn with an empty answer. Start
+  Odysseus with `ODYSSEUS_FIRST_TOKEN_TIMEOUT=600` for such runs.
+- With other jobs (pytest workers, a second model) in the 15 GB, the chat llama-server at
+  `-c 32768` can be killed for memory; `-c 16384` is enough for single brain turns.
+
+A vision model for handwriting (Write) and datasheet notes: `ggml-org/Qwen2.5-VL-3B-Instruct-GGUF`
+(`Qwen2.5-VL-3B-Instruct-Q4_K_M.gguf` with `--mmproj mmproj-Qwen2.5-VL-3B-Instruct-Q8_0.gguf`,
+`-c 8192`) on its own port, added as a second model endpoint and set as Settings
+`vision_model` (`POST /api/auth/settings {"vision_model": "<alias>@<endpoint>"}`). It reads
+clear block capitals; ~25 s per note on this CPU.
+
 Configure it over the API (no browser needed):
 
 ```bash

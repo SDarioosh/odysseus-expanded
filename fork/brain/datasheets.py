@@ -29,6 +29,11 @@ DEFAULT_RESULTS = 10
 MAX_RESULTS = 20
 TEXT_CHARS = 300  # each text of a mark in the result
 NOTHING = "No marks on the owner's datasheets match that."
+# First line of a result with marks: small local models sometimes answered "see the links
+# above" without writing them out (sandbox run with a 4B model, 1 answer in 3); said here,
+# next to the links, it is followed far more reliably than in the system prompt alone.
+LINK_REMINDER = ("Write each mark's [open](...) link, exactly as given, in your answer "
+                 "next to what you say about that mark.")
 
 SCHEMA = {
     "type": "function",
@@ -132,6 +137,6 @@ async def search(owner: Any, content: Any) -> tuple[str, dict]:
             "error": "The datasheet marks search failed.", "exit_code": 1}
     if not hits:
         return f"{SEARCH_DATASHEET_MARKS}: 0 result(s)", {"output": NOTHING, "exit_code": 0}
-    output = "\n\n".join(block(h) for h in hits)
+    output = LINK_REMINDER + "\n\n" + "\n\n".join(block(h) for h in hits)
     return f"{SEARCH_DATASHEET_MARKS}: {len(hits)} result(s)", {
         "output": output, "exit_code": 0, "untrusted_content": True}

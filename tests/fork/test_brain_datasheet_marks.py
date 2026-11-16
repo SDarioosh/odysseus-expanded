@@ -167,7 +167,8 @@ async def test_the_tool_answers_with_the_mark_and_its_link(brain):
     _, desc, result = await brain_tools.execute(run, TOOL, json.dumps({"query": "ZX-100 enable pin"}))
     out = result["output"]
     assert desc == f"{TOOL}: 2 result(s)" and result["exit_code"] == 0
-    first, second = out.split("\n\n")
+    reminder, first, second = out.split("\n\n")
+    assert reminder == brain_datasheets.LINK_REMINDER  # first, so trimming never drops it
     # The part number guessed on import (fork/ink/parts.py) in brackets after the title.
     assert first.splitlines()[0] == \
         "ZX-100 Buck Regulator [ZX-100] (zx100-datasheet.pdf), page 2, handwritten note"
