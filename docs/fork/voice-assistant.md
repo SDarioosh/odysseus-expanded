@@ -259,7 +259,8 @@ another owner's); when both are given, `context_id` wins:
 ```
 
 `actions` are the changes the turn made, newest first: `kind` is `todo`, `reminder`,
-`list_item`, `note`, `event` or `action_item`; `action` `created` or `completed`;
+`list_item`, `note`, `event`, `action_item`, `announcement` or `alarm`; `action`
+`created`, `completed` or `cancelled` (an alarm; [Alarms](#alarms));
 `source` `odysseus` or `athena`. A Done tapped on a device's screen is kept in the ledger
 too (`source` `device`, `turn_id` `device:<device id>`: no voice turn made it, so no
 turn shows it; [Done from a device](#done-from-a-device)). The older
@@ -856,7 +857,10 @@ ref=…)` keeps the announcement for the devices' feed and speaks it. `target` i
 ]}
 ```
 
-- `kind`: `reminder`, `announcement` or `settings`. A `settings` item (title "Settings",
+- `kind`: `reminder`, `announcement`, `settings` or `alarms`. An `alarms` item (title
+  "Alarms", `ref` `alarms:<epoch ms>`, target that device, shown 10 minutes) only says the
+  device's [alarms](#alarms) changed: the device fetches them again and shows no card.
+  A `settings` item (title "Settings",
   `ref` `settings:<version>`, target that device, shown 10 minutes) only says the device's
   [hub-managed settings](#device-settings) changed: the device fetches them again and
   **shows no card and speaks nothing for it**. (Echo builds from before the hub-managed
@@ -924,6 +928,73 @@ turns, so Odysseus continues the chat by its first question (since 2026-11-04 al
 first follow-up: `fork/voice/sessions.py`). Home Assistant keeps a satellite's
 conversation for 5 minutes after its last turn, so a reply after waking the Echo again
 continues it too.
+
+## Alarms
+
+"Set an alarm for 7", "wake me at 6:30 on weekdays", "what alarms do I have", "cancel my
+alarm". Home Assistant has no alarm intent (its timers are durations, handled by Home
+Assistant and the Echo), so these fall through to Odysseus. The hub keeps each Echo's
+alarms; the Echo rings them itself, at that wall-clock time.
+
+### The `alarm` tool
+
+`fork/voice/alarm_tool.py`, in the brain's `home` tool group, after `announce`. Offered
+to an admin (or single-user) owner while the hub knows at least one Echo (the device
+registry, [Rooms and devices](#rooms-and-devices)). One tool, `op`:
+
+- `set`: `time` (`"07:30"`, 24 h; required), `days` (weekday names, `"weekdays"`,
+  `"weekends"`, `"every day"`: a repeating alarm), `date` (`YYYY-MM-DD`, a one-off on that
+  day; left out, the next time that clock time comes, today or tomorrow), `label`.
+- `cancel`: `alarm_id` (from `list`), or `time` (every alarm of the device at that time),
+  or `all: true`. Without any, the device's only alarm; with several, the result lists
+  them and asks which.
+- `list`: the device's alarms, the next to ring first, with their ids.
+- `device` (every op): a room or Echo name (`devices.match`; a room with two Echos must
+  be narrowed down). Left out: the Echo the voice turn came from (its satellite context),
+  else the only Echo the hub knows; else the result asks which.
+
+The result says the next ring time in words ("Alarm set for 7:30 AM tomorrow on the
+Bedroom Echo."), so the spoken answer is right. At most 20 alarms per Echo. Times are the
+owner's zone (`fork.insight.today.owner_timezone`, as the Today page).
+
+- **Voice:** it runs at once, no spoken "yes" (`fork/voice/policy.py`: the `VoiceGate`
+  runs it with the asking device, `device_id` from the satellite context): it only changes
+  an alarm clock on the Echo itself, nothing leaves it. Each `set` and each cancelled alarm
+  is recorded on the turn's ledger: `kind` `alarm`, `action` `created` or `cancelled`,
+  `title` the label or "Alarm", `due` the next ring time (ISO-8601 with the owner's
+  offset), `detail` "Weekdays" / "Weekends" / "Every day" / "Mon, Wed" or null for a
+  one-off, `where` the device's name. The Echo refetches its alarms when its turn shows an
+  `alarm` action.
+- **Chat:** `list` is a read and runs; `set` and `cancel` ask on an approval card like
+  `announce` and run only with that exact approval (`run_approved`).
+
+### What the Echo reads
+
+Voice base `/api/chat/voice/v1`, the `voice` token, its owner's alarms only:
+
+- `GET …/alarms?device_id=<id>` (`fork/voice/alarm_routes.py`):
+
+  ```json
+  {"alarms": [{"id": "al_1f2e3d4c5b6a7980", "time": "07:30", "days": [1, 2, 3, 4, 5],
+               "date": null, "label": "Gym"},
+              {"id": "al_0a1b2c3d4e5f6071", "time": "06:00", "days": [],
+               "date": "2026-11-20", "label": null}],
+   "updated_at": "2026-11-16T13:02:11+00:00"}
+  ```
+
+  `time` 24 h local wall-clock time; `days` ISO weekdays (Monday 1 … Sunday 7) for a
+  repeating alarm, `[]` for a one-off; `date` the one-off's day, null for a repeating one.
+  Sorted by next ring time. One-offs whose time has passed are left out (and deleted).
+  `updated_at`: when the device's list last changed (the epoch, `1970-01-01T00:00:00+00:00`,
+  when it never did). An unknown device id has `{"alarms": []}` (200); no `device_id` is 422.
+- `DELETE …/alarms/<alarm id>?device_id=<id>`: delete one (the Echo's menu); `{"ok":
+  true}`, or `{"ok": true, "already": true}` when it isn't there (idempotent).
+
+Every change (set, cancel, delete) puts a `kind: "alarms"` item in that device's feed only
+([The devices' feed](#the-devices-feed)); the device shows no card for it and fetches its
+alarms. Stored in `<DATA_DIR>/fork_voice.db` (tables `voice_alarms`, `voice_alarm_lists`),
+owner-scoped, keyed by device id (`fork/voice/alarms.py`); the rules (reading times, days
+and dates, the next ring time, how it is said) are `fork/voice/alarm_rules.py`.
 
 ## Wake word clips
 
@@ -1245,6 +1316,8 @@ fixtures of the Echo app's parser tests (odysseus-echo `app/src/test/resources/o
   script tag), `requirements.txt` (`websockets`, for Home Assistant's websocket API); the
   routers are in `fork/routes/__init__.py`.
 - Done from a device: `fork/voice/done.py`; tests `tests/fork/test_voice_done.py`.
+- Alarms: `fork/voice/alarm_rules.py`, `alarms.py`, `alarm_tool.py`, `alarm_routes.py`;
+  tests `tests/fork/test_voice_alarms.py`, `tests/fork/test_voice_alarms_rules.py`.
 - Tests: `tests/fork/test_voice_assistant.py`, `tests/fork/test_voice_satellite.py`,
   `tests/fork/test_voice_interrupts.py` (barge-in),
   `tests/fork/test_ha_voice_setup.py` (a fake Home Assistant), `tests/fork/test_echo_link.py`.

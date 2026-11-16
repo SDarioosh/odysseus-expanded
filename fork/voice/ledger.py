@@ -26,9 +26,9 @@ from fork.common.owner import owner_key as _owner
 DB_NAME = "fork_voice.db"
 KEEP_SECONDS = 7 * 24 * 3600
 
-ACTIONS = frozenset({"created", "completed"})
+ACTIONS = frozenset({"created", "completed", "cancelled"})
 KINDS = frozenset({"todo", "reminder", "list_item", "note", "event", "action_item",
-                   "announcement"})
+                   "announcement", "alarm"})
 
 SCHEMA = """
 CREATE TABLE IF NOT EXISTS turns (
