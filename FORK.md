@@ -143,7 +143,7 @@ the link goes to its details (what it does, its files, whether it can go upstrea
 - [Handwritten notes: notebooks](docs/fork/handwritten-notes.md#handwritten-notes-notebooks): named, ordered groups of handwritten notes.
 - [Handwritten notes: Write keeps up on a tablet](docs/fork/handwritten-notes.md#handwritten-notes-write-keeps-up-on-a-tablet): no lag writing or erasing on a tablet; the app under Write idles.
 - [Datasheets: PDFs in Write](docs/fork/datasheets.md): Import PDF makes a handwritten note of PDF pages (rendered by the hub at the zoom's sharpness), marked with every pen and the highlighter; never sent to Athena.
-- [Datasheets: marks and search](docs/fork/datasheets.md#what-the-owner-sees): highlights, underlines and ink notes on a PDF page know the PDF text they cover; a Marks panel per datasheet, Search marks across all of them, and `/#open=write&note=…&page=…&mark=…` links.
+- [Datasheets: marks and search](docs/fork/datasheets.md#what-the-owner-sees): highlights, underlines and ink notes on a PDF page know the PDF text they cover, and each handwritten note is read by the local vision model (correctable); a Marks panel per datasheet, Search marks across all of them, and `/#open=write&note=…&page=…&mark=…` links.
 
 ### Notes, calendar and tasks
 

@@ -142,6 +142,7 @@ is an old path of a module that moved into `fork/`; it only aliases the new modu
 - `fork/hub/vision_auto_detect.py`
 - `fork/ink/__init__.py`
 - `fork/ink/athena.py`
+- `fork/ink/mark_reading.py`
 - `fork/ink/notebooks.py`
 - `fork/ink/notes.py`
 - `fork/ink/pdf.py`
@@ -486,6 +487,7 @@ is an old path of a module that moved into `fork/`; it only aliases the new modu
 - `tests/fork/test_ink_athena.py`
 - `tests/fork/test_ink_auto_send.py`
 - `tests/fork/test_ink_eval.py`
+- `tests/fork/test_ink_mark_reading.py`
 - `tests/fork/test_ink_marks_routes.py`
 - `tests/fork/test_ink_notebooks.py`
 - `tests/fork/test_ink_notes.py`

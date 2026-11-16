@@ -44,7 +44,7 @@
 //   searches the marks of every PDF note. Never sent to Athena.
 
 import { el, request as api } from './forkDom.js';
-import { createPdfImages, groupMarks, inkPageCount, isPdfNote, isPdfPage, markKindLabel, markQuote,
+import { createPdfImages, groupMarks, inkPageCount, isPdfNote, isPdfPage, markDisplay, marksStillReading,
   pageIndexAt, pageTops, planPdfPages, scrollForBox, tierFor } from './forkInkPdf.js';
 
 export const PAGE_W = 1000;
@@ -94,6 +94,8 @@ const MAX_PDF_BYTES = 100 * 1024 * 1024; // hub: fork/ink/pdf.py MAX_PDF_BYTES
 const MARKS_API = '/api/ink/marks';  // search over every PDF note's marks (fork/routes/ink_marks_routes.py)
 const MARKS_REFETCH_MS = 1500;      // the Marks panel asks again this long after a save
 const FLASH_MS = 1600;              // a mark opened from the panel or a link flashes this long
+const MARKS_POLL_MS = 4000;         // the Marks panel asks again while the hub reads handwritten marks
+const MAX_WRITTEN = 2000;           // a corrected reading (hub: same)
 
 // H6: a photo fitted into a page: as large as fits, centred across, at the top. The same
 // box as the hub's page image (src/ink_notes.py photo_box).
@@ -1600,7 +1602,7 @@ export function mountInk(root, options = {}) {
   }, { passive: false });
   wrap.addEventListener('keydown', (e) => {
     // Not in the Text tab: Ctrl+Z there undoes typing, never strokes.
-    if (state.screen !== 'editor' || state.view !== 'ink' || e.target === titleInput) return;
+    if (state.screen !== 'editor' || state.view !== 'ink' || e.target === titleInput || marksPanel.contains(e.target)) return;
     const mod = e.ctrlKey || e.metaKey;
     if (mod && e.key.toLowerCase() === 'z') { e.preventDefault(); if (e.shiftKey) redo(); else undo(); }
     else if (mod && e.key.toLowerCase() === 'y') { e.preventDefault(); redo(); }
@@ -2661,6 +2663,21 @@ export function mountInk(root, options = {}) {
     marksPanel.hidden = !show;
     syncTools();
     if (show) loadMarks();
+    else { stopMarksPoll(); editingMark = null; }
+  }
+
+  // Stage 2: while the hub reads handwritten marks (`reading: true`), the open panel asks
+  // again every MARKS_POLL_MS; it stops when the hub is done, the panel closes or the
+  // note is left.
+  let marksPollTimer = 0;
+  function stopMarksPoll() { clearTimeout(marksPollTimer); marksPollTimer = 0; }
+  function pollMarks(noteId) {
+    stopMarksPoll();
+    marksPollTimer = setTimeout(() => {
+      marksPollTimer = 0;
+      if (suspended || marksPanel.hidden || state.screen !== 'editor' || !state.note || state.note.id !== noteId) return;
+      loadMarks();
+    }, MARKS_POLL_MS);
   }
 
   async function loadMarks() {
@@ -2676,6 +2693,7 @@ export function mountInk(root, options = {}) {
     if (res && res.ok && res.body && Array.isArray(res.body.marks)) {
       marksData = { noteId: id, marks: res.body.marks };
       renderMarks();
+      if (marksStillReading(res.body) && !marksPanel.hidden) pollMarks(id); else stopMarksPoll();
       return marksData.marks;
     }
     setText(marksState, res ? `The hub said ${res.status}: the marks could not be listed.`
@@ -2691,7 +2709,71 @@ export function mountInk(root, options = {}) {
     }, MARKS_REFETCH_MS);
   }
 
+  // One line of a mark (the panel and the search results): its kind, what it says, and a
+  // smaller line under it (stage 2: an ink mark's writing, with the PDF text it is by).
+  function markLines(m, lead) {
+    const d = markDisplay(m);
+    const text = el('span', { class: `ink-mark-text${d.quiet ? ' quiet' : ''}${d.busy ? ' busy' : ''}`, text: d.main });
+    if (d.title) text.title = d.title;
+    const body = el('span', { class: 'ink-mark-body' }, text);
+    if (d.sub) body.append(el('span', { class: 'ink-mark-sub', text: d.sub }));
+    return [el('span', { class: `ink-swatch${m.kind === 'highlight' ? ' hl' : ''}`, style: `--ink:${/^#[0-9a-fA-F]{6}$/.test(m.color || '') ? m.color : 'var(--fg)'}` }),
+      el('span', { class: 'ink-mark-kind', text: lead || d.label }), body];
+  }
+
+  // Stage 2: correct what the hub read on an ink mark. While one is edited the panel is
+  // not redrawn (a poll would take the input away); it is once the edit ends.
+  let editingMark = null;      // mark id
+  function editMark(m, row) {
+    if (editingMark && editingMark !== m.id) return;
+    editingMark = m.id;
+    const input = el('input', { type: 'text', class: 'bs-input ink-mark-input', maxlength: String(MAX_WRITTEN),
+      'aria-label': 'What is written', value: String(m.written || '') });
+    input.value = String(m.written || '');
+    const save = el('button', { type: 'button', class: 'bs-btn primary ink-mark-save', text: 'Save', onclick: () => saveWritten(m, input, save) });
+    const cancel = el('button', { type: 'button', class: 'bs-btn ink-mark-cancel', text: 'Cancel', onclick: () => endEdit() });
+    input.addEventListener('keydown', (e) => {
+      if (e.key === 'Enter') { e.preventDefault(); saveWritten(m, input, save); }
+      else if (e.key === 'Escape') { e.preventDefault(); e.stopPropagation(); endEdit(); }
+    });
+    row.textContent = '';
+    row.classList.add('editing');
+    row.append(input, el('div', { class: 'ink-mark-actions' }, save, cancel));
+    input.focus();
+    input.select();
+  }
+
+  function endEdit() {
+    editingMark = null;
+    renderMarks();
+  }
+
+  async function saveWritten(m, input, btn) {
+    if (!state.note || btn.disabled) return;
+    const my = nav;
+    const db = store;
+    const id = state.note.id;
+    btn.disabled = true;
+    let res = null;
+    try {
+      res = await api(`${API}/${enc(id)}/marks/${enc(m.id)}`, { method: 'PUT',
+        body: JSON.stringify({ written: input.value.slice(0, MAX_WRITTEN) }) });
+    } catch (_) { res = null; }
+    if (!current(my, id, db) || editingMark !== m.id) return;
+    btn.disabled = false;
+    if (!(res && res.ok && res.body)) {
+      setText(marksState, res ? `Not saved: ${(res.body && res.body.detail) || `the hub said ${res.status}`}.`
+        : 'Not saved: the hub is not reachable.');
+      return;
+    }
+    const saved = res.body.mark || res.body; // the merged mark
+    if (marksData && marksData.noteId === id) marksData.marks = marksData.marks.map((x) => (x.id === saved.id ? saved : x));
+    endEdit();
+    setText(marksState, 'Saved.');
+  }
+
   function renderMarks() {
+    if (editingMark) return;
     marksList.textContent = '';
     if (!state.note || !marksData || marksData.noteId !== state.note.id) return;
     const groups = groupMarks(marksData.marks, state.note.pages);
@@ -2702,12 +2784,14 @@ export function mountInk(root, options = {}) {
       const section = el('section', { class: 'ink-marks-page', 'data-page': g.pageId },
         el('h3', { text: `Page ${g.pageNo || g.index + 1}` }));
       for (const m of g.marks) {
-        const q = markQuote(m);
         const b = el('button', { type: 'button', class: 'bs-btn ink-mark', 'data-mark': m.id, onclick: () => goToMark(m) },
-          el('span', { class: `ink-swatch${m.kind === 'highlight' ? ' hl' : ''}`, style: `--ink:${/^#[0-9a-fA-F]{6}$/.test(m.color || '') ? m.color : '#888888'}` }),
-          el('span', { class: 'ink-mark-kind', text: markKindLabel(m.kind) }),
-          el('span', { class: `ink-mark-text${q.near ? ' near' : ''}`, text: q.text ? (q.near ? `near “${q.text}”` : `“${q.text}”`) : 'no PDF text under it' }));
-        section.append(b);
+          ...markLines(m));
+        const row = el('div', { class: 'ink-mark-row', 'data-mark': m.id }, b);
+        if (markDisplay(m).editable && m.reading && m.reading !== 'none') {
+          row.append(el('button', { type: 'button', class: 'bs-btn ink-mark-edit', text: 'Edit',
+            title: 'Correct what was read', 'aria-label': 'Correct what was read', onclick: () => editMark(m, row) }));
+        }
+        section.append(row);
       }
       marksList.append(section);
     }
@@ -2787,13 +2871,11 @@ export function mountInk(root, options = {}) {
     if (!res.body.results.length) { out.append(el('div', { class: 'bs-meta', text: 'No marks match.' })); return; }
     for (const r of res.body.results) {
       const m = r.mark || {};
-      const q2 = markQuote(m);
-      const where = [r.title || r.pdf_name || 'Untitled', m.page_no ? `page ${m.page_no}` : '', markKindLabel(m.kind)].filter(Boolean).join(' · ');
+      const where = [r.title || r.pdf_name || 'Untitled', m.page_no ? `page ${m.page_no}` : '', markDisplay(m).label].filter(Boolean).join(' · ');
+      const lines = markLines(m, where);
+      lines[1].className = 'ink-mark-where';
       out.append(el('button', { type: 'button', class: 'bs-btn ink-mark-result', 'data-note': r.note_id, 'data-mark': m.id || '',
-        onclick: () => openNote(r.note_id, { page: m.page_id || null, mark: m.id || null }) },
-      el('span', { class: 'ink-swatch', style: `--ink:${/^#[0-9a-fA-F]{6}$/.test(m.color || '') ? m.color : '#888888'}` }),
-      el('span', { class: 'ink-mark-where', text: where }),
-      el('span', { class: `ink-mark-text${q2.near ? ' near' : ''}`, text: q2.text ? (q2.near ? `near “${q2.text}”` : `“${q2.text}”`) : '' })));
+        onclick: () => openNote(r.note_id, { page: m.page_id || null, mark: m.id || null }) }, ...lines));
     }
   }
 
@@ -2830,6 +2912,8 @@ export function mountInk(root, options = {}) {
       pdfPlanKey = '';
       marksData = null;
       marksPanel.hidden = true;
+      stopMarksPoll();
+      editingMark = null;
       flashAt = null;
       flashBox.hidden = true;
       loadDrafts(note.id);
@@ -3304,6 +3388,8 @@ export function mountInk(root, options = {}) {
     pdfImages.clear();
     pdfNoteId = null;
     marksData = null;
+    stopMarksPoll();
+    editingMark = null;
     if (state.note) {
       state.live = null;
       router.reset();
@@ -3375,6 +3461,7 @@ export function mountInk(root, options = {}) {
     if (state.note) autoTranscribe([...edited]); // like Back: read the pages changed
     clearTimeout(pollTimer);
     pollTimer = 0;
+    stopMarksPoll();
     timers.forEach(clearInterval);
     timers = [];
     document.removeEventListener('pointermove', notePen, { capture: true });
@@ -3388,6 +3475,7 @@ export function mountInk(root, options = {}) {
     if (state.screen === 'list') return showList();
     if (state.screen === 'book') return showBook(state.book);
     if (state.note && state.view === 'text') loadTranscripts();
+    if (state.note && !marksPanel.hidden) loadMarks(); // and polls again while the hub reads marks
     if (!state.note || state.dirty || state.live) return undefined;
     const my = nav;
     const id = state.note.id;

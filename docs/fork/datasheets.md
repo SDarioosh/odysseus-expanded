@@ -35,10 +35,16 @@ refuses it ("Datasheets stay in Odysseus") and `INK_AUTO_SEND` skips them.
   - *Underline*: a nearly straight, nearly level pen line under text: the words of the
     line just above it.
   - *Note*: other ink (handwriting, arrows, circles), grouped by closeness. A circled
-    value gives its words; otherwise the PDF line it was written beside ("near").
-  Tapping a mark scrolls to it and flashes its box. The panel refreshes after each save.
+    value gives its words; otherwise the PDF line it was written beside ("near"). **What
+    was written** is read by the local vision model (see "Reading notes"); the panel
+    shows it ("check EN pull-down", by "Input voltage range…"), "Reading…" while the
+    model works, "Could not read it" with the reason, or "a drawing (no words)".
+    **Edit** corrects a reading (kept until the note's strokes change).
+  Tapping a mark scrolls to it and flashes its box. The panel refreshes after each save,
+  and every 4 s while a note is being read.
 - **Search marks** in the Write list (shown once there is a datasheet): every word typed
-  must appear in a mark's text, its "near" line, the note title or the PDF's name.
+  must appear in a mark's text, what was written on it, its "near" line, the note title
+  or the PDF's name.
   Results open the datasheet at that mark.
 - **Links.** `/#open=write&note=<id>&page=<page id>&mark=<mark id>` opens Write at a mark
   (for chat answers and other notes later).
@@ -80,6 +86,34 @@ They are cached in memory per page by the strokes' hash, so only a changed page 
 grouped again. Thresholds are constants at the top of the file (page units, a page is
 1000 wide).
 
+### Reading notes (`fork/ink/mark_reading.py`)
+
+Each *Note* mark (kind `ink`) on a PDF page is read on its own, so a reading belongs to
+one margin note, not to the whole page:
+
+- **What the model sees.** Only the mark's pen strokes (never the PDF, never the
+  highlighter), cut out with 16 units around them and enlarged up to 4x (pen width too)
+  on a page of their own, through H2's reader (`transcribe.read_page`: the hub's
+  `vision_model`, local endpoints only, one image at a time across the hub, chat first).
+  The question adds that a shape alone (circle, arrow, line, tick) is no words.
+- **When.** A save of a datasheet schedules a run for that note (debounced); so does
+  opening the Marks panel when something is unread. A note is read once it is
+  **settled**: its last stroke is 20 s old, or the note hasn't been saved for 20 s (a
+  tablet clock ahead of the hub's). One run per note at a time; marks are read one by
+  one and each result is stored as it comes.
+- **Stored** in the sidecar, `"mark_readings": {<mark id>: {"hash", "text", "status",
+  "model", "at", "error"?}}`, status `read`, `failed` or `reviewed` ("pending" is only
+  in memory while the model reads, so a restart leaves nothing stuck). `hash` is the
+  mark's strokes: when they change, the mark is read again (a correction too). Readings
+  of marks that are gone are dropped at the next run. A failed reading is retried at most
+  every 10 minutes ("No vision model is set" when there is none).
+- **Correcting** (`PUT …/marks/{mark id}` `{"written"}`, at most 2000 characters) stores
+  the owner's text as `reviewed`; only *Note* marks have writing.
+
+Every mark in an answer carries `written` and `reading` (`none` for highlights and
+underlines, `waiting`, `pending`, `read`, `failed` with `reading_error`, `reviewed`);
+`GET …/marks` also says `reading: true` while a run for the note is waiting or working.
+
 ### Routes
 
 | Route | What |
@@ -87,11 +121,12 @@ grouped again. Thresholds are constants at the top of the file (page units, a pa
 | `POST /api/ink/notes/{id}/pdf` | multipart `pdf` (+ `title`, `edited_at`, `paper`): a new datasheet note |
 | `GET /api/ink/notes/{id}/pdf` | the original PDF (download) |
 | `GET /api/ink/notes/{id}/pdf/{page_id}.png?w=` | a PDF page at the tier for `w` |
-| `GET /api/ink/notes/{id}/marks` | `{note_id, title, marks: [...]}` |
+| `GET /api/ink/notes/{id}/marks` | `{note_id, title, reading, marks: [...]}` |
+| `PUT /api/ink/notes/{id}/marks/{mark_id}` | `{"written"}`: correct what a note says; answers the mark |
 | `GET /api/ink/marks?q=&limit=` | `{q, results: [{note_id, title, pdf_name, mark}]}` |
 
 A mark: `{id, page_id, page_no, kind: highlight|underline|ink, color, box: [x, y, w, h],
-text, near, strokes, at}`.
+text, near, written, reading, strokes, at}` (+ `reading_error` when failed).
 
 ### Write view (`static/js/forkInk.js`, `static/js/forkInkPdf.js`)
 
@@ -105,9 +140,8 @@ drawn when it lifts.
 
 1. **PDF pages in Write**: built (above).
 2. **Marks**: built: highlights, underlines and ink notes with their PDF text, the Marks
-   panel, search, deep links. Next: each handwritten note (ink mark) read on its own by
-   the local vision model, so a mark carries what was written, not only the line it is
-   near.
+   panel, search, deep links, and each handwritten note read on its own by the local
+   vision model, correctable by hand.
 3. **Finding them from chat**: a read-only brain tool over the marks ("what did I note
    about the ZX-100's enable pin?"), answers linking to the mark.
 4. **Later**: export a copy with the marks as real PDF annotations; part-number tags;
@@ -117,7 +151,8 @@ drawn when it lifts.
 
 `tests/fork/test_ink_pdf.py` (import, limits, rotation, render and words, cache, saves,
 transcription, Athena), `test_ink_pdf_routes.py`, `test_ink_pdf_marks.py` (grouping),
-`test_ink_marks_routes.py`, `test_ink_pdf_view.py` (node and a Playwright run of the view
+`test_ink_marks_routes.py`, `test_ink_mark_reading.py` (the cut-out page, settling,
+runs with a fake reader, corrections), `test_ink_pdf_view.py` (node and a Playwright run of the view
 with a fake hub). Fictional PDFs: `tests/fork/pdf_fixtures.py`.
 
 ## Server verification (owner)
@@ -135,13 +170,17 @@ On the server (read-only checks) and the tablet:
    the highlight and underline show the right words, the margin note "near" its line.
    Tap one: the view scrolls there and flashes it.
 5. In the list, **Search marks** for a word you highlighted: the result opens at it.
-6. Offline (Wi-Fi off): ink on loaded pages still saves; a page not loaded says so;
+6. Write a short margin note ("check EN") and wait about 30 s with Marks open: it shows
+   "Reading…", then what you wrote (needs Settings, Vision set to the local vision
+   model). Edit it, then search for the corrected word.
+7. Offline (Wi-Fi off): ink on loaded pages still saves; a page not loaded says so;
    back online, it loads.
 
 ## Files
 
 - `fork/ink/pdf.py`: PDF checks, rendering, words (pypdfium2).
 - `fork/ink/pdf_marks.py`: strokes to marks, marks of a note, search.
+- `fork/ink/mark_reading.py`: reading each handwritten note, corrections.
 - `fork/routes/ink_marks_routes.py`: the marks routes.
 - `fork/ink/notes.py`, `fork/ink/transcribe.py`, `fork/ink/athena.py`,
   `fork/routes/ink_routes.py`: PDF pages in the sidecar, import and page routes, ink-only
@@ -149,4 +188,4 @@ On the server (read-only checks) and the tablet:
 - `static/js/forkInkPdf.js`; `static/js/forkInk.js`, `static/js/forkInkLinks.js`,
   `static/js/forkModuleWindows.js` (one line), `static/css/fork-ink.css`.
 - Tests: `tests/fork/test_ink_pdf.py`, `test_ink_pdf_routes.py`, `test_ink_pdf_marks.py`,
-  `test_ink_marks_routes.py`, `test_ink_pdf_view.py`, `pdf_fixtures.py`.
+  `test_ink_marks_routes.py`, `test_ink_mark_reading.py`, `test_ink_pdf_view.py`, `pdf_fixtures.py`.

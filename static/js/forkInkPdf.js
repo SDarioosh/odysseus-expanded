@@ -207,6 +207,52 @@ export function markQuote(mark, max = 160) {
   return { text: '', near: false };
 }
 
+// Stage 2: an ink mark carries what was written (`written`, read by the hub's vision
+// model, fork/ink/mark_reading.py) and how its reading goes (`reading`: none, waiting,
+// pending, read, failed, reviewed). What the panel and the search results show for a
+// mark: `main` (the line itself; `quoted` puts it in quotes, `quiet` dims it), `sub` (a
+// smaller line under it, '' for none), `title` (a tooltip, '' for none) and `editable`
+// (only ink marks have writing to correct). `max` cuts long text.
+export const MARK_READING_BUSY = ['waiting', 'pending'];
+export function markDisplay(mark, max = 160) {
+  const m = mark || {};
+  const cut = (s) => (s.length > max ? `${s.slice(0, max - 1).trimEnd()}…` : s);
+  const clean = (s) => String(s || '').replace(/\s+/g, ' ').trim();
+  const q = markQuote(m, max);
+  const pdfLine = q.text ? (q.near ? `near “${q.text}”` : `“${q.text}”`) : '';
+  const out = { label: markKindLabel(m.kind), main: '', quoted: false, quiet: false, sub: '', title: '',
+    editable: m.kind === 'ink', busy: false };
+  if (m.kind !== 'ink' || !m.reading || m.reading === 'none') {
+    // Highlight, underline, or an ink mark from a hub that doesn't read marks.
+    if (q.text) { out.main = pdfLine; out.quoted = !q.near; out.quiet = q.near; }
+    else { out.main = 'no PDF text under it'; out.quiet = true; }
+    return out;
+  }
+  // An ink mark: what was written first, the PDF text it is on or by under it.
+  out.sub = q.text ? (q.near ? `by “${q.text}”` : `on “${q.text}”`) : '';
+  const written = clean(m.written);
+  if (MARK_READING_BUSY.includes(m.reading)) {
+    out.main = 'Reading…';
+    out.quiet = true;
+    out.busy = true;
+  } else if (m.reading === 'failed') {
+    out.main = 'Could not read it';
+    out.quiet = true;
+    out.title = clean(m.error || m.reading_error) || 'The hub could not read this writing.';
+  } else if (written) {
+    out.main = `“${cut(written)}”`;
+    out.quoted = true;
+    if (m.reading === 'reviewed') out.title = 'Corrected by you';
+  } else {
+    out.main = 'a drawing (no words)';
+    out.quiet = true;
+  }
+  return out;
+}
+
+// The Marks panel asks again while the hub is still reading marks of the note.
+export const marksStillReading = (body) => !!(body && body.reading === true);
+
 // The marks of a note grouped by page, in the note's page order (then y, then x as the
 // hub sends them). Marks on a page the note no longer has are left out.
 export function groupMarks(marks, pages) {

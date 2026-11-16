@@ -228,6 +228,44 @@ def test_write_deep_link_round_trips_and_refuses_junk():
     assert got["other"] is None
 
 
+@needs_node
+def test_ink_marks_show_what_was_written_and_how_the_reading_goes():
+    got = _node("""
+    const near = 'Input voltage range 2.7 V to 5.5 V';
+    const ink = (extra) => ({kind: 'ink', text: '', near, ...extra});
+    out.read = P.markDisplay(ink({reading: 'read', written: '  check EN   pull-up '}));
+    out.reviewed = P.markDisplay(ink({reading: 'reviewed', written: 'check EN pull-down'}));
+    out.pending = P.markDisplay(ink({reading: 'pending', written: ''}));
+    out.waiting = P.markDisplay(ink({reading: 'waiting'}));
+    out.failed = P.markDisplay(ink({reading: 'failed', error: 'No vision model is set'}));
+    out.failedPlain = P.markDisplay(ink({reading: 'failed'}));
+    out.drawing = P.markDisplay(ink({reading: 'read', written: ''}));
+    out.circled = P.markDisplay({kind: 'ink', text: '3.3 V', near: '', reading: 'read', written: 'ok'});
+    out.oldHub = P.markDisplay({kind: 'ink', text: '', near: 'VDD'});
+    out.highlight = P.markDisplay({kind: 'highlight', text: 'Supply voltage', reading: 'none', written: ''});
+    out.bare = P.markDisplay({kind: 'underline', text: '', near: ''});
+    out.long = P.markDisplay(ink({reading: 'read', written: 'w'.repeat(300)}), 20).main.length;
+    out.polling = [P.marksStillReading({reading: true}), P.marksStillReading({reading: false}),
+                   P.marksStillReading({}), P.marksStillReading(null)];
+    """)
+    assert got["read"]["main"] == "“check EN pull-up”" and got["read"]["quoted"] is True
+    assert got["read"]["sub"] == "by “Input voltage range 2.7 V to 5.5 V”"
+    assert got["read"]["label"] == "Note" and got["read"]["editable"] is True
+    assert got["reviewed"]["main"] == "“check EN pull-down”" and got["reviewed"]["title"] == "Corrected by you"
+    for k in ("pending", "waiting"):
+        assert got[k]["main"] == "Reading…" and got[k]["quiet"] and got[k]["busy"], got[k]
+    assert got["failed"]["main"] == "Could not read it" and got["failed"]["title"] == "No vision model is set"
+    assert got["failedPlain"]["title"]
+    assert got["drawing"]["main"] == "a drawing (no words)" and got["drawing"]["quiet"] is True
+    assert got["circled"]["sub"] == "on “3.3 V”"
+    assert got["oldHub"]["main"] == "near “VDD”" and got["oldHub"]["quiet"] is True
+    assert got["highlight"]["main"] == "“Supply voltage”" and got["highlight"]["editable"] is False
+    assert got["highlight"]["sub"] == ""
+    assert got["bare"]["main"] == "no PDF text under it"
+    assert got["long"] == 22                                  # 20 characters in quotes
+    assert got["polling"] == [True, False, False, False]
+
+
 # ------------------------------------------------------------------ in a browser
 NOTE_ID = "0d5a7c1e-2b3f-4a6d-9e8f-1a2b3c4d5e6f"
 P1 = "pd111111111111"
@@ -365,3 +403,110 @@ def test_pdf_note_in_a_browser(tmp_path):
     assert got["afterTap"]["flash"] > 10
     assert got["send"]["hidden"] is True
     assert "Datasheets stay in Odysseus" in got["send"]["line"]
+
+
+E2E_READING = """
+import { launch, openPage } from '%(harness)s';
+
+const { browser, skip } = await launch();
+if (skip) { console.log('SKIP ' + skip); process.exit(0); }
+const NOTE = '%(note)s', P1 = '%(p1)s';
+const pdfNote = { note_id: NOTE, owner: 'alice', title: 'Fictional regulator', paper: 'blank', edited_at: 1000,
+  image_url: null, pdf: { file: 'pdfs/x.pdf', hash: 'f'.repeat(64), name: 'regulator.pdf', pages: 1, at: '2026-11-01T10:00:00Z' },
+  pages: [{ id: P1, width: 1000, height: 1294, strokes: [], pdf: { page: 1, width_pt: 612, height_pt: 792 } }] };
+const base = { id: 'm-s9', page_id: P1, page_no: 1, kind: 'ink', color: '#1f1f1f', box: [700, 200, 150, 60],
+  text: '', near: 'Input voltage range 2.7 V to 5.5 V', strokes: ['s9'], at: 5 };
+const page = await openPage(browser, { hubState: JSON.stringify({ notes: { [NOTE]: pdfNote } }) });
+await page.route('**/api/ink/notes/*/pdf/*.png*', (route) => route.fulfill({ status: 404, body: '' }));
+// The fake hub: the first listing is still reading the mark, the next ones have it read;
+// a correction answers the merged mark. Request bodies of PUTs are kept.
+await page.evaluate(([NOTE, base]) => {
+  window.marksGets = 0;
+  window.markPuts = [];
+  window.written = { text: 'check EN pull-up', reading: 'read' };
+  hub.answer['GET /api/ink/notes/' + NOTE + '/marks'] = { status: 200, body: () => {
+    window.marksGets += 1;
+    const first = window.marksGets === 1;
+    return { note_id: NOTE, title: 'Fictional regulator', reading: first,
+      marks: [{ ...base, written: first ? '' : window.written.text, reading: first ? 'pending' : window.written.reading }] };
+  } };
+  hub.answer['PUT /api/ink/notes/' + NOTE + '/marks/m-s9'] = { status: 200, body: () => {
+    window.written = { text: window.markPuts[window.markPuts.length - 1].written, reading: 'reviewed' };
+    return { ...base, written: window.written.text, reading: 'reviewed' };
+  } };
+  hub.answer['GET /api/ink/notes'] = { status: 200, body: { notes: [{ id: NOTE, title: 'Fictional regulator', pages: 1,
+    edited_at: 1000, image_url: null, pdf: { name: 'regulator.pdf', pages: 1 } }] } };
+  hub.answer['GET /api/ink/marks'] = { status: 200, body: { q: 'pull', results: [{ note_id: NOTE, title: 'Fictional regulator',
+    pdf_name: 'regulator.pdf', mark: { ...base, written: 'check EN pull-up', reading: 'read' } }] } };
+  const f = window.fetch;
+  window.fetch = (u, o = {}) => {
+    if ((o.method || '').toUpperCase() === 'PUT' && String(u).includes('/marks/')) window.markPuts.push(JSON.parse(o.body));
+    return f(u, o);
+  };
+}, [NOTE, base]);
+const out = {};
+const until = (fn, arg, timeout = 8000) => page.waitForFunction(fn, arg, { timeout });
+const panelText = () => page.evaluate(() => document.querySelector('.ink-marks .ink-mark-row').textContent);
+
+// Search marks shows what was written.
+await page.evaluate(() => view.refresh());
+await until(() => !document.querySelector('.ink-mark-searchbox').hidden);
+await page.fill('.ink-mark-search', 'pull');
+await until(() => document.querySelector('.ink-mark-result'));
+out.result = await page.evaluate(() => document.querySelector('.ink-mark-result').textContent);
+
+// The panel: Reading... while the hub reads, then the writing, by polling.
+await page.evaluate((id) => view.openNote(id), NOTE);
+await until(() => !document.querySelector('.ink-marks-btn').hidden);
+await page.click('.ink-marks-btn');
+await until(() => document.querySelector('.ink-marks .ink-mark-text.busy'));
+out.pending = await panelText();
+out.editShown = await page.evaluate(() => !!document.querySelector('.ink-marks .ink-mark-edit'));
+await until(() => document.querySelector('.ink-marks .ink-mark-row').textContent.includes('pull-up'), null, 9000);
+out.read = await panelText();
+const gets = await page.evaluate(() => window.marksGets);
+await page.waitForTimeout(4600);
+out.getsAfterDone = (await page.evaluate(() => window.marksGets)) - gets; // polling stopped
+
+// Edit, then Escape: nothing sent.
+await page.click('.ink-marks .ink-mark-edit');
+await until(() => document.querySelector('.ink-mark-input'));
+out.inputValue = await page.inputValue('.ink-mark-input');
+await page.press('.ink-mark-input', 'Escape');
+await until(() => !document.querySelector('.ink-mark-input'));
+out.putsAfterEscape = await page.evaluate(() => window.markPuts.length);
+// Enter saves the correction.
+await page.click('.ink-marks .ink-mark-edit');
+await page.fill('.ink-mark-input', 'check EN pull-down');
+await page.press('.ink-mark-input', 'Enter');
+await until(() => !document.querySelector('.ink-mark-input') && document.querySelector('.ink-marks .ink-mark-row').textContent.includes('pull-down'));
+out.puts = await page.evaluate(() => window.markPuts);
+out.saved = await panelText();
+out.title = await page.evaluate(() => document.querySelector('.ink-marks .ink-mark-text').title);
+out.errors = await page.evaluate(() => window.errors);
+await browser.close();
+console.log(JSON.stringify(out));
+"""
+
+
+@pytest.mark.skipif(not _playwright_ready(), reason="node or playwright not available")
+def test_marks_panel_reads_handwriting_polls_and_corrects_in_a_browser(tmp_path):
+    script = tmp_path / "pdf_reading_e2e.mjs"
+    script.write_text(E2E_READING % {"harness": _HARNESS, "note": NOTE_ID, "p1": P1})
+    proc = subprocess.run(["node", str(script)], capture_output=True, text=True, cwd=str(_REPO), timeout=300)
+    assert proc.returncode == 0, proc.stderr
+    last = proc.stdout.strip().splitlines()[-1]
+    if last.startswith("SKIP"):
+        pytest.skip(last)
+    got = json.loads(last)
+    assert got["errors"] == []
+    assert "check EN pull-up" in got["result"] and "by “Input voltage range" in got["result"]
+    assert "Reading…" in got["pending"]
+    assert got["editShown"] is True
+    assert "“check EN pull-up”" in got["read"] and "by “Input voltage range 2.7 V to 5.5 V”" in got["read"]
+    assert got["getsAfterDone"] == 0                          # reading: false stops the polling
+    assert got["inputValue"] == "check EN pull-up"
+    assert got["putsAfterEscape"] == 0
+    assert got["puts"] == [{"written": "check EN pull-down"}]
+    assert "“check EN pull-down”" in got["saved"]
+    assert got["title"] == "Corrected by you"
