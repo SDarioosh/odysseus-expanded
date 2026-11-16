@@ -89,11 +89,13 @@ def block(hit: dict[str, Any]) -> str:
     kind = str(mark.get("kind") or "")
     lines = [f"{sheet}, page {mark.get('page_no') or '?'}, {KIND_NAMES.get(kind, kind)}"]
     if mark.get("text"):
-        label = "points to" if kind == "arrow" else "covers"
+        # "printed" on every PDF line and "handwritten by you" on the writing: a 4B model
+        # once quoted the line beside a note as what the owner wrote (sandbox, 1 in 4).
+        label = "printed line it points to" if kind == "arrow" else "printed text it covers"
         lines.append(f"  {label}: {_cut(mark['text'])}")
     written, reading = str(mark.get("written") or "").strip(), mark.get("reading")
     if written:
-        lines.append(f"  you wrote: {_cut(written)}"
+        lines.append(f"  handwritten by you: {_cut(written)}"
                      + (" (corrected by you)" if reading == "reviewed" else ""))
     elif kind == "ink" and reading == "read":
         lines.append("  a drawing (no words)")
@@ -102,7 +104,7 @@ def block(hit: dict[str, Any]) -> str:
     elif kind == "ink" and reading == "failed":
         lines.append("  what you wrote couldn't be read")
     if mark.get("near"):
-        label = "points to" if mark.get("points_to") else "beside"
+        label = "printed line it points to" if mark.get("points_to") else "printed line beside it"
         lines.append(f"  {label}: {_cut(mark['near'])}")
     lines.append(f"  [open]({link(hit.get('note_id'), mark.get('page_id'), mark.get('id'))})")
     return "\n".join(lines)

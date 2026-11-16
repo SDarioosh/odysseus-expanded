@@ -679,9 +679,9 @@ note about the ZX-100's enable pin?" is answered from their marks.
 - **Arguments.** `query` (required), `limit` (1-20, default 10). The search runs in a
   thread, for the run's owner only.
 - **Result.** One block per mark: the datasheet's title (and PDF name), page, kind
-  (highlight, underline, handwritten note), `covers:` the PDF text, `you wrote:` what was
+  (highlight, underline, handwritten note), `printed text it covers:` the PDF text, `handwritten by you:` what was
   written ("(corrected by you)" for a reading the owner corrected; "isn't read yet" or
-  "couldn't be read" otherwise), `beside:` the near line, and `[open](/#open=write&note=…&page=…&mark=…)`,
+  "couldn't be read" otherwise), `printed line beside it:` the near line (`printed line it points to:` for an arrow), and `[open](/#open=write&note=…&page=…&mark=…)`,
   which opens Write at the mark. Texts cut to 300 characters. Nothing found says so.
   A result with marks arms the run (`distrust`): the PDF's text is outside content and
   the handwriting is the owner's.

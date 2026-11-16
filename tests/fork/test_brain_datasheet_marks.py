@@ -63,15 +63,15 @@ def test_a_block_shows_the_parts_circles_and_arrows():
                     "text": "EN to GND", "near": "", "written": "", "reading": "none"}}
     lines = brain_datasheets.block(hit).splitlines()
     assert lines[0] == "Buck [ZX-100, ZX-100A] (b.pdf), page 3, arrow"
-    assert lines[1] == "  points to: EN to GND"
+    assert lines[1] == "  printed line it points to: EN to GND"
     hit["mark"] = {**hit["mark"], "kind": "circle", "text": "1.2 A", "near": "Output",
                    "points_to": True}
     lines = brain_datasheets.block({**hit, "parts": []}).splitlines()
-    assert lines[:3] == ["Buck (b.pdf), page 3, circled", "  covers: 1.2 A",
-                         "  points to: Output"]
+    assert lines[:3] == ["Buck (b.pdf), page 3, circled", "  printed text it covers: 1.2 A",
+                         "  printed line it points to: Output"]
     hit["mark"] = {**hit["mark"], "kind": "ink", "text": "", "near": "EN pin",
                    "written": "pull down", "reading": "read", "points_to": True}
-    assert "  points to: EN pin" in brain_datasheets.block(hit)
+    assert "  printed line it points to: EN pin" in brain_datasheets.block(hit)
 
 
 # ------------------------------------------------------------ fictional notes
@@ -172,12 +172,12 @@ async def test_the_tool_answers_with_the_mark_and_its_link(brain):
     # The part number guessed on import (fork/ink/parts.py) in brackets after the title.
     assert first.splitlines()[0] == \
         "ZX-100 Buck Regulator [ZX-100] (zx100-datasheet.pdf), page 2, handwritten note"
-    assert "  you wrote: check EN pull-down (corrected by you)" in first
-    assert "  beside: EN to GND -0.3 V to VIN" in first
+    assert "  handwritten by you: check EN pull-down (corrected by you)" in first
+    assert "  printed line beside it: EN to GND -0.3 V to VIN" in first
     assert f"[open](/#open=write&note={note_id}&page={pages[1]}&mark=m-hw1)" in first
     assert second.startswith("ZX-100 Buck Regulator [ZX-100] (zx100-datasheet.pdf), page 1, "
                              "highlight")
-    assert "  covers: 2.7 V to 5.5 V" in second and "you wrote" not in second
+    assert "  printed text it covers: 2.7 V to 5.5 V" in second and "handwritten by you" not in second
     assert "untrusted_content" not in result  # popped by execute: the run is armed
     assert run.tainted and run.security.external_untrusted_context_seen
     assert TOOL in run.security.external_sources
