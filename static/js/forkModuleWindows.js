@@ -413,7 +413,7 @@ function init() {
       const entry = document.getElementById(WINDOWS.ink.sidebarBtn);
       return !!entry && entry.style.display !== 'none';
     },
-    openInWrite: (id) => open(WINDOWS.ink).then((view) => view && view.openNote(id)),
+    openInWrite: (id, at) => open(WINDOWS.ink).then((view) => view && view.openNote(id, at || {})), // at: PDF page, mark
   });
   if (document.readyState === 'complete') warmInk();
   else window.addEventListener('load', warmInk, { once: true });

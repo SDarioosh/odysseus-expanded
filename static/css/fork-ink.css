@@ -115,3 +115,35 @@
 .ink-root .ink-list-head .bs-icon-btn, .ink-root .ink-list-head .bs-btn { min-height: 34px; }
 .ink-root .ink-move { margin-top: 4px; max-width: 100%; height: 30px; font-size: 13px; }
 .ink-root .ink-book-label { max-width: 220px; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+
+/* PDF datasheets (static/js/forkInkPdf.js): the PDF badge and Search marks in the list,
+   the Marks panel over the right of the pages, and the box that flashes over a mark. */
+.ink-root .ink-badge { display: inline-block; margin-right: 6px; padding: 0 5px; border-radius: 3px;
+                       font-size: 11px; line-height: 16px; vertical-align: 2px; font-weight: 600;
+                       color: var(--bg); background: var(--fg); }
+.ink-root .ink-mark-searchbox { margin: 0 0 10px; display: flex; flex-direction: column; gap: 6px; max-width: 640px; }
+.ink-root .ink-mark-searchbox[hidden] { display: none; }
+.ink-root .ink-mark-search { width: 100%; height: 34px; }
+.ink-root .ink-mark-results { display: flex; flex-direction: column; gap: 4px; }
+.ink-root .ink-mark-results .error { color: var(--red); }
+.ink-root .ink-mark, .ink-root .ink-mark-result { display: flex; gap: 8px; align-items: baseline; height: auto;
+                                                  min-height: 34px; text-align: left; white-space: normal; width: 100%; }
+.ink-root .ink-mark .ink-swatch, .ink-root .ink-mark-result .ink-swatch { flex: none; align-self: center; }
+.ink-root .ink-mark-kind, .ink-root .ink-mark-where { flex: none; font-weight: 600; font-size: 12px; }
+.ink-root .ink-mark-text { flex: 1; min-width: 0; overflow-wrap: anywhere; }
+.ink-root .ink-mark-text.near { opacity: 0.7; font-style: italic; }
+.ink-root .ink-marks { position: absolute; top: 0; right: 0; bottom: 0; width: min(340px, 85%); z-index: 2;
+                       display: flex; flex-direction: column; gap: 6px; padding: 8px 10px; overflow-y: auto;
+                       background: var(--bg); border-left: 1px solid var(--border);
+                       box-shadow: -4px 0 12px rgba(0, 0, 0, 0.12); }
+.ink-root .ink-marks[hidden] { display: none; }
+.ink-root .ink-marks-head { display: flex; align-items: center; justify-content: space-between; }
+.ink-root .ink-marks-head h2 { margin: 0; font-size: 15px; }
+.ink-root .ink-marks-page { display: flex; flex-direction: column; gap: 4px; }
+.ink-root .ink-marks-page h3 { margin: 8px 0 2px; font-size: 13px; }
+.ink-root .ink-marks-btn[aria-pressed="true"] { border-color: var(--fg); }
+.ink-root .ink-flash { position: absolute; z-index: 1; pointer-events: none; border-radius: 4px;
+                       border: 2px solid #1f5fbf; background: rgba(31, 95, 191, 0.12); opacity: 0; }
+.ink-root .ink-flash[hidden] { display: none; }
+.ink-root .ink-flash.on { animation: ink-flash 1.6s ease-out; }
+@keyframes ink-flash { 0%, 60% { opacity: 1; } 100% { opacity: 0; } }
