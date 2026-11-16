@@ -106,7 +106,8 @@ def save(c, note, strokes_by_page, edited_at=None):
 
 def marked_note(c, owner="alice"):
     """A datasheet with a highlight, an underline and a circled value on page 1 and a
-    handwritten note beside a line on page 2."""
+    handwritten note beside a line on page 2 (fork/ink/pdf_marks.py kinds highlight,
+    underline, circle, ink)."""
     note_id, note = import_pdf(c)
     w1 = word_boxes(owner, note_id, 1)
     w2 = word_boxes(owner, note_id, 2)
@@ -139,7 +140,7 @@ def test_note_marks_find_the_text_under_each_mark(env):
     assert got == [
         ("highlight", 1, "2.7 V to 5.5 V", "", ["hl1"]),
         ("underline", 1, "Output current", "", ["ul1"]),
-        ("ink", 1, "18 uA", "", ["ci1"]),
+        ("circle", 1, "18 uA", "", ["ci1"]),
         ("ink", 2, "", "VIN to GND -0.3 V to 6.0 V", ["hw1", "hw2"]),
     ]
     pages = [p["id"] for p in note["pages"]]
@@ -218,3 +219,86 @@ def test_search_needs_two_characters_and_keeps_limit_in_range(env):
     assert c.get("/api/ink/marks").status_code == 400
     assert len(c.get("/api/ink/marks", params={"q": "zx100", "limit": 0}).json()["results"]) == 1
     assert len(c.get("/api/ink/marks", params={"q": "zx100", "limit": 500}).json()["results"]) == 4
+
+
+# ------------------------------------------------------------------- arrows
+def test_an_arrow_and_a_note_with_an_arrow(env):
+    c = client_for()
+    note_id, note = import_pdf(c)
+    w2 = word_boxes("alice", note_id, 2)
+    _, ey0, ex1, ey1 = span(w2, "EN", "to", "GND", "-0.3", "V", "to", "VIN")
+    tip = (ex1 + 6, (ey0 + ey1) / 2)
+    tail = (tip[0] + 120, tip[1] + 60)
+    back = ((tail[0] - tip[0]) / 134.16, (tail[1] - tip[1]) / 134.16)
+    barb = (tip[0] + 10 * back[0] - 5 * back[1], tip[1] + 10 * back[1] + 5 * back[0])
+    arrow = stroke("ar1", RED, [tail, tip, barb], at=6000)
+    # Writing at the arrow's tail, 60 below the line: a note with an arrow.
+    letters = [stroke(f"lt{i}", PEN, [(tail[0] + 5 + 15 * i, tail[1] - 5),
+                                      (tail[0] + 12 + 15 * i, tail[1] + 8)], at=6100 + i)
+               for i in range(3)]
+    save(c, note, {1: [arrow, *letters]})
+    (m,) = c.get(f"/api/ink/notes/{note_id}/marks").json()["marks"]
+    assert m["kind"] == "ink" and m["strokes"] == ["ar1", "lt0", "lt1", "lt2"]
+    assert m["near"] == "EN to GND -0.3 V to VIN" and m["points_to"] is True
+    assert not any(k.startswith("_") for k in m)   # the writing's strokes stay inside
+    assert m["reading"] == "waiting"
+    # The arrow alone: an arrow mark, never read.
+    note = c.get(f"/api/ink/notes/{note_id}").json()
+    body = {"paper": note["paper"], "edited_at": note["edited_at"] + 1,
+            "pages": [{"id": p["id"], "width": p["width"], "height": p["height"],
+                       "strokes": [arrow] if i == 1 else []}
+                      for i, p in enumerate(note["pages"])]}
+    assert c.put(f"/api/ink/notes/{note_id}", json=body).status_code == 200
+    (m,) = c.get(f"/api/ink/notes/{note_id}/marks").json()["marks"]
+    assert m["kind"] == "arrow" and m["text"] == "EN to GND -0.3 V to VIN"
+    assert m["reading"] == "none" and m["near"] == ""
+    r = c.put(f"/api/ink/notes/{note_id}/marks/m-ar1", json={"written": "x"})
+    assert r.status_code == 400
+
+
+# ------------------------------------------------------------------- parts
+def test_parts_are_guessed_on_import_kept_and_set(env):
+    c = client_for()
+    note_id, note = import_pdf(c, name="zx100-datasheet.pdf")
+    assert note["parts"] == ["ZX-100"]          # the title line, the name's ZX100 is the same
+    listed = next(n for n in c.get("/api/ink/notes").json()["notes"] if n["id"] == note_id)
+    assert listed["parts"] == ["ZX-100"]
+    r = c.put(f"/api/ink/notes/{note_id}/parts", json={"parts": [" ZX-100A ", "zx-100a", "AB-200"]})
+    assert r.status_code == 200, r.text
+    assert r.json() == {"parts": ["ZX-100A", "AB-200"]}
+    # A save from the Write view keeps them; the note answers them.
+    saved = save(c, note, {0: [stroke("w1", PEN, [(700, 700), (720, 720)], at=7000)]})
+    assert saved["parts"] == ["ZX-100A", "AB-200"]
+    assert c.get(f"/api/ink/notes/{note_id}").json()["parts"] == ["ZX-100A", "AB-200"]
+    assert c.put(f"/api/ink/notes/{note_id}/parts", json={"parts": []}).json() == {"parts": []}
+    assert c.get(f"/api/ink/notes/{note_id}").json()["parts"] == []
+
+
+def test_set_parts_refuses_bad_bodies_other_notes_and_non_datasheets(env):
+    c = client_for()
+    note_id, _ = import_pdf(c)
+    url = f"/api/ink/notes/{note_id}/parts"
+    for bad in ({"parts": "ZX-100"}, {"parts": [1]}, {}, {"parts": ["x" * 41]},
+                {"parts": [f"P{i}" for i in range(21)]}):
+        assert c.put(url, json=bad).status_code == 400, bad
+    assert c.put(url, content=b"[1]", headers={"content-type": "application/json"}).status_code == 400
+    assert client_for("bob").put(url, json={"parts": ["X"]}).status_code == 404
+    assert c.put(f"/api/ink/notes/{nid()}/parts", json={"parts": []}).status_code == 404
+    assert c.put("/api/ink/notes/bad!/parts", json={"parts": []}).status_code == 404
+    plain = nid()
+    r = c.put(f"/api/ink/notes/{plain}", json={"paper": "lined", "edited_at": 1, "pages": [
+        {"id": "p0", "width": 1000, "height": 1414, "strokes": []}]})
+    assert r.status_code == 200 and r.json()["parts"] == []
+    assert c.put(f"/api/ink/notes/{plain}/parts", json={"parts": ["X1"]}).status_code == 400
+    listed = next(n for n in c.get("/api/ink/notes").json()["notes"] if n["id"] == plain)
+    assert listed["parts"] == []
+
+
+def test_search_finds_a_datasheet_by_its_part_number(env):
+    c = client_for()
+    note_id, _ = marked_note(c)
+    assert c.get("/api/ink/marks", params={"q": "QX7720"}).json()["results"] == []
+    c.put(f"/api/ink/notes/{note_id}/parts", json={"parts": ["ZX-100", "QX7720"]})
+    got = c.get("/api/ink/marks", params={"q": "qx7720 vin"}).json()["results"]
+    assert [x["mark"]["id"] for x in got] == ["m-hw1"]
+    assert got[0]["parts"] == ["ZX-100", "QX7720"]

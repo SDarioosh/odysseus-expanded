@@ -139,6 +139,19 @@ def test_mark_strokes_leave_out_the_highlighter_and_other_strokes():
     assert [s["id"] for s in got] == ["n1", "n2"]
 
 
+def test_mark_strokes_and_page_are_the_writing_only_when_an_arrow_is_drawn_with_it():
+    arrow = stroke("ar", PEN, [(800, 310), (600, 250), (612, 247)])
+    page = {"strokes": [*MARGIN, arrow]}
+    mark = {"id": "m-n1", "strokes": ["n1", "n2", "ar"], "box": [598, 245, 294, 77],
+            "_writing": ["n1", "n2"], "_writing_box": [818.8, 298.8, 72.5, 22.5]}
+    assert [s["id"] for s in mr.mark_strokes(page, mark)] == ["n1", "n2"]
+    got = mr.mark_page(mark, mr.mark_strokes(page, mark))
+    xs = [p[0] for s in got["strokes"] for p in s["points"]]
+    assert min(xs) >= 0 and max(xs) <= 1000 and got["width"] == 1000
+    # Scaled from the writing's box (4x), not the whole mark's (about 2.1x).
+    assert got["strokes"][0]["pen"]["width"] == 10.0
+
+
 def test_mark_hash_follows_ids_and_points():
     a = mr.mark_hash(MARGIN)
     assert a == mr.mark_hash(json.loads(json.dumps(MARGIN)))
@@ -385,3 +398,62 @@ def test_a_route_run_reads_on_the_servers_loop(env, monkeypatch):
             time.sleep(0.05)
     assert {m["id"]: m for m in r["marks"]}["m-n1"]["written"] == "check EN"
     assert len(fake.calls) == 1
+
+
+# ------------------------------------------------------------ circles and arrows
+def _line_end(owner, note_id, text):
+    from fork.ink import pdf as ink_pdf
+
+    words = ink_pdf.page_words(ink.pdf_file(owner, note_id), 1)
+    first = next(w for w in words if w.text == text)
+    line = [w for w in words if w.line == first.line]
+    return max(w.x1 for w in line), (first.y0 + first.y1) / 2
+
+
+def test_an_arrow_drawn_with_a_note_is_not_read_and_does_not_make_it_read_again(env, monkeypatch):
+    fake = Fake()
+    use_reader(monkeypatch, fake)
+    note_id, note = pdf_note()
+    run(read_now("alice", note_id))
+    assert len(fake.calls) == 1
+    x1, y = _line_end("alice", note_id, "Quiescent")
+    tip, tail = (x1 + 8, y), (812, 305)
+    arrow = stroke("ar", PEN, [tail, ((tail[0] + tip[0]) / 2, (tail[1] + tip[1]) / 2), tip,
+                               (tip[0] + 9, tip[1] - 6)], at=9000)
+    sent = []
+    real = mr.mark_page
+    monkeypatch.setattr(mr, "mark_page", lambda m, st: sent.append([s["id"] for s in st])
+                        or real(m, st))
+    save("alice", note, MARGIN + [HIGHLIGHT, arrow], edited_at=note["edited_at"] + 1)
+    got = marks("alice", note_id)["m-n1"]
+    assert got["kind"] == "ink" and "ar" in got["strokes"] and got["points_to"] is True
+    assert got["near"].startswith("Quiescent current")
+    assert (got["written"], got["reading"]) == ("check EN", "read")   # the same writing
+    run(read_now("alice", note_id))
+    assert len(fake.calls) == 1 and sent == []
+    # New writing: read again, without the arrow.
+    more = stroke("n3", PEN, [(895, 300), (905, 318)], at=9500)
+    stored = ink.load("alice", note_id)
+    save("alice", stored, MARGIN + [more, HIGHLIGHT, arrow], edited_at=stored["edited_at"] + 1)
+    run(read_now("alice", note_id))
+    assert len(fake.calls) == 2 and sent == [["n1", "n2", "n3"]]
+
+
+def test_circles_and_arrows_alone_are_never_read(env, monkeypatch):
+    fake = Fake()
+    use_reader(monkeypatch, fake)
+    note_id, _ = pdf_note(strokes=[])
+    from fork.ink import pdf as ink_pdf
+
+    words = ink_pdf.page_words(ink.pdf_file("alice", note_id), 1)
+    w = next(w for w in words if w.text == "uA")
+    loop = stroke("c1", PEN, [(w.x0 - 6, w.y0 - 6), (w.x1 + 6, w.y0 - 6), (w.x1 + 6, w.y1 + 6),
+                              (w.x0 - 6, w.y1 + 6), (w.x0 - 6, w.y0 - 5)])
+    x1, y = _line_end("alice", note_id, "Quiescent")
+    arrow = stroke("a1", PEN, [(x1 + 300, y + 200), (x1 + 8, y), (x1 + 17, y - 6)])
+    note_id2, _ = pdf_note(strokes=[loop, arrow])
+    got = marks("alice", note_id2)
+    assert {m["kind"] for m in got.values()} == {"circle", "arrow"}
+    assert all(m["reading"] == "none" for m in got.values())
+    run(read_now("alice", note_id2))
+    assert fake.calls == []

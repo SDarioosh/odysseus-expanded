@@ -1,11 +1,12 @@
 """Fork: the brain's ``search_datasheet_marks`` (docs/fork/brain.md, "Datasheet marks").
 
 What the owner marked on the datasheets (PDFs) in Write: highlights, underlines and
-handwritten notes, each with the PDF text it covers and what was written
-(``fork/ink/pdf_marks.py``, ``fork/ink/mark_reading.py``). :func:`search` runs
+handwritten notes, circled words and arrows, each with the PDF text it covers and what
+was written (``fork/ink/pdf_marks.py``, ``fork/ink/mark_reading.py``). :func:`search` runs
 ``pdf_marks.rank`` for the run's owner in a thread and gives the model one compact block
-per mark: the datasheet, the page, the kind, the PDF text, what the owner wrote (said to
-be corrected by them when reviewed), the line it is beside, and a link that opens Write
+per mark: the datasheet (its title, part-number tags in brackets, the file), the page,
+the kind, the PDF text, what the owner wrote (said to be corrected by them when
+reviewed), the line it is beside or that its arrow points to, and a link that opens Write
 at the mark (``/#open=write&note=…&page=…&mark=…``, ``static/js/forkInkPdf.js``).
 
 Read-only and owner-scoped. A result with marks is outside content (the PDF's text) and
@@ -35,7 +36,8 @@ SCHEMA = {
         "name": SEARCH_DATASHEET_MARKS,
         "description": (
             "Search what the owner marked on their datasheets and other PDFs in Write: "
-            "highlights, underlines and handwritten notes, with the PDF text each covers "
+            "highlights, underlines, circles, arrows and handwritten notes, with the PDF "
+            "text each covers "
             "and what they wrote. Returns the best marks with a link to each; quote the "
             "mark and put its link next to it."),
         "parameters": {
@@ -50,7 +52,9 @@ SCHEMA = {
     },
 }
 
-KIND_NAMES = {"highlight": "highlight", "underline": "underline", "ink": "handwritten note"}
+KIND_NAMES = {"highlight": "highlight", "underline": "underline", "ink": "handwritten note",
+              "circle": "circled", "arrow": "arrow"}
+MAX_PARTS_SHOWN = 5
 
 
 def _cut(text: Any, limit: int = TEXT_CHARS) -> str:
@@ -72,12 +76,16 @@ def block(hit: dict[str, Any]) -> str:
     title = _cut(hit.get("title") or "", 120)
     name = _cut(hit.get("pdf_name") or "", 120)
     sheet = title or name or "Datasheet"
+    parts = [_cut(p, 40) for p in hit.get("parts") or [] if str(p).strip()]
+    if parts:
+        sheet += " [" + ", ".join(parts[:MAX_PARTS_SHOWN]) + "]"
     if name and title and name.lower().removesuffix(".pdf") != title.lower():
         sheet += f" ({name})"
     kind = str(mark.get("kind") or "")
     lines = [f"{sheet}, page {mark.get('page_no') or '?'}, {KIND_NAMES.get(kind, kind)}"]
     if mark.get("text"):
-        lines.append(f"  covers: {_cut(mark['text'])}")
+        label = "points to" if kind == "arrow" else "covers"
+        lines.append(f"  {label}: {_cut(mark['text'])}")
     written, reading = str(mark.get("written") or "").strip(), mark.get("reading")
     if written:
         lines.append(f"  you wrote: {_cut(written)}"
@@ -89,7 +97,8 @@ def block(hit: dict[str, Any]) -> str:
     elif kind == "ink" and reading == "failed":
         lines.append("  what you wrote couldn't be read")
     if mark.get("near"):
-        lines.append(f"  beside: {_cut(mark['near'])}")
+        label = "points to" if mark.get("points_to") else "beside"
+        lines.append(f"  {label}: {_cut(mark['near'])}")
     lines.append(f"  [open]({link(hit.get('note_id'), mark.get('page_id'), mark.get('id'))})")
     return "\n".join(lines)
 

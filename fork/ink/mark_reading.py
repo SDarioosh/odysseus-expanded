@@ -4,9 +4,11 @@ Search marks show and find it. Plan: ``docs/fork/datasheets.md``.
 
 Rules:
 
-* Only ink marks are read (handwriting, arrows, circles on a PDF page); highlights and
-  underlines have no writing. A mark is read from a **synthetic page** (:func:`mark_page`):
-  only its pen strokes, never the highlighter or the PDF, moved so its box (padded
+* Only ink marks are read (handwriting on a PDF page); highlights, underlines and marks
+  that are only a circle or an arrow (kinds ``circle``, ``arrow``) have no writing. A
+  mark is read from a **synthetic page** (:func:`mark_page`): only its writing's pen
+  strokes (:func:`mark_strokes`: not an arrow drawn with it), never the highlighter or
+  the PDF, moved so its box (padded
   ``MARK_PAD``) starts at 0 and scaled up (at most ``MARK_MAX_SCALE``) to fill a page
   ``PAGE_WIDTH`` wide, through ``fork/ink/transcribe.py`` (``read_page`` with
   ``MARK_HINT``: a mark may be only a shape).
@@ -77,8 +79,11 @@ def mark_hash(strokes: list[dict[str, Any]]) -> str:
 
 
 def mark_strokes(page: dict[str, Any], mark: dict[str, Any]) -> list[dict[str, Any]]:
-    """The mark's pen strokes on ``page``, in the page's order (never the highlighter)."""
-    ids = set(mark.get("strokes") or [])
+    """The mark's pen strokes the model reads on ``page``, in the page's order: its
+    writing (``_writing``, without an arrow's strokes, ``fork/ink/pdf_marks.py``), else
+    all its strokes; never the highlighter."""
+    writing = mark.get("_writing")
+    ids = set(writing if isinstance(writing, list) else mark.get("strokes") or [])
     return [s for s in page.get("strokes") or []
             if isinstance(s, dict) and s.get("id") in ids
             and not (s.get("pen") or {}).get("highlighter")]
@@ -89,8 +94,9 @@ def mark_page(mark: dict[str, Any], strokes: list[dict[str, Any]]) -> dict[str, 
     padded by ``MARK_PAD``, starts at 0, and scaled by ``s = min(MARK_MAX_SCALE,
     PAGE_WIDTH / padded width, MARK_MAX_HEIGHT / padded height)`` (points and pen width),
     on a page ``PAGE_WIDTH`` wide and as tall as the scaled box (at least
-    ``MARK_MIN_HEIGHT``). Pure."""
-    x, y, w, h = (float(v) for v in mark["box"])
+    ``MARK_MIN_HEIGHT``). The box is the writing's (``_writing_box``, without an arrow)
+    when the mark has one. Pure."""
+    x, y, w, h = (float(v) for v in mark.get("_writing_box") or mark["box"])
     x0, y0 = x - MARK_PAD, y - MARK_PAD
     pw, ph = max(1.0, w + 2 * MARK_PAD), max(1.0, h + 2 * MARK_PAD)
     s = min(MARK_MAX_SCALE, ink.PAGE_WIDTH / pw, MARK_MAX_HEIGHT / ph)

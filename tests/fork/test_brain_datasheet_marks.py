@@ -48,6 +48,32 @@ def test_score_counts_each_word_once_plus_the_datasheets_name():
     assert pm.score(named, {"text": "x"}, "", "zx100-datasheet.pdf") == 1  # the PDF name
 
 
+def test_part_numbers_count_like_the_title():
+    words = pm.query_words("QX7720 enable pin")
+    assert pm.score(words, {"text": "Output current"}, "Bench", "a.pdf") == 0
+    assert pm.score(words, {"text": "Output current"}, "Bench", "a.pdf", ["QX7720"]) == 1
+    assert pm.score(words, {"near": "EN pin"}, "Bench", "a.pdf", ["QX-7720"]) == 2
+    assert pm.query_words("the circled values and arrows") == ["values"]
+
+
+def test_a_block_shows_the_parts_circles_and_arrows():
+    hit = {"note_id": "n1", "title": "Buck", "pdf_name": "b.pdf",
+           "parts": ["ZX-100", "ZX-100A"],
+           "mark": {"id": "m-a", "page_id": "pd1", "page_no": 3, "kind": "arrow",
+                    "text": "EN to GND", "near": "", "written": "", "reading": "none"}}
+    lines = brain_datasheets.block(hit).splitlines()
+    assert lines[0] == "Buck [ZX-100, ZX-100A] (b.pdf), page 3, arrow"
+    assert lines[1] == "  points to: EN to GND"
+    hit["mark"] = {**hit["mark"], "kind": "circle", "text": "1.2 A", "near": "Output",
+                   "points_to": True}
+    lines = brain_datasheets.block({**hit, "parts": []}).splitlines()
+    assert lines[:3] == ["Buck (b.pdf), page 3, circled", "  covers: 1.2 A",
+                         "  points to: Output"]
+    hit["mark"] = {**hit["mark"], "kind": "ink", "text": "", "near": "EN pin",
+                   "written": "pull down", "reading": "read", "points_to": True}
+    assert "  points to: EN pin" in brain_datasheets.block(hit)
+
+
 # ------------------------------------------------------------ fictional notes
 @pytest.fixture
 def brain(monkeypatch, data_dir):
@@ -142,12 +168,14 @@ async def test_the_tool_answers_with_the_mark_and_its_link(brain):
     out = result["output"]
     assert desc == f"{TOOL}: 2 result(s)" and result["exit_code"] == 0
     first, second = out.split("\n\n")
+    # The part number guessed on import (fork/ink/parts.py) in brackets after the title.
     assert first.splitlines()[0] == \
-        "ZX-100 Buck Regulator (zx100-datasheet.pdf), page 2, handwritten note"
+        "ZX-100 Buck Regulator [ZX-100] (zx100-datasheet.pdf), page 2, handwritten note"
     assert "  you wrote: check EN pull-down (corrected by you)" in first
     assert "  beside: EN to GND -0.3 V to VIN" in first
     assert f"[open](/#open=write&note={note_id}&page={pages[1]}&mark=m-hw1)" in first
-    assert second.startswith("ZX-100 Buck Regulator (zx100-datasheet.pdf), page 1, highlight")
+    assert second.startswith("ZX-100 Buck Regulator [ZX-100] (zx100-datasheet.pdf), page 1, "
+                             "highlight")
     assert "  covers: 2.7 V to 5.5 V" in second and "you wrote" not in second
     assert "untrusted_content" not in result  # popped by execute: the run is armed
     assert run.tainted and run.security.external_untrusted_context_seen
@@ -271,3 +299,14 @@ async def test_a_turn_finds_the_mark_end_to_end(brain):
     assert "check EN pull-down (corrected by you)" in tool_msg["content"]
     assert "/#open=write&note=" in tool_msg["content"]
     assert t.run.tainted is True
+
+
+async def test_rank_finds_a_datasheet_by_a_part_number_tag(brain):
+    from fork.ink import parts as ink_parts
+
+    note_id, _ = datasheet_note(name="bench.pdf", title="Bench notes")
+    assert pm.rank("alice", "QX7720") == []
+    ink_parts.set_parts("alice", note_id, ["QX7720"])
+    hits = pm.rank("alice", "QX7720 pull-down")
+    assert [h["mark"]["id"] for h in hits] == ["m-hw1", "m-hl1"]
+    assert hits[0]["parts"] == ["QX7720"] and hits[0]["score"] == 2  # tag + the note

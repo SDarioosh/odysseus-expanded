@@ -4,6 +4,7 @@ Hand-made strokes and words in page units (width 1000, y down); a fictional part
 """
 from __future__ import annotations
 
+import math
 from typing import NamedTuple
 
 from fork.ink import pdf_marks as pm
@@ -177,8 +178,10 @@ def test_marks_are_ordered_by_y_then_x_and_kinds_are_separate():
     assert [m["id"] for m in got] == ["m-h", "m-u", "m-left", "m-ink"]
     assert [m["kind"] for m in got] == ["highlight", "underline", "ink", "ink"]
     for m in got:
-        assert set(m) == {"id", "page_id", "page_no", "kind", "color", "box", "text",
-                          "near", "strokes", "at"}
+        assert set(m) - {"_writing", "_writing_box"} == {
+            "id", "page_id", "page_no", "kind", "color", "box", "text", "near",
+            "points_to", "strokes", "at"}
+        assert m["points_to"] is False
 
 
 def test_a_page_without_strokes_or_words():
@@ -211,3 +214,133 @@ def test_a_margin_note_beside_a_line_is_near_that_line():
     # The same note a few lines lower is near nothing.
     (m,) = marks(stroke("w2", PEN, [(600, 420), (640, 432), (680, 422)]))
     assert m["near"] == ""
+
+
+# ------------------------------------------------------------ circles and arrows
+def barbs(tail, tip, size=10.0, angle=30.0):
+    """The two ends of an arrow head at ``tip`` (``size`` long, ``angle`` off the shaft)."""
+    length = math.hypot(tail[0] - tip[0], tail[1] - tip[1])
+    bx, by = (tail[0] - tip[0]) / length, (tail[1] - tip[1]) / length
+    out = []
+    for a in (angle, -angle):
+        r = math.radians(a)
+        out.append((tip[0] + size * (bx * math.cos(r) - by * math.sin(r)),
+                    tip[1] + size * (bx * math.sin(r) + by * math.cos(r))))
+    return out
+
+
+def arrow(sid, pen, tail, tip, *, at=0):
+    """A one-stroke arrow: the shaft, then one barb drawn back from the tip."""
+    mid = ((tail[0] + tip[0]) / 2, (tail[1] + tip[1]) / 2)
+    return stroke(sid, pen, [tail, mid, tip, barbs(tail, tip)[0]], at)
+
+
+def arrow_v(sid, pen, tail, tip, *, at=0):
+    """A shaft stroke and a V head stroke: ``(shaft, head)``."""
+    a, b = barbs(tail, tip)
+    mid = ((tail[0] + tip[0]) / 2, (tail[1] + tip[1]) / 2)
+    return (stroke(sid, pen, [tail, mid, tip], at), stroke(sid + "h", pen, [a, tip, b], at + 1))
+
+
+LOOP_12A = [(286, 228), (340, 226), (344, 242), (338, 256), (290, 257), (284, 242), (288, 229)]
+
+
+def test_a_loop_round_a_value_is_a_circled_mark():
+    (m,) = marks(stroke("c1", RED, LOOP_12A, at=7))
+    assert m["kind"] == "circle" and m["id"] == "m-c1" and m["strokes"] == ["c1"]
+    assert m["text"] == "1.2 A" and m["near"] == "" and m["points_to"] is False
+    assert pm.is_loop(stroke("c1", RED, LOOP_12A))
+
+
+def test_a_loop_takes_the_words_inside_the_loop_not_its_box():
+    # Round "1.2" (centre 305), with a bump up and right: its box also holds the centre
+    # of "A" (327, 242), the loop doesn't.
+    shape = [(288, 232), (318, 232), (332, 222), (346, 222), (322, 236), (322, 254),
+             (288, 254), (289, 233)]
+    (m,) = marks(stroke("d", RED, shape))
+    assert m["kind"] == "circle" and m["text"] == "1.2"
+
+
+def test_a_box_in_four_strokes_is_a_circled_mark():
+    # Round "18 uA" (270..314, 268..284).
+    sides = [hline("b1", PEN, 262, 322, 262), stroke("b2", PEN, [(322, 262), (322, 276), (322, 290)]),
+             hline("b3", PEN, 322, 262, 290), stroke("b4", PEN, [(262, 290), (262, 276), (262, 262)])]
+    (m,) = marks(*sides)
+    assert m["kind"] == "circle" and m["strokes"] == ["b1", "b2", "b3", "b4"]
+    assert m["text"] == "18 uA" and m["id"] == "m-b1"
+    assert pm.is_box(sides) and not pm.is_box(sides[:3])   # three sides are no box
+
+
+def test_a_closed_shape_round_nothing_is_ink():
+    ring = [(700, 600), (740, 600), (745, 620), (740, 640), (700, 640), (695, 620), (701, 601)]
+    (m,) = marks(stroke("o", PEN, ring))
+    assert m["kind"] == "ink" and m["text"] == "" and "_writing" in m
+    # An open "U" round a value isn't closed either.
+    (m,) = marks(stroke("u", RED, [(286, 226), (286, 256), (340, 256), (340, 226)]))
+    assert m["kind"] == "ink"
+
+
+def test_an_arrow_alone_is_an_arrow_mark_with_the_line_it_points_to():
+    (m,) = marks(arrow("a1", RED, (600, 242), (345, 242), at=4))
+    assert m["kind"] == "arrow" and m["strokes"] == ["a1"] and m["id"] == "m-a1"
+    assert m["text"] == "Output current up to 1.2 A" and m["near"] == ""
+    # Shaft and a separate V head; pointing at line 2 from below right.
+    shaft, head = arrow_v("a2", PEN, (700, 400), (400, 290))
+    (m,) = marks(shaft, head)
+    assert m["kind"] == "arrow" and m["strokes"] == ["a2", "a2h"]
+    assert m["text"] == "Quiescent current 18 uA typical"
+
+
+def test_an_arrow_pointing_at_nothing_and_a_line_without_a_head():
+    (m,) = marks(arrow("a1", PEN, (900, 700), (700, 700)))
+    assert m["kind"] == "arrow" and m["text"] == ""
+    (m,) = marks(stroke("l", PEN, [(600, 330), (500, 300)]))   # no head: a stroke of ink
+    assert m["kind"] == "ink"
+
+
+def test_a_note_with_an_arrow_stays_ink_and_is_near_the_line_it_points_to():
+    letters = [stroke(f"w{i}", PEN, [(650 + i * 20, 400), (660 + i * 20, 415), (665 + i * 20, 402)],
+                      at=10 + i) for i in range(3)]
+    shaft, head = arrow_v("s", PEN, (640, 405), (400, 290), at=20)
+    (m,) = marks(*letters, shaft, head)
+    assert m["kind"] == "ink" and m["id"] == "m-w0"
+    assert m["strokes"] == ["w0", "w1", "w2", "s", "sh"]
+    assert m["near"] == "Quiescent current 18 uA typical" and m["points_to"] is True
+    assert m["text"] == ""        # the arrow's box reaches no words: only the writing counts
+    assert m["_writing"] == ["w0", "w1", "w2"]
+    x, y, _, _ = m["_writing_box"]
+    assert x > 640 and y > 395     # the writing alone
+    # Without the arrow, the same note is near nothing (too far below the text).
+    (m,) = marks(*letters)
+    assert m["points_to"] is False and m["near"] == "" and m["_writing"] == ["w0", "w1", "w2"]
+
+
+def test_a_circle_with_an_arrow_is_circled_and_points_to_a_line():
+    circle = stroke("c1", RED, LOOP_12A, at=7)
+    up = arrow("c2", RED, (320, 226), (330, 190), at=8)   # from the circle up to line 0
+    (m,) = marks(circle, up)
+    assert m["kind"] == "circle" and m["strokes"] == ["c1", "c2"]
+    assert m["text"] == "1.2 A"
+    assert m["near"] == "Input voltage range 2.7 V to 5.5 V" and m["points_to"] is True
+
+
+def test_an_arrow_shaft_under_a_line_is_not_an_underline():
+    shaft = hline("u1", RED, 290, 390, 222)
+    head = stroke("u2", RED, [(380, 215), (390, 222), (380, 229)])
+    got = marks(shaft, head)
+    assert [m["kind"] for m in got] == ["arrow"] and got[0]["strokes"] == ["u1", "u2"]
+    # Without its head it is the underline it was.
+    assert [m["kind"] for m in marks(shaft)] == ["underline"]
+
+
+def test_highlights_underlines_and_plain_ink_keep_their_ids_and_kinds():
+    got = marks(hline("h", YELLOW, 285, 392, 208), hline("u", RED, 120, 245, 253),
+                stroke("w", PEN, [(600, 330), (640, 345)]))
+    assert [(m["id"], m["kind"]) for m in got] == [("m-h", "highlight"), ("m-u", "underline"),
+                                                    ("m-w", "ink")]
+
+
+def test_circles_and_arrows_are_deterministic():
+    shaft, head = arrow_v("a", PEN, (700, 400), (400, 290))
+    s = [stroke("c1", RED, LOOP_12A), shaft, head]
+    assert marks(*s) == marks(*s)

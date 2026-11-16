@@ -19,6 +19,7 @@ Sidecar (``version`` 1)::
      "pdf": {"file", "hash", "name", "pages", "at"},  # only on a note imported from a PDF
      "athena": {"sent_hash", "sent_at", "conversation_id"},
      "mark_readings": {mark id: {"hash", "text", "status", "model", "at", "error"?}},
+     "parts": ["ZX-100", ...],    # part-number tags of a datasheet (fork/ink/parts.py)
      "render": {"hash", "image_url", "at"}}   # page 1's image, last drawn ``at``
 
 Coordinates are page units (a page is ``PAGE_WIDTH`` wide); ``t`` is ms since the
@@ -52,6 +53,9 @@ file and the cache go with the note (delete, sweep), not with a page a save remo
 ``mark_readings`` (on a PDF note) is what the vision model read in each handwritten mark
 on its PDF pages (``fork/ink/mark_reading.py``): like ``athena``, a save or a photo upload
 never sets it, it only keeps what the sidecar had (old entries are dropped there).
+``parts`` (part-number tags, ``fork/ink/parts.py``) are suggested by :func:`add_pdf`
+and set only by ``fork.ink.parts.set_parts``; a save or a photo upload keeps them, and
+:func:`public` and :func:`list_notes` answer them (``[]`` when none).
 
 Last edit wins: a save whose ``edited_at`` is older than the stored one is refused
 (:class:`Stale`) and the client takes the stored version.
@@ -638,6 +642,8 @@ def _merge(current: dict[str, Any] | None, doc: dict[str, Any], note_id: str
         out["pdf"] = current["pdf"]
     if isinstance(current.get("mark_readings"), dict):  # fork/ink/mark_reading.py
         out["mark_readings"] = current["mark_readings"]
+    if isinstance(current.get("parts"), list):  # part-number tags, fork/ink/parts.py
+        out["parts"] = current["parts"]
     return out
 
 
@@ -683,6 +689,9 @@ def public(stored: dict[str, Any], title: str | None) -> dict[str, Any]:
     out["title"] = title or ""
     out["image_url"] = (stored.get("render") or {}).get("image_url")
     out["link"] = note_link(stored.get("note_id") or "")
+    from fork.ink import parts as ink_parts
+
+    out["parts"] = ink_parts.stored_parts(stored)  # part-number tags, [] when none
     return out
 
 
@@ -903,6 +912,8 @@ def add_photos(owner: str | None, note_id: str, photos: list[dict[str, Any]], *,
                 stored["pdf"] = base["pdf"]
             if isinstance(base.get("mark_readings"), dict):  # fork/ink/mark_reading.py
                 stored["mark_readings"] = base["mark_readings"]
+            if isinstance(base.get("parts"), list):  # fork/ink/parts.py
+                stored["parts"] = base["parts"]
             _render_if_changed(owner, note_id, stored, final=True,
                                now=time.time() if now is None else now, store=store)
             _write_json(sidecar_path(store, note_id), stored)
@@ -996,6 +1007,7 @@ def add_pdf(owner: str | None, note_id: str, data: bytes, *, name: Any = None,
         path = pdf_path(store, note_id)
         try:
             _write_bytes(path, bytes(data))
+            parts = _guess_parts(path, name)  # suggested part-number tags
             pages = []
             for p in info["pages"]:
                 pages.append({
@@ -1010,7 +1022,7 @@ def add_pdf(owner: str | None, note_id: str, data: bytes, *, name: Any = None,
                       "saved_at": _now_iso(), "pages": pages,
                       "pdf": {"file": f"pdfs/{note_id}.pdf", "hash": info["hash"],
                               "name": name, "pages": len(pages), "at": _now_iso()},
-                      "athena": _empty_athena(),
+                      "parts": parts, "athena": _empty_athena(),
                       "render": {"hash": None, "image_url": None, "at": None}}
             _render_if_changed(owner, note_id, stored, final=True,
                                now=time.time() if now is None else now, store=store)
@@ -1023,6 +1035,20 @@ def add_pdf(owner: str | None, note_id: str, data: bytes, *, name: Any = None,
         out = public(stored, note_title(owner, note_id))
     out["notebook"] = ink_notebooks.notebook_of(owner, note_id)
     return out
+
+
+def _guess_parts(path: Path, name: str) -> list[str]:
+    """Part-number tags suggested for an imported PDF (``fork/ink/parts.py``): from its
+    file name and its first page's largest-font line (the name alone when the page's
+    text can't be read)."""
+    from fork.ink import parts as ink_parts
+    from fork.ink import pdf as ink_pdf  # imports this module
+
+    try:
+        words = ink_pdf.page_words(path, 1)
+    except (OSError, ValueError, RuntimeError):  # RuntimeError: pdfium
+        words = []
+    return ink_parts.guess(name, words)
 
 
 def _pdf_note(owner: str | None, note_id: str) -> tuple[str | None, dict[str, Any]] | None:
@@ -1190,6 +1216,7 @@ def list_notes(owner: str | None) -> list[dict[str, Any]]:
     """The owner's handwritten notes, newest first, after a sweep. ``notebook`` is the
     id of the notebook a note is a page of (``src/ink_notebooks.py``), or ``None``."""
     from fork.ink import notebooks as ink_notebooks  # imports this module
+    from fork.ink import parts as ink_parts
 
     sweep(owner)
     in_book = ink_notebooks.page_map(owner)
@@ -1209,7 +1236,8 @@ def list_notes(owner: str | None) -> list[dict[str, Any]]:
                     # a datasheet: the PDF's name and page count, else None
                     "pdf": ({"name": stored["pdf"].get("name"),
                              "pages": stored["pdf"].get("pages")}
-                            if is_pdf_note(stored) else None)})
+                            if is_pdf_note(stored) else None),
+                    "parts": ink_parts.stored_parts(stored)})  # fork/ink/parts.py
     return out
 
 

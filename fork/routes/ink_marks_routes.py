@@ -11,10 +11,14 @@
   characters): the owner's correction of what an ink mark says, stored ``reviewed``;
   answers the mark. 404 unknown mark or not this user's note, 400 a highlight or
   underline (no writing) or a bad body.
+* ``PUT /api/ink/notes/{id}/parts`` ``{"parts": ["ZX-100", ...]}``: the datasheet's
+  part-number tags (``fork/ink/parts.py``: at most 20, each 1-40 characters, trimmed,
+  unique case-insensitively, order kept); answers ``{"parts": [...]}`` as stored. 404
+  not this user's note, 400 not a datasheet or bad ``parts``.
 * ``GET /api/ink/marks?q=<text>&limit=<1..100, default 30>``: ``{"q", "results":
-  [{"note_id", "title", "pdf_name", "mark"}]}``, the marks of every PDF note of this user
-  whose text, near line, written text, note title or PDF name holds all words of ``q``
-  (case-insensitive), newest mark first. 400 when ``q`` is shorter than 2 characters;
+  [{"note_id", "title", "pdf_name", "parts", "mark"}]}``, the marks of every PDF note of
+  this user whose text, near line, written text, note title, part numbers or PDF name
+  holds all words of ``q`` (case-insensitive), newest mark first. 400 when ``q`` is shorter than 2 characters;
   ``limit`` outside 1..100 is brought into it.
 
 Same users and owner rules as the other ink routes (``require_user``; API tokens are
@@ -28,7 +32,7 @@ import re
 
 from fastapi import APIRouter, HTTPException, Request
 
-from fork.ink import mark_reading, pdf_marks
+from fork.ink import mark_reading, parts, pdf_marks
 from fork.ink import notes as ink
 from fork.routes.ink_routes import _check_id, _json_body, _owner
 
@@ -66,6 +70,18 @@ def setup_ink_marks_routes() -> APIRouter:
                                            body.get("written"))
         except ink.InkError as exc:
             raise HTTPException(exc.status, str(exc)) from None
+
+    @router.put("/notes/{note_id}/parts")
+    async def set_parts(request: Request, note_id: str):
+        owner = _owner(request)
+        _check_id(note_id)
+        body = await _json_body(request, 16 * 1024)
+        try:
+            stored = await asyncio.to_thread(parts.set_parts, owner, note_id,
+                                             body.get("parts"))
+        except ink.InkError as exc:
+            raise HTTPException(exc.status, str(exc)) from None
+        return {"parts": stored}
 
     @router.get("/marks")
     async def search_marks(request: Request, q: str = "", limit: int = DEFAULT_LIMIT):
