@@ -37,7 +37,9 @@ PDF's reading order joined by spaces, at most ``MAX_TEXT`` characters.
 :func:`page_marks` is pure (tested with hand-made strokes and words). :func:`note_marks`
 and :func:`search` read the owner's notes; a page's marks are cached in memory by
 ``(note_id, page_id, strokes_hash)``, so words are only read for a page whose strokes
-changed (and ``page_words`` has its own cache).
+changed (and ``page_words`` has its own cache). What the model read in an ink mark
+(``written``, ``reading``) is merged in when a note's marks are answered
+(``fork/ink/mark_reading.py``): readings change without the strokes changing.
 """
 
 from __future__ import annotations
@@ -296,6 +298,10 @@ def _cached_page_marks(owner: str | None, note_id: str, page: dict[str, Any],
     except (ink.InkError, OSError, ValueError, RuntimeError):  # RuntimeError: pdfium
         ok = False  # no text this time: marks still listed, not cached
     marks = page_marks(page, page_no, words)
+    from fork.ink import mark_reading  # imports this module
+
+    for mark in marks:  # what a reading is checked against (never answered)
+        mark["_hash"] = mark_reading.mark_hash(mark_reading.mark_strokes(page, mark))
     if ok:
         with _CACHE_LOCK:
             _CACHE[key] = marks
@@ -323,21 +329,31 @@ def _stored_marks(owner: str | None, note_id: str, stored: dict[str, Any]
 
 
 def note_marks(owner: str | None, note_id: str) -> dict[str, Any] | None:
-    """``{"note_id", "title", "marks"}`` for the owner's handwritten note (marks of its
-    PDF pages, in page order), or ``None`` when it isn't the owner's note."""
+    """``{"note_id", "title", "marks", "unread"}`` for the owner's handwritten note (marks
+    of its PDF pages, in page order, each with what was read in it:
+    ``fork/ink/mark_reading.py`` ``view``), or ``None`` when it isn't the owner's note.
+    ``unread``: an ink mark waits for the model (the route then schedules a run)."""
+    from fork.ink import mark_reading
     from fork.ink import notes as ink
 
     note = ink.load(owner, note_id)  # the owner check, the pages and the title
     if note is None:
         return None
+    marks = _stored_marks(owner, note_id, note)
+    readings = mark_reading.readings_of(note)
+    now = mark_reading.now_ms()
+    unread = any(mark_reading.needs_reading(m, readings.get(m["id"]), now) for m in marks)
     return {"note_id": note_id, "title": note.get("title") or "",
-            "marks": _stored_marks(owner, note_id, note)}
+            "marks": [mark_reading.merged(m, note, note_id) for m in marks],
+            "unread": unread}
 
 
 def search(owner: str | None, q: str, limit: int = 30) -> list[dict[str, Any]]:
     """Marks of every PDF note of the owner matching all words of ``q`` (case-insensitive,
-    in the mark's text and near line, the note's title and the PDF's name), newest mark
-    first: ``[{"note_id", "title", "pdf_name", "mark"}]``."""
+    in the mark's text, near line and written text, the note's title and the PDF's name),
+    newest mark first: ``[{"note_id", "title", "pdf_name", "mark"}]`` (the mark with what
+    was read in it)."""
+    from fork.ink import mark_reading
     from fork.ink import notes as ink
 
     terms = [t for t in str(q or "").lower().split() if t]
@@ -353,8 +369,9 @@ def search(owner: str | None, q: str, limit: int = 30) -> list[dict[str, Any]]:
         title = note.get("title") or ""
         name = str(pdf.get("name") or "")
         about = f"{title} {name}".lower()
-        for mark in _stored_marks(owner, note["id"], stored):
-            hay = f"{mark['text']} {mark['near']} {about}".lower()
+        for raw in _stored_marks(owner, note["id"], stored):
+            mark = mark_reading.merged(raw, stored, note["id"])
+            hay = f"{mark['text']} {mark['near']} {mark['written']} {about}".lower()
             if all(t in hay for t in terms):
                 found.append({"note_id": note["id"], "title": title, "pdf_name": name,
                               "mark": mark})

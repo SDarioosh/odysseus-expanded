@@ -18,6 +18,7 @@ Sidecar (``version`` 1)::
                 "pdf": {"page", "width_pt", "height_pt"}}],  # PDF pages (datasheets)
      "pdf": {"file", "hash", "name", "pages", "at"},  # only on a note imported from a PDF
      "athena": {"sent_hash", "sent_at", "conversation_id"},
+     "mark_readings": {mark id: {"hash", "text", "status", "model", "at", "error"?}},
      "render": {"hash", "image_url", "at"}}   # page 1's image, last drawn ``at``
 
 Coordinates are page units (a page is ``PAGE_WIDTH`` wide); ``t`` is ms since the
@@ -48,6 +49,9 @@ only its ink (``fork/ink/transcribe.py``) and a PDF note is never sent to Athena
 PDF pages toward ``fork.ink.pdf.MAX_PDF_PAGES``. Rendered PDF pages are cached in
 ``<ink folder>/pdfs/cache/<note_id>/<page_id>-<width>.png`` (:func:`pdf_page_image`); the
 file and the cache go with the note (delete, sweep), not with a page a save removes.
+``mark_readings`` (on a PDF note) is what the vision model read in each handwritten mark
+on its PDF pages (``fork/ink/mark_reading.py``): like ``athena``, a save or a photo upload
+never sets it, it only keeps what the sidecar had (old entries are dropped there).
 
 Last edit wins: a save whose ``edited_at`` is older than the stored one is refused
 (:class:`Stale`) and the client takes the stored version.
@@ -632,6 +636,8 @@ def _merge(current: dict[str, Any] | None, doc: dict[str, Any], note_id: str
            "render": render or {"hash": None, "image_url": None, "at": None}}
     if is_pdf_note(current):  # the imported PDF: never set or changed by a save
         out["pdf"] = current["pdf"]
+    if isinstance(current.get("mark_readings"), dict):  # fork/ink/mark_reading.py
+        out["mark_readings"] = current["mark_readings"]
     return out
 
 
@@ -895,6 +901,8 @@ def add_photos(owner: str | None, note_id: str, photos: list[dict[str, Any]], *,
                       "render": render or {"hash": None, "image_url": None, "at": None}}
             if is_pdf_note(base):  # photos added to a datasheet
                 stored["pdf"] = base["pdf"]
+            if isinstance(base.get("mark_readings"), dict):  # fork/ink/mark_reading.py
+                stored["mark_readings"] = base["mark_readings"]
             _render_if_changed(owner, note_id, stored, final=True,
                                now=time.time() if now is None else now, store=store)
             _write_json(sidecar_path(store, note_id), stored)

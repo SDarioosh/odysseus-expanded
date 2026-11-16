@@ -319,10 +319,12 @@ def photo_bands(page: dict[str, Any], *, width_px: int = RENDER_PX) -> list[dict
 
 # ------------------------------------------------------------------- the model
 def band_messages(png: bytes, index: int, count: int, *, mime: str = "image/png",
-                  photo: bool = False) -> list[dict]:
+                  photo: bool = False, hint: str = "") -> list[dict]:
+    """The chat messages for one band. ``hint``: words added to the question (a mark on
+    a datasheet, ``fork/ink/mark_reading.py``)."""
     data = base64.b64encode(png).decode("ascii")
     where = f" (part {index + 1} of {count}, top to bottom)" if count > 1 else ""
-    hint = PHOTO_HINT if photo else ""
+    hint = (PHOTO_HINT if photo else "") + (" " + hint.strip() if hint and hint.strip() else "")
     return [
         {"role": "system", "content": PROMPT},
         {"role": "user", "content": [
@@ -394,15 +396,16 @@ def join_bands(parts: list[tuple[str, dict[str, Any]]]) -> str:
     return clean_text("\n".join(lines))
 
 
-async def read_page(page: dict[str, Any], reader: Reader) -> str:
+async def read_page(page: dict[str, Any], reader: Reader, *, hint: str = "") -> str:
     """The page's text, band by band through ``reader`` (one band at a time across the
-    hub). Raises on a model error or an answer that isn't JSON twice."""
+    hub). Raises on a model error or an answer that isn't JSON twice. ``hint`` is added
+    to each band's question (:func:`band_messages`)."""
     bands = await asyncio.to_thread(page_bands, page)
     parts = []
     for i, band in enumerate(bands):
         messages = band_messages(band["png"], i, len(bands),
                                  mime=band.get("mime", "image/png"),
-                                 photo=bool(band.get("photo")))
+                                 photo=bool(band.get("photo")), hint=hint)
         async with _gpu():
             text = None
             for attempt in range(2):

@@ -15,6 +15,7 @@ from fastapi import FastAPI
 from fastapi.testclient import TestClient
 
 import core.database as cdb
+from fork.ink import mark_reading
 from fork.ink import notes as ink
 from fork.ink import pdf_marks as pm
 from fork.routes import ink_marks_routes as mr
@@ -38,6 +39,8 @@ def env(data_dir, monkeypatch):
     monkeypatch.setattr(tool_utils, "_upload_handler", UploadHandler(str(data_dir), str(uploads)))
     monkeypatch.setattr(ink, "_LOCKS", {})
     monkeypatch.setattr(pm, "_CACHE", type(pm._CACHE)())
+    # No reading runs here (tests/fork/test_ink_mark_reading.py has them).
+    monkeypatch.setattr(mark_reading, "schedule", lambda *a, **k: None)
     yield factory
     engine.dispose()
 

@@ -101,6 +101,7 @@ from fastapi import APIRouter, BackgroundTasks, HTTPException, Request
 from fastapi.responses import FileResponse, JSONResponse
 
 from fork.ink import athena
+from fork.ink import mark_reading
 from fork.ink import notebooks as nb
 from fork.ink import notes as ink
 from fork.ink import pdf as ink_pdf
@@ -227,8 +228,11 @@ def setup_ink_routes() -> APIRouter:
         title = body.get("title") if isinstance(body, dict) else None
         final = bool(body.get("final")) if isinstance(body, dict) else False
         try:
-            return await asyncio.to_thread(ink.save, owner, note_id, body, title=title,
-                                           final=final)
+            saved = await asyncio.to_thread(ink.save, owner, note_id, body, title=title,
+                                            final=final)
+            if saved.get("pdf"):  # read the handwritten marks once settled (fork/ink/mark_reading.py)
+                mark_reading.schedule(owner, note_id, saved=True)
+            return saved
         except ink.Stale as exc:
             return JSONResponse({"detail": str(exc), "note": exc.current}, status_code=409)
         except ink.InkError as exc:
