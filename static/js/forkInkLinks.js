@@ -12,6 +12,12 @@
 //
 // Upstream's handler (chatRenderer.js) listens on document in the capture phase, so
 // this one listens on window, which comes first.
+//
+// PDF datasheets: `#open=write&note=<id>&page=<page id>&mark=<mark id>` (forkInkPdf.js
+// writeHash) opens Write on that note, scrolled to the page, the mark flashed. Clicked,
+// typed into the address bar (hashchange) or on a fresh load (once Write is offered).
+
+import { parseWriteHash } from './forkInkPdf.js';
 
 const NOTE_HASH = /^#(?:open=notes&note=|note-)([A-Za-z0-9-]{1,80})$/;
 const CHECKED = 'forkNoteChecked';
@@ -30,11 +36,50 @@ export function noteLinkId(raw, location = window.location) {
   return m ? m[1] : null;
 }
 
+// The target of a Write link on this page (`#open=write&...`), else null.
+export function writeLinkTarget(raw, location = window.location) {
+  try {
+    const url = new URL(String(raw || ''), location.href);
+    if (url.origin !== location.origin || url.pathname !== location.pathname) return null;
+    return parseWriteHash(url.hash);
+  } catch (_) { return null; }
+}
+
+const READY_MS = 20000;
+
 export function wireHandwrittenNoteLinks({ offered, openInWrite, fetchNote = defaultFetchNote }) {
+  const openTarget = (t) => {
+    if (parseWriteHash(window.location.hash || '')) {
+      try { history.replaceState(null, '', window.location.pathname + window.location.search); } catch (_) { /* keep it */ }
+    }
+    return Promise.resolve(openInWrite(t.note, { page: t.page, mark: t.mark })).catch(() => {});
+  };
+  // The page was loaded (or the address changed) with a Write link: open it once Write
+  // is offered to this user (the app sets that up after it starts).
+  const fromHash = () => {
+    const t = parseWriteHash(window.location.hash || '');
+    if (!t) return;
+    const end = Date.now() + READY_MS;
+    const tick = () => {
+      if (offered()) { openTarget(t); return; }
+      if (Date.now() < end) setTimeout(tick, 200);
+    };
+    tick();
+  };
+  window.addEventListener('hashchange', fromHash);
+  fromHash();
   window.addEventListener('click', (e) => {
     if (e.defaultPrevented || !plainClick(e)) return;
     const a = e.target && e.target.closest && e.target.closest('a[href]');
     if (!a || a.dataset[CHECKED] === '1') return;
+    const target = writeLinkTarget(a.getAttribute('href'));
+    if (target) {
+      if (!offered()) return;
+      e.preventDefault();
+      e.stopPropagation();
+      openTarget(target);
+      return;
+    }
     const id = noteLinkId(a.getAttribute('href'));
     if (!id || !offered()) return;
     e.preventDefault();

@@ -117,6 +117,7 @@ New files, all in a new fork area `fork/brain/` (added to FORK.md's list of area
 | `fork/brain/prompt.py` | The stable system prompt and the end-of-prompt context message |
 | `fork/brain/toolset.py` | The fixed tool set (names, groups, read-only or write) |
 | `fork/brain/tools.py` | Runs a tool call through upstream's tool runner with a request authority |
+| `fork/brain/datasheets.py` | The datasheets group: `search_datasheet_marks` over the owner's marks on PDFs in Write (added 2026-11-16, [Datasheet marks](#datasheet-marks-2026-11-16)) |
 | `fork/brain/documents.py` | The documents group: `search_documents`, `create_document`'s line format and editor events (added 2026-10-31, [Documents](#documents-2026-10-31)) |
 | `fork/brain/attachments.py` | Text, PDF and office attachments of a turn: owner check, extraction, caps (added 2026-10-31, [Attachments](#attachments-2026-10-31)) |
 | `fork/brain/history.py` | Stores each turn's tool calls and results so follow-ups can see them |
@@ -159,6 +160,7 @@ about 20 tools and ≤ 6k tokens of schemas (measured in the first PR).
 | Workspace | `manage_calendar`, `manage_tasks`, `manage_notes`, `resolve_contact`, `manage_contact`, `manage_memory` | read actions run directly, write actions ask |
 | Documents | `manage_documents` (stored editor documents), `create_document`, `search_documents` (new fork tool over the personal library) | list, read and search run directly; create, delete and tidy ask |
 | Beliefs | `search_beliefs` (new fork tool over `fork/beliefs/search.py`) | read |
+| Datasheets | `search_datasheet_marks` (new fork tool over the owner's marks on PDFs in Write, [Datasheet marks](#datasheet-marks-2026-11-16)) | read |
 | Chats | `search_chats` | read |
 | Email | `list_email_accounts`, `list_emails`, `search_emails`, `read_email` | read |
 | Email | `draft_email`, `draft_email_reply`, `send_email`, `reply_to_email` | write, ask |
@@ -276,7 +278,7 @@ Fork settings are environment variables in the table of `fork/common/settings.py
 |---|---|---|
 | `FORK_BRAIN` | `on` | The brain answers every chat turn of every chat (one global switch, no per-chat choice); `off` gives the turns back to upstream's agent |
 | `FORK_BRAIN_MAX_ROUNDS` | `8` | Tool rounds per turn |
-| `FORK_BRAIN_TOOL_GROUPS` | `web,athena,workspace,documents,beliefs,chats,email,home` | Groups in the tool set |
+| `FORK_BRAIN_TOOL_GROUPS` | `web,athena,workspace,documents,beliefs,datasheets,chats,email,home` | Groups in the tool set |
 
 The brain is the default (owner's decision, 2026-10-31): an instance answers with it unless
 its environment sets `FORK_BRAIN=off`, which gives every turn back to upstream's agent
@@ -658,6 +660,42 @@ document was answered by the old agent, slowly. Now the brain takes them
 - **Not mirrored.** Upstream rebinds a document opened from another chat to this chat;
   the brain only reads it.
 
+### Datasheet marks (2026-11-16)
+
+A `datasheets` group, in the default `FORK_BRAIN_TOOL_GROUPS`, with one fork tool,
+`search_datasheet_marks` (`fork/brain/datasheets.py`; tests
+`tests/fork/test_brain_datasheet_marks.py`): what the owner highlighted, underlined or
+wrote on their datasheets (PDFs in Write, [datasheets.md](datasheets.md)), so "what did I
+note about the ZX-100's enable pin?" is answered from their marks.
+
+- **Search.** `fork/ink/pdf_marks.py` `rank(owner, query, limit)`, not the Write list's
+  `search` (every word must match): the query's words without stop words (question words
+  and "note", "mark", "datasheet", "page" and the like) and one-letter words; a mark
+  scores one per word found in its PDF text, what was written on it or its near line,
+  plus one per word found in the datasheet's title or PDF name, so naming a part lists
+  every mark of its datasheet with the best matches first. A word matches a whole word,
+  the start of one (three letters or more, not numbers), a plural, or a joined word
+  without its hyphen ("pulldown", "zx100"). Best score first, then newest.
+- **Arguments.** `query` (required), `limit` (1-20, default 10). The search runs in a
+  thread, for the run's owner only.
+- **Result.** A first line asking for each mark's link in the answer, then one block per
+  mark: the datasheet's title, part numbers and PDF name, page, kind (highlight,
+  underline, circled, arrow, handwritten note), `printed text it covers:` the PDF text,
+  for a note one sentence `the owner wrote by hand: "…", next to the printed line "…"`
+  ("with an arrow to" when an arrow points it; "(corrected by the owner)"; "isn't read
+  yet" or "couldn't be read" otherwise), `printed line beside it:` the near line of a
+  mark without writing, and `[open](/#open=write&note=…&page=…&mark=…)`,
+  which opens Write at the mark. Texts cut to 300 characters. Nothing found says so.
+  A result with marks arms the run (`distrust`): the PDF's text is outside content and
+  the handwriting is the owner's.
+- **Who gets it.** Read-only (runs without asking; offered to read-only voice turns).
+  Not offered to non-admin users or API tokens (as `search_beliefs`), nor when the admin's
+  global list disables it or `manage_notes` (marks are handwritten notes); the memory
+  privilege doesn't affect it. By voice it is a personal tool: refused for a voice that
+  isn't the owner's (`fork/voice/policy.py`).
+- **Prompt.** One line: use it for what the owner marked or wrote on a datasheet or PDF
+  in Write; quote the mark and put its `[open]` link next to it.
+
 ## Sandbox results (2026-10-31)
 
 Qwen3-4B on 4 CPUs, `seed_demo.py`, one config at a time, llama-server and Odysseus
@@ -816,6 +854,8 @@ Sandbox tests, no models (fake LLM, fake MCP manager from `tests/fork/fakes.py`)
   same round;
 - an approved `create_document` creates the owner's document through the real runner and
   opens it in the editor; library searches are owner-isolated and untrusted;
+- datasheet marks are ranked for a loose question, owner-isolated, linked and untrusted,
+  and refused by voice for a voice that isn't the owner's;
 - a non-local endpoint is refused;
 - the query guard removes fictional contact names, emails, phones and event titles;
 - follow-ups see the earlier turn's tool results; deleting a chat deletes them;

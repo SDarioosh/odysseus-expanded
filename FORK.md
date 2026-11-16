@@ -142,6 +142,9 @@ the link goes to its details (what it does, its files, whether it can go upstrea
 - [Handwritten notes only in Write](docs/fork/handwritten-notes.md#handwritten-notes-only-in-write): the Notes window leaves handwritten notes out; links to them open Write.
 - [Handwritten notes: notebooks](docs/fork/handwritten-notes.md#handwritten-notes-notebooks): named, ordered groups of handwritten notes.
 - [Handwritten notes: Write keeps up on a tablet](docs/fork/handwritten-notes.md#handwritten-notes-write-keeps-up-on-a-tablet): no lag writing or erasing on a tablet; the app under Write idles.
+- [Datasheets: PDFs in Write](docs/fork/datasheets.md): Import PDF makes a handwritten note of PDF pages (rendered by the hub at the zoom's sharpness), marked with every pen and the highlighter; never sent to Athena.
+- [Datasheets: marks and search](docs/fork/datasheets.md#what-the-owner-sees): highlights, underlines and ink notes on a PDF page know the PDF text they cover, and each handwritten note is read by the local vision model (correctable); a Marks panel per datasheet, Search marks across all of them, and `/#open=write&note=…&page=…&mark=…` links.
+- [Datasheets: marks in chat](docs/fork/brain.md#datasheet-marks-2026-11-16): the brain's read-only `search_datasheet_marks` answers "what did I note about the ZX-100's enable pin?" from the owner's marks (ranked loose search, `fork/ink/pdf_marks.py` `rank`; `fork/brain/datasheets.py`), quoting them with links that open Write at the mark.
 
 ### Notes, calendar and tasks
 
@@ -211,7 +214,7 @@ to be offered) upstream, "with discussion" a change upstream may want in another
 |---|---|---|---|---|
 | `app.py` | after the logging handlers | `fork/hub/log_redact.py` | log formatters write token query values as `***` | yes |
 | `app.py` | `AUTH_EXEMPT_EXACT` | `fork/athena/relay_routes.py` | `/api/pair/redeem` needs no session (rate limited) | no |
-| `app.py` | routers, after the MCP routes | `fork/routes/__init__.py` (`mount`, table `ROUTERS`) | the fork's twenty-one routers in one call, in order: Athena page, Today, belief search (before the review page's `/api/beliefs/{id}`), belief review, phone relay and pairing, summary model, transcription vocabulary, Enroll My Voice, auto mode default, handwritten notes, news brief, voice assistant, voice satellites and announcements, voice turn timings, Set up Home Assistant, Link this Echo, Echo app releases, Echo Music page images, settings per Echo, wake word clips, alarms per Echo | no |
+| `app.py` | routers, after the MCP routes | `fork/routes/__init__.py` (`mount`, table `ROUTERS`) | the fork's twenty-two routers in one call, in order: Athena page, Today, belief search (before the review page's `/api/beliefs/{id}`), belief review, phone relay and pairing, summary model, transcription vocabulary, Enroll My Voice, auto mode default, handwritten notes, datasheet marks, news brief, voice assistant, voice satellites and announcements, voice turn timings, Set up Home Assistant, Link this Echo, Echo app releases, Echo Music page images, settings per Echo, wake word clips, alarms per Echo | no |
 | `app.py` | `_startup_event` | `fork/hub/checklist_auto_archive.py` | start the checklist archiver | with discussion |
 | `.github/workflows/ci.yml` | byte-compile step | none | compile `fork/` too | no |
 | `frontend/src/features/notes/application/workflows.js` | `_fetchNotes` | none (a filter; Write is `static/js/forkInk.js`) | handwritten notes left out of the Notes window | no |

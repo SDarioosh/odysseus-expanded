@@ -19,6 +19,7 @@ ORDER = [
     "setup_voice_enroll_routes",
     "setup_auto_mode_routes",
     "setup_ink_routes",
+    "setup_ink_marks_routes",
     "setup_news_routes",
     "setup_voice_routes",
     "setup_satellite_routes",

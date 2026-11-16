@@ -46,6 +46,10 @@ page units tall at the quietest row (fewest dark pixels); where no row is blank 
 tiles overlap by ``PHOTO_OVERLAP`` on each side and the seam is joined like a forced cut
 (:func:`photo_bands`). Each tile's question says it is a photo of a paper page.
 
+A PDF page (a datasheet's page, ``ink.is_pdf``) is read as ink only: its pen strokes as
+above, without the PDF under them and without the highlighter. A PDF page without pen ink
+has nothing to read (the printed text is the PDF's, not the owner's).
+
 The job is an asyncio task started by the routes (a Transcribe button, or the Write view
 leaving a changed page), not a scheduled task. Bands are read one at a time across the
 whole hub (one GPU, shared with chat), and the default reader lets a running chat finish
@@ -126,7 +130,7 @@ def _ink_strokes(page: dict[str, Any]) -> list[dict[str, Any]]:
 
 
 def has_ink(page: dict[str, Any]) -> bool:
-    """Something to read: ink strokes, or a photo (H6)."""
+    """Something to read: ink strokes, or a photo (H6). A PDF page counts only its ink."""
     return bool(_ink_strokes(page)) or ink.is_photo(page)
 
 
@@ -315,10 +319,12 @@ def photo_bands(page: dict[str, Any], *, width_px: int = RENDER_PX) -> list[dict
 
 # ------------------------------------------------------------------- the model
 def band_messages(png: bytes, index: int, count: int, *, mime: str = "image/png",
-                  photo: bool = False) -> list[dict]:
+                  photo: bool = False, hint: str = "") -> list[dict]:
+    """The chat messages for one band. ``hint``: words added to the question (a mark on
+    a datasheet, ``fork/ink/mark_reading.py``)."""
     data = base64.b64encode(png).decode("ascii")
     where = f" (part {index + 1} of {count}, top to bottom)" if count > 1 else ""
-    hint = PHOTO_HINT if photo else ""
+    hint = (PHOTO_HINT if photo else "") + (" " + hint.strip() if hint and hint.strip() else "")
     return [
         {"role": "system", "content": PROMPT},
         {"role": "user", "content": [
@@ -390,15 +396,16 @@ def join_bands(parts: list[tuple[str, dict[str, Any]]]) -> str:
     return clean_text("\n".join(lines))
 
 
-async def read_page(page: dict[str, Any], reader: Reader) -> str:
+async def read_page(page: dict[str, Any], reader: Reader, *, hint: str = "") -> str:
     """The page's text, band by band through ``reader`` (one band at a time across the
-    hub). Raises on a model error or an answer that isn't JSON twice."""
+    hub). Raises on a model error or an answer that isn't JSON twice. ``hint`` is added
+    to each band's question (:func:`band_messages`)."""
     bands = await asyncio.to_thread(page_bands, page)
     parts = []
     for i, band in enumerate(bands):
         messages = band_messages(band["png"], i, len(bands),
                                  mime=band.get("mime", "image/png"),
-                                 photo=bool(band.get("photo")))
+                                 photo=bool(band.get("photo")), hint=hint)
         async with _gpu():
             text = None
             for attempt in range(2):
@@ -616,7 +623,7 @@ def page_view(page: dict[str, Any], index: int) -> dict[str, Any]:
     out = {"id": page.get("id"), "index": index, "status": status, "text": text,
            "model": t.get("model"), "at": t.get("at"),
            "error": error if status == "failed" else None, "ink": has_ink(page),
-           "photo": ink.is_photo(page),
+           "photo": ink.is_photo(page), "pdf": ink.is_pdf(page),
            "changed": changed, "unreadable": text.count(UNREADABLE),
            "auto": status == "reviewed" and bool(t.get("auto"))}
     prev = t.get("previous")

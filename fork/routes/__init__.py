@@ -21,6 +21,7 @@ ROUTERS: tuple[tuple[str, str], ...] = (
     ("fork.athena.voice_enroll_routes", "setup_voice_enroll_routes"),  # Enroll My Voice
     ("fork.routes.auto_mode_routes", "setup_auto_mode_routes"),  # auto mode default
     ("fork.routes.ink_routes", "setup_ink_routes"),  # handwritten notes
+    ("fork.routes.ink_marks_routes", "setup_ink_marks_routes"),  # marks on PDF datasheets
     ("fork.routes.news_routes", "setup_news_routes"),  # morning news brief
     ("fork.voice.routes", "setup_voice_routes"),  # voice assistant (Home Assistant)
     ("fork.voice.satellite_routes", "setup_satellite_routes"),  # voice satellites, announcements

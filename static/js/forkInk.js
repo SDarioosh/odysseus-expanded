@@ -36,8 +36,16 @@
 //   is still PAGE_W x PAGE_H: the photo is drawn fitted in it, at the top (photoBox, as
 //   the hub renders it); it takes the highlighter but no pen ink. The hub transcribes it
 //   like a written page; the Text tab shows the photo, and can remove a photo page.
+// - PDF datasheets (static/js/forkInkPdf.js): Import PDF in the list makes a note whose
+//   pages are the PDF's pages (POST /api/ink/notes/<id>/pdf). A PDF page is as tall as
+//   the PDF page (page.height; every other page is PAGE_W x PAGE_H), shows the page the
+//   hub rendered as its background (drawn with the paper, in the cached base layer) and
+//   takes pen ink and the highlighter. Marks lists what was marked on them; the list
+//   searches the marks of every PDF note. Never sent to Athena.
 
 import { el, request as api } from './forkDom.js';
+import { addPart, createPdfImages, groupMarks, inkPageCount, isPdfNote, isPdfPage, libraryItem, markDisplay,
+  marksStillReading, MAX_PART_LEN, partsShown, pdfDownloads, removePart, pageIndexAt, pageTops, planPdfPages, scrollForBox, tierFor } from './forkInkPdf.js';
 
 export const PAGE_W = 1000;
 export const PAGE_H = 1414;
@@ -82,6 +90,12 @@ const UNREADABLE = '[?]';
 const STYLESHEET = '/static/css/fork-ink.css';
 const MAX_PHOTO_SIDE = 2400;        // px, the long side of a photo sent to the hub (hub: same)
 const MAX_PHOTOS = 10;              // photos per upload (hub: MAX_PHOTOS_PER_UPLOAD)
+const MAX_PDF_BYTES = 100 * 1024 * 1024; // hub: fork/ink/pdf.py MAX_PDF_BYTES
+const MARKS_API = '/api/ink/marks';  // search over every PDF note's marks (fork/routes/ink_marks_routes.py)
+const MARKS_REFETCH_MS = 1500;      // the Marks panel asks again this long after a save
+const FLASH_MS = 1600;              // a mark opened from the panel or a link flashes this long
+const MARKS_POLL_MS = 4000;         // the Marks panel asks again while the hub reads handwritten marks
+const MAX_WRITTEN = 2000;           // a corrected reading (hub: same)
 
 // H6: a photo fitted into a page: as large as fits, centred across, at the top. The same
 // box as the hub's page image (src/ink_notes.py photo_box).
@@ -317,6 +331,8 @@ const ICONS = {
   photo: SVG('<path d="M4 8h3l2-3h6l2 3h3v11H4z"/><circle cx="12" cy="13" r="3.5"/>'),
   book: SVG('<path d="M5 4h11a3 3 0 0 1 3 3v13H8a3 3 0 0 1-3-3z"/><path d="M5 17a3 3 0 0 1 3-3h11"/>'),
   trash: SVG('<path d="M4 7h16M10 11v6M14 11v6M6 7l1 13h10l1-13M9 7V4h6v3"/>'),
+  marks: SVG('<path d="M4 6h10M4 12h16M4 18h12"/><path d="M17 3l3 3-3 3"/>'),
+  remove: SVG('<path d="M6 6l12 12M18 6L6 18"/>'),
 };
 
 // ----------------------------------------------------------------- local store
@@ -623,6 +639,13 @@ export function mountInk(root, options = {}) {
   photoBtn.append('Photo');
   const photoInput = el('input', { type: 'file', accept: 'image/*', multiple: true, hidden: true,
     class: 'ink-photo-input' });
+  // PDF datasheets: the file picker of Import PDF, and the Marks panel of a PDF note.
+  const pdfInput = el('input', { type: 'file', accept: 'application/pdf,.pdf', hidden: true, class: 'ink-pdf-input' });
+  const marksBtn = iconBtn('marks', 'Marks: what you highlighted, underlined or wrote on the PDF', () => toggleMarks());
+  marksBtn.classList.add('ink-marks-btn');
+  marksBtn.setAttribute('aria-pressed', 'false');
+  marksBtn.hidden = true;
+  marksBtn.append('Marks');
 
   const tabInk = el('button', { type: 'button', class: 'bs-btn ink-tab', role: 'tab', text: 'Write',
     onclick: () => showInkTab() });
@@ -630,9 +653,17 @@ export function mountInk(root, options = {}) {
     title: 'The text of each page: transcribe, check, save', onclick: () => showTextTab() });
   const penGroup = el('div', { class: 'ink-group ink-pens', role: 'group', 'aria-label': 'Pens' },
     ...penBtns, widthBtn, eraserBtn);
-  const editGroup = el('div', { class: 'ink-group' }, undoBtn, redoBtn, paperBtn, addPageBtn, photoBtn);
+  const editGroup = el('div', { class: 'ink-group' }, undoBtn, redoBtn, paperBtn, addPageBtn, photoBtn, marksBtn);
+  // A datasheet's part numbers, beside the title: chips, each with Remove, and a field
+  // to add one (Enter). Saved on the hub at once (PUT .../parts).
+  const partsList = el('span', { class: 'ink-parts-list' });
+  const partInput = el('input', { class: 'bs-input ink-part-input', type: 'text', maxlength: String(MAX_PART_LEN),
+    placeholder: 'Add part no.', 'aria-label': 'Add a part number (Enter)' });
+  const partsBox = el('div', { class: 'ink-group ink-parts', hidden: true, role: 'group', 'aria-label': 'Part numbers' },
+    partsList, partInput);
   const bar = el('div', { class: 'ink-bar' },
     el('div', { class: 'ink-group' }, backBtn, titleInput),
+    partsBox,
     bookGroup,
     el('div', { class: 'ink-group ink-tabs', role: 'tablist', 'aria-label': 'View' }, tabInk, tabText),
     penGroup, editGroup, status);
@@ -647,6 +678,22 @@ export function mountInk(root, options = {}) {
   const base = el('canvas', { class: 'ink-canvas ink-base', 'aria-hidden': 'true' });
   const live = el('canvas', { class: 'ink-canvas ink-live', 'aria-label': 'Writing area' });
   stage.append(base, live);
+  // The Marks panel over the right of the pages (PDF notes), and the box that flashes
+  // over a mark opened from it (DOM, not canvas: the pages are not redrawn for it).
+  const marksList = el('div', { class: 'ink-marks-list' });
+  const marksState = el('div', { class: 'bs-meta ink-marks-state', role: 'status', 'aria-live': 'polite' });
+  const marksClose = iconBtn('next', 'Close the marks', () => toggleMarks(false));
+  // The datasheet as a file: with the marks as PDF annotations, or the original. Plain
+  // links (the browser sends the sign-in cookie); `download` keeps the page open.
+  const dlMarked = el('a', { class: 'bs-btn ink-dl-marked', href: '#', download: '', text: 'Download with marks',
+    title: 'The PDF with your pen, highlights and notes as PDF annotations' });
+  const dlOriginal = el('a', { class: 'bs-btn ink-dl-original', href: '#', download: '', text: 'Original PDF',
+    title: 'The PDF as it was imported' });
+  const marksPanel = el('aside', { class: 'ink-marks', hidden: true, 'aria-label': 'Marks' },
+    el('div', { class: 'ink-marks-head' }, el('h2', { text: 'Marks' }), marksClose),
+    el('div', { class: 'ink-marks-dl' }, dlMarked, dlOriginal), marksState, marksList);
+  const flashBox = el('div', { class: 'ink-flash', hidden: true, 'aria-hidden': 'true' });
+  stage.append(flashBox, marksPanel);
 
   // H2: the Text tab, one page at a time: the page above, its transcript below.
   const tPrev = iconBtn('back', 'Previous page', () => textGo(-1));
@@ -677,7 +724,7 @@ export function mountInk(root, options = {}) {
       tRestore, tFind, tTranscribe, tSave, tSend, tRemove),
     tState, tAthena, tFigure, tEdit);
   editor.append(bar, stage, textPanel);
-  wrap.append(photoInput);
+  wrap.append(photoInput, pdfInput);
   // Upstream's mobile sheets close when swiped down from anywhere in a window that
   // is scrolled to the top (static/js/ui.js), and the pen fires touch events too: a
   // downward stroke closed Write. Only the window's header keeps that swipe.
@@ -700,8 +747,24 @@ export function mountInk(root, options = {}) {
   let dpr = 1;
   const baseScale = () => Math.min(cssW / (PAGE_W + 2 * SIDE), MAX_PAGE_PX / PAGE_W);
   const scale = () => baseScale() * state.zoom;
-  const pageTop = (i) => i * (PAGE_H + PAGE_GAP);
-  const docHeight = () => (state.note ? state.note.pages.length * (PAGE_H + PAGE_GAP) - PAGE_GAP : PAGE_H);
+  // Page tops: a PDF page is as tall as its PDF page, so the tops are added up, once per
+  // page list (a page's height never changes; adding or removing one makes a new length
+  // or a new list).
+  let topsList = null;
+  let topsLen = -1;
+  let tops = [0, PAGE_H + PAGE_GAP];
+  function layout() {
+    const pages = state.note ? state.note.pages : null;
+    if (!pages) return tops;
+    if (pages !== topsList || pages.length !== topsLen) {
+      tops = pageTops(pages, PAGE_GAP, PAGE_H);
+      topsList = pages;
+      topsLen = pages.length;
+    }
+    return tops;
+  }
+  const pageTop = (i) => layout()[i] || 0;
+  const docHeight = () => (state.note ? layout()[state.note.pages.length] - PAGE_GAP : PAGE_H);
   // The scroll on screen, rounded to whole device pixels: panning then moves the paper
   // and the ink by whole pixels together, so lines, dots and ink edges don't shimmer.
   const offX = () => Math.round(state.sx * scale() * dpr) / dpr;
@@ -801,14 +864,18 @@ export function mountInk(root, options = {}) {
   function visiblePages(box) {
     const k = scale();
     const out = [];
-    state.note.pages.forEach((page, i) => {
+    const pages = state.note.pages;
+    // From the page at the top of the view down to the bottom (a PDF may have hundreds).
+    for (let i = Math.max(0, pageAt(offY() / k) - 1); i < pages.length; i++) {
+      const page = pages[i];
       const y0 = pageTop(i);
       const [px, py] = toScreen(0, y0);
       const rect = { x0: px, y0: py, x1: px + page.width * k, y1: py + page.height * k };
-      if (rect.y1 < 0 || rect.y0 > cssH) return;
-      if (box && !meets(rect, box)) return;
+      if (rect.y0 > cssH) break;
+      if (rect.y1 < 0) continue;
+      if (box && !meets(rect, box)) continue;
       out.push([page, i, y0, rect]);
-    });
+    }
     return out;
   }
   const clipRect = (c, r) => { c.beginPath(); c.rect(r.x0, r.y0, r.x1 - r.x0, r.y1 - r.y0); c.clip(); };
@@ -826,8 +893,8 @@ export function mountInk(root, options = {}) {
   let paperKey = '';
   function paperFor() {
     const n = state.note;
-    const key = [state.sx, state.sy, state.zoom, cssW, cssH, dpr, bg, paperOf(n),
-      n.pages.map((p) => `${p.width}x${p.height}`).join(',')].join('|');
+    const key = [state.sx, state.sy, state.zoom, cssW, cssH, dpr, bg, paperOf(n), bgVer,
+      n.pages.length, docHeight()].join('|');
     if (key === paperKey && paperCanvas.width === base.width && paperCanvas.height === base.height) return;
     paperCanvas.width = base.width;
     paperCanvas.height = base.height;
@@ -887,6 +954,7 @@ export function mountInk(root, options = {}) {
       ctx.fillRect(rect.x0, rect.y0, rect.x1 - rect.x0, rect.y1 - rect.y0);
       ctx.restore();
       if (page.photo) { drawPhoto(ctx, page, rect.x0, rect.y0, k); continue; } // H6: no paper under a photo
+      if (isPdfPage(page)) { drawPdf(ctx, page, rect.x0, rect.y0, k); continue; } // the PDF page is its paper
       const paper = paperOf(state.note);
       if (paper === 'lined') {
         ctx.save();
@@ -975,12 +1043,14 @@ export function mountInk(root, options = {}) {
       entry = { img, ok: false, failed: false };
       img.onload = () => {
         entry.ok = true;
+        bgVer++; // the cached paper (paperFor) has the photo now
         if (!state.note || state.note.id !== noteId || photos.get(page.id) !== entry) return;
         render();
         if (state.view === 'text') { imageKey = ''; renderText(); }
       };
       img.onerror = () => {
         entry.failed = true;
+        bgVer++;
         if (!state.note || state.note.id !== noteId || photos.get(page.id) !== entry) return;
         render();
         if (state.view === 'text') { imageKey = ''; renderText(); } // say it failed there too
@@ -1012,6 +1082,68 @@ export function mountInk(root, options = {}) {
     ctx.restore();
   }
 
+  // ------------------------------------------------------- PDF pages
+  // The page the hub rendered, as the background of a PDF page, drawn with the paper:
+  // in full redraws (scroll, zoom) and in the cached paper (paperFor) that partial
+  // redraws copy from, never per pen sample. The sharpest image loaded is shown until a
+  // sharper one arrives; only pages near the view keep theirs (forkInkPdf.js).
+  let bgVer = 0;                 // bumped when a page background arrives: the cached paper is stale
+  let bgWaiting = false;         // one arrived while the pen was down: redraw when it lifts
+  let pdfNoteId = null;
+  const pdfImages = createPdfImages({
+    urlOf: (pageId, tier) => `${API}/${encodeURIComponent(pdfNoteId)}/pdf/${encodeURIComponent(pageId)}.png?w=${tier}`,
+    onChange: (pageId) => {
+      bgVer++;
+      if (!state.note || state.note.id !== pdfNoteId || !pageById(pageId)) return;
+      if (state.view === 'text') { imageKey = ''; renderText(); return; }
+      if (state.live) { bgWaiting = true; return; } // never a full redraw mid-stroke
+      render();
+    },
+  });
+
+  function drawPdf(ctx, page, x0, y0, k) {
+    const shown = pdfImages.best(page.id);
+    const w = page.width * k;
+    const h = page.height * k;
+    if (shown) {
+      ctx.drawImage(shown.image, x0, y0, w, h);
+      return;
+    }
+    ctx.save();
+    ctx.beginPath();
+    ctx.rect(x0, y0, w, h);
+    ctx.clip();
+    ctx.fillStyle = '#8a8f98';
+    ctx.font = `${Math.max(11, Math.round(30 * k))}px sans-serif`;
+    ctx.textAlign = 'center';
+    const failed = pdfImages.status(page.id) === 'failed';
+    ctx.fillText(failed ? 'This PDF page could not be loaded from the hub. You can still write on it.'
+      : `Loading page ${(page.pdf && page.pdf.page) || ''} of the PDF...`, x0 + w / 2, y0 + 140 * k);
+    ctx.restore();
+  }
+
+  // Ask for the backgrounds the view needs (at the tier for the page's width on screen)
+  // and drop those of pages far away. Only when the view moved enough to matter.
+  let pdfPlanKey = '';
+  let pdfTier = 0;
+  function pdfPrefetch() {
+    const note = state.note;
+    if (!note || !isPdfNote(note) || state.view !== 'ink' || state.screen !== 'editor') return; // the Text tab asks for its own page
+    if (pdfNoteId !== note.id) { pdfImages.clear(); pdfNoteId = note.id; pdfPlanKey = ''; }
+    const k = scale();
+    const first = pageAt(offY() / k);
+    const last = pageAt((offY() + cssH) / k);
+    // While fingers pan or pinch, pages coming into view load at the tier of the gesture's
+    // start; the tier for the new zoom is asked for once the fingers lift (endPan).
+    const tier = panning && pdfTier ? pdfTier : (pdfTier = tierFor(PAGE_W * k, dpr));
+    const key = `${note.id}|${note.pages.length}|${first}|${last}|${tier}|${pdfImages.version}`;
+    if (key === pdfPlanKey) return;
+    pdfPlanKey = key;
+    const plan = planPdfPages(note.pages, first, last, tier);
+    pdfImages.retain(plan.keep);
+    for (const [id, t] of plan.load) pdfImages.want(id, t);
+  }
+
   function renderNow() {
     // Opaque: the stage's own background (a theme color) around the pages.
     bg = getComputedStyle(stage).backgroundColor || bg;
@@ -1019,6 +1151,8 @@ export function mountInk(root, options = {}) {
     baseStale = null;
     drawScene(null);
     if (!panning) present(); // while panning `base` itself is on screen
+    pdfPrefetch();
+    if (flashAt) placeFlash();
   }
 
   // Fingers pan or zoom: `base` (a normal canvas, drawn in step with the screen) is
@@ -1043,6 +1177,7 @@ export function mountInk(root, options = {}) {
       present();
     }
     stage.classList.remove('ink-panning');
+    pdfPrefetch(); // the gesture's last view: now the sharper pages
   }
 
   // While the eraser moves, what it took is redrawn straight onto the visible canvas
@@ -1266,9 +1401,7 @@ export function mountInk(root, options = {}) {
   }
 
   function pageAt(docY) {
-    const pages = state.note.pages;
-    const i = Math.floor((docY + PAGE_GAP / 2) / (PAGE_H + PAGE_GAP));
-    return Math.max(0, Math.min(pages.length - 1, i));
+    return pageIndexAt(layout(), docY, PAGE_GAP);
   }
 
   // A point on the stroke's page, kept inside the page: ink outside it would be
@@ -1379,6 +1512,7 @@ export function mountInk(root, options = {}) {
       presentBox(unionBox(pointsBox(lv.stroke.points, lv), lv.tailBox)); // dropped
     }
     syncTools();
+    if (bgWaiting && !state.live) { bgWaiting = false; render(); } // a PDF page arrived meanwhile
   }
 
   const router = createInputRouter({
@@ -1484,7 +1618,8 @@ export function mountInk(root, options = {}) {
   }, { passive: false });
   wrap.addEventListener('keydown', (e) => {
     // Not in the Text tab: Ctrl+Z there undoes typing, never strokes.
-    if (state.screen !== 'editor' || state.view !== 'ink' || e.target === titleInput) return;
+    if (state.screen !== 'editor' || state.view !== 'ink' || e.target === titleInput || marksPanel.contains(e.target)
+      || partsBox.contains(e.target)) return;
     const mod = e.ctrlKey || e.metaKey;
     if (mod && e.key.toLowerCase() === 'z') { e.preventDefault(); if (e.shiftKey) redo(); else undo(); }
     else if (mod && e.key.toLowerCase() === 'y') { e.preventDefault(); redo(); }
@@ -1522,6 +1657,7 @@ export function mountInk(root, options = {}) {
       }
     } else if (action.type === 'page') {
       if (reverse) state.note.pages = state.note.pages.filter((p) => p.id !== action.page.id);
+      else if (action.index != null) state.note.pages.splice(Math.min(action.index, state.note.pages.length), 0, action.page);
       else state.note.pages.push(action.page);
       clampScroll();
     }
@@ -1550,12 +1686,16 @@ export function mountInk(root, options = {}) {
     render();
   }
 
+  // In a PDF note the new blank page goes right after the page shown (notes beside the
+  // datasheet page they are about), elsewhere at the end. PDF pages don't count toward
+  // MAX_PAGES (the hub counts them apart).
   function addPage() {
-    if (!state.note || state.live || state.note.pages.length >= MAX_PAGES) return;
+    if (!state.note || state.live || inkPageCount(state.note.pages) >= MAX_PAGES) return;
     const page = { id: `p${shortId()}`, width: PAGE_W, height: PAGE_H, strokes: [] };
-    state.note.pages.push(page);
-    pushAction({ type: 'page', page });
-    state.sy = pageTop(state.note.pages.length - 1) - PAGE_GAP / 2;
+    const index = isPdfNote(state.note) ? currentPageIndex() + 1 : state.note.pages.length;
+    state.note.pages.splice(index, 0, page);
+    pushAction({ type: 'page', page, index });
+    state.sy = pageTop(index) - PAGE_GAP / 2;
     clampScroll();
     render();
   }
@@ -1573,7 +1713,10 @@ export function mountInk(root, options = {}) {
     setText(paperBtn, PAPERS.find((p) => p.key === paper).label);
     setProp(undoBtn, 'disabled', !state.undo.length);
     setProp(redoBtn, 'disabled', !state.redo.length);
-    const full = !!(state.note && state.note.pages.length >= MAX_PAGES);
+    const full = !!(state.note && inkPageCount(state.note.pages) >= MAX_PAGES);
+    const pdf = isPdfNote(state.note);
+    setProp(marksBtn, 'hidden', !pdf);
+    setAttr(marksBtn, 'aria-pressed', String(pdf && !marksPanel.hidden));
     setAttr(tabInk, 'aria-selected', String(state.view === 'ink'));
     setAttr(tabText, 'aria-selected', String(state.view === 'text'));
     // In a notebook: Back goes to it, ‹ › flip its pages, and Page adds the next page.
@@ -1638,6 +1781,7 @@ export function mountInk(root, options = {}) {
     const copy = JSON.parse(JSON.stringify({ ...state.note, ...payload(state.note) }));
     // H6: the device's copy keeps which pages are photos (the hub never takes it from here).
     state.note.pages.forEach((p, i) => { if (p.photo) copy.pages[i].photo = { ...p.photo }; });
+    state.note.pages.forEach((p, i) => { if (p.pdf) copy.pages[i].pdf = { ...p.pdf }; }); // the same for PDF pages
     return copy;
   }
 
@@ -1714,6 +1858,7 @@ export function mountInk(root, options = {}) {
         }
       }
       await db.put('notes', latest);
+      if (isOpen() && !marksPanel.hidden) loadMarksSoon(); // the hub groups the new strokes into marks
       if (state.screen === 'list' || state.screen === 'book') refreshListSoon();
     } else if (res.status === 409 && res.body && res.body.note) {
       const theirs = fromServer(res.body.note);
@@ -1785,8 +1930,9 @@ export function mountInk(root, options = {}) {
   function fromServer(n) {
     return { id: n.note_id, title: n.title || '', paper: paperOf(n), edited_at: n.edited_at || 0,
       image_url: n.image_url || null, synced: true, ...('notebook' in n ? { notebook: n.notebook } : {}),
+      ...(n.pdf ? { pdf: n.pdf } : {}), ...(Array.isArray(n.parts) ? { parts: n.parts } : {}),
       pages: (n.pages || []).map((p) => ({ id: p.id, width: p.width, height: p.height, strokes: p.strokes || [],
-        ...(p.photo ? { photo: p.photo } : {}) })) };
+        ...(p.photo ? { photo: p.photo } : {}), ...(p.pdf ? { pdf: p.pdf } : {}) })) };
   }
 
   // ------------------------------------------------- H2: transcription and review
@@ -1899,8 +2045,13 @@ export function mountInk(root, options = {}) {
   function drawPageImage(page) {
     const width = Math.max(200, Math.floor(tFigure.clientWidth || 600) - 2);
     const shot = page.photo ? photoOf(page) : null; // H6
+    if (isPdfPage(page)) {
+      if (pdfNoteId !== state.note.id) { pdfImages.clear(); pdfNoteId = state.note.id; }
+      pdfImages.want(page.id, tierFor(width, window.devicePixelRatio || 1));
+    }
+    const pdfShown = isPdfPage(page) ? pdfImages.best(page.id) : null;
     const key = `${state.note.id}:${page.id}:${width}:${page.strokes.length}:${state.note.edited_at}`
-      + `:${shot ? `${shot.ok}${shot.failed}` : ''}`;
+      + `:${shot ? `${shot.ok}${shot.failed}` : ''}:${pdfShown ? pdfShown.tier : pdfImages.status(page.id)}`;
     if (key === imageKey) return;
     imageKey = key;
     const k = width / page.width;
@@ -1915,6 +2066,7 @@ export function mountInk(root, options = {}) {
     c.fillStyle = '#ffffff';
     c.fillRect(0, 0, width, h);
     if (page.photo) drawPhoto(c, page, 0, 0, k);
+    if (isPdfPage(page)) drawPdf(c, page, 0, 0, k);
     const map = (p) => [p[0] * k, p[1] * k];
     const hl = page.strokes.filter((st) => st.pen.highlighter);
     if (hl.length) {
@@ -2016,6 +2168,10 @@ export function mountInk(root, options = {}) {
     tSend.disabled = true;
     tSend.removeAttribute('data-state');
     tAthena.textContent = '';
+    // A datasheet stays in Odysseus (the hub refuses to send it): no Send at all.
+    const pdf = isPdfNote(state.note);
+    tSend.hidden = pdf;
+    if (pdf) { tAthena.textContent = 'Datasheets stay in Odysseus: they are not sent to Athena.'; return; }
     if (!a) return;
     tSend.setAttribute('data-state', a.state);
     if (busy) line = 'Sending to Athena...';
@@ -2379,7 +2535,7 @@ export function mountInk(root, options = {}) {
     if (!state.note || state.note.id !== id) return;
     const my = nav;
     const db = store;
-    const room = Math.min(MAX_PHOTOS, MAX_PAGES - state.note.pages.length);
+    const room = Math.min(MAX_PHOTOS, MAX_PAGES - inkPageCount(state.note.pages));
     if (files.length > room) {
       setStatus(room <= 0 ? `A note has at most ${MAX_PAGES} pages: this note is full.` : `At most ${plural(room, 'photo')} here.`, true);
       return;
@@ -2450,6 +2606,426 @@ export function mountInk(root, options = {}) {
     if (state.note && state.note.id === id && state.view === 'text') loadTranscripts();
   }
 
+  // ------------------------------------------------------ PDF datasheets
+  // Import PDF: one note, a page per PDF page, made by the hub (needs it: never queued).
+  function pickPdf() {
+    if (!online()) { listMessage('Import PDF needs a connection to the hub.', true); return; }
+    pdfInput.value = '';
+    pdfInput.click();
+  }
+
+  pdfInput.addEventListener('change', () => {
+    const file = pdfInput.files && pdfInput.files[0];
+    pdfInput.value = '';
+    if (file) importPdf(file);
+  });
+
+  // Multipart upload with progress (fetch has none): { status, ok, body } or null.
+  function uploadPdf(id, file, fields, onProgress) {
+    return new Promise((resolve) => {
+      const form = new FormData();
+      form.append('pdf', file, file.name || 'datasheet.pdf');
+      for (const [k, v] of Object.entries(fields)) if (v != null) form.append(k, String(v));
+      const xhr = new XMLHttpRequest();
+      xhr.open('POST', `${API}/${encodeURIComponent(id)}/pdf`);
+      xhr.withCredentials = true;
+      xhr.upload.onprogress = (e) => { if (e.lengthComputable) onProgress(Math.round((100 * e.loaded) / e.total)); };
+      xhr.upload.onload = () => onProgress(100);
+      xhr.onload = () => {
+        let body = null;
+        try { body = JSON.parse(xhr.responseText); } catch (_) { /* empty */ }
+        resolve({ status: xhr.status, ok: xhr.status >= 200 && xhr.status < 300, body });
+      };
+      xhr.onerror = () => resolve(null);
+      xhr.onabort = () => resolve(null);
+      xhr.send(form);
+    });
+  }
+
+  async function importPdf(file) {
+    const my = nav;
+    const db = store;
+    const name = file.name || 'datasheet.pdf';
+    if (file.size > MAX_PDF_BYTES) { listMessage(`${name} is too large: a PDF may have at most 100 MB.`, true); return; }
+    listMessage(`Uploading ${name}...`);
+    const res = await uploadPdf(uuid(), file, { edited_at: Date.now(), paper: 'blank' }, (pct) => {
+      if (my === nav) listMessage(pct < 100 ? `Uploading ${name}... ${pct}%` : `Reading ${name} on the hub...`);
+    });
+    await openImported(res, my, db);
+  }
+
+  // The hub's answer to an import (a file or a Library PDF): the new note, opened.
+  async function openImported(res, my, db) {
+    if (db !== store) return; // another user signed in meanwhile
+    if (!(res && res.ok && res.body)) {
+      if (my === nav) {
+        listMessage(res ? `The hub refused the PDF: ${(res.body && res.body.detail) || `HTTP ${res.status}`}.`
+          : 'The hub is not reachable: PDFs are imported only while it is.', true);
+      }
+      return;
+    }
+    const note = fromServer(res.body);
+    try { await db.put('notes', note); } catch (_) { /* memory only */ }
+    if (my !== nav || (state.screen !== 'list' && state.screen !== 'book')) { refreshListSoon(); return; }
+    ++nav;
+    openLoaded(note);
+  }
+
+  // From Library: the owner's Library PDFs (GET /api/ink/library-pdfs) in a small list
+  // under the buttons; choosing one copies it into a new datasheet note on the hub.
+  async function pickLibrary(box) {
+    if (!online()) { listMessage('From Library needs a connection to the hub.', true); return; }
+    if (!box.hidden) { box.hidden = true; box.textContent = ''; return; } // the button closes it again
+    const my = nav;
+    box.hidden = false;
+    box.textContent = '';
+    box.append(el('div', { class: 'bs-meta', text: 'Loading the Library...' }));
+    let res = null;
+    try { res = await api('/api/ink/library-pdfs'); } catch (_) { res = null; }
+    if (my !== nav) return;
+    box.textContent = '';
+    const docs = res && res.ok && res.body && Array.isArray(res.body.documents) ? res.body.documents : null;
+    if (!docs) {
+      box.hidden = true;
+      listMessage(res ? `The hub said ${res.status}: the Library could not be listed.` : 'The hub is not reachable: the Library needs it.', true);
+      return;
+    }
+    if (!docs.length) { box.hidden = true; listMessage('No PDFs in the Library.'); return; }
+    box.append(el('div', { class: 'ink-library-head' }, el('h2', { text: 'Open a Library PDF' }),
+      el('button', { type: 'button', class: 'bs-btn ink-library-cancel', text: 'Cancel',
+        onclick: () => { box.hidden = true; box.textContent = ''; } })));
+    for (const d of docs) {
+      const item = libraryItem(d);
+      if (!item.id) continue;
+      box.append(el('button', { type: 'button', class: 'bs-btn ink-library-item', 'data-doc': item.id,
+        onclick: () => { box.hidden = true; box.textContent = ''; importLibraryPdf(item); } },
+      el('span', { class: 'ink-library-title', text: item.title }), el('span', { class: 'bs-meta', text: item.date })));
+    }
+  }
+
+  async function importLibraryPdf(item) {
+    const my = nav;
+    const db = store;
+    listMessage(`Opening ${item.title} from the Library...`);
+    let res = null;
+    try {
+      res = await api(`${API}/${enc(uuid())}/pdf`, { method: 'POST',
+        body: JSON.stringify({ document_id: item.id, edited_at: Date.now() }) });
+    } catch (_) { res = null; }
+    await openImported(res, my, db);
+  }
+
+  // ------------------------------------------------------ part numbers
+  function renderParts() {
+    const note = state.note;
+    const pdf = !!note && isPdfNote(note);
+    setProp(partsBox, 'hidden', !pdf);
+    partsList.textContent = '';
+    if (!pdf) return;
+    for (const p of note.parts || []) {
+      const rm = el('button', { type: 'button', class: 'ink-part-remove', title: `Remove ${p}`, 'aria-label': `Remove ${p}`,
+        onclick: () => saveParts(removePart(note.parts || [], p)) });
+      rm.innerHTML = ICONS.remove; // our own static SVG
+      partsList.append(el('span', { class: 'ink-part', 'data-part': p }, el('span', { text: p }), rm));
+    }
+  }
+
+  let partsSaving = 0;
+  async function saveParts(parts) {
+    if (!state.note) return false;
+    const my = nav;
+    const db = store;
+    const id = state.note.id;
+    if (!online()) { setStatus('Part numbers are saved on the hub: it is not reachable now.', true); return false; }
+    const seq = ++partsSaving;
+    let res = null;
+    try { res = await api(`${API}/${enc(id)}/parts`, { method: 'PUT', body: JSON.stringify({ parts }) }); } catch (_) { res = null; }
+    if (!current(my, id, db) || seq !== partsSaving) return false;
+    if (!(res && res.ok && res.body && Array.isArray(res.body.parts))) {
+      setStatus(res ? `Part numbers not saved: ${(res.body && res.body.detail) || `the hub said ${res.status}`}.`
+        : 'Part numbers not saved: the hub is not reachable.', true);
+      return false;
+    }
+    state.note.parts = res.body.parts;
+    renderParts();
+    try { // this device's copy shows them too (the next save keeps them)
+      const local = await db.get('notes', id);
+      if (local) { local.parts = res.body.parts; await db.put('notes', local); }
+    } catch (_) { /* memory only */ }
+    return true;
+  }
+
+  partInput.addEventListener('keydown', async (e) => {
+    if (e.key === 'Escape') { partInput.value = ''; partInput.blur(); return; }
+    if (e.key !== 'Enter' || !state.note) return;
+    e.preventDefault();
+    const got = addPart(state.note.parts || [], partInput.value);
+    if (got.error) { setStatus(got.error, true); return; }
+    if (await saveParts(got.parts)) partInput.value = '';
+  });
+
+  // ------------------------------------------------------ downloads
+  function syncDownloads() {
+    const note = state.note;
+    if (!note || !isPdfNote(note)) return;
+    const d = pdfDownloads(note.id, note.pdf && note.pdf.name);
+    setAttr(dlMarked, 'href', d.marked.href);
+    setAttr(dlMarked, 'download', d.marked.name);
+    setAttr(dlOriginal, 'href', d.original.href);
+    setAttr(dlOriginal, 'download', d.original.name);
+  }
+
+  // Both need the hub; the marked copy also needs the latest writing there first.
+  for (const a of [dlMarked, dlOriginal]) {
+    a.addEventListener('click', async (e) => {
+      if (a.dataset.go === '1') { delete a.dataset.go; return; } // the click below, after the save
+      if (!online()) {
+        e.preventDefault();
+        setText(marksState, 'Downloading needs a connection to the hub.');
+        return;
+      }
+      if (a !== dlMarked || !state.note || (!state.dirty && state.note.synced !== false)) return;
+      e.preventDefault();
+      setText(marksState, 'Saving your writing first...');
+      const ok = await pushStrokes(state.note.id);
+      if (!ok) { setText(marksState, 'Your writing is not on the hub yet: try again when it has synced.'); return; }
+      setText(marksState, '');
+      a.dataset.go = '1';
+      a.click();
+    });
+  }
+
+  // The Marks panel: the hub's marks of this note, by page; a tap scrolls to one and
+  // flashes it. Asked again after each save while open.
+  let marksData = null;   // { noteId, marks }
+  let marksAsked = 0;
+  let marksTimer = 0;
+  let flashAt = null;     // { index, box } while a mark flashes
+  let flashTimer = 0;
+
+  function toggleMarks(on = marksPanel.hidden) {
+    if (state.live) return;
+    const show = !!(on && state.note && isPdfNote(state.note));
+    marksPanel.hidden = !show;
+    syncTools();
+    if (show) loadMarks();
+    else { stopMarksPoll(); editingMark = null; }
+  }
+
+  // Stage 2: while the hub reads handwritten marks (`reading: true`), the open panel asks
+  // again every MARKS_POLL_MS; it stops when the hub is done, the panel closes or the
+  // note is left.
+  let marksPollTimer = 0;
+  function stopMarksPoll() { clearTimeout(marksPollTimer); marksPollTimer = 0; }
+  function pollMarks(noteId) {
+    stopMarksPoll();
+    marksPollTimer = setTimeout(() => {
+      marksPollTimer = 0;
+      if (suspended || marksPanel.hidden || state.screen !== 'editor' || !state.note || state.note.id !== noteId) return;
+      loadMarks();
+    }, MARKS_POLL_MS);
+  }
+
+  async function loadMarks() {
+    if (!state.note) return null;
+    const my = nav;
+    const db = store;
+    const id = state.note.id;
+    const seq = ++marksAsked;
+    if (!marksData || marksData.noteId !== id) { marksList.textContent = ''; setText(marksState, 'Loading...'); }
+    let res = null;
+    try { res = await api(`${API}/${enc(id)}/marks`); } catch (_) { res = null; }
+    if (!current(my, id, db) || seq !== marksAsked) return null;
+    if (res && res.ok && res.body && Array.isArray(res.body.marks)) {
+      marksData = { noteId: id, marks: res.body.marks };
+      renderMarks();
+      if (marksStillReading(res.body) && !marksPanel.hidden) pollMarks(id); else stopMarksPoll();
+      return marksData.marks;
+    }
+    setText(marksState, res ? `The hub said ${res.status}: the marks could not be listed.`
+      : 'The hub is not reachable: the marks are listed when it is back. Writing works offline.');
+    return null;
+  }
+
+  function loadMarksSoon() {
+    clearTimeout(marksTimer);
+    marksTimer = setTimeout(() => {
+      marksTimer = 0;
+      if (!suspended && !marksPanel.hidden && state.screen === 'editor') loadMarks();
+    }, MARKS_REFETCH_MS);
+  }
+
+  // One line of a mark (the panel and the search results): its kind, what it says, and a
+  // smaller line under it (stage 2: an ink mark's writing, with the PDF text it is by).
+  function markLines(m, lead) {
+    const d = markDisplay(m);
+    const text = el('span', { class: `ink-mark-text${d.quiet ? ' quiet' : ''}${d.busy ? ' busy' : ''}`, text: d.main });
+    if (d.title) text.title = d.title;
+    const body = el('span', { class: 'ink-mark-body' }, text);
+    if (d.sub) body.append(el('span', { class: 'ink-mark-sub', text: d.sub }));
+    return [el('span', { class: `ink-swatch${m.kind === 'highlight' ? ' hl' : ''}`, style: `--ink:${/^#[0-9a-fA-F]{6}$/.test(m.color || '') ? m.color : 'var(--fg)'}` }),
+      el('span', { class: 'ink-mark-kind', text: lead || d.label }), body];
+  }
+
+  // Stage 2: correct what the hub read on an ink mark. While one is edited the panel is
+  // not redrawn (a poll would take the input away); it is once the edit ends.
+  let editingMark = null;      // mark id
+  function editMark(m, row) {
+    if (editingMark && editingMark !== m.id) return;
+    editingMark = m.id;
+    const input = el('input', { type: 'text', class: 'bs-input ink-mark-input', maxlength: String(MAX_WRITTEN),
+      'aria-label': 'What is written', value: String(m.written || '') });
+    input.value = String(m.written || '');
+    const save = el('button', { type: 'button', class: 'bs-btn primary ink-mark-save', text: 'Save', onclick: () => saveWritten(m, input, save) });
+    const cancel = el('button', { type: 'button', class: 'bs-btn ink-mark-cancel', text: 'Cancel', onclick: () => endEdit() });
+    input.addEventListener('keydown', (e) => {
+      if (e.key === 'Enter') { e.preventDefault(); saveWritten(m, input, save); }
+      else if (e.key === 'Escape') { e.preventDefault(); e.stopPropagation(); endEdit(); }
+    });
+    row.textContent = '';
+    row.classList.add('editing');
+    row.append(input, el('div', { class: 'ink-mark-actions' }, save, cancel));
+    input.focus();
+    input.select();
+  }
+
+  function endEdit() {
+    editingMark = null;
+    renderMarks();
+  }
+
+  async function saveWritten(m, input, btn) {
+    if (!state.note || btn.disabled) return;
+    const my = nav;
+    const db = store;
+    const id = state.note.id;
+    btn.disabled = true;
+    let res = null;
+    try {
+      res = await api(`${API}/${enc(id)}/marks/${enc(m.id)}`, { method: 'PUT',
+        body: JSON.stringify({ written: input.value.slice(0, MAX_WRITTEN) }) });
+    } catch (_) { res = null; }
+    if (!current(my, id, db) || editingMark !== m.id) return;
+    btn.disabled = false;
+    if (!(res && res.ok && res.body)) {
+      setText(marksState, res ? `Not saved: ${(res.body && res.body.detail) || `the hub said ${res.status}`}.`
+        : 'Not saved: the hub is not reachable.');
+      return;
+    }
+    const saved = res.body.mark || res.body; // the merged mark
+    if (marksData && marksData.noteId === id) marksData.marks = marksData.marks.map((x) => (x.id === saved.id ? saved : x));
+    endEdit();
+    setText(marksState, 'Saved.');
+  }
+
+  function renderMarks() {
+    if (editingMark) return;
+    marksList.textContent = '';
+    if (!state.note || !marksData || marksData.noteId !== state.note.id) return;
+    const groups = groupMarks(marksData.marks, state.note.pages);
+    const count = groups.reduce((n, g) => n + g.marks.length, 0);
+    setText(marksState, count ? plural(count, 'mark')
+      : 'Nothing marked yet: highlight, underline or write on the PDF. Marks show here once saved.');
+    for (const g of groups) {
+      const section = el('section', { class: 'ink-marks-page', 'data-page': g.pageId },
+        el('h3', { text: `Page ${g.pageNo || g.index + 1}` }));
+      for (const m of g.marks) {
+        const b = el('button', { type: 'button', class: 'bs-btn ink-mark', 'data-mark': m.id, onclick: () => goToMark(m) },
+          ...markLines(m));
+        const row = el('div', { class: 'ink-mark-row', 'data-mark': m.id }, b);
+        if (markDisplay(m).editable && m.reading && m.reading !== 'none') {
+          row.append(el('button', { type: 'button', class: 'bs-btn ink-mark-edit', text: 'Edit',
+            title: 'Correct what was read', 'aria-label': 'Correct what was read', onclick: () => editMark(m, row) }));
+        }
+        section.append(row);
+      }
+      marksList.append(section);
+    }
+  }
+
+  // Scroll so the mark is in the middle of the view, and flash its box.
+  function goToMark(m) {
+    if (!state.note || state.live) return;
+    const index = state.note.pages.findIndex((p) => p.id === m.page_id);
+    if (index < 0) return;
+    if (state.view !== 'ink') { state.view = 'ink'; applyView(); }
+    state.sy = scrollForBox(layout(), index, m.box, cssH / scale(), PAGE_GAP);
+    clampScroll();
+    state.curPage = null;
+    render();
+    if (Array.isArray(m.box) && m.box.length === 4) flash(index, m.box);
+  }
+
+  function flash(index, box) {
+    flashAt = { index, box };
+    clearTimeout(flashTimer);
+    flashBox.classList.remove('on');
+    placeFlash();
+    void flashBox.offsetWidth; // restart the animation
+    flashBox.classList.add('on');
+    flashTimer = setTimeout(() => { flashAt = null; flashBox.hidden = true; flashBox.classList.remove('on'); }, FLASH_MS);
+  }
+
+  function placeFlash() {
+    if (!flashAt || !state.note || flashAt.index >= state.note.pages.length) { flashBox.hidden = true; return; }
+    const [x, y, w, h] = flashAt.box;
+    const pad = 6;
+    const y0 = pageTop(flashAt.index);
+    const [ax, ay] = toScreen(x - pad, y - pad + y0);
+    const [bx, by] = toScreen(x + w + pad, y + h + pad + y0);
+    flashBox.style.left = `${ax}px`;
+    flashBox.style.top = `${ay}px`;
+    flashBox.style.width = `${Math.max(4, bx - ax)}px`;
+    flashBox.style.height = `${Math.max(4, by - ay)}px`;
+    flashBox.hidden = false;
+  }
+
+  // A link to a page and mark (#open=write&note=..&page=..&mark=.., forkInkLinks.js): the
+  // Write tab scrolled to the page, the mark flashed once the hub has listed it.
+  async function revealTarget(id, pageId, markId) {
+    if (!state.note || state.note.id !== id) return;
+    if (state.view !== 'ink') { state.view = 'ink'; applyView(); }
+    const index = pageId ? state.note.pages.findIndex((p) => p.id === pageId) : -1;
+    if (index >= 0) {
+      state.sy = pageTop(index) - PAGE_GAP / 2;
+      clampScroll();
+      state.curPage = null;
+      render();
+    }
+    if (!markId || !isPdfNote(state.note)) return;
+    const marks = await loadMarks();
+    const m = marks && marks.find((x) => x.id === markId);
+    if (m && state.note && state.note.id === id) goToMark(m);
+  }
+
+  // Search the marks of every PDF note (the list's Search marks box).
+  let searchAsked = 0;
+  async function searchMarks(q, out) {
+    const seq = ++searchAsked;
+    const my = nav;
+    out.textContent = '';
+    if (q.length < 2) return;
+    out.append(el('div', { class: 'bs-meta', text: 'Searching...' }));
+    let res = null;
+    try { res = await api(`${MARKS_API}?q=${enc(q)}&limit=30`); } catch (_) { res = null; }
+    if (seq !== searchAsked || my !== nav) return;
+    out.textContent = '';
+    if (!(res && res.ok && res.body && Array.isArray(res.body.results))) {
+      out.append(el('div', { class: 'bs-meta error', text: res ? `The hub said ${res.status}.` : 'The hub is not reachable: search needs it.' }));
+      return;
+    }
+    if (!res.body.results.length) { out.append(el('div', { class: 'bs-meta', text: 'No marks match.' })); return; }
+    for (const r of res.body.results) {
+      const m = r.mark || {};
+      const parts = Array.isArray(r.parts) && r.parts.length ? r.parts.join(', ') : '';
+      const where = [r.title || r.pdf_name || 'Untitled', parts, m.page_no ? `page ${m.page_no}` : '', markDisplay(m).label].filter(Boolean).join(' · ');
+      const lines = markLines(m, where);
+      lines[1].className = 'ink-mark-where';
+      out.append(el('button', { type: 'button', class: 'bs-btn ink-mark-result', 'data-note': r.note_id, 'data-mark': m.id || '',
+        onclick: () => openNote(r.note_id, { page: m.page_id || null, mark: m.id || null }) }, ...lines));
+    }
+  }
+
   // -------------------------------------------------------------- screens
   function openLoaded(note, { keepView = false, textPage = null } = {}) {
     const sameOpen = state.note && state.note.id === note.id;
@@ -2478,11 +3054,23 @@ export function mountInk(root, options = {}) {
       athenaMsg = null;
       edited.clear();
       photos.clear(); // H6
+      pdfImages.clear(); // the last note's PDF pages
+      pdfNoteId = note.id;
+      pdfPlanKey = '';
+      marksData = null;
+      marksPanel.hidden = true;
+      partInput.value = '';
+      stopMarksPoll();
+      editingMark = null;
+      flashAt = null;
+      flashBox.hidden = true;
       loadDrafts(note.id);
     }
     state.curPage = null;
     render(); // a different note: draw it all (resize below draws at once when sized)
     titleInput.value = note.title || '';
+    renderParts();
+    syncDownloads();
     listView.hidden = true;
     editor.hidden = false;
     syncTools();
@@ -2491,7 +3079,8 @@ export function mountInk(root, options = {}) {
     if (state.view === 'text') loadTranscripts();
   }
 
-  async function openNote(id, { textPage = null } = {}) {
+  // `page`, `mark`: a link to a PDF page and a mark on it (revealTarget).
+  async function openNote(id, { textPage = null, page = null, mark = null } = {}) {
     const my = ++nav;
     const db = store;
     let local = null;
@@ -2512,6 +3101,7 @@ export function mountInk(root, options = {}) {
     if (!note) { await showList('That note could not be loaded.'); return; }
     openLoaded(note, { textPage });
     if (!note.synced) sync(note.id);
+    if (page || mark) await revealTarget(note.id, page, mark);
   }
 
   // A quick note, or with `notebook` a new page of that notebook (after the page `after`,
@@ -2744,6 +3334,8 @@ export function mountInk(root, options = {}) {
         byId.set(n.id, { id: n.id, title: n.title, image_url: n.image_url || (known && known.image_url),
           edited_at: n.edited_at, pages: n.pages.length, waiting: !n.synced, blocked: n.blocked,
           transcripts: known && known.transcripts, athena: known && known.athena, paper: paperOf(n),
+          pdf: known ? (known.pdf || null) : (n.pdf ? { name: n.pdf.name, pages: n.pdf.pages } : null),
+          parts: known ? (known.parts || []) : (n.parts || []),
           notebook: known ? known.notebook : (n.notebook || null), notebook_after: n.notebook_after || null });
       }
     }
@@ -2777,16 +3369,32 @@ export function mountInk(root, options = {}) {
       el('button', { type: 'button', class: 'bs-btn ink-new-book', title: 'A notebook keeps its pages together, in order',
         onclick: () => newNotebook() }, 'New notebook'),
       ...photoButtons('a quick note'),
+      el('button', { type: 'button', class: 'bs-btn ink-import-pdf', title: 'A datasheet or any PDF: write and highlight on its pages',
+        onclick: () => pickPdf() }, 'Import PDF'),
+      el('button', { type: 'button', class: 'bs-btn ink-from-library', title: 'A PDF already in your Library: write and highlight on its pages',
+        onclick: () => pickLibrary(library) }, 'From Library'),
       el('span', { class: 'bs-meta', text: 'Write with the pen; one finger scrolls, two fingers zoom. '
         + 'Saved on this device first, then in your notes. If two devices change the same note, the last edit wins.' }));
     const msg = el('div', { class: `bs-msg${message ? ' error' : ''}`, text: message });
+    const library = el('div', { class: 'ink-library', hidden: true, role: 'group', 'aria-label': 'Library PDFs' });
+    // Search marks: what was highlighted, underlined or written on any PDF (shown once a PDF note exists).
+    const searchInput = el('input', { type: 'search', class: 'bs-input ink-mark-search', placeholder: 'Search marks',
+      'aria-label': 'Search what you marked on your PDFs', maxlength: '200' });
+    const searchOut = el('div', { class: 'ink-mark-results' });
+    const searchBox = el('div', { class: 'ink-mark-searchbox', hidden: true }, searchInput, searchOut);
+    let searchTimer = 0;
+    searchInput.addEventListener('input', () => {
+      clearTimeout(searchTimer);
+      searchTimer = setTimeout(() => searchMarks(searchInput.value.trim(), searchOut), 300);
+    });
     const list = el('div', { class: 'ink-notes' }, el('div', { class: 'bs-status', text: 'Loading...' }));
-    listView.append(head, msg, list);
+    listView.append(head, msg, library, searchBox, list);
 
     const got = await loadItems(my);
     if (!got) return;
     const { items, remote } = got;
     list.textContent = '';
+    searchBox.hidden = !items.some((n) => n.pdf);
     if (remote === null) list.before(el('div', { class: 'bs-notice', text: 'The hub is not reachable: showing the notes on this device.' }));
     const review = reviewList(items);
     if (review) list.before(review);
@@ -2884,7 +3492,8 @@ export function mountInk(root, options = {}) {
     const athena = { sent: `sent to Athena${t.auto_sent ? ' automatically' : ''}`, changed: 'changed since sent to Athena' }[n.athena] || '';
     // In a notebook a note is one page; more than one sheet is said as such.
     const size = page ? (n.pages > 1 ? `${n.pages} sheets` : '') : (n.pages ? `${n.pages} page${n.pages === 1 ? '' : 's'}` : '');
-    const meta = [size, when ? when.toLocaleString() : '',
+    const pdfSize = n.pdf ? `PDF, ${plural(n.pdf.pages || 0, 'page')}${n.pdf.name ? `: ${n.pdf.name}` : ''}` : '';
+    const meta = [pdfSize || size, when ? when.toLocaleString() : '',
       toReview ? `${toReview} to review` : '', autoPages ? `${autoPages} accepted automatically, not checked` : '', athena,
       n.blocked ? `not synced: the hub refused it (${n.blocked})` : (n.waiting ? 'waiting to sync' : '')]
       .filter(Boolean).join(' · ');
@@ -2894,8 +3503,16 @@ export function mountInk(root, options = {}) {
     del.innerHTML = ICONS.trash;
     del.addEventListener('click', (e) => { e.stopPropagation(); deleteNote(n.id, n.title); });
     const title = page ? `Page ${page} · ${n.title || 'Untitled'}` : (n.title || 'Untitled');
+    const heading = el('h2', { text: title });
+    if (n.pdf) {
+      // The PDF badge, then the datasheet's part numbers (a few, and how many more).
+      const { shown, more } = partsShown(n.parts);
+      heading.prepend(el('span', { class: 'ink-badge', text: 'PDF' }),
+        ...shown.map((p) => el('span', { class: 'ink-part ink-card-part', text: p })),
+        ...(more ? [el('span', { class: 'ink-part ink-card-part', text: `+${more}` })] : []));
+    }
     const card = el('div', { class: 'bs-card ink-card', role: 'button', tabindex: '0', 'data-note': n.id },
-      thumb, el('div', { class: 'ink-card-text' }, el('h2', { text: title }), el('div', { class: 'bs-meta', text: meta }),
+      thumb, el('div', { class: 'ink-card-text' }, heading, el('div', { class: 'bs-meta', text: meta }),
         moveMenu(n)),
       del);
     card.addEventListener('click', () => openNote(n.id));
@@ -2928,6 +3545,11 @@ export function mountInk(root, options = {}) {
     athenaMsg = null;
     edited.clear();
     photos.clear(); // H6: the last user's photos
+    pdfImages.clear();
+    pdfNoteId = null;
+    marksData = null;
+    stopMarksPoll();
+    editingMark = null;
     if (state.note) {
       state.live = null;
       router.reset();
@@ -2950,7 +3572,12 @@ export function mountInk(root, options = {}) {
     flush();
     if (state.note) autoTranscribe([...edited]);
   };
-  const onOnline = () => flushQueue();
+  const onOnline = () => {
+    flushQueue();
+    pdfImages.reload(); // PDF pages that failed offline: try again
+    pdfPlanKey = '';
+    if (state.screen === 'editor' && state.note && isPdfNote(state.note)) render();
+  };
   document.addEventListener('visibilitychange', onHidden);
   window.addEventListener('pagehide', onHidden);
   window.addEventListener('online', onOnline);
@@ -2994,6 +3621,7 @@ export function mountInk(root, options = {}) {
     if (state.note) autoTranscribe([...edited]); // like Back: read the pages changed
     clearTimeout(pollTimer);
     pollTimer = 0;
+    stopMarksPoll();
     timers.forEach(clearInterval);
     timers = [];
     document.removeEventListener('pointermove', notePen, { capture: true });
@@ -3007,6 +3635,7 @@ export function mountInk(root, options = {}) {
     if (state.screen === 'list') return showList();
     if (state.screen === 'book') return showBook(state.book);
     if (state.note && state.view === 'text') loadTranscripts();
+    if (state.note && !marksPanel.hidden) loadMarks(); // and polls again while the hub reads marks
     if (!state.note || state.dirty || state.live) return undefined;
     const my = nav;
     const id = state.note.id;
@@ -3058,6 +3687,7 @@ export function mountInk(root, options = {}) {
     _clamp: () => clampScroll(),
     _base: base,
     _deleteLocal: deleteLocal,
+    _pdfImages: pdfImages,
     _timers: () => timers.length,
     strokeCount: () => (state.note ? state.note.pages.reduce((n, p) => n + p.strokes.length, 0) : 0),
   };

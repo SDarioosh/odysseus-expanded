@@ -33,14 +33,15 @@ EMAIL_REFUSED = ("Not run: email isn't available by voice (the answer is read al
 PRIVATE_REPLY = "I can only answer that for the owner of this assistant."
 PERSONAL_TOOLS = frozenset({
     "manage_calendar", "manage_notes", "manage_tasks", "resolve_contact", "manage_contact",
-    "manage_memory", "search_beliefs", "search_documents", "manage_documents",
-    "create_document", "edit_document", "update_document", "suggest_document",
-    "search_chats",
+    "manage_memory", "search_beliefs", "search_documents", "search_datasheet_marks",
+    "manage_documents", "create_document", "edit_document", "update_document",
+    "suggest_document", "search_chats",
 }) | EMAIL_TOOLS
 
 
 def is_personal(name: str) -> bool:
-    """Athena (every MCP tool, to be safe), the personal stores, documents, chats."""
+    """Athena (every MCP tool, to be safe), the personal stores, documents, datasheet
+    marks, chats."""
     return name.startswith("mcp__") or name in PERSONAL_TOOLS
 
 

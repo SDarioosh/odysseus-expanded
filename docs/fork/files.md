@@ -41,6 +41,7 @@ is an old path of a module that moved into `fork/`; it only aliases the new modu
 - `docs/fork/cleanup-plan.md`
 - `docs/fork/context-growth.md`
 - `docs/fork/context-module.md`
+- `docs/fork/datasheets.md`
 - `docs/fork/deploy.md`
 - `docs/fork/features/chat-ui.md`
 - `docs/fork/features/logs-and-tests.md`
@@ -113,6 +114,7 @@ is an old path of a module that moved into `fork/`; it only aliases the new modu
 - `fork/brain/__init__.py`
 - `fork/brain/attachments.py`
 - `fork/brain/claims.py`
+- `fork/brain/datasheets.py`
 - `fork/brain/documents.py`
 - `fork/brain/history.py`
 - `fork/brain/open_document.py`
@@ -141,8 +143,14 @@ is an old path of a module that moved into `fork/`; it only aliases the new modu
 - `fork/hub/vision_auto_detect.py`
 - `fork/ink/__init__.py`
 - `fork/ink/athena.py`
+- `fork/ink/library.py`
+- `fork/ink/mark_reading.py`
 - `fork/ink/notebooks.py`
 - `fork/ink/notes.py`
+- `fork/ink/parts.py`
+- `fork/ink/pdf.py`
+- `fork/ink/pdf_export.py`
+- `fork/ink/pdf_marks.py`
 - `fork/ink/transcribe.py`
 - `fork/insight/__init__.py`
 - `fork/insight/inputs.py`
@@ -172,6 +180,7 @@ is an old path of a module that moved into `fork/`; it only aliases the new modu
 - `fork/routes/auto_mode_routes.py`
 - `fork/routes/belief_search_routes.py`
 - `fork/routes/beliefs_routes.py`
+- `fork/routes/ink_marks_routes.py`
 - `fork/routes/ink_routes.py`
 - `fork/routes/insight_outcome_routes.py`
 - `fork/routes/insight_trends_routes.py`
@@ -340,6 +349,7 @@ is an old path of a module that moved into `fork/`; it only aliases the new modu
 - `static/js/forkEntityHash.js`
 - `static/js/forkInk.js`
 - `static/js/forkInkLinks.js`
+- `static/js/forkInkPdf.js`
 - `static/js/forkMeetingAutoJoin.js`
 - `static/js/forkMeetings.js`
 - `static/js/forkModuleShortcuts.js`
@@ -411,6 +421,7 @@ is an old path of a module that moved into `fork/`; it only aliases the new modu
 - `tests/fork/fixtures/turn_policy_decisions.json`
 - `tests/fork/fork_dom_golden.json`
 - `tests/fork/fork_views_look_golden.json`
+- `tests/fork/pdf_fixtures.py`
 - `tests/fork/test_action_items_characterization.py`
 - `tests/fork/test_agent_thinking_switch.py`
 - `tests/fork/test_athena_callers.py`
@@ -433,6 +444,7 @@ is an old path of a module that moved into `fork/`; it only aliases the new modu
 - `tests/fork/test_brain_attachments.py`
 - `tests/fork/test_brain_claims.py`
 - `tests/fork/test_brain_context.py`
+- `tests/fork/test_brain_datasheet_marks.py`
 - `tests/fork/test_brain_documents.py`
 - `tests/fork/test_brain_eval_harness.py`
 - `tests/fork/test_brain_forget.py`
@@ -480,10 +492,19 @@ is an old path of a module that moved into `fork/`; it only aliases the new modu
 - `tests/fork/test_ink_athena.py`
 - `tests/fork/test_ink_auto_send.py`
 - `tests/fork/test_ink_eval.py`
+- `tests/fork/test_ink_library.py`
+- `tests/fork/test_ink_mark_reading.py`
+- `tests/fork/test_ink_marks_routes.py`
 - `tests/fork/test_ink_notebooks.py`
 - `tests/fork/test_ink_notes.py`
 - `tests/fork/test_ink_notes_hidden.py`
 - `tests/fork/test_ink_palm_rejection.py`
+- `tests/fork/test_ink_parts.py`
+- `tests/fork/test_ink_pdf.py`
+- `tests/fork/test_ink_pdf_export.py`
+- `tests/fork/test_ink_pdf_marks.py`
+- `tests/fork/test_ink_pdf_routes.py`
+- `tests/fork/test_ink_pdf_view.py`
 - `tests/fork/test_ink_perf.py`
 - `tests/fork/test_ink_phone_layout.py`
 - `tests/fork/test_ink_photos.py`

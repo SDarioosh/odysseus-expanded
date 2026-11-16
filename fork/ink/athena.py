@@ -37,6 +37,10 @@ Sidecar ``athena``::
      "auto",             # True: what Athena accepted last came from an automatic send
      "auto_error"}       # why the last automatic send failed (cleared by a good send)
 
+A note imported from a PDF (a datasheet, ``ink.is_pdf_note``) is never sent: Send answers
+400 "Datasheets stay in Odysseus", auto-send skips it, and its state stays ``not_sent``
+(the owner's marks on a datasheet are found in the hub, ``fork/ink/pdf_marks.py``).
+
 Deleted notes: a sidecar whose note is gone and that was sent (or is being sent, or
 whose send got no answer) stays until Athena answers ``deleted`` or ``already`` to the
 DELETE (:func:`sweep`), so an unreachable Athena is asked again on the next run. The
@@ -70,6 +74,7 @@ from fork.ink import transcribe as tr
 logger = logging.getLogger(__name__)
 
 SOURCE_PREFIX = "hub-note:"
+DATASHEET_MESSAGE = "Datasheets stay in Odysseus"  # a PDF note is never sent
 # Athena's limits for a written note (server/athena/validation.py, SDarioosh/Athena#108,
 # #110)
 MAX_TEXT_CHARS = 200_000
@@ -242,7 +247,8 @@ def view(stored: dict[str, Any], now: float | None = None) -> dict[str, Any]:
             "transcript_link": a.get("transcript_link"),
             "waiting": waiting_pages(stored), "has_text": has_words(text),
             "sending": _sending(a, now), "auto": bool(a.get("sent_hash") and a.get("auto")),
-            "auto_error": a.get("auto_error") if isinstance(a.get("auto_error"), str) else None}
+            "auto_error": a.get("auto_error") if isinstance(a.get("auto_error"), str) else None,
+            "datasheet": ink.is_pdf_note(stored)}  # never sent: Send is hidden
 
 
 # ---------------------------------------------------------------------------- link
@@ -343,6 +349,8 @@ def _prepare(owner: str | None, note_id: str, base: str, now: float, auto: bool 
     store = tr._check(owner, note_id)
     with ink._lock(store):
         stored = tr._load(store, note_id)
+        if ink.is_pdf_note(stored):
+            raise ink.InkError(DATASHEET_MESSAGE, 400)
         waiting = waiting_pages(stored)
         if waiting:
             raise ink.InkError(waiting_message(waiting), 409)
@@ -439,7 +447,10 @@ async def send(owner: str | None, note_id: str, *, request_base: str | None = No
     ``{result, conversation_id, lines, erased_lines, transcript_link}`` (``result``
     ``deleted`` when the note has no words left and Athena had it). Raises ``InkError``
     (409 pages waiting for review or a send in flight, 413 over Athena's limits, 400 no
-    text or a bad link, 503 Athena not set up, 502 Athena unreachable or failing)."""
+    text, a bad link or a PDF note, 503 Athena not set up, 502 Athena unreachable or
+    failing)."""
+    if await asyncio.to_thread(_is_datasheet, owner, note_id):
+        raise ink.InkError(DATASHEET_MESSAGE, 400)  # whether Athena is set up or not
     await _link()  # fail before marking anything when Athena isn't set up
     base = hub_base(request_base)
     store, payload, digest, written = await asyncio.to_thread(
@@ -483,6 +494,13 @@ async def send(owner: str | None, note_id: str, *, request_base: str | None = No
     return {**out, "sent": answer}
 
 
+def _is_datasheet(owner: str | None, note_id: str) -> bool:
+    """The owner's note was imported from a PDF (404 when it isn't the owner's note)."""
+    store = tr._check(owner, note_id)
+    with ink._lock(store):
+        return ink.is_pdf_note(tr._load(store, note_id))
+
+
 # ------------------------------------------------------------------ auto-send (H6)
 AUTO_SEND_WAIT = 60.0  # seconds a finished run waits for a send of the note in flight
 
@@ -498,6 +516,8 @@ def _auto_ready(owner: str | None, note_id: str) -> tuple[str | None, bool]:
     with ink._lock(store):
         stored = ink.load_sidecar(store, note_id)
     if stored is None or not isinstance(stored.get("pages"), list):
+        return store, False
+    if ink.is_pdf_note(stored):  # datasheets stay in Odysseus
         return store, False
     if waiting_pages(stored) or not has_words(note_text(stored)):
         return store, False

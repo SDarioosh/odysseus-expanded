@@ -21,7 +21,8 @@ that already exist.
 
 Non-goals (first version): pressure-sensitive ink, handwriting-to-text while writing,
 shape and math recognition, a replacement for a dedicated note app (layers, PDF
-annotation, infinite canvas), recognition of drawings.
+annotation, infinite canvas), recognition of drawings. (PDF annotation came later, as
+[datasheets](datasheets.md): PDF pages in Write.)
 
 ## Decisions (owner, 2026-10-26)
 
