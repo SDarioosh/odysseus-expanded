@@ -198,3 +198,16 @@ def test_lines_highlighted_to_different_lengths_take_only_their_own_words():
     long = hline("h2", wide, 125, 300, 242)           # "Output current up to 1.2"
     (m,) = marks(short, long)
     assert m["text"] == "Input Output current up to 1.2"
+
+
+def test_a_margin_note_beside_a_line_is_near_that_line():
+    # Written in the right margin (x 700..780), level with line 2 (234..250): 368 units
+    # across from the end of the line, counting 92: too far. At x 600 it is near it.
+    (m,) = marks(stroke("w0", PEN, [(700, 236), (740, 248), (780, 238)]))
+    assert m["near"] != "Output current up to 1.2 A"
+    # Level with line 2, 268 across (67): near line 2, though line 1 ends nearer across.
+    (m,) = marks(stroke("w1", PEN, [(600, 236), (640, 248), (680, 238)]))
+    assert m["kind"] == "ink" and m["near"] == "Output current up to 1.2 A"
+    # The same note a few lines lower is near nothing.
+    (m,) = marks(stroke("w2", PEN, [(600, 420), (640, 432), (680, 422)]))
+    assert m["near"] == ""

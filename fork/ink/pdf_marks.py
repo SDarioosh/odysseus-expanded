@@ -27,7 +27,9 @@ Grouping rules (only PDF pages; blank pages between them have no PDF text):
 * **ink**: every other pen stroke. Strokes whose boxes come within ``INK_GAP`` of each
   other are one mark (handwriting, arrows, circles). ``text``: the words whose centre
   lies inside the box (a circled value); when there are none, ``near`` is the PDF text
-  line closest to the box, if within ``NEAR_MAX``.
+  line closest to the box: the one closest up or down (level with it best), then the
+  closest across; both gaps within ``NEAR_MAX``, a gap across counting ``NEAR_ACROSS``
+  as much (a margin note beside a line is near it).
 
 Marks of a page are ordered by ``y`` then ``x`` of their box. Text is the words in the
 PDF's reading order joined by spaces, at most ``MAX_TEXT`` characters.
@@ -58,6 +60,10 @@ UNDERLINE_BELOW = 6.0     # ... or this far below it (descenders, a line drawn h
 UNDERLINE_OVERLAP = 0.4   # ... and the line covers at least this share of their width
 INK_GAP = 30.0            # pen strokes this close are one mark
 NEAR_MAX = 80.0           # an ink mark's "near" line is at most this far away
+# Across the page a gap counts this much: a note written in the margin beside a line is
+# "near" it (a datasheet's margin can be 300 units from the end of a line), while one a
+# few lines up or down is not.
+NEAR_ACROSS = 0.25
 MAX_TEXT = 2000
 CACHE_PAGES = 2000        # pages of marks kept in memory
 
@@ -179,13 +185,17 @@ def _near_line(words: Sequence[Any], box: Box) -> str:
     lines: dict[Any, list[Any]] = {}
     for w in words:
         lines.setdefault(w.line, []).append(w)
-    best, best_gap = None, NEAR_MAX
+    best, best_key = None, None
     for line_words in lines.values():
         lb = (min(w.x0 for w in line_words), min(w.y0 for w in line_words),
               max(w.x1 for w in line_words), max(w.y1 for w in line_words))
-        g = _gap(box, lb)
-        if g <= best_gap:
-            best, best_gap = line_words, g
+        across = max(0.0, lb[0] - box[2], box[0] - lb[2]) * NEAR_ACROSS
+        dy = max(0.0, lb[1] - box[3], box[1] - lb[3])
+        if dy > NEAR_MAX or across > NEAR_MAX:
+            continue
+        key = (round(dy), across)  # level with the note first, then the closest across
+        if best_key is None or key < best_key:
+            best, best_key = line_words, key
     return _join(best) if best else ""
 
 
