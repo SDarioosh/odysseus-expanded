@@ -266,6 +266,58 @@ def test_ink_marks_show_what_was_written_and_how_the_reading_goes():
     assert got["polling"] == [True, False, False, False]
 
 
+@needs_node
+def test_circled_and_arrow_marks_and_notes_that_point():
+    got = _node("""
+    out.circle = P.markDisplay({kind: 'circle', text: '3.3 V', near: '', points_to: false, reading: 'none'});
+    out.circleTo = P.markDisplay({kind: 'circle', text: '3.3 V', near: 'Output voltage', points_to: true, reading: 'none'});
+    out.circleEmpty = P.markDisplay({kind: 'circle', text: '', near: '', reading: 'none'});
+    out.arrow = P.markDisplay({kind: 'arrow', text: 'Enable input threshold', near: '', points_to: false, reading: 'none'});
+    out.arrowNone = P.markDisplay({kind: 'arrow', text: '', near: '', reading: 'none'});
+    out.inkTo = P.markDisplay({kind: 'ink', text: '', near: 'EN pin', points_to: true, reading: 'read', written: 'pull up'});
+    out.inkBy = P.markDisplay({kind: 'ink', text: '', near: 'EN pin', points_to: false, reading: 'read', written: 'pull up'});
+    """)
+    assert got["circle"]["label"] == "Circled" and got["circle"]["main"] == "“3.3 V”"
+    assert got["circle"]["editable"] is False and got["circle"]["sub"] == ""
+    assert got["circleTo"]["sub"] == "points to “Output voltage”" and got["circleTo"]["main"] == "“3.3 V”"
+    assert got["circleEmpty"]["main"] == "no PDF text inside it"
+    assert got["arrow"]["label"] == "Arrow" and got["arrow"]["editable"] is False
+    assert got["arrow"]["main"] == "points to “Enable input threshold”"
+    assert got["arrowNone"]["main"] == "points to no PDF text" and got["arrowNone"]["quiet"] is True
+    assert got["inkTo"]["sub"] == "points to “EN pin”" and got["inkTo"]["editable"] is True
+    assert got["inkBy"]["sub"] == "by “EN pin”"
+
+
+@needs_node
+def test_part_tags_downloads_and_library_items():
+    got = _node("""
+    out.add = P.addPart(['ZX-100'], '  TPS 62130  ');
+    out.dup = P.addPart(['ZX-100'], 'zx-100');
+    out.empty = P.addPart([], '   ');
+    out.long = P.addPart([], 'x'.repeat(41));
+    out.full = P.addPart(Array.from({length: 20}, (_, i) => 'P' + i), 'ZX-1');
+    out.remove = P.removePart(['A1', 'B2', 'C3'], 'B2');
+    out.shown = P.partsShown(['A1', 'B2', 'C3', 'D4', 'E5']);
+    out.none = P.partsShown(undefined);
+    out.dl = P.pdfDownloads('n 1', 'Fictional regulator.PDF');
+    out.dlNoName = P.pdfDownloads('n2', '');
+    out.lib = P.libraryItem({id: 7, title: '  Buck   converter ', updated_at: '2026-11-02T09:00:00Z'}, 'en-GB');
+    out.libBare = P.libraryItem({id: 'd', title: '', updated_at: 'never'});
+    """)
+    assert got["add"] == {"parts": ["ZX-100", "TPS 62130"], "error": ""}
+    assert got["dup"]["parts"] == ["ZX-100"] and "already" in got["dup"]["error"]
+    assert got["empty"]["error"] and got["long"]["error"] and got["full"]["error"]
+    assert len(got["full"]["parts"]) == 20
+    assert got["remove"] == ["A1", "C3"]
+    assert got["shown"] == {"shown": ["A1", "B2", "C3"], "more": 2}
+    assert got["none"] == {"shown": [], "more": 0}
+    assert got["dl"]["marked"] == {"href": "/api/ink/notes/n%201/pdf?marks=1", "name": "Fictional regulator (marked).pdf"}
+    assert got["dl"]["original"] == {"href": "/api/ink/notes/n%201/pdf", "name": "Fictional regulator.pdf"}
+    assert got["dlNoName"]["marked"]["name"] == "datasheet (marked).pdf"
+    assert got["lib"]["id"] == "7" and got["lib"]["title"] == "Buck converter" and "2026" in got["lib"]["date"]
+    assert got["libBare"] == {"id": "d", "title": "Untitled PDF", "date": ""}
+
+
 # ------------------------------------------------------------------ in a browser
 NOTE_ID = "0d5a7c1e-2b3f-4a6d-9e8f-1a2b3c4d5e6f"
 P1 = "pd111111111111"
@@ -510,3 +562,164 @@ def test_marks_panel_reads_handwriting_polls_and_corrects_in_a_browser(tmp_path)
     assert got["puts"] == [{"written": "check EN pull-down"}]
     assert "“check EN pull-down”" in got["saved"]
     assert got["title"] == "Corrected by you"
+
+
+E2E_LATER = """
+import { launch, openPage } from '%(harness)s';
+
+const { browser, skip } = await launch();
+if (skip) { console.log('SKIP ' + skip); process.exit(0); }
+const NOTE = '%(note)s', P1 = '%(p1)s';
+const pdfPage = { id: P1, width: 1000, height: 1294, strokes: [], pdf: { page: 1, width_pt: 612, height_pt: 792 } };
+const pdfNote = { note_id: NOTE, owner: 'alice', title: 'Fictional regulator', paper: 'blank', edited_at: 1000,
+  image_url: null, parts: ['ZX-100'], pdf: { file: 'pdfs/x.pdf', hash: 'f'.repeat(64), name: 'regulator.pdf', pages: 1,
+    at: '2026-11-01T10:00:00Z' }, pages: [pdfPage] };
+const page = await openPage(browser, { hubState: JSON.stringify({ notes: { [NOTE]: pdfNote } }) });
+await page.route('**/api/ink/notes/*/pdf/*.png*', (route) => route.fulfill({ status: 404, body: '' }));
+await page.evaluate(([NOTE, pdfNote, P1]) => {
+  window.libraryDocs = [];
+  window.posts = [];
+  window.partPuts = [];
+  hub.answer['GET /api/ink/notes'] = { status: 200, body: () => ({ notes: Object.values(hub.notes).map((n) => ({
+    id: n.note_id, title: n.title, pages: n.pages.length, edited_at: n.edited_at, image_url: null,
+    pdf: { name: n.pdf.name, pages: 1 }, parts: n.parts || [] })) }) };
+  hub.answer['GET /api/ink/library-pdfs'] = { status: 200, body: () => ({ documents: window.libraryDocs }) };
+  hub.answer['GET /api/ink/marks'] = { status: 200, body: { q: 'zx', results: [{ note_id: NOTE, title: 'Fictional regulator',
+    pdf_name: 'regulator.pdf', parts: ['ZX-100'], mark: { id: 'm-a', page_id: 'pd1', page_no: 1, kind: 'highlight',
+      color: '#ffd400', box: [0, 0, 10, 10], text: 'Supply voltage', near: '', reading: 'none' } }] } };
+  const json = (status, body) => new Response(JSON.stringify(body), { status, headers: { 'content-type': 'application/json' } });
+  const f = window.fetch;
+  window.fetch = async (u, o = {}) => {
+    const path = new URL(u, location.href).pathname;
+    const method = (o.method || 'GET').toUpperCase();
+    if (method === 'POST' && /^[/]api[/]ink[/]notes[/][^/]+[/]pdf$/.test(path)) {
+      const id = decodeURIComponent(path.split('/')[4]);
+      window.posts.push({ id, type: o.headers && o.headers['Content-Type'], body: JSON.parse(o.body) });
+      const n = { ...pdfNote, note_id: id, title: 'Fictional buck converter', parts: ['TPS62130'], edited_at: 2000 };
+      hub.notes[id] = n;
+      return json(200, n);
+    }
+    if (method === 'PUT' && path.endsWith('/parts')) {
+      const body = JSON.parse(o.body);
+      window.partPuts.push(body);
+      if (body.parts.includes('BAD')) return json(400, { detail: 'Not a part number: BAD' });
+      return json(200, { parts: body.parts });
+    }
+    if (method === 'GET' && path.endsWith('/marks') && path !== '/api/ink/marks') {
+      return json(200, { note_id: 'x', title: 'x', reading: false, marks: [
+        { id: 'm-c', page_id: P1, page_no: 1, kind: 'circle', color: '#c62828', box: [100, 100, 80, 40], text: '3.3 V',
+          near: '', points_to: false, written: '', reading: 'none', strokes: ['c'], at: 1 },
+        { id: 'm-r', page_id: P1, page_no: 1, kind: 'arrow', color: '#1f1f1f', box: [100, 300, 200, 20],
+          text: 'Enable input threshold', near: '', points_to: false, written: '', reading: 'none', strokes: ['r'], at: 1 },
+        { id: 'm-i', page_id: P1, page_no: 1, kind: 'ink', color: '#1f5fbf', box: [700, 500, 200, 60], text: '',
+          near: 'EN pin', points_to: true, written: 'pull up', reading: 'read', strokes: ['i'], at: 1 }] });
+    }
+    return f(u, o);
+  };
+}, [NOTE, pdfNote, P1]);
+const out = {};
+const until = (fn, arg, timeout = 8000) => page.waitForFunction(fn, arg, { timeout });
+const msg = () => page.evaluate(() => document.querySelector('.ink-list .bs-msg').textContent);
+
+// The list card: the PDF badge, then the part numbers.
+await page.evaluate(() => view.refresh());
+await until(() => document.querySelector('.ink-card .ink-badge'));
+out.card = await page.evaluate(() => [...document.querySelector('.ink-card h2').children].map((c) => c.textContent));
+// Search results name the parts.
+await page.fill('.ink-mark-search', 'zx');
+await until(() => document.querySelector('.ink-mark-result'));
+out.result = await page.evaluate(() => document.querySelector('.ink-mark-result').textContent);
+
+// From Library: an empty Library says so; then one PDF, chosen, opens as a new note.
+await page.click('.ink-from-library');
+await until(() => document.querySelector('.ink-list .bs-msg').textContent.includes('Library'));
+out.empty = await msg();
+await page.evaluate(() => { window.libraryDocs = [{ id: 'doc-7', title: 'Fictional buck converter', updated_at: '2026-11-02T09:00:00Z' }]; });
+await page.click('.ink-from-library');
+await until(() => document.querySelector('.ink-library-item'));
+out.item = await page.evaluate(() => document.querySelector('.ink-library-item').textContent);
+await page.click('.ink-library-item');
+await until(() => view._state.screen === 'editor' && view._state.note.title === 'Fictional buck converter');
+out.posts = await page.evaluate(() => window.posts);
+out.opened = await page.evaluate(() => view._state.note.id);
+
+// Part numbers beside the title: add with Enter, a duplicate is refused here, a 400 is shown, remove.
+const chips = () => page.evaluate(() => [...document.querySelectorAll('.ink-parts .ink-part')].map((c) => c.dataset.part));
+out.chips0 = await chips();
+await page.fill('.ink-part-input', 'ZX-100');
+await page.press('.ink-part-input', 'Enter');
+await until(() => document.querySelectorAll('.ink-parts .ink-part').length === 2);
+out.chips1 = await chips();
+out.input = await page.inputValue('.ink-part-input');
+await page.fill('.ink-part-input', 'zx-100');
+await page.press('.ink-part-input', 'Enter');
+await page.waitForTimeout(700);
+out.dupStatus = await page.evaluate(() => document.querySelector('.ink-status').textContent);
+await page.fill('.ink-part-input', 'BAD');
+await page.press('.ink-part-input', 'Enter');
+await page.waitForTimeout(700);
+out.badStatus = await page.evaluate(() => document.querySelector('.ink-status').textContent);
+out.chipsAfterBad = await chips();
+await page.click('.ink-part[data-part="TPS62130"] .ink-part-remove');
+await until(() => document.querySelectorAll('.ink-parts .ink-part').length === 1);
+out.chips2 = await chips();
+out.partPuts = await page.evaluate(() => window.partPuts);
+
+// The Marks panel: the download links, and the circled, arrow and pointing note labels.
+await page.click('.ink-marks-btn');
+await until(() => document.querySelectorAll('.ink-marks .ink-mark-row').length === 3);
+out.dl = await page.evaluate(() => ['.ink-dl-marked', '.ink-dl-original'].map((s) => {
+  const a = document.querySelector(s); return { href: a.getAttribute('href'), download: a.getAttribute('download'), text: a.textContent };
+}));
+out.rows = await page.evaluate(() => [...document.querySelectorAll('.ink-marks .ink-mark-row')].map((r) => ({
+  id: r.dataset.mark, text: r.querySelector('.ink-mark').textContent, edit: !!r.querySelector('.ink-mark-edit') })));
+// Offline, a download says it needs the hub instead of starting.
+await page.evaluate(() => { Object.defineProperty(navigator, 'onLine', { configurable: true, get: () => false }); });
+await page.click('.ink-dl-marked');
+out.offline = await page.evaluate(() => document.querySelector('.ink-marks-state').textContent);
+out.errors = await page.evaluate(() => window.errors);
+await browser.close();
+console.log(JSON.stringify(out));
+"""
+
+
+@pytest.mark.skipif(not _playwright_ready(), reason="node or playwright not available")
+def test_library_parts_downloads_and_new_mark_kinds_in_a_browser(tmp_path):
+    script = tmp_path / "pdf_later_e2e.mjs"
+    script.write_text(E2E_LATER % {"harness": _HARNESS, "note": NOTE_ID, "p1": P1})
+    proc = subprocess.run(["node", str(script)], capture_output=True, text=True, cwd=str(_REPO), timeout=300)
+    assert proc.returncode == 0, proc.stderr
+    last = proc.stdout.strip().splitlines()[-1]
+    if last.startswith("SKIP"):
+        pytest.skip(last)
+    got = json.loads(last)
+    assert got["errors"] == []
+    assert got["card"][:2] == ["PDF", "ZX-100"]
+    assert "ZX-100" in got["result"]
+    assert got["empty"] == "No PDFs in the Library."
+    assert "Fictional buck converter" in got["item"] and "2026" in got["item"]
+    assert len(got["posts"]) == 1
+    post = got["posts"][0]
+    assert post["id"] == got["opened"] and post["id"] != NOTE_ID
+    assert post["type"] == "application/json"
+    assert post["body"]["document_id"] == "doc-7" and isinstance(post["body"]["edited_at"], int)
+    assert set(post["body"]) == {"document_id", "edited_at"}
+    assert got["chips0"] == ["TPS62130"]
+    assert got["chips1"] == ["TPS62130", "ZX-100"] and got["input"] == ""
+    assert "already" in got["dupStatus"]
+    assert "Not a part number: BAD" in got["badStatus"]
+    assert got["chipsAfterBad"] == ["TPS62130", "ZX-100"]
+    assert got["chips2"] == ["ZX-100"]
+    assert got["partPuts"] == [{"parts": ["TPS62130", "ZX-100"]}, {"parts": ["TPS62130", "ZX-100", "BAD"]},
+                               {"parts": ["ZX-100"]}]
+    opened = got["opened"]
+    assert got["dl"][0] == {"href": f"/api/ink/notes/{opened}/pdf?marks=1", "download": "regulator (marked).pdf",
+                            "text": "Download with marks"}
+    assert got["dl"][1] == {"href": f"/api/ink/notes/{opened}/pdf", "download": "regulator.pdf",
+                            "text": "Original PDF"}
+    rows = {r["id"]: r for r in got["rows"]}
+    assert "Circled" in rows["m-c"]["text"] and "“3.3 V”" in rows["m-c"]["text"] and not rows["m-c"]["edit"]
+    assert "Arrow" in rows["m-r"]["text"] and "points to “Enable input threshold”" in rows["m-r"]["text"]
+    assert not rows["m-r"]["edit"]
+    assert "“pull up”" in rows["m-i"]["text"] and "points to “EN pin”" in rows["m-i"]["text"] and rows["m-i"]["edit"]
+    assert got["offline"] == "Downloading needs a connection to the hub."

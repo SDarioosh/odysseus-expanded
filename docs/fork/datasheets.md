@@ -21,7 +21,9 @@ refuses it ("Datasheets stay in Odysseus") and `INK_AUTO_SEND` skips them.
 
 - **Import PDF** in the Write list (up to 100 MB, 500 pages; password-protected PDFs are
   refused). The note takes the file's name, has a **PDF** badge and "PDF, N pages:
-  name". Import needs the hub (never queued offline).
+  name". Import needs the hub (never queued offline). **From Library** next to it lists
+  the PDFs in the Library and copies the one picked into a new datasheet (the Library
+  document stays as it is).
 - **Writing on it.** Every pen and the highlighter work on a PDF page (a photo page takes
   only the highlighter). The highlighter is drawn under the ink, so the print stays
   readable. A PDF page is as tall as its PDF page (Letter, A4, landscape); **Page**
@@ -47,15 +49,17 @@ refuses it ("Datasheets stay in Odysseus") and `INK_AUTO_SEND` skips them.
     model works, "Could not read it" with the reason, or "a drawing (no words)".
     **Edit** corrects a reading (kept until the note's strokes change).
   Tapping a mark scrolls to it and flashes its box. The panel refreshes after each save,
-  and every 4 s while a note is being read.
+  and every 4 s while a note is being read. At its top, **Download with marks** (a copy
+  with the marks as PDF annotations; unsaved writing is saved first) and **Original PDF**.
 - **Search marks** in the Write list (shown once there is a datasheet): every word typed
   must appear in a mark's text, what was written on it, its "near" line, the note title,
   its part numbers or the PDF's name.
   Results open the datasheet at that mark.
 - **Part numbers.** A datasheet carries the part numbers it is about (tags, at most 20).
   Import suggests them from the file name and the first page's largest line (its title):
-  tokens mixing letters and digits such as ZX-100, TPS62130, LM317T. The owner changes
-  them; search and chat find a datasheet by them like by its title.
+  tokens mixing letters and digits such as ZX-100, TPS62130, LM317T. They show as chips
+  beside the title (**Add part no.**, Enter; each chip has a remove button) and on the
+  list cards; search and chat find a datasheet by them like by its title.
 - **Links.** `/#open=write&note=<id>&page=<page id>&mark=<mark id>` opens Write at a mark
   (chat answers link to marks this way; other notes later).
 - **Asking in chat.** "What did I note about the ZX-100's enable pin?": the brain looks

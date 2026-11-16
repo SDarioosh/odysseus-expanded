@@ -194,7 +194,7 @@ export function createPdfImages({ urlOf, onChange = () => {}, makeImage = null, 
 }
 
 // ------------------------------------------------------------------ marks
-const KIND_LABEL = { highlight: 'Highlight', underline: 'Underline', ink: 'Note' };
+const KIND_LABEL = { highlight: 'Highlight', underline: 'Underline', ink: 'Note', circle: 'Circled', arrow: 'Arrow' };
 export const markKindLabel = (kind) => KIND_LABEL[kind] || 'Mark';
 
 // What the panel says for a mark: the PDF text under it, else the text line near it.
@@ -222,14 +222,31 @@ export function markDisplay(mark, max = 160) {
   const pdfLine = q.text ? (q.near ? `near “${q.text}”` : `“${q.text}”`) : '';
   const out = { label: markKindLabel(m.kind), main: '', quoted: false, quiet: false, sub: '', title: '',
     editable: m.kind === 'ink', busy: false };
-  if (m.kind !== 'ink' || !m.reading || m.reading === 'none') {
-    // Highlight, underline, or an ink mark from a hub that doesn't read marks.
-    if (q.text) { out.main = pdfLine; out.quoted = !q.near; out.quiet = q.near; }
-    else { out.main = 'no PDF text under it'; out.quiet = true; }
+  const nearLine = clean(m.near);
+  if (m.kind === 'arrow') {
+    // An arrow alone: the line at its head (`text`, else `near`).
+    if (q.text) { out.main = `points to “${q.text}”`; out.quoted = true; }
+    else { out.main = 'points to no PDF text'; out.quiet = true; }
     return out;
   }
-  // An ink mark: what was written first, the PDF text it is on or by under it.
-  out.sub = q.text ? (q.near ? `by “${q.text}”` : `on “${q.text}”`) : '';
+  if (m.kind !== 'ink' || !m.reading || m.reading === 'none') {
+    // Highlight, underline, circled words, or an ink mark from a hub that doesn't read marks.
+    const text = clean(m.text);
+    if (m.kind === 'circle' && m.points_to && nearLine) {
+      out.main = text ? `“${cut(text)}”` : 'no PDF text inside it';
+      out.quoted = !!text;
+      out.quiet = !text;
+      out.sub = `points to “${cut(nearLine)}”`;
+      return out;
+    }
+    if (q.text) { out.main = pdfLine; out.quoted = !q.near; out.quiet = q.near; }
+    else { out.main = m.kind === 'circle' ? 'no PDF text inside it' : 'no PDF text under it'; out.quiet = true; }
+    return out;
+  }
+  // An ink mark: what was written first, the PDF text it is on, by, or points to under it
+  // (`points_to`: `near` is the line an arrow drawn with the note points to).
+  if (m.points_to && nearLine) out.sub = `points to “${cut(nearLine)}”`;
+  else out.sub = q.text ? (q.near ? `by “${q.text}”` : `on “${q.text}”`) : '';
   const written = clean(m.written);
   if (MARK_READING_BUSY.includes(m.reading)) {
     out.main = 'Reading…';
@@ -305,4 +322,57 @@ export function writeHash({ note, page = null, mark = null }) {
   if (page) h += `&page=${encodeURIComponent(page)}`;
   if (mark) h += `&mark=${encodeURIComponent(mark)}`;
   return h;
+}
+
+// ------------------------------------------------------------- part numbers
+// A datasheet's part-number tags (hub: fork/ink/parts.py): at most MAX_PARTS, each 1 to
+// MAX_PART_LEN characters (trimmed, inner spaces collapsed), unique ignoring case (the
+// first spelling kept), in the owner's order.
+export const MAX_PARTS = 20;
+export const MAX_PART_LEN = 40;
+export const cleanPart = (s) => String(s == null ? '' : s).replace(/\s+/g, ' ').trim();
+
+// The tags with `raw` added: { parts, error } (error '' when added; parts unchanged on error).
+export function addPart(parts, raw) {
+  const list = Array.isArray(parts) ? parts.slice() : [];
+  const p = cleanPart(raw);
+  if (!p) return { parts: list, error: 'Type a part number first.' };
+  if (p.length > MAX_PART_LEN) return { parts: list, error: `A part number has at most ${MAX_PART_LEN} characters.` };
+  if (list.some((x) => String(x).toLowerCase() === p.toLowerCase())) return { parts: list, error: `${p} is already there.` };
+  if (list.length >= MAX_PARTS) return { parts: list, error: `At most ${MAX_PARTS} part numbers.` };
+  list.push(p);
+  return { parts: list, error: '' };
+}
+
+export const removePart = (parts, p) => (Array.isArray(parts) ? parts.filter((x) => x !== p) : []);
+
+// At most `max` tags to show, and how many more there are.
+export function partsShown(parts, max = 3) {
+  const list = Array.isArray(parts) ? parts.filter((x) => typeof x === 'string' && x) : [];
+  return { shown: list.slice(0, max), more: Math.max(0, list.length - max) };
+}
+
+// --------------------------------------------------------------- downloads
+// The datasheet as a file: the original, or a copy with the marks as PDF annotations
+// (GET /api/ink/notes/<id>/pdf[?marks=1], fork/ink/pdf_export.py). Plain links, so the
+// browser sends the sign-in cookie; the names are the hub's own (Content-Disposition).
+export function pdfDownloads(noteId, name = '') {
+  const base = `/api/ink/notes/${encodeURIComponent(noteId)}/pdf`;
+  const file = cleanPart(name) || 'datasheet.pdf';
+  const stem = file.replace(/\.pdf$/i, '') || 'datasheet';
+  return { original: { href: base, name: `${stem}.pdf` },
+    marked: { href: `${base}?marks=1`, name: `${stem} (marked).pdf` } };
+}
+
+// ---------------------------------------------------------------- Library
+// A Library PDF in the From Library picker: its title and the day it last changed.
+export function libraryItem(doc, locale = undefined) {
+  const d = doc || {};
+  const title = cleanPart(d.title) || 'Untitled PDF';
+  let date = '';
+  const t = d.updated_at ? Date.parse(d.updated_at) : NaN;
+  if (Number.isFinite(t)) {
+    try { date = new Date(t).toLocaleDateString(locale, { year: 'numeric', month: 'short', day: 'numeric' }); } catch (_) { date = ''; }
+  }
+  return { id: String(d.id == null ? '' : d.id), title, date };
 }

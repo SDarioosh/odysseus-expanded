@@ -161,3 +161,29 @@
 .ink-root .ink-mark-text.quiet { color: color-mix(in srgb, var(--fg) 65%, transparent); font-style: italic; }
 .ink-root .ink-mark-input { width: 100%; height: 34px; box-sizing: border-box; }
 .ink-root .ink-mark-actions { display: flex; gap: 6px; }
+
+/* Datasheets, later features: part-number chips beside the title and on list cards, the
+   From Library picker, and the two download links at the top of the Marks panel. */
+.ink-root .ink-parts { flex-wrap: wrap; max-width: 100%; }
+.ink-root .ink-parts[hidden] { display: none; }
+.ink-root .ink-parts-list { display: inline-flex; flex-wrap: wrap; gap: 4px; }
+.ink-root .ink-part { display: inline-flex; align-items: center; gap: 2px; padding: 0 6px; border-radius: 10px;
+                      font-size: 12px; line-height: 20px; white-space: nowrap;
+                      border: 1px solid var(--border); background: color-mix(in srgb, var(--fg) 6%, var(--bg)); }
+.ink-root .ink-card-part { margin-right: 4px; vertical-align: 2px; font-weight: 400; }
+.ink-root .ink-part-remove { display: inline-flex; align-items: center; justify-content: center; padding: 0;
+                             width: 18px; height: 18px; border: 0; background: transparent; color: var(--fg);
+                             cursor: pointer; opacity: 0.6; }
+.ink-root .ink-part-remove:hover, .ink-root .ink-part-remove:focus-visible { opacity: 1; }
+.ink-root .ink-part-remove svg { width: 11px; height: 11px; }
+.ink-root .ink-part-input { width: 120px; height: 30px; }
+.ink-root .ink-library { margin: 0 0 10px; display: flex; flex-direction: column; gap: 4px; max-width: 640px; }
+.ink-root .ink-library[hidden] { display: none; }
+.ink-root .ink-library-head { display: flex; align-items: center; justify-content: space-between; }
+.ink-root .ink-library-head h2 { margin: 0; font-size: 15px; }
+.ink-root .ink-library-item { display: flex; gap: 8px; justify-content: space-between; align-items: baseline;
+                              height: auto; min-height: 34px; text-align: left; white-space: normal; }
+.ink-root .ink-library-title { flex: 1; min-width: 0; overflow-wrap: anywhere; }
+.ink-root .ink-marks-dl { display: flex; flex-wrap: wrap; gap: 6px; }
+.ink-root .ink-marks-dl .bs-btn { display: inline-flex; align-items: center; min-height: 30px; text-decoration: none;
+                                  color: var(--fg); }

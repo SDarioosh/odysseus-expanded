@@ -44,8 +44,8 @@
 //   searches the marks of every PDF note. Never sent to Athena.
 
 import { el, request as api } from './forkDom.js';
-import { createPdfImages, groupMarks, inkPageCount, isPdfNote, isPdfPage, markDisplay, marksStillReading,
-  pageIndexAt, pageTops, planPdfPages, scrollForBox, tierFor } from './forkInkPdf.js';
+import { addPart, createPdfImages, groupMarks, inkPageCount, isPdfNote, isPdfPage, libraryItem, markDisplay,
+  marksStillReading, MAX_PART_LEN, partsShown, pdfDownloads, removePart, pageIndexAt, pageTops, planPdfPages, scrollForBox, tierFor } from './forkInkPdf.js';
 
 export const PAGE_W = 1000;
 export const PAGE_H = 1414;
@@ -332,6 +332,7 @@ const ICONS = {
   book: SVG('<path d="M5 4h11a3 3 0 0 1 3 3v13H8a3 3 0 0 1-3-3z"/><path d="M5 17a3 3 0 0 1 3-3h11"/>'),
   trash: SVG('<path d="M4 7h16M10 11v6M14 11v6M6 7l1 13h10l1-13M9 7V4h6v3"/>'),
   marks: SVG('<path d="M4 6h10M4 12h16M4 18h12"/><path d="M17 3l3 3-3 3"/>'),
+  remove: SVG('<path d="M6 6l12 12M18 6L6 18"/>'),
 };
 
 // ----------------------------------------------------------------- local store
@@ -653,8 +654,16 @@ export function mountInk(root, options = {}) {
   const penGroup = el('div', { class: 'ink-group ink-pens', role: 'group', 'aria-label': 'Pens' },
     ...penBtns, widthBtn, eraserBtn);
   const editGroup = el('div', { class: 'ink-group' }, undoBtn, redoBtn, paperBtn, addPageBtn, photoBtn, marksBtn);
+  // A datasheet's part numbers, beside the title: chips, each with Remove, and a field
+  // to add one (Enter). Saved on the hub at once (PUT .../parts).
+  const partsList = el('span', { class: 'ink-parts-list' });
+  const partInput = el('input', { class: 'bs-input ink-part-input', type: 'text', maxlength: String(MAX_PART_LEN),
+    placeholder: 'Add part no.', 'aria-label': 'Add a part number (Enter)' });
+  const partsBox = el('div', { class: 'ink-group ink-parts', hidden: true, role: 'group', 'aria-label': 'Part numbers' },
+    partsList, partInput);
   const bar = el('div', { class: 'ink-bar' },
     el('div', { class: 'ink-group' }, backBtn, titleInput),
+    partsBox,
     bookGroup,
     el('div', { class: 'ink-group ink-tabs', role: 'tablist', 'aria-label': 'View' }, tabInk, tabText),
     penGroup, editGroup, status);
@@ -674,8 +683,15 @@ export function mountInk(root, options = {}) {
   const marksList = el('div', { class: 'ink-marks-list' });
   const marksState = el('div', { class: 'bs-meta ink-marks-state', role: 'status', 'aria-live': 'polite' });
   const marksClose = iconBtn('next', 'Close the marks', () => toggleMarks(false));
+  // The datasheet as a file: with the marks as PDF annotations, or the original. Plain
+  // links (the browser sends the sign-in cookie); `download` keeps the page open.
+  const dlMarked = el('a', { class: 'bs-btn ink-dl-marked', href: '#', download: '', text: 'Download with marks',
+    title: 'The PDF with your pen, highlights and notes as PDF annotations' });
+  const dlOriginal = el('a', { class: 'bs-btn ink-dl-original', href: '#', download: '', text: 'Original PDF',
+    title: 'The PDF as it was imported' });
   const marksPanel = el('aside', { class: 'ink-marks', hidden: true, 'aria-label': 'Marks' },
-    el('div', { class: 'ink-marks-head' }, el('h2', { text: 'Marks' }), marksClose), marksState, marksList);
+    el('div', { class: 'ink-marks-head' }, el('h2', { text: 'Marks' }), marksClose),
+    el('div', { class: 'ink-marks-dl' }, dlMarked, dlOriginal), marksState, marksList);
   const flashBox = el('div', { class: 'ink-flash', hidden: true, 'aria-hidden': 'true' });
   stage.append(flashBox, marksPanel);
 
@@ -1602,7 +1618,8 @@ export function mountInk(root, options = {}) {
   }, { passive: false });
   wrap.addEventListener('keydown', (e) => {
     // Not in the Text tab: Ctrl+Z there undoes typing, never strokes.
-    if (state.screen !== 'editor' || state.view !== 'ink' || e.target === titleInput || marksPanel.contains(e.target)) return;
+    if (state.screen !== 'editor' || state.view !== 'ink' || e.target === titleInput || marksPanel.contains(e.target)
+      || partsBox.contains(e.target)) return;
     const mod = e.ctrlKey || e.metaKey;
     if (mod && e.key.toLowerCase() === 'z') { e.preventDefault(); if (e.shiftKey) redo(); else undo(); }
     else if (mod && e.key.toLowerCase() === 'y') { e.preventDefault(); redo(); }
@@ -1913,7 +1930,7 @@ export function mountInk(root, options = {}) {
   function fromServer(n) {
     return { id: n.note_id, title: n.title || '', paper: paperOf(n), edited_at: n.edited_at || 0,
       image_url: n.image_url || null, synced: true, ...('notebook' in n ? { notebook: n.notebook } : {}),
-      ...(n.pdf ? { pdf: n.pdf } : {}),
+      ...(n.pdf ? { pdf: n.pdf } : {}), ...(Array.isArray(n.parts) ? { parts: n.parts } : {}),
       pages: (n.pages || []).map((p) => ({ id: p.id, width: p.width, height: p.height, strokes: p.strokes || [],
         ...(p.photo ? { photo: p.photo } : {}), ...(p.pdf ? { pdf: p.pdf } : {}) })) };
   }
@@ -2634,6 +2651,11 @@ export function mountInk(root, options = {}) {
     const res = await uploadPdf(uuid(), file, { edited_at: Date.now(), paper: 'blank' }, (pct) => {
       if (my === nav) listMessage(pct < 100 ? `Uploading ${name}... ${pct}%` : `Reading ${name} on the hub...`);
     });
+    await openImported(res, my, db);
+  }
+
+  // The hub's answer to an import (a file or a Library PDF): the new note, opened.
+  async function openImported(res, my, db) {
     if (db !== store) return; // another user signed in meanwhile
     if (!(res && res.ok && res.body)) {
       if (my === nav) {
@@ -2647,6 +2669,130 @@ export function mountInk(root, options = {}) {
     if (my !== nav || (state.screen !== 'list' && state.screen !== 'book')) { refreshListSoon(); return; }
     ++nav;
     openLoaded(note);
+  }
+
+  // From Library: the owner's Library PDFs (GET /api/ink/library-pdfs) in a small list
+  // under the buttons; choosing one copies it into a new datasheet note on the hub.
+  async function pickLibrary(box) {
+    if (!online()) { listMessage('From Library needs a connection to the hub.', true); return; }
+    if (!box.hidden) { box.hidden = true; box.textContent = ''; return; } // the button closes it again
+    const my = nav;
+    box.hidden = false;
+    box.textContent = '';
+    box.append(el('div', { class: 'bs-meta', text: 'Loading the Library...' }));
+    let res = null;
+    try { res = await api('/api/ink/library-pdfs'); } catch (_) { res = null; }
+    if (my !== nav) return;
+    box.textContent = '';
+    const docs = res && res.ok && res.body && Array.isArray(res.body.documents) ? res.body.documents : null;
+    if (!docs) {
+      box.hidden = true;
+      listMessage(res ? `The hub said ${res.status}: the Library could not be listed.` : 'The hub is not reachable: the Library needs it.', true);
+      return;
+    }
+    if (!docs.length) { box.hidden = true; listMessage('No PDFs in the Library.'); return; }
+    box.append(el('div', { class: 'ink-library-head' }, el('h2', { text: 'Open a Library PDF' }),
+      el('button', { type: 'button', class: 'bs-btn ink-library-cancel', text: 'Cancel',
+        onclick: () => { box.hidden = true; box.textContent = ''; } })));
+    for (const d of docs) {
+      const item = libraryItem(d);
+      if (!item.id) continue;
+      box.append(el('button', { type: 'button', class: 'bs-btn ink-library-item', 'data-doc': item.id,
+        onclick: () => { box.hidden = true; box.textContent = ''; importLibraryPdf(item); } },
+      el('span', { class: 'ink-library-title', text: item.title }), el('span', { class: 'bs-meta', text: item.date })));
+    }
+  }
+
+  async function importLibraryPdf(item) {
+    const my = nav;
+    const db = store;
+    listMessage(`Opening ${item.title} from the Library...`);
+    let res = null;
+    try {
+      res = await api(`${API}/${enc(uuid())}/pdf`, { method: 'POST',
+        body: JSON.stringify({ document_id: item.id, edited_at: Date.now() }) });
+    } catch (_) { res = null; }
+    await openImported(res, my, db);
+  }
+
+  // ------------------------------------------------------ part numbers
+  function renderParts() {
+    const note = state.note;
+    const pdf = !!note && isPdfNote(note);
+    setProp(partsBox, 'hidden', !pdf);
+    partsList.textContent = '';
+    if (!pdf) return;
+    for (const p of note.parts || []) {
+      const rm = el('button', { type: 'button', class: 'ink-part-remove', title: `Remove ${p}`, 'aria-label': `Remove ${p}`,
+        onclick: () => saveParts(removePart(note.parts || [], p)) });
+      rm.innerHTML = ICONS.remove; // our own static SVG
+      partsList.append(el('span', { class: 'ink-part', 'data-part': p }, el('span', { text: p }), rm));
+    }
+  }
+
+  let partsSaving = 0;
+  async function saveParts(parts) {
+    if (!state.note) return false;
+    const my = nav;
+    const db = store;
+    const id = state.note.id;
+    if (!online()) { setStatus('Part numbers are saved on the hub: it is not reachable now.', true); return false; }
+    const seq = ++partsSaving;
+    let res = null;
+    try { res = await api(`${API}/${enc(id)}/parts`, { method: 'PUT', body: JSON.stringify({ parts }) }); } catch (_) { res = null; }
+    if (!current(my, id, db) || seq !== partsSaving) return false;
+    if (!(res && res.ok && res.body && Array.isArray(res.body.parts))) {
+      setStatus(res ? `Part numbers not saved: ${(res.body && res.body.detail) || `the hub said ${res.status}`}.`
+        : 'Part numbers not saved: the hub is not reachable.', true);
+      return false;
+    }
+    state.note.parts = res.body.parts;
+    renderParts();
+    try { // this device's copy shows them too (the next save keeps them)
+      const local = await db.get('notes', id);
+      if (local) { local.parts = res.body.parts; await db.put('notes', local); }
+    } catch (_) { /* memory only */ }
+    return true;
+  }
+
+  partInput.addEventListener('keydown', async (e) => {
+    if (e.key === 'Escape') { partInput.value = ''; partInput.blur(); return; }
+    if (e.key !== 'Enter' || !state.note) return;
+    e.preventDefault();
+    const got = addPart(state.note.parts || [], partInput.value);
+    if (got.error) { setStatus(got.error, true); return; }
+    if (await saveParts(got.parts)) partInput.value = '';
+  });
+
+  // ------------------------------------------------------ downloads
+  function syncDownloads() {
+    const note = state.note;
+    if (!note || !isPdfNote(note)) return;
+    const d = pdfDownloads(note.id, note.pdf && note.pdf.name);
+    setAttr(dlMarked, 'href', d.marked.href);
+    setAttr(dlMarked, 'download', d.marked.name);
+    setAttr(dlOriginal, 'href', d.original.href);
+    setAttr(dlOriginal, 'download', d.original.name);
+  }
+
+  // Both need the hub; the marked copy also needs the latest writing there first.
+  for (const a of [dlMarked, dlOriginal]) {
+    a.addEventListener('click', async (e) => {
+      if (a.dataset.go === '1') { delete a.dataset.go; return; } // the click below, after the save
+      if (!online()) {
+        e.preventDefault();
+        setText(marksState, 'Downloading needs a connection to the hub.');
+        return;
+      }
+      if (a !== dlMarked || !state.note || (!state.dirty && state.note.synced !== false)) return;
+      e.preventDefault();
+      setText(marksState, 'Saving your writing first...');
+      const ok = await pushStrokes(state.note.id);
+      if (!ok) { setText(marksState, 'Your writing is not on the hub yet: try again when it has synced.'); return; }
+      setText(marksState, '');
+      a.dataset.go = '1';
+      a.click();
+    });
   }
 
   // The Marks panel: the hub's marks of this note, by page; a tap scrolls to one and
@@ -2871,7 +3017,8 @@ export function mountInk(root, options = {}) {
     if (!res.body.results.length) { out.append(el('div', { class: 'bs-meta', text: 'No marks match.' })); return; }
     for (const r of res.body.results) {
       const m = r.mark || {};
-      const where = [r.title || r.pdf_name || 'Untitled', m.page_no ? `page ${m.page_no}` : '', markDisplay(m).label].filter(Boolean).join(' · ');
+      const parts = Array.isArray(r.parts) && r.parts.length ? r.parts.join(', ') : '';
+      const where = [r.title || r.pdf_name || 'Untitled', parts, m.page_no ? `page ${m.page_no}` : '', markDisplay(m).label].filter(Boolean).join(' · ');
       const lines = markLines(m, where);
       lines[1].className = 'ink-mark-where';
       out.append(el('button', { type: 'button', class: 'bs-btn ink-mark-result', 'data-note': r.note_id, 'data-mark': m.id || '',
@@ -2912,6 +3059,7 @@ export function mountInk(root, options = {}) {
       pdfPlanKey = '';
       marksData = null;
       marksPanel.hidden = true;
+      partInput.value = '';
       stopMarksPoll();
       editingMark = null;
       flashAt = null;
@@ -2921,6 +3069,8 @@ export function mountInk(root, options = {}) {
     state.curPage = null;
     render(); // a different note: draw it all (resize below draws at once when sized)
     titleInput.value = note.title || '';
+    renderParts();
+    syncDownloads();
     listView.hidden = true;
     editor.hidden = false;
     syncTools();
@@ -3185,6 +3335,7 @@ export function mountInk(root, options = {}) {
           edited_at: n.edited_at, pages: n.pages.length, waiting: !n.synced, blocked: n.blocked,
           transcripts: known && known.transcripts, athena: known && known.athena, paper: paperOf(n),
           pdf: known ? (known.pdf || null) : (n.pdf ? { name: n.pdf.name, pages: n.pdf.pages } : null),
+          parts: known ? (known.parts || []) : (n.parts || []),
           notebook: known ? known.notebook : (n.notebook || null), notebook_after: n.notebook_after || null });
       }
     }
@@ -3220,9 +3371,12 @@ export function mountInk(root, options = {}) {
       ...photoButtons('a quick note'),
       el('button', { type: 'button', class: 'bs-btn ink-import-pdf', title: 'A datasheet or any PDF: write and highlight on its pages',
         onclick: () => pickPdf() }, 'Import PDF'),
+      el('button', { type: 'button', class: 'bs-btn ink-from-library', title: 'A PDF already in your Library: write and highlight on its pages',
+        onclick: () => pickLibrary(library) }, 'From Library'),
       el('span', { class: 'bs-meta', text: 'Write with the pen; one finger scrolls, two fingers zoom. '
         + 'Saved on this device first, then in your notes. If two devices change the same note, the last edit wins.' }));
     const msg = el('div', { class: `bs-msg${message ? ' error' : ''}`, text: message });
+    const library = el('div', { class: 'ink-library', hidden: true, role: 'group', 'aria-label': 'Library PDFs' });
     // Search marks: what was highlighted, underlined or written on any PDF (shown once a PDF note exists).
     const searchInput = el('input', { type: 'search', class: 'bs-input ink-mark-search', placeholder: 'Search marks',
       'aria-label': 'Search what you marked on your PDFs', maxlength: '200' });
@@ -3234,7 +3388,7 @@ export function mountInk(root, options = {}) {
       searchTimer = setTimeout(() => searchMarks(searchInput.value.trim(), searchOut), 300);
     });
     const list = el('div', { class: 'ink-notes' }, el('div', { class: 'bs-status', text: 'Loading...' }));
-    listView.append(head, msg, searchBox, list);
+    listView.append(head, msg, library, searchBox, list);
 
     const got = await loadItems(my);
     if (!got) return;
@@ -3350,7 +3504,13 @@ export function mountInk(root, options = {}) {
     del.addEventListener('click', (e) => { e.stopPropagation(); deleteNote(n.id, n.title); });
     const title = page ? `Page ${page} · ${n.title || 'Untitled'}` : (n.title || 'Untitled');
     const heading = el('h2', { text: title });
-    if (n.pdf) heading.prepend(el('span', { class: 'ink-badge', text: 'PDF' }));
+    if (n.pdf) {
+      // The PDF badge, then the datasheet's part numbers (a few, and how many more).
+      const { shown, more } = partsShown(n.parts);
+      heading.prepend(el('span', { class: 'ink-badge', text: 'PDF' }),
+        ...shown.map((p) => el('span', { class: 'ink-part ink-card-part', text: p })),
+        ...(more ? [el('span', { class: 'ink-part ink-card-part', text: `+${more}` })] : []));
+    }
     const card = el('div', { class: 'bs-card ink-card', role: 'button', tabindex: '0', 'data-note': n.id },
       thumb, el('div', { class: 'ink-card-text' }, heading, el('div', { class: 'bs-meta', text: meta }),
         moveMenu(n)),
