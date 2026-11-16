@@ -47,9 +47,10 @@ owner's exact approval of that call, which they claim themselves (by voice the g
 ``alarm`` itself, with the asking device).
 
 The tools upstream doesn't have run here, owner-scoped: ``search_beliefs``
-(``fork/beliefs/search.py``) and ``search_documents`` (the owner's document library,
-``fork/brain/documents.py``). A result of theirs with content is outside content: it arms
-the run like an untrusted result of upstream's runner (:func:`distrust`). A
+(``fork/beliefs/search.py``), ``search_documents`` (the owner's document library,
+``fork/brain/documents.py``) and ``search_datasheet_marks`` (what the owner marked on
+PDFs in Write, ``fork/brain/datasheets.py``). A result of theirs with content is outside
+content: it arms the run like an untrusted result of upstream's runner (:func:`distrust`). A
 ``create_document`` call runs in upstream's line format and its result names the new
 document for the model (``documents.py``). Before ``web_search`` runs, its query passes
 through
@@ -67,6 +68,7 @@ import logging
 from dataclasses import dataclass, field, replace
 from typing import Any
 
+from fork.brain import datasheets as brain_datasheets
 from fork.brain import documents as brain_documents
 from fork.brain import toolset
 
@@ -146,6 +148,11 @@ def turn_disabled_tools(request: Any, owner: Any, *, privileges: dict | None = N
     # search_documents; nor a chat with the documents toggle off, nor a hub without one.
     if "manage_documents" in disabled or rag is None or not use_rag:
         disabled.add(toolset.SEARCH_DOCUMENTS)
+    # Datasheet marks are the owner's handwritten notes on PDFs: as for search_beliefs,
+    # not for non-admin users (upstream's public-user policy) or API tokens; and not
+    # when manage_notes is off (the admin's global list).
+    if delegated or blocked_tools_for_owner(owner) or "manage_notes" in disabled:
+        disabled.add(toolset.SEARCH_DATASHEET_MARKS)
     return disabled
 
 
@@ -496,6 +503,8 @@ async def execute(run: ToolRun, name: str, content: str, *, exact_approval: Any 
     if name in toolset.FORK_TOOLS:
         if name == toolset.SEARCH_BELIEFS:
             desc, result = await _search_beliefs(run, content)
+        elif name == toolset.SEARCH_DATASHEET_MARKS:
+            desc, result = await brain_datasheets.search(run.owner, content)
         else:
             desc, result = await brain_documents.search(run.owner, run.rag, content)
         if result.pop("untrusted_content", False):

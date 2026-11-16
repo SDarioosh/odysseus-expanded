@@ -6,7 +6,9 @@ schemas come from upstream's ``src/tool_schemas.py`` (``FUNCTION_TOOL_SCHEMAS``)
 MCP manager for Athena's tools (server ``convo``, or ``athena``: ``fork/athena/client.py``),
 from :data:`SEARCH_BELIEFS_SCHEMA` for the fork's own ``search_beliefs`` and from
 ``fork/brain/documents.py`` for the documents group (the fork's ``search_documents``, and
-upstream's two document tools with shorter descriptions), and from
+upstream's two document tools with shorter descriptions), from
+``fork/brain/datasheets.py`` for the ``datasheets`` group (the fork's
+``search_datasheet_marks``: what the owner marked on PDFs in Write), and from
 ``fork/voice/announce_tool.py`` for the ``home`` group's ``announce`` (a write: offered to
 an admin while Home Assistant is set up) and from ``fork/voice/alarm_tool.py`` for its
 ``alarm`` (offered to an admin while the hub knows an Echo; ``list`` reads, the rest
@@ -35,6 +37,7 @@ import threading
 from collections import OrderedDict
 from typing import Any
 
+from fork.brain.datasheets import SEARCH_DATASHEET_MARKS
 from fork.brain.documents import SEARCH_DOCUMENTS
 from fork.brain.documents import TOOLS as DOCUMENT_TOOLS
 
@@ -55,6 +58,7 @@ GROUPS: dict[str, tuple[str, ...]] = {
                   "manage_memory"),
     "documents": DOCUMENT_TOOLS,
     "beliefs": (SEARCH_BELIEFS,),
+    "datasheets": (SEARCH_DATASHEET_MARKS,),
     "chats": ("search_chats",),
     "email": ("list_email_accounts", "list_emails", "search_emails", "read_email",
               "draft_email", "draft_email_reply", "send_email", "reply_to_email"),
@@ -72,14 +76,15 @@ ATHENA_GROUP = "athena"
 READ_TOOLS = frozenset({
     "web_search", "web_fetch", "get_weather", "resolve_contact", "search_chats",
     "list_email_accounts", "list_emails", "search_emails", "read_email", SEARCH_BELIEFS,
-    SEARCH_DOCUMENTS,
+    SEARCH_DOCUMENTS, SEARCH_DATASHEET_MARKS,
 })
 ACTION_TOOLS = frozenset({
     "manage_calendar", "manage_tasks", "manage_notes", "manage_contact", "manage_memory",
     "manage_documents",
 })
 # The fork's own tools: run in fork code (fork/brain/tools.py), not upstream's runner.
-FORK_TOOLS = frozenset({SEARCH_BELIEFS, SEARCH_DOCUMENTS, ANNOUNCE, ALARM})
+FORK_TOOLS = frozenset({SEARCH_BELIEFS, SEARCH_DOCUMENTS, SEARCH_DATASHEET_MARKS, ANNOUNCE,
+                        ALARM})
 
 NEVER = frozenset({
     "bash", "host_shell", "python", "read_file", "write_file", "edit_file", "apply_patch",
@@ -164,6 +169,9 @@ def _schema(name: str, builtin: dict[str, dict]) -> dict | None:
     """The schema offered for a built-in or fork tool of a group."""
     if name == SEARCH_BELIEFS:
         return SEARCH_BELIEFS_SCHEMA
+    if name == SEARCH_DATASHEET_MARKS:
+        from fork.brain.datasheets import SCHEMA as DATASHEETS_SCHEMA
+        return DATASHEETS_SCHEMA
     if name in DOCUMENT_TOOLS:
         from fork.brain.documents import schema
         return schema(name, builtin)

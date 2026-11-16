@@ -40,12 +40,20 @@ and :func:`search` read the owner's notes; a page's marks are cached in memory b
 changed (and ``page_words`` has its own cache). What the model read in an ink mark
 (``written``, ``reading``) is merged in when a note's marks are answered
 (``fork/ink/mark_reading.py``): readings change without the strokes changing.
+
+:func:`search` (the Write list) wants every word of the query; :func:`rank` (programs:
+the brain's ``search_datasheet_marks``, ``fork/brain/datasheets.py``) takes a loose
+question instead: :func:`query_words` drops stop words, :func:`score` (pure) counts the
+query words found in a mark (its text, what was written, its near line) plus those found
+in the datasheet's title or PDF name, so every mark of a datasheet named in the query
+qualifies.
 """
 
 from __future__ import annotations
 
 import itertools
 import math
+import re
 import threading
 from collections import OrderedDict
 from collections.abc import Iterable, Sequence
@@ -348,18 +356,12 @@ def note_marks(owner: str | None, note_id: str) -> dict[str, Any] | None:
             "unread": unread}
 
 
-def search(owner: str | None, q: str, limit: int = 30) -> list[dict[str, Any]]:
-    """Marks of every PDF note of the owner matching all words of ``q`` (case-insensitive,
-    in the mark's text, near line and written text, the note's title and the PDF's name),
-    newest mark first: ``[{"note_id", "title", "pdf_name", "mark"}]`` (the mark with what
-    was read in it)."""
+def _pdf_notes_marks(owner: str | None):
+    """``(note_id, title, pdf_name, mark)`` for every mark of the owner's PDF notes, the
+    mark with what was read in it."""
     from fork.ink import mark_reading
     from fork.ink import notes as ink
 
-    terms = [t for t in str(q or "").lower().split() if t]
-    if not terms:
-        return []
-    found: list[dict[str, Any]] = []
     for note in ink.handwritten_notes(owner):
         store = note["owner"] if owner is None else owner
         stored = ink.load_sidecar(store, note["id"])
@@ -368,12 +370,112 @@ def search(owner: str | None, q: str, limit: int = 30) -> list[dict[str, Any]]:
             continue
         title = note.get("title") or ""
         name = str(pdf.get("name") or "")
-        about = f"{title} {name}".lower()
         for raw in _stored_marks(owner, note["id"], stored):
-            mark = mark_reading.merged(raw, stored, note["id"])
-            hay = f"{mark['text']} {mark['near']} {mark['written']} {about}".lower()
-            if all(t in hay for t in terms):
-                found.append({"note_id": note["id"], "title": title, "pdf_name": name,
-                              "mark": mark})
+            yield note["id"], title, name, mark_reading.merged(raw, stored, note["id"])
+
+
+def search(owner: str | None, q: str, limit: int = 30) -> list[dict[str, Any]]:
+    """Marks of every PDF note of the owner matching all words of ``q`` (case-insensitive,
+    in the mark's text, near line and written text, the note's title and the PDF's name),
+    newest mark first: ``[{"note_id", "title", "pdf_name", "mark"}]`` (the mark with what
+    was read in it)."""
+    terms = [t for t in str(q or "").lower().split() if t]
+    if not terms:
+        return []
+    found: list[dict[str, Any]] = []
+    for note_id, title, name, mark in _pdf_notes_marks(owner):
+        about = f"{title} {name}".lower()
+        hay = f"{mark['text']} {mark['near']} {mark['written']} {about}".lower()
+        if all(t in hay for t in terms):
+            found.append({"note_id": note_id, "title": title, "pdf_name": name,
+                          "mark": mark})
     found.sort(key=lambda r: r["mark"]["at"], reverse=True)
     return found[:max(0, int(limit))]
+
+
+# -------------------------------------------------------------- ranked search
+# Words a question about marks is made of that say nothing about what is marked.
+STOP_WORDS = frozenset("""
+a an the and or but if of on in to at by for from with without into onto about as is are
+was were be been am do does did done have has had it its this that these those there here
+what which who whom whose when where why how i me my mine we our you your he she they them
+his her their any some all every each no not can could would should will shall may might
+must please tell show find give list say said get got look looking know
+note notes noted mark marks marked marking wrote write written writing highlight
+highlights highlighted underline underlines underlined circled datasheet datasheets sheet
+sheets pdf pdfs page pages document documents
+""".split())
+TITLE_WEIGHT = 1.0  # a query word found in the datasheet's title or PDF name
+_WORD = re.compile(r"\w+(?:[.\-/+]\w+)*")
+_SEP = re.compile(r"[.\-/+]")
+
+
+def _tokens(text: str) -> list[str]:
+    return _WORD.findall(str(text or "").lower())
+
+
+def query_words(q: str) -> list[str]:
+    """The words of a loose query that can find a mark: lowercase, each once, without
+    stop words and one-letter words ("ZX-100's enable pin" -> zx-100, enable, pin)."""
+    out: dict[str, None] = {}
+    for t in _tokens(q):
+        if len(t) > 1 and t not in STOP_WORDS:
+            out[t] = None
+    return list(out)
+
+
+def _token_set(*texts: str) -> set[str]:
+    """Tokens of ``texts``, with a joined token's parts and the token without its
+    separators (``zx-100`` also gives ``zx``, ``100`` and ``zx100``)."""
+    out: set[str] = set()
+    for text in texts:
+        for t in _tokens(text):
+            out.add(t)
+            if _SEP.search(t):
+                out.update(p for p in _SEP.split(t) if p)
+                out.add(_SEP.sub("", t))
+    return out
+
+
+def _found(word: str, tokens: set[str]) -> bool:
+    """``word`` is one of ``tokens``, starts one (three letters or more, not a number:
+    "volt" finds "voltage", "100" doesn't find "1000"), or is a plural of one ("pins"
+    finds "pin"). A word with separators also counts without them ("zx-100" finds
+    "zx100")."""
+    if word in tokens or _SEP.sub("", word) in tokens:
+        return True
+    if len(word) >= 3 and word.isalpha() and any(t.startswith(word) for t in tokens):
+        return True
+    return len(word) > 3 and word.endswith("s") and word[:-1] in tokens
+
+
+def score(words: Sequence[str], mark: dict[str, Any], title: str = "",
+          pdf_name: str = "") -> float:
+    """How well a mark answers ``words`` (:func:`query_words`): one for each word found
+    in the mark (its PDF text, what was written on it, its near line), plus
+    :data:`TITLE_WEIGHT` for each word found in the datasheet's title or PDF name. 0: the
+    mark doesn't answer. Pure."""
+    in_mark = _token_set(str(mark.get("text") or ""), str(mark.get("written") or ""),
+                         str(mark.get("near") or ""))
+    about = _token_set(title, re.sub(r"\.pdf$", "", str(pdf_name or ""), flags=re.IGNORECASE))
+    hits = sum(1 for w in words if _found(w, in_mark))
+    named = sum(1 for w in words if _found(w, about))
+    return hits + TITLE_WEIGHT * named
+
+
+def rank(owner: str | None, query: str, limit: int = 10) -> list[dict[str, Any]]:
+    """The owner's marks that best answer a loose ``query``, best first (then newest):
+    ``[{"note_id", "title", "pdf_name", "mark", "score"}]``, only marks with a score
+    (:func:`score`). Empty when the query has no words left (:func:`query_words`)."""
+    words = query_words(query)
+    limit = max(0, int(limit))
+    if not words or not limit:
+        return []
+    found: list[dict[str, Any]] = []
+    for note_id, title, name, mark in _pdf_notes_marks(owner):
+        s = score(words, mark, title, name)
+        if s > 0:
+            found.append({"note_id": note_id, "title": title, "pdf_name": name,
+                          "mark": mark, "score": s})
+    found.sort(key=lambda r: (r["score"], r["mark"]["at"]), reverse=True)
+    return found[:limit]
