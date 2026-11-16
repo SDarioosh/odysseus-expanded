@@ -47,7 +47,10 @@ refuses it ("Datasheets stay in Odysseus") and `INK_AUTO_SEND` skips them.
   or the PDF's name.
   Results open the datasheet at that mark.
 - **Links.** `/#open=write&note=<id>&page=<page id>&mark=<mark id>` opens Write at a mark
-  (for chat answers and other notes later).
+  (chat answers link to marks this way; other notes later).
+- **Asking in chat.** "What did I note about the ZX-100's enable pin?": the brain looks
+  through the marks (`search_datasheet_marks`, [brain.md](brain.md#datasheet-marks-2026-11-16))
+  and quotes what you marked or wrote, with a link to each mark.
 - Handwriting on a PDF page can still be transcribed (Text tab): the hub reads the ink
   only, without the PDF under it.
 
@@ -142,8 +145,13 @@ drawn when it lifts.
 2. **Marks**: built: highlights, underlines and ink notes with their PDF text, the Marks
    panel, search, deep links, and each handwritten note read on its own by the local
    vision model, correctable by hand.
-3. **Finding them from chat**: a read-only brain tool over the marks ("what did I note
-   about the ZX-100's enable pin?"), answers linking to the mark.
+3. **Finding them from chat**: built: the brain's read-only `search_datasheet_marks`
+   (`fork/brain/datasheets.py`) ranks the owner's marks for a loose query
+   (`pdf_marks.rank`: words found in the mark's text, what was written and its near line,
+   plus the datasheet's title or PDF name, so naming a part lists its datasheet's marks)
+   and answers each with its datasheet, page, kind, text, what was written (corrected or
+   not), the line beside it and a link that opens Write at it. Owner-only, not for API
+   tokens or non-admin users, refused by voice for a voice that isn't the owner's.
 4. **Later**: export a copy with the marks as real PDF annotations; part-number tags;
    box and arrow marks; links between marks; open a PDF from the Library in Write.
 
@@ -153,7 +161,9 @@ drawn when it lifts.
 transcription, Athena), `test_ink_pdf_routes.py`, `test_ink_pdf_marks.py` (grouping),
 `test_ink_marks_routes.py`, `test_ink_mark_reading.py` (the cut-out page, settling,
 runs with a fake reader, corrections), `test_ink_pdf_view.py` (node and a Playwright run of the view
-with a fake hub). Fictional PDFs: `tests/fork/pdf_fixtures.py`.
+with a fake hub), `test_brain_datasheet_marks.py` (the ranked search and the brain's tool:
+scoring, owner isolation, who gets it, the gate armed, voice). Fictional PDFs:
+`tests/fork/pdf_fixtures.py`.
 
 ## Server verification (owner)
 
@@ -175,11 +185,16 @@ On the server (read-only checks) and the tablet:
    model). Edit it, then search for the corrected word.
 7. Offline (Wi-Fi off): ink on loaded pages still saves; a page not loaded says so;
    back online, it loads.
+8. In a chat, ask about a part and a pin you marked ("what did I note about the
+   <part>'s enable pin?"). Expected: the answer quotes what you highlighted or wrote and
+   links each mark; the link opens Write at the mark and flashes it.
 
 ## Files
 
 - `fork/ink/pdf.py`: PDF checks, rendering, words (pypdfium2).
-- `fork/ink/pdf_marks.py`: strokes to marks, marks of a note, search.
+- `fork/ink/pdf_marks.py`: strokes to marks, marks of a note, search, ranked search.
+- `fork/brain/datasheets.py`: the brain's `search_datasheet_marks`; hooks in
+  `fork/brain/toolset.py`, `tools.py`, `prompt.py`, `settings.py`, `fork/voice/policy.py`.
 - `fork/ink/mark_reading.py`: reading each handwritten note, corrections.
 - `fork/routes/ink_marks_routes.py`: the marks routes.
 - `fork/ink/notes.py`, `fork/ink/transcribe.py`, `fork/ink/athena.py`,
@@ -188,4 +203,5 @@ On the server (read-only checks) and the tablet:
 - `static/js/forkInkPdf.js`; `static/js/forkInk.js`, `static/js/forkInkLinks.js`,
   `static/js/forkModuleWindows.js` (one line), `static/css/fork-ink.css`.
 - Tests: `tests/fork/test_ink_pdf.py`, `test_ink_pdf_routes.py`, `test_ink_pdf_marks.py`,
-  `test_ink_marks_routes.py`, `test_ink_mark_reading.py`, `test_ink_pdf_view.py`, `pdf_fixtures.py`.
+  `test_ink_marks_routes.py`, `test_ink_mark_reading.py`, `test_ink_pdf_view.py`,
+  `test_brain_datasheet_marks.py`, `pdf_fixtures.py`.

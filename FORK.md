@@ -144,6 +144,7 @@ the link goes to its details (what it does, its files, whether it can go upstrea
 - [Handwritten notes: Write keeps up on a tablet](docs/fork/handwritten-notes.md#handwritten-notes-write-keeps-up-on-a-tablet): no lag writing or erasing on a tablet; the app under Write idles.
 - [Datasheets: PDFs in Write](docs/fork/datasheets.md): Import PDF makes a handwritten note of PDF pages (rendered by the hub at the zoom's sharpness), marked with every pen and the highlighter; never sent to Athena.
 - [Datasheets: marks and search](docs/fork/datasheets.md#what-the-owner-sees): highlights, underlines and ink notes on a PDF page know the PDF text they cover, and each handwritten note is read by the local vision model (correctable); a Marks panel per datasheet, Search marks across all of them, and `/#open=write&note=…&page=…&mark=…` links.
+- [Datasheets: marks in chat](docs/fork/brain.md#datasheet-marks-2026-11-16): the brain's read-only `search_datasheet_marks` answers "what did I note about the ZX-100's enable pin?" from the owner's marks (ranked loose search, `fork/ink/pdf_marks.py` `rank`; `fork/brain/datasheets.py`), quoting them with links that open Write at the mark.
 
 ### Notes, calendar and tasks
 

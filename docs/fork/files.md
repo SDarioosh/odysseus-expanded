@@ -114,6 +114,7 @@ is an old path of a module that moved into `fork/`; it only aliases the new modu
 - `fork/brain/__init__.py`
 - `fork/brain/attachments.py`
 - `fork/brain/claims.py`
+- `fork/brain/datasheets.py`
 - `fork/brain/documents.py`
 - `fork/brain/history.py`
 - `fork/brain/open_document.py`
@@ -440,6 +441,7 @@ is an old path of a module that moved into `fork/`; it only aliases the new modu
 - `tests/fork/test_brain_attachments.py`
 - `tests/fork/test_brain_claims.py`
 - `tests/fork/test_brain_context.py`
+- `tests/fork/test_brain_datasheet_marks.py`
 - `tests/fork/test_brain_documents.py`
 - `tests/fork/test_brain_eval_harness.py`
 - `tests/fork/test_brain_forget.py`
