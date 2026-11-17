@@ -406,8 +406,9 @@ await page.click('.ink-mark-result');
 await until(() => window.view._state.screen === 'editor' && !document.querySelector('.ink-flash').hidden);
 out.fromSearch = await page.evaluate(() => ({ sy: view._state.sy, note: view._state.note.id }));
 
-// Both backgrounds load at the tier for the page width on screen (about 860 px: 1200).
-await until((ids) => ids.every((id) => view._pdfImages.status(id) === 'ok'), [P1, P2]);
+// Both backgrounds load a fast preview first (600), then the tier for the page width on
+// screen (about 860 px: 1200).
+await until((ids) => ids.every((id) => (view._pdfImages.best(id) || {}).tier === 1200), [P1, P2]);
 out.images = images.slice();
 out.marksBtn = await page.evaluate(() => !document.querySelector('.ink-marks-btn').hidden);
 
@@ -474,8 +475,12 @@ def test_pdf_note_in_a_browser(tmp_path):
     assert got["fromSearch"]["note"] == NOTE_ID
     assert got["fromSearch"]["sy"] > 1000
     assert got["marksBtn"] is True
-    assert all("?w=1200" in u for u in got["images"]), got["images"]
-    assert {u.split("/")[-1].split(".")[0] for u in got["images"]} == {P1, P2}
+    asked: dict[str, list[int]] = {}
+    for u in got["images"]:
+        asked.setdefault(u.split("/")[-1].split(".")[0], []).append(int(u.rsplit("=", 1)[1]))
+    assert set(asked) == {P1, P2}
+    # A page with no image yet: the preview first (shown at once), then the sharp one.
+    assert all(seq == [600, 1200] for seq in asked.values()), asked
     r, g, b, _ = got["pixel"]
     assert b > 230 and r < 215, got["pixel"]                 # the PDF page, not white paper
     assert got["strokes"] == 1
@@ -660,10 +665,14 @@ const out = {};
 const until = (fn, arg, timeout = 8000) => page.waitForFunction(fn, arg, { timeout });
 const msg = () => page.evaluate(() => document.querySelector('.ink-list .bs-msg').textContent);
 
-// The list card: the PDF badge, then the part numbers.
+// The list card: the PDF badge before the title, the part numbers on a line under it
+// (in the title's line they pushed the title out of a narrow card).
 await page.evaluate(() => view.refresh());
 await until(() => document.querySelector('.ink-card .ink-badge'));
-out.card = await page.evaluate(() => [...document.querySelector('.ink-card h2').children].map((c) => c.textContent));
+out.card = await page.evaluate(() => [...document.querySelector('.ink-card h2').children,
+  ...document.querySelector('.ink-card .ink-card-parts').children].map((c) => c.textContent));
+out.cardTitle = await page.evaluate(() => { const h = document.querySelector('.ink-card h2');
+  return { text: h.lastChild.textContent, parts: h.querySelectorAll('.ink-part').length }; });
 // Search results name the parts.
 await page.fill('.ink-mark-search', 'zx');
 await until(() => document.querySelector('.ink-mark-result'));
@@ -734,6 +743,7 @@ def test_library_parts_downloads_and_new_mark_kinds_in_a_browser(tmp_path):
     got = json.loads(last)
     assert got["errors"] == []
     assert got["card"][:2] == ["PDF", "ZX-100"]
+    assert got["cardTitle"]["parts"] == 0 and got["cardTitle"]["text"]
     assert "ZX-100" in got["result"]
     assert got["empty"] == "No PDFs in the Library."
     assert "Fictional buck converter" in got["item"] and "2026" in got["item"]

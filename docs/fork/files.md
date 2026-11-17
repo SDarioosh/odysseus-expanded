@@ -511,6 +511,7 @@ is an old path of a module that moved into `fork/`; it only aliases the new modu
 - `tests/fork/test_ink_phone_layout.py`
 - `tests/fork/test_ink_photos.py`
 - `tests/fork/test_ink_routes.py`
+- `tests/fork/test_ink_tablet_layout.py`
 - `tests/fork/test_ink_transcribe.py`
 - `tests/fork/test_ink_upstream_contract.py`
 - `tests/fork/test_insight_eval.py`
