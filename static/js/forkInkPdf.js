@@ -20,6 +20,7 @@ export const PDF_LOAD_AROUND = 1;                    // pages loaded beyond the 
 export const PDF_KEEP_AROUND = 2;                    // pages beyond the visible ones that keep their image
 export const PDF_PIXEL_BUDGET = 40e6;                // decoded pixels kept at most (~160 MB)
 export const NEIGHBOUR_TIER = 1200;                  // a page off screen loads at most this sharp
+export const PREVIEW_TIER = 600;                     // a page with no image yet loads this first (fast), then its tier
 
 export const isPdfPage = (page) => !!(page && page.pdf);
 export const isPdfNote = (note) => !!(note && (note.pdf || (note.pages || []).some(isPdfPage)));

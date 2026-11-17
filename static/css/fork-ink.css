@@ -35,6 +35,13 @@
   /* A note open: the page gets the whole screen. The window's title bar goes (the
      editor's Back returns to the list, which has it again). */
   #fork-ink-modal:has(.ink-editor:not([hidden])) > .modal-content > .modal-header { display: none !important; }
+  /* ...and the window's own padding and border, which left a dead frame around the page
+     (the app under it showed through there). Only a screen's cut-out keeps its room. */
+  #fork-ink-modal:has(.ink-editor:not([hidden])):not(#theme-modal):not(#styled-confirm-overlay) > .modal-content.fm-modal-content {
+    border: 0 !important;
+    padding: env(safe-area-inset-top, 0px) env(safe-area-inset-right, 0px) env(safe-area-inset-bottom, 0px)
+             env(safe-area-inset-left, 0px) !important;
+  }
 }
 
 .ink-root { display: flex; flex-direction: column; flex: 1; min-height: 0; height: 100%; outline: none; }
@@ -46,7 +53,11 @@
 .ink-root .ink-card { display: flex; gap: 10px; align-items: center; cursor: pointer; margin: 0; }
 .ink-root .ink-card:hover, .ink-root .ink-card:focus-visible { border-color: var(--fg); outline: none; }
 .ink-root .ink-card-text { flex: 1; min-width: 0; }
-.ink-root .ink-card-text h2 { overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+/* A title takes two lines before it is cut (a card is narrow on a tablet held upright);
+   a long file name in the line under it breaks instead of running under Delete. */
+.ink-root .ink-card-text h2 { overflow: hidden; display: -webkit-box; -webkit-box-orient: vertical;
+                              -webkit-line-clamp: 2; line-clamp: 2; overflow-wrap: anywhere; }
+.ink-root .ink-card-text .bs-meta { overflow-wrap: anywhere; }
 .ink-root .ink-thumb { width: 56px; height: 79px; flex: none; background: #fff; border: 1px solid var(--border);
                        border-radius: 4px; overflow: hidden; }
 .ink-root .ink-thumb img { width: 100%; height: 100%; object-fit: cover; object-position: top; display: block; }
@@ -91,8 +102,10 @@
 .ink-root .ink-tool-btn .ink-swatch.hl { width: 18px; height: 11px; }
 .ink-root .ink-tool-btn .ink-swatch.hl.wide { width: 22px; height: 14px; }
 
-/* The pen menu (forkInk.js, openMenu): pens and eraser, width, paper. */
-.ink-root .ink-menu { position: absolute; top: calc(100% + 8px); right: 0; z-index: 20; width: 272px;
+/* The pen menu (forkInk.js, openMenu): pens and eraser, width, paper. Where it sits
+   across (left, never off the screen) is set when it opens (placeMenu). */
+.ink-root .ink-menu { position: absolute; top: calc(100% + 8px); right: 0; z-index: 20; width: 288px;
+                      max-width: calc(100vw - 16px); overflow: hidden auto;
                       box-sizing: border-box; padding: 12px; border-radius: 14px; background: var(--bg);
                       border: 1px solid color-mix(in srgb, var(--border) 80%, transparent);
                       box-shadow: 0 12px 32px color-mix(in srgb, #000 22%, transparent),
@@ -105,6 +118,7 @@
                             color: color-mix(in srgb, var(--fg) 55%, transparent); margin: 10px 2px 6px; }
 .ink-root .ink-menu-label:first-child { margin-top: 0; }
 .ink-root .ink-pen-row { display: flex; justify-content: space-between; gap: 4px; }
+.ink-root .ink-pen-row > .bs-btn { flex: 0 1 40px; min-width: 0; }
 .ink-root .ink-menu .ink-pen { width: 40px; height: 40px; min-width: 40px; padding: 0; border-radius: 50%;
                                border-color: transparent; background: none; color: var(--fg); }
 .ink-root .ink-menu .ink-pen:hover { background: color-mix(in srgb, var(--fg) 8%, transparent); }
@@ -234,7 +248,9 @@
 .ink-root .ink-part { display: inline-flex; align-items: center; gap: 2px; padding: 0 6px; border-radius: 10px;
                       font-size: 12px; line-height: 20px; white-space: nowrap;
                       border: 1px solid var(--border); background: color-mix(in srgb, var(--fg) 6%, var(--bg)); }
-.ink-root .ink-card-part { margin-right: 4px; vertical-align: 2px; font-weight: 400; }
+.ink-root .ink-card-parts { display: flex; flex-wrap: wrap; gap: 4px; margin: 3px 0 2px; }
+.ink-root .ink-card-part { display: inline-block; max-width: 100%; overflow: hidden; text-overflow: ellipsis;
+                           font-weight: 400; }
 .ink-root .ink-part-remove { display: inline-flex; align-items: center; justify-content: center; padding: 0;
                              width: 18px; height: 18px; border: 0; background: transparent; color: var(--fg);
                              cursor: pointer; opacity: 0.6; }

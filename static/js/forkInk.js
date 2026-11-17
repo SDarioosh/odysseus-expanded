@@ -45,7 +45,7 @@
 
 import { el, request as api } from './forkDom.js';
 import { addPart, createPdfImages, groupMarks, inkPageCount, isPdfNote, isPdfPage, libraryItem, markDisplay,
-  marksStillReading, MAX_PART_LEN, partsShown, pdfDownloads, removePart, pageIndexAt, pageTops, planPdfPages, scrollForBox, tierFor } from './forkInkPdf.js';
+  marksStillReading, MAX_PART_LEN, partsShown, pdfDownloads, removePart, pageIndexAt, pageTops, planPdfPages, PREVIEW_TIER, scrollForBox, tierFor } from './forkInkPdf.js';
 import { createVelocityTracker, flingDone, flingStep, slideEasing, slideFraction, slidePlan, slideRest } from './forkInkFling.js'; // flick to scroll
 
 export const PAGE_W = 1000;
@@ -677,10 +677,28 @@ export function mountInk(root, options = {}) {
   function openMenu() {
     if (!penMenu.hidden) return;
     penMenu.hidden = false;
+    placeMenu();
     toolBtn.setAttribute('aria-expanded', 'true');
     document.addEventListener('pointerdown', menuOutside, true);
     // The opening transition (CSS) starts from the closed look.
     requestAnimationFrame(() => { if (!penMenu.hidden) penMenu.classList.add('open'); });
+  }
+  // Under the pen button, its right edge on the pen group's, and always on screen: on a
+  // narrow screen (a tablet held upright with part numbers in the bar, a phone) the bar
+  // wraps and the pen group is at the left, where a menu hung from its right edge went
+  // off the screen. Placed when it opens and when the view changes size (a rotation).
+  function placeMenu() {
+    if (penMenu.hidden) return;
+    const g = penGroup.getBoundingClientRect();
+    const v = wrap.getBoundingClientRect();
+    const w = penMenu.offsetWidth;
+    const edge = 8;
+    const left = Math.max(v.left + edge, Math.min(g.right - w, v.right - edge - w));
+    const t = toolBtn.getBoundingClientRect();
+    penMenu.style.right = 'auto';
+    penMenu.style.left = `${Math.round(left - g.left)}px`;
+    penMenu.style.transformOrigin = `${Math.round(t.left + t.width / 2 - left)}px top`;
+    penMenu.style.maxHeight = `${Math.max(120, Math.round(v.bottom - g.bottom - 8 - edge))}px`;
   }
   function closeMenu() {
     if (penMenu.hidden) return;
@@ -1217,6 +1235,7 @@ export function mountInk(root, options = {}) {
       if (!state.note || state.note.id !== pdfNoteId || !pageById(pageId)) return;
       if (state.view === 'text') { imageKey = ''; renderText(); return; }
       if (state.live) { bgWaiting = true; return; } // never a full redraw mid-stroke
+      if (slide && slideStillValid(slide)) { refreshSlide(slide); return; } // a coast: onto its strip
       render();
     },
   });
@@ -1244,9 +1263,13 @@ export function mountInk(root, options = {}) {
 
   // Ask for the backgrounds the view needs (at the tier for the page's width on screen)
   // and drop those of pages far away. Only when the view moved enough to matter.
+  // A page with no image yet is asked for at PREVIEW_TIER first (the hub renders and sends
+  // it several times faster), then at the view's tier: a page scrolled or flicked to shows
+  // at once, soft, and sharpens, instead of staying blank for a second or two.
+  // `previewOnly`: a coast's strip, whose pages are only passed by.
   let pdfPlanKey = '';
   let pdfTier = 0;
-  function pdfPrefetch() {
+  function pdfPrefetch(previewOnly = false) {
     const note = state.note;
     if (!note || !isPdfNote(note) || state.view !== 'ink' || state.screen !== 'editor') return; // the Text tab asks for its own page
     if (pdfNoteId !== note.id) { pdfImages.clear(); pdfNoteId = note.id; pdfPlanKey = ''; }
@@ -1256,12 +1279,12 @@ export function mountInk(root, options = {}) {
     // While fingers pan or pinch, pages coming into view load at the tier of the gesture's
     // start; the tier for the new zoom is asked for once the fingers lift (endPan).
     const tier = panning && pdfTier ? pdfTier : (pdfTier = tierFor(PAGE_W * k, dpr));
-    const key = `${note.id}|${note.pages.length}|${first}|${last}|${tier}|${pdfImages.version}`;
+    const key = `${note.id}|${note.pages.length}|${first}|${last}|${tier}|${pdfImages.version}|${previewOnly}`;
     if (key === pdfPlanKey) return;
     pdfPlanKey = key;
     const plan = planPdfPages(note.pages, first, last, tier);
     pdfImages.retain(plan.keep);
-    for (const [id, t] of plan.load) pdfImages.want(id, t);
+    for (const [id, t] of plan.load) pdfImages.want(id, previewOnly || !pdfImages.best(id) ? Math.min(t, PREVIEW_TIER) : t);
   }
 
   function renderNow() {
@@ -1374,24 +1397,44 @@ export function mountInk(root, options = {}) {
     const sctx = strip.getContext('2d', { alpha: false });
     if (!sctx) { strip.width = 0; strip.height = 0; return 'unsupported'; }
     strip.style.cssText = `inset:auto;left:${px0}px;top:${py0}px;width:${W2}px;height:${H2}px;display:block`;
-    const keep = { w: cssW, h: cssH, sx: state.sx, sy: state.sy };
-    cssW = W2;                                           // draw as if the view were the strip
-    cssH = H2;
-    state.sx = keep.sx + px0 / k;
-    state.sy = keep.sy + py0 / k;
-    try { drawScene(null, sctx); } finally {
-      cssW = keep.w;
-      cssH = keep.h;
-      state.sx = keep.sx;
-      state.sy = keep.sy;
-    }
     const s = { x: { ...plan.x, dist: tx }, y: { ...plan.y, dist: ty }, k, sx: state.sx, sy: state.sy,
-      zoom: state.zoom, note: state.note.id, t0: null, anims: [], left: 0, raf: 0, rest: slideRest(v, plan) };
+      zoom: state.zoom, note: state.note.id, t0: null, anims: [], left: 0, raf: 0, rest: slideRest(v, plan),
+      px0, py0, W2, H2, ctx: sctx, redraw: 0 };
+    drawStrip(s, true);
     slide = s;
     // Start once the strip has been painted (two frames): the animation would otherwise
     // begin over the still picture.
     s.raf = requestAnimationFrame(() => { s.raf = requestAnimationFrame(() => beginSlide(s)); });
     return 'slide';
+  }
+
+  // The pages over the whole of a coast's strip: drawn as if the view were the strip.
+  // `ask`: also ask for the PDF pages on it (a soft image each: they are passed by), so
+  // they are there when the coast reaches them.
+  function drawStrip(s, ask = false) {
+    const keep = { w: cssW, h: cssH, sx: state.sx, sy: state.sy };
+    cssW = s.W2;
+    cssH = s.H2;
+    state.sx = keep.sx + s.px0 / s.k;
+    state.sy = keep.sy + s.py0 / s.k;
+    try {
+      drawScene(null, s.ctx);
+      if (ask) pdfPrefetch(true);
+    } finally {
+      cssW = keep.w;
+      cssH = keep.h;
+      state.sx = keep.sx;
+      state.sy = keep.sy;
+    }
+  }
+  // A PDF page's image arrived while the strip coasts: the strip is drawn again (once a
+  // frame at most), so the page isn't blank when the coast reaches it.
+  function refreshSlide(s) {
+    if (s.redraw) return;
+    s.redraw = requestAnimationFrame(() => {
+      s.redraw = 0;
+      if (slide === s && slideStillValid(s)) drawStrip(s);
+    });
   }
 
   function beginSlide(s) {
@@ -1417,6 +1460,8 @@ export function mountInk(root, options = {}) {
   function cleanupSlide(s) {
     if (s.raf) cancelAnimationFrame(s.raf);
     s.raf = 0;
+    if (s.redraw) cancelAnimationFrame(s.redraw);
+    s.redraw = 0;
     for (const [, a] of s.anims) { try { a.cancel(); } catch (_) { /* gone */ } }
     if (strip) { strip.style.display = 'none'; strip.width = 0; strip.height = 0; }
   }
@@ -3282,11 +3327,20 @@ export function mountInk(root, options = {}) {
     const index = state.note.pages.findIndex((p) => p.id === m.page_id);
     if (index < 0) return;
     if (state.view !== 'ink') { state.view = 'ink'; applyView(); }
-    state.sy = scrollForBox(layout(), index, m.box, cssH / scale(), PAGE_GAP);
+    const box = Array.isArray(m.box) && m.box.length === 4 ? m.box : null;
+    const k = scale();
+    state.sy = scrollForBox(layout(), index, m.box, cssH / k, PAGE_GAP);
+    // Across too (it matters when zoomed in): the mark in the middle of what the Marks
+    // panel leaves free of the pages.
+    const free = marksPanel.hidden ? cssW : cssW - marksPanel.offsetWidth;
+    if (box) state.sx = box[0] + box[2] / 2 - (free >= 160 ? free : cssW) / k / 2;
     clampScroll();
+    // Still under the panel (a page that fits the view can't move aside, and on a phone
+    // the panel covers nearly all of it): the panel closes, so the mark is seen.
+    if (box && !marksPanel.hidden && (free < 160 || toScreen(box[0] + box[2], 0)[0] > free)) toggleMarks(false);
     state.curPage = null;
     render();
-    if (Array.isArray(m.box) && m.box.length === 4) flash(index, m.box);
+    if (box) flash(index, box);
   }
 
   function flash(index, box) {
@@ -3839,17 +3893,23 @@ export function mountInk(root, options = {}) {
     del.innerHTML = ICONS.trash;
     del.addEventListener('click', (e) => { e.stopPropagation(); deleteNote(n.id, n.title); });
     const title = page ? `Page ${page} · ${n.title || 'Untitled'}` : (n.title || 'Untitled');
-    const heading = el('h2', { text: title });
+    const heading = el('h2', { text: title, title });
+    let chips = null;
     if (n.pdf) {
-      // The PDF badge, then the datasheet's part numbers (a few, and how many more).
+      // The PDF badge before the title; the datasheet's part numbers (a few, and how many
+      // more) on a line of their own under it: in the title's line they pushed the title
+      // out of a narrow card.
+      heading.prepend(el('span', { class: 'ink-badge', text: 'PDF' }));
       const { shown, more } = partsShown(n.parts);
-      heading.prepend(el('span', { class: 'ink-badge', text: 'PDF' }),
-        ...shown.map((p) => el('span', { class: 'ink-part ink-card-part', text: p })),
-        ...(more ? [el('span', { class: 'ink-part ink-card-part', text: `+${more}` })] : []));
+      if (shown.length) {
+        chips = el('div', { class: 'ink-card-parts' },
+          ...shown.map((p) => el('span', { class: 'ink-part ink-card-part', text: p, title: p })),
+          ...(more ? [el('span', { class: 'ink-part ink-card-part', text: `+${more}` })] : []));
+      }
     }
     const card = el('div', { class: 'bs-card ink-card', role: 'button', tabindex: '0', 'data-note': n.id },
-      thumb, el('div', { class: 'ink-card-text' }, heading, el('div', { class: 'bs-meta', text: meta }),
-        moveMenu(n)),
+      thumb, el('div', { class: 'ink-card-text' }, heading, ...(chips ? [chips] : []),
+        el('div', { class: 'bs-meta', text: meta }), moveMenu(n)),
       del);
     card.addEventListener('click', () => openNote(n.id));
     card.addEventListener('keydown', (e) => {
@@ -3921,6 +3981,7 @@ export function mountInk(root, options = {}) {
   const onResize = () => {
     if (state.screen !== 'editor') return;
     resize();
+    placeMenu();
     const page = state.note && state.view === 'text' && state.note.pages[state.textPage];
     if (page) drawPageImage(page);
   };

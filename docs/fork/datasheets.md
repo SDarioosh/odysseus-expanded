@@ -30,8 +30,12 @@ refuses it ("Datasheets stay in Odysseus") and `INK_AUTO_SEND` skips them.
   inserts a blank page for notes after the page shown.
 - **Sharp at any zoom.** The hub renders each page at the width the screen needs (tiers
   600, 1200, 2000, 3000 px for the page's on-screen width times the pixel ratio); a
-  sharper tier replaces a softer one after a pinch. Only the pages on screen (and one
-  either side) are loaded; the rest are freed, so a 300-page PDF stays light.
+  sharper tier replaces a softer one after a pinch. A page with no image yet is asked
+  for at 600 px first (`PREVIEW_TIER`: the hub renders and sends it several times
+  faster, about 0.2 s against 1 to 2 s on the tablet), then at its tier: a page scrolled
+  or flicked to shows at once, soft, and sharpens, instead of staying blank. Only the
+  pages on screen (and one either side) are loaded; the rest are freed, so a 300-page
+  PDF stays light.
 - **Marks** (button in a datasheet): every mark, by page, with what it covers:
   - *Highlight*: the PDF words under the highlighter.
   - *Underline*: a nearly straight, nearly level pen line under text: the words of the
@@ -48,7 +52,8 @@ refuses it ("Datasheets stay in Odysseus") and `INK_AUTO_SEND` skips them.
     shows it ("check EN pull-down", by "Input voltage range…"), "Reading…" while the
     model works, "Could not read it" with the reason, or "a drawing (no words)".
     **Edit** corrects a reading (kept until the note's strokes change).
-  Tapping a mark scrolls to it and flashes its box. The panel refreshes after each save,
+  Tapping a mark scrolls to it and flashes its box. A mark the panel would cover (on the
+  right of the page, or any mark on a phone) closes the panel, so the flash is seen. The panel refreshes after each save,
   and every 4 s while a note is being read. At its top, **Download with marks** (a copy
   with the marks as PDF annotations; unsaved writing is saved first) and **Original PDF**.
 - **Search marks** in the Write list (shown once there is a datasheet): every word typed

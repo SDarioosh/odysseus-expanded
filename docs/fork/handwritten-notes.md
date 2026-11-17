@@ -130,8 +130,10 @@ it.
   miss vsyncs on the 90 Hz Lenovo Tab Plus (about 7 dropped frames per flick against about
   2.5 for the slide; a quiet page drops 1.5 to 3). When it stops, or a touch or the pen
   catches it, the view takes the place the strip had got to and draws as usual (the sharper
-  pages load then). Pages whose images were not loaded when the flick began stay as
-  "Loading page..." until it stops. The strip is at most 8000 device px tall (so at most
+  pages load then). A PDF's pages on the strip are asked for when the flick begins, as
+  soft previews (see [datasheets.md](datasheets.md)), and the strip is drawn again when
+  one arrives (`refreshSlide`, once a frame at most), so a page is rarely still "Loading
+  page..." when the coast reaches it. The strip is at most 8000 device px tall (so at most
   about 2700 px of travel at a pixel ratio of 2) and is freed afterwards. A coast longer
   than that goes on in a next strip, drawn in the same task as the last one ends (no frame
   shows the stale `base`) with the speed the coast had there (`slideRest`, `chainSlide`);
@@ -142,8 +144,12 @@ it.
   eraser toggle, undo/redo, Add page/photo/Marks, and Full screen. The pen button opens a
   dropdown with every pen and the eraser, the width (thin/medium) and the paper
   (lined/dotted/blank); picking a pen or the eraser closes it, so does a tap outside it
-  (the pen on the page too) or Esc. With a note open on a touch screen the window's
-  title bar is hidden (Back returns to the list, which shows it), and Write asks the
+  (the pen on the page too) or Esc. It hangs from the pen group's right edge and is
+  moved to stay on the screen (`placeMenu`): on a narrow screen (a tablet held upright
+  with part numbers in the bar, a phone) the bar wraps and the pen group is at the left,
+  where the menu used to open off the screen. With a note open on a touch screen the
+  window's padding and border are gone (the page reaches the screen's edges), its title
+  bar is hidden (Back returns to the list, which shows it), and Write asks the
   browser for full screen (no status or navigation bar) when a note opens; on by default
   on a touch screen, the Full screen button's choice is remembered on the device
   (`fork-ink-fullscreen` in localStorage), and it is left when Write closes.
