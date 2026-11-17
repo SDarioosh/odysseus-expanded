@@ -46,6 +46,7 @@
 import { el, request as api } from './forkDom.js';
 import { addPart, createPdfImages, groupMarks, inkPageCount, isPdfNote, isPdfPage, libraryItem, markDisplay,
   marksStillReading, MAX_PART_LEN, partsShown, pdfDownloads, removePart, pageIndexAt, pageTops, planPdfPages, scrollForBox, tierFor } from './forkInkPdf.js';
+import { createVelocityTracker, flingDone, flingStep } from './forkInkFling.js'; // flick to scroll
 
 export const PAGE_W = 1000;
 export const PAGE_H = 1414;
@@ -141,7 +142,8 @@ const HIGHLIGHT_ALPHA = 0.35;
 // handlers: drawStart(e, {eraser}), drawMove(e), drawEnd(e), drawSwitch(e, {eraser})
 // (the barrel button was pressed or released mid-stroke), gesture(from, to) (touch
 // pan/zoom: move the page point under `from`'s midpoint to `to`'s, scaled by the
-// change in finger distance), gestureEnd().
+// change in finger distance), gestureEnd({dropped}) (the fingers lifted; `dropped` when a
+// pen or palm cancelled the gesture, so it is no flick).
 
 // A pen's barrel button: Chrome reports it as the secondary button (2) on most
 // Android pens, as the eraser button (32) on pens with an eraser end.
@@ -173,7 +175,7 @@ export function createInputRouter(handlers, clock = () => performance.now()) {
     if (!touches.size) return;
     touches.clear();
     gesture = null;
-    if (h.gestureEnd) h.gestureEnd();
+    if (h.gestureEnd) h.gestureEnd({ dropped: true });
   }
 
   function endDraw(e) {
@@ -812,6 +814,8 @@ export function mountInk(root, options = {}) {
   // goes on the visible canvas only, a piece at a time.
   let frame = 0;
   let panning = false;           // fingers pan or zoom: `base` is shown (see startPan)
+  const velocity = createVelocityTracker(); // the dragging finger's last moves (forkInkFling.js)
+  let fling = null;              // coasting after a flick: {vx, vy, last, sx, sy, zoom, note, raf}
   let dirty = null;              // null, 'all', or a screen box {x0, y0, x1, y1}
   let bg = '#808080';
 
@@ -1180,6 +1184,51 @@ export function mountInk(root, options = {}) {
     pdfPrefetch(); // the gesture's last view: now the sharper pages
   }
 
+  // Flick to scroll: when a finger lifts while moving, the page coasts on and slows down
+  // (forkInkFling.js). `base` stays on screen as in a drag and the sharper pages load once
+  // it stops. It stops at once when a finger or the pen touches down, the wheel turns,
+  // the page reaches an edge, or anything else moves or zooms the view (a tapped mark,
+  // another note, leaving the editor).
+  function startFling(v) {
+    fling = { vx: v.vx, vy: v.vy, last: performance.now(), sx: state.sx, sy: state.sy, zoom: state.zoom,
+      note: state.note && state.note.id, raf: 0 };
+    fling.raf = requestAnimationFrame(flingFrame);
+  }
+  function stopFling() {
+    const f = fling;
+    if (!f) return;
+    fling = null;
+    if (f.raf) cancelAnimationFrame(f.raf);
+    endPan();
+  }
+  function flingFrame(now) {
+    const f = fling;
+    if (!f) return;
+    f.raf = 0;
+    if (document.hidden || state.screen !== 'editor' || state.view !== 'ink' || !state.note
+      || state.note.id !== f.note || state.sx !== f.sx || state.sy !== f.sy || state.zoom !== f.zoom) {
+      stopFling();
+      return;
+    }
+    const step = flingStep(f, now - f.last);
+    f.last = now;
+    f.vx = step.vx;
+    f.vy = step.vy;
+    const k = scale();
+    const wantX = state.sx - step.dx / k;   // the page follows the finger: the other way round
+    const wantY = state.sy - step.dy / k;
+    state.sx = wantX;
+    state.sy = wantY;
+    clampScroll();
+    if (state.sx !== wantX) f.vx = 0;       // at an edge
+    if (state.sy !== wantY) f.vy = 0;
+    f.sx = state.sx;
+    f.sy = state.sy;
+    render();
+    if (flingDone(f)) stopFling();
+    else f.raf = requestAnimationFrame(flingFrame);
+  }
+
   // While the eraser moves, what it took is redrawn straight onto the visible canvas
   // (paper from its cache, then the ink), and `base` is left as it was until the pen
   // lifts (syncBase). Copying from a canvas that changes every frame is what the pen
@@ -1518,6 +1567,7 @@ export function mountInk(root, options = {}) {
   const router = createInputRouter({
     drawStart(e, { eraser }) {
       try { live.setPointerCapture(e.pointerId); } catch (_) { /* synthetic */ }
+      stopFling();
       endPan();
       startLive(e, eraser);
     },
@@ -1566,6 +1616,9 @@ export function mountInk(root, options = {}) {
       // The page point under the fingers' old midpoint moves to their new midpoint,
       // zoomed by how much the fingers spread: one step, so pinching doesn't drift.
       startPan();
+      // One finger dragging: remember its moves, a flick coasts on when it lifts.
+      if (to.n === 1) velocity.add(performance.now(), to.x, to.y);
+      else velocity.reset();                                   // zooming is no flick
       const [dx, dy] = toDoc(from.x, from.y);
       if (to.n > 1 && from.dist > 0) {
         state.zoom = Math.min(MAX_ZOOM, Math.max(MIN_ZOOM, state.zoom * (to.dist / from.dist)));
@@ -1577,7 +1630,12 @@ export function mountInk(root, options = {}) {
       clampScroll();
       render();
     },
-    gestureEnd() { endPan(); },
+    gestureEnd(info) {
+      const v = info && info.dropped ? null : velocity.release(performance.now());
+      velocity.reset();
+      if (v) startFling(v);       // `base` stays up while it coasts
+      else endPan();
+    },
   }, now);
 
   function zoomAt(factor, clientX, clientY) {
@@ -1594,6 +1652,7 @@ export function mountInk(root, options = {}) {
   for (const type of ['pointerdown', 'pointermove', 'pointerrawupdate', 'pointerup', 'pointercancel',
     'lostpointercapture', 'pointerover', 'pointerenter', 'pointerleave', 'pointerout']) {
     live.addEventListener(type, (e) => {
+      if (type === 'pointerdown') { stopFling(); velocity.reset(); } // a touch catches a coasting page
       const what = router.handle(e);
       if (what === 'draw' || what === 'gesture' || (type === 'pointerdown' && e.pointerType === 'touch')) {
         e.preventDefault();
@@ -1607,6 +1666,7 @@ export function mountInk(root, options = {}) {
   live.addEventListener('contextmenu', (e) => e.preventDefault());
   live.addEventListener('wheel', (e) => {
     e.preventDefault();
+    stopFling();
     if (e.ctrlKey || e.metaKey) zoomAt(Math.exp(-e.deltaY / 300), e.clientX, e.clientY);
     else {
       const k = scale();

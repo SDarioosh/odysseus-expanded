@@ -108,6 +108,17 @@ it.
   in range or down, touch is ignored (palm rejection); otherwise one finger scrolls and
   two fingers zoom. `touch-action: none` on the canvas, and pan/zoom handled in code.
   Mouse draws too, for testing on a desktop.
+- **Flick to scroll.** Like the platform's own scrolling: lift a finger while it is
+  still moving and the page coasts on and slows down (`static/js/forkInkFling.js`,
+  tests `tests/fork/test_ink_fling.py`). The speed is the finger's over its last 100 ms,
+  decaying exponentially (time constant 300 ms: a hard flick, about 3500 px/s, coasts
+  about 1 s and 1000 px; a gentle one less). No flick when the finger rested before
+  lifting, moved slower than 50 px/s or was a pinch, and the speed is capped at 8000
+  px/s. It stops at once when a finger or the pen touches down (the touch catches the
+  page), the wheel turns, the page reaches an edge, or something else moves the view
+  (a tapped mark, another note); a pen or palm cancelling the gesture gives no flick.
+  The numbers are `FLING` at the top of `forkInkFling.js`. It applies to every note,
+  not only datasheets.
 - **Pens.** A row of preset pen buttons: black, blue, red, green, plus a yellow
   highlighter (drawn under the ink, semi-transparent). One tap to switch. Each pen has a
   fixed width (thin / medium toggle). Pressure is ignored even if the pen reports it.
