@@ -5,6 +5,7 @@ coasting, and that the input router says when a palm or pen cancelled a gesture 
 flick then). Skips when node isn't available. Fictional numbers only.
 """
 import json
+import math
 import shutil
 import subprocess
 from pathlib import Path
@@ -130,6 +131,84 @@ def test_a_late_frame_counts_as_a_short_one_and_speed_never_grows():
     assert got["negative"] == 0
     assert got["slower"] is True
     assert got["done"] == [True, False]
+
+
+@needs_node
+def test_slide_plan_goes_the_distance_of_the_coast_on_each_axis():
+    got = _node("""
+    const room = { xPos: 1e6, xNeg: 1e6, yPos: 1e6, yNeg: 1e6 };
+    out.up = F.slidePlan({ vx: 0, vy: -2000 }, room);             // a finger flicking up: the page moves up
+    out.diag = F.slidePlan({ vx: 600, vy: 800 }, room);           // 1000 px/s along (0.6, 0.8)
+    out.slow = F.slidePlan({ vx: 10, vy: 5 }, room);
+    out.none = F.slidePlan({ vx: 0, vy: 0 }, room);
+    out.tau = F.FLING.TAU_MS; out.stop = F.FLING.STOP_SPEED;
+    """)
+    # 2000 px/s x 0.3 s = 600 px, less what is left at the stop (20 px/s x 0.3 s).
+    assert got["up"]["y"]["dist"] == pytest.approx(-(600 - 6), abs=0.01)
+    assert got["up"]["x"] == {"dist": 0, "ms": 0}
+    assert got["up"]["ms"] == pytest.approx(300 * math.log(2000 / 20), rel=1e-9)   # until the speed is 20 px/s
+    # Both axes take the same time and split the distance by their speeds.
+    assert got["diag"]["x"]["ms"] == got["diag"]["y"]["ms"] == got["diag"]["ms"]
+    assert got["diag"]["x"]["dist"] / got["diag"]["y"]["dist"] == pytest.approx(0.75)
+    assert got["slow"] is None and got["none"] is None
+
+
+@needs_node
+def test_slide_plan_stops_an_axis_at_its_edge_and_caps_the_travel():
+    got = _node("""
+    // 2000 px/s upwards would coast 594 px; only 200 px of page is left in that direction.
+    out.edge = F.slidePlan({ vx: 0, vy: -2000 }, { xPos: 0, xNeg: 0, yPos: 1000, yNeg: 200 });
+    // Nothing left that way at all: no slide.
+    out.wall = F.slidePlan({ vx: 0, vy: -2000 }, { xPos: 0, xNeg: 0, yPos: 1000, yNeg: 0 });
+    // The x axis meets its edge, y goes on.
+    out.xedge = F.slidePlan({ vx: 1000, vy: 1000 }, { xPos: 50, xNeg: 0, yPos: 1e6, yNeg: 0 });
+    // A cap on the travel (the strip's size).
+    out.cap = F.slidePlan({ vx: 0, vy: 8000 }, { xPos: 0, xNeg: 0, yPos: 1e6, yNeg: 0 }, { maxTravel: 1000 });
+    out.free = F.slidePlan({ vx: 0, vy: 8000 }, { xPos: 0, xNeg: 0, yPos: 1e6, yNeg: 0 });
+    // Reaching the edge happens before the natural stop, and the curve agrees: the share
+    // of the *natural* coast covered at that time is what the edge allows.
+    const nat = out.free.y;
+    out.edgeTime = out.edge.y.ms;
+    out.shareAtEdge = F.slideFraction(out.edge.y.ms, nat.ms) ;
+    """)
+    assert got["edge"]["y"]["dist"] == -200
+    assert 0 < got["edge"]["y"]["ms"] < got["edge"]["ms"] + 1
+    assert got["wall"] is None
+    assert got["xedge"]["x"]["dist"] == 50
+    assert got["xedge"]["y"]["dist"] > 200
+    assert got["xedge"]["x"]["ms"] < got["xedge"]["y"]["ms"] == got["xedge"]["ms"]
+    assert got["cap"]["y"]["dist"] == 1000
+    assert got["free"]["y"]["dist"] > 2000
+
+
+@needs_node
+def test_slide_curve_matches_the_coast_and_the_easing_is_that_curve():
+    got = _node("""
+    // The frame by frame coast and the slide's curve must agree at every moment.
+    const v0 = 3000, ms = 1500;
+    let v = { vx: 0, vy: v0 }, y = 0, t = 0;
+    const checks = [];
+    for (let i = 0; i < 90; i++) { const s = F.flingStep(v, 1000 / 60); y += s.dy; v = { vx: 0, vy: s.vy }; t += 1000 / 60;
+      if (i % 15 === 14) checks.push([t, y]); }
+    const total = v0 * F.FLING.TAU_MS / 1000 * (1 - Math.exp(-t / F.FLING.TAU_MS));   // distance by time t
+    out.steps = checks.map(([tt, yy]) => [yy / (v0 * F.FLING.TAU_MS / 1000 * (1 - Math.exp(-tt / F.FLING.TAU_MS))),
+      F.slideFraction(tt, t) * (1 - Math.exp(-t / F.FLING.TAU_MS)) / (1 - Math.exp(-tt / F.FLING.TAU_MS)) ]);
+    out.f0 = F.slideFraction(0, ms); out.f1 = F.slideFraction(ms, ms); out.over = F.slideFraction(ms * 3, ms);
+    out.mid = F.slideFraction(ms / 2, ms);
+    out.easing = F.slideEasing(ms);
+    out.zero = F.slideFraction(100, 0);
+    """)
+    for ratio_coast, ratio_slide in got["steps"]:
+        assert ratio_coast == pytest.approx(1.0, abs=1e-9)    # the stepper is exact
+        assert ratio_slide == pytest.approx(1.0, abs=1e-9)    # and so is the slide's fraction
+    assert got["f0"] == 0 and got["f1"] == 1 and got["over"] == 1 and got["zero"] == 1
+    # Fast at the start: well over half the way in the first half of the time.
+    assert 0.8 < got["mid"] < 1
+    points = [float(p) for p in got["easing"][len("linear("):-1].split(",")]
+    assert len(points) == 97 and points[0] == 0 and points[-1] == 1
+    assert all(b >= a for a, b in zip(points, points[1:]))
+    # The easing is the curve sampled: a mid point agrees to the rounding.
+    assert points[48] == pytest.approx(got["mid"], abs=1e-4)
 
 
 @needs_node

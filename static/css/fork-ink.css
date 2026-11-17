@@ -72,6 +72,9 @@
 /* The pages under the writing canvas, shown instead of it while fingers pan or zoom
    (a full redraw of the low-latency canvas tears). The writing canvas keeps the input. */
 .ink-root .ink-base { pointer-events: none; visibility: hidden; }
+/* A flick's coast: the pages drawn once over its distance, slid by the compositor
+   (static/js/forkInk.js, startSlide). Between `base` and the writing canvas. */
+.ink-root .ink-strip { pointer-events: none; display: none; will-change: transform, translate; }
 .ink-root .ink-stage.ink-panning .ink-base { visibility: visible; }
 .ink-root .ink-stage.ink-panning .ink-live { opacity: 0; }
 

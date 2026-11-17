@@ -46,7 +46,7 @@
 import { el, request as api } from './forkDom.js';
 import { addPart, createPdfImages, groupMarks, inkPageCount, isPdfNote, isPdfPage, libraryItem, markDisplay,
   marksStillReading, MAX_PART_LEN, partsShown, pdfDownloads, removePart, pageIndexAt, pageTops, planPdfPages, scrollForBox, tierFor } from './forkInkPdf.js';
-import { createVelocityTracker, flingDone, flingStep } from './forkInkFling.js'; // flick to scroll
+import { createVelocityTracker, flingDone, flingStep, slideEasing, slideFraction, slidePlan } from './forkInkFling.js'; // flick to scroll
 
 export const PAGE_W = 1000;
 export const PAGE_H = 1414;
@@ -792,6 +792,7 @@ export function mountInk(root, options = {}) {
   function resize() {
     const r = stage.getBoundingClientRect();
     if (!r.width || !r.height) return;
+    stopFling(false); // a coast's strip has the old size
     // Keep the top-left doc point in place (rotation keeps the writing where it was).
     cssW = r.width;
     cssH = r.height;
@@ -815,11 +816,26 @@ export function mountInk(root, options = {}) {
   let frame = 0;
   let panning = false;           // fingers pan or zoom: `base` is shown (see startPan)
   const velocity = createVelocityTracker(); // the dragging finger's last moves (forkInkFling.js)
-  let fling = null;              // coasting after a flick: {vx, vy, last, sx, sy, zoom, note, raf}
+  let fling = null;              // coasting after a flick, frame by frame (the fallback): {vx, vy, last, sx, sy, zoom, note, raf}
+  let slide = null;              // coasting after a flick as a slide of a strip: see startSlide
   let dirty = null;              // null, 'all', or a screen box {x0, y0, x1, y1}
   let bg = '#808080';
 
-  function render() { noteCurrentPage(); dirty = 'all'; schedule(); }
+  function render() {
+    if (slide) {
+      // A coast's strip is on screen: nothing to redraw (an image arriving, say) until it
+      // stops. Anything that moved the view, zoomed it or changed the note ends the coast.
+      if (slideStillValid(slide)) return;
+      cleanupSlide(slide);
+      slide = null;
+      noteCurrentPage();
+      dirty = 'all';
+      endPan();
+      if (dirty) schedule();
+      return;
+    }
+    noteCurrentPage(); dirty = 'all'; schedule();
+  }
   function renderBox(box) {
     if (!box || dirty === 'all') return;
     dirty = unionBox(dirty, box);
@@ -1004,9 +1020,9 @@ export function mountInk(root, options = {}) {
   function drawInk(ctx, box, pages, k, wanted) {
     const hl = pages.map(([page, , y0, rect]) => [page.strokes.filter((st) => st.pen.highlighter && wanted(st, y0)), y0, rect]);
     if (hl.some(([list]) => list.length)) {
-      if (marks.width !== base.width || marks.height !== base.height) {
-        marks.width = base.width;
-        marks.height = base.height;
+      if (marks.width !== ctx.canvas.width || marks.height !== ctx.canvas.height) { // the target's size (a coast's strip is taller than `base`)
+        marks.width = ctx.canvas.width;
+        marks.height = ctx.canvas.height;
       }
       mctx.save();
       mctx.setTransform(dpr, 0, 0, dpr, 0, 0);
@@ -1194,12 +1210,141 @@ export function mountInk(root, options = {}) {
       note: state.note && state.note.id, raf: 0 };
     fling.raf = requestAnimationFrame(flingFrame);
   }
-  function stopFling() {
+  // `apply`: keep where the coast had got to (a touch caught the page); false when the view
+  // was changed some other way and the coast just ends.
+  function stopFling(apply = true) {
+    stopSlide(apply);
     const f = fling;
     if (!f) return;
     fling = null;
     if (f.raf) cancelAnimationFrame(f.raf);
     endPan();
+  }
+
+  // The coast as a slide (the way to coast: redrawing the whole canvas every frame made
+  // the GPU miss vsyncs on a tablet). The distance of the flick is known when the finger
+  // lifts, so the pages are drawn once, over that distance, on a strip canvas, and the
+  // compositor slides it along the exponential curve (Web Animations: `translate` for x,
+  // `transform` for y, so an axis that meets the page's edge stops alone). `base` stays
+  // under it, still. When it stops, or a touch catches it, the view takes the place the
+  // strip got to and draws as usual (sharper pages load then). Browsers without the
+  // `linear()` easing keep the frame by frame coast (startFling).
+  const MAX_STRIP_PX = 8000;   // device px: the longest side of the strip (GPU texture limits)
+  const slideSupported = typeof Element !== 'undefined' && typeof Element.prototype.animate === 'function'
+    && typeof CSS !== 'undefined' && typeof CSS.supports === 'function'
+    && CSS.supports('animation-timing-function', 'linear(0, 1)');
+  let strip = null;
+  const slideStillValid = (s) => !!state.note && state.note.id === s.note && state.sx === s.sx
+    && state.sy === s.sy && state.zoom === s.zoom;
+
+  // 'slide', 'none' (nothing to coast: at the page's edge) or 'unsupported'.
+  function startSlide(v) {
+    if (!slideSupported || !state.note) return 'unsupported';
+    const k = scale();
+    const viewW = cssW / k;
+    const viewH = cssH / k;
+    const fitsW = PAGE_W + 2 * SIDE <= viewW;
+    const minX = -SIDE;
+    const maxX = PAGE_W + SIDE - viewW;
+    const minY = -PAGE_GAP;
+    const maxY = Math.max(-PAGE_GAP, docHeight() + PAGE_GAP - viewH);
+    const room = {            // px the content can still move: Pos = right/down (the view goes the other way)
+      xPos: fitsW ? 0 : Math.max(0, (state.sx - minX) * k),
+      xNeg: fitsW ? 0 : Math.max(0, (maxX - state.sx) * k),
+      yPos: Math.max(0, (state.sy - minY) * k),
+      yNeg: Math.max(0, (maxY - state.sy) * k),
+    };
+    const maxTravel = Math.min(MAX_STRIP_PX / dpr - cssW, MAX_STRIP_PX / dpr - cssH, 3000);
+    if (!(maxTravel >= 50)) return 'unsupported';
+    const plan = slidePlan(v, room, { maxTravel });
+    if (!plan) return 'none';
+    const snap = (d) => Math.round(d * dpr) / dpr;      // whole device px: the strip lines up with `base`
+    const tx = snap(plan.x.dist);
+    const ty = snap(plan.y.dist);
+    const W2 = cssW + Math.abs(tx);
+    const H2 = cssH + Math.abs(ty);
+    const px0 = tx > 0 ? -tx : 0;                        // the strip reaches back, behind the motion
+    const py0 = ty > 0 ? -ty : 0;
+    if (!strip) {
+      strip = el('canvas', { class: 'ink-canvas ink-strip', 'aria-hidden': 'true' });
+      stage.insertBefore(strip, live);
+    }
+    strip.width = Math.round(W2 * dpr);
+    strip.height = Math.round(H2 * dpr);
+    const sctx = strip.getContext('2d', { alpha: false });
+    if (!sctx) { strip.width = 0; strip.height = 0; return 'unsupported'; }
+    strip.style.cssText = `inset:auto;left:${px0}px;top:${py0}px;width:${W2}px;height:${H2}px;display:block`;
+    const keep = { w: cssW, h: cssH, sx: state.sx, sy: state.sy };
+    cssW = W2;                                           // draw as if the view were the strip
+    cssH = H2;
+    state.sx = keep.sx + px0 / k;
+    state.sy = keep.sy + py0 / k;
+    try { drawScene(null, sctx); } finally {
+      cssW = keep.w;
+      cssH = keep.h;
+      state.sx = keep.sx;
+      state.sy = keep.sy;
+    }
+    const s = { x: { ...plan.x, dist: tx }, y: { ...plan.y, dist: ty }, k, sx: state.sx, sy: state.sy,
+      zoom: state.zoom, note: state.note.id, t0: null, anims: [], left: 0, raf: 0 };
+    slide = s;
+    // Start once the strip has been painted (two frames): the animation would otherwise
+    // begin over the still picture.
+    s.raf = requestAnimationFrame(() => { s.raf = requestAnimationFrame(() => beginSlide(s)); });
+    return 'slide';
+  }
+
+  function beginSlide(s) {
+    if (slide !== s) return;
+    s.raf = 0;
+    s.t0 = performance.now();
+    for (const axis of ['x', 'y']) {
+      const { dist, ms } = s[axis];
+      if (!dist) continue;
+      const frames = axis === 'x'
+        ? [{ translate: '0px 0px' }, { translate: `${dist}px 0px` }]
+        : [{ transform: 'translateY(0px)' }, { transform: `translateY(${dist}px)` }];
+      const a = strip.animate(frames, { duration: ms, easing: slideEasing(ms), fill: 'forwards' });
+      s.anims.push([axis, a]);
+      s.left++;
+      a.onfinish = () => { if (slide === s && --s.left === 0) stopSlide(true); };
+    }
+  }
+
+  function cleanupSlide(s) {
+    if (s.raf) cancelAnimationFrame(s.raf);
+    s.raf = 0;
+    for (const [, a] of s.anims) { try { a.cancel(); } catch (_) { /* gone */ } }
+    if (strip) { strip.style.display = 'none'; strip.width = 0; strip.height = 0; }
+  }
+
+  function stopSlide(apply) {
+    const s = slide;
+    if (!s) return;
+    slide = null;
+    let dx = 0;
+    let dy = 0;
+    const same = slideStillValid(s) && state.screen === 'editor' && state.view === 'ink';
+    if (apply && same && s.t0 !== null) {
+      for (const [axis, a] of s.anims) {                 // how far each axis had got
+        const d = s[axis].dist * slideFraction(Number(a.currentTime) || 0, s[axis].ms);
+        if (axis === 'x') dx = d; else dy = d;
+      }
+    }
+    cleanupSlide(s);
+    if (!same) { endPan(); return; }
+    if (apply) {
+      state.sx -= dx / s.k;                              // the page followed the finger: the other way round
+      state.sy -= dy / s.k;
+      clampScroll();
+    }
+    noteCurrentPage();
+    dirty = 'all';
+    endPan();                                            // draws `base` at the new place, shows the writing canvas
+    if (dirty === 'all') {
+      if (frame) { cancelAnimationFrame(frame); frame = 0; }
+      renderNow();
+    }
   }
   function flingFrame(now) {
     const f = fling;
@@ -1633,8 +1778,10 @@ export function mountInk(root, options = {}) {
     gestureEnd(info) {
       const v = info && info.dropped ? null : velocity.release(performance.now());
       velocity.reset();
-      if (v) startFling(v);       // `base` stays up while it coasts
-      else endPan();
+      if (!v) { endPan(); return; }
+      const how = startSlide(v);  // `base` stays up while it coasts
+      if (how === 'unsupported') startFling(v);
+      else if (how === 'none') endPan();
     },
   }, now);
 
