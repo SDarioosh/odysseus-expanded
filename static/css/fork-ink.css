@@ -32,6 +32,9 @@
     backdrop-filter: none !important;
     -webkit-backdrop-filter: none !important;
   }
+  /* A note open: the page gets the whole screen. The window's title bar goes (the
+     editor's Back returns to the list, which has it again). */
+  #fork-ink-modal:has(.ink-editor:not([hidden])) > .modal-content > .modal-header { display: none !important; }
 }
 
 .ink-root { display: flex; flex-direction: column; flex: 1; min-height: 0; height: 100%; outline: none; }
@@ -49,20 +52,75 @@
 .ink-root .ink-thumb img { width: 100%; height: 100%; object-fit: cover; object-position: top; display: block; }
 
 .ink-root .ink-editor { display: flex; flex-direction: column; flex: 1; min-height: 0; }
-.ink-root .ink-bar { display: flex; flex-wrap: wrap; gap: 6px 12px; align-items: center; padding: 6px 10px;
-                     border-bottom: 1px solid var(--border); background: var(--bg); }
+.ink-root .ink-bar { position: relative; z-index: 3; display: flex; flex-wrap: wrap; gap: 6px 8px;
+                     align-items: center; padding: 6px 8px; background: var(--bg);
+                     border-bottom: 1px solid color-mix(in srgb, var(--border) 70%, transparent); }
 .ink-root .ink-group { display: flex; gap: 4px; align-items: center; }
-.ink-root .ink-title { width: 220px; max-width: 40vw; }
-.ink-root .ink-status { margin-left: auto; white-space: nowrap; overflow: hidden; text-overflow: ellipsis;
-                        max-width: 100%; }
+.ink-root .ink-title { width: 200px; max-width: 34vw; border-color: transparent; background: none;
+                       font-weight: 600; font-size: 15px; padding: 0 6px; }
+.ink-root .ink-title:hover { border-color: color-mix(in srgb, var(--border) 70%, transparent); }
+.ink-root .ink-title:focus { border-color: var(--fg); }
+.ink-root .ink-status { flex: 1 1 0; min-width: 0; text-align: right; white-space: nowrap; overflow: hidden;
+                        text-overflow: ellipsis; }
 .ink-root .ink-status.error { color: var(--red); }
 /* Big enough to hit with a pen or a finger on the tablet. */
-.ink-root .ink-bar .bs-btn { height: 34px; min-width: 34px; }
-.ink-root .ink-pen { width: 34px; padding: 0; }
-.ink-root .ink-swatch { width: 16px; height: 16px; border-radius: 50%; background: var(--ink);
+.ink-root .ink-bar .bs-btn { height: 36px; min-width: 36px; }
+.ink-root .ink-bar > .ink-group:first-child > .bs-btn { border-color: transparent; }
+/* Tool groups: quiet pills of borderless icon buttons; the one in use is raised. */
+.ink-root .ink-tools { gap: 2px; padding: 2px; border-radius: 10px;
+                       background: color-mix(in srgb, var(--fg) 6%, transparent); }
+.ink-root .ink-bar .ink-tools > .bs-btn, .ink-root .ink-fs-btn { border-color: transparent; border-radius: 8px;
+                                                                padding: 0 8px; color: var(--fg); }
+.ink-root .ink-bar .ink-tools > .bs-btn:hover { background: color-mix(in srgb, var(--fg) 8%, transparent); }
+.ink-root .ink-bar .ink-tools > .bs-btn[aria-pressed="true"], .ink-root .ink-tool-btn[aria-expanded="true"] {
+  background: var(--bg); color: var(--fg); border-color: transparent;
+  box-shadow: 0 1px 3px color-mix(in srgb, #000 18%, transparent); }
+.ink-root .ink-bar svg { width: 18px; height: 18px; }
+.ink-root .ink-pens { position: relative; }
+.ink-root .ink-tool-btn { gap: 4px; padding: 0 6px 0 10px !important; }
+.ink-root .ink-tool-icon { display: inline-flex; }
+.ink-root .ink-tool-icon[hidden], .ink-root .ink-swatch[hidden] { display: none; }
+.ink-root .ink-tool-chevron { display: inline-flex; opacity: 0.55; }
+.ink-root .ink-tool-chevron svg { width: 14px; height: 14px; }
+.ink-root .ink-swatch { width: 16px; height: 16px; border-radius: 50%; background: var(--ink); flex: none;
                         border: 1px solid color-mix(in srgb, var(--fg) 25%, transparent); }
+.ink-root .ink-bar .ink-swatch { border-color: color-mix(in srgb, var(--fg) 45%, transparent); }
 .ink-root .ink-swatch.hl { border-radius: 3px; width: 18px; height: 12px; opacity: 0.8; }
-.ink-root .ink-width { min-width: 72px; }
+.ink-root .ink-tool-btn .ink-swatch { width: 14px; height: 14px; }
+.ink-root .ink-tool-btn .ink-swatch.wide { width: 19px; height: 19px; }
+.ink-root .ink-tool-btn .ink-swatch.hl { width: 18px; height: 11px; }
+.ink-root .ink-tool-btn .ink-swatch.hl.wide { width: 22px; height: 14px; }
+
+/* The pen menu (forkInk.js, openMenu): pens and eraser, width, paper. */
+.ink-root .ink-menu { position: absolute; top: calc(100% + 8px); right: 0; z-index: 20; width: 272px;
+                      box-sizing: border-box; padding: 12px; border-radius: 14px; background: var(--bg);
+                      border: 1px solid color-mix(in srgb, var(--border) 80%, transparent);
+                      box-shadow: 0 12px 32px color-mix(in srgb, #000 22%, transparent),
+                                  0 2px 6px color-mix(in srgb, #000 10%, transparent);
+                      opacity: 0; transform: translateY(-6px) scale(0.98); transform-origin: top right;
+                      transition: opacity 120ms ease-out, transform 140ms cubic-bezier(.2, .8, .2, 1); }
+.ink-root .ink-menu.open { opacity: 1; transform: none; }
+.ink-root .ink-menu[hidden] { display: none; }
+.ink-root .ink-menu-label { font-size: 11px; font-weight: 600; letter-spacing: 0.06em; text-transform: uppercase;
+                            color: color-mix(in srgb, var(--fg) 55%, transparent); margin: 10px 2px 6px; }
+.ink-root .ink-menu-label:first-child { margin-top: 0; }
+.ink-root .ink-pen-row { display: flex; justify-content: space-between; gap: 4px; }
+.ink-root .ink-menu .ink-pen { width: 40px; height: 40px; min-width: 40px; padding: 0; border-radius: 50%;
+                               border-color: transparent; background: none; color: var(--fg); }
+.ink-root .ink-menu .ink-pen:hover { background: color-mix(in srgb, var(--fg) 8%, transparent); }
+.ink-root .ink-menu .ink-pen .ink-swatch { width: 24px; height: 24px; transition: transform 100ms ease-out; }
+.ink-root .ink-menu .ink-pen .ink-swatch.hl { width: 26px; height: 16px; border-radius: 4px; }
+.ink-root .ink-menu .ink-pen[aria-pressed="true"] { background: none;
+  box-shadow: inset 0 0 0 2px color-mix(in srgb, var(--fg) 70%, transparent); }
+.ink-root .ink-menu .ink-pen[aria-pressed="true"] .ink-swatch { transform: scale(0.86); }
+.ink-root .ink-menu .ink-eraser-pick svg { width: 20px; height: 20px; }
+.ink-root .ink-seg { display: flex; gap: 2px; padding: 2px; border-radius: 10px;
+                     background: color-mix(in srgb, var(--fg) 6%, transparent); }
+.ink-root .ink-menu .ink-seg-btn { flex: 1; height: 34px; border-color: transparent; border-radius: 8px;
+                                   color: color-mix(in srgb, var(--fg) 75%, transparent); font-size: 13px; gap: 8px; }
+.ink-root .ink-menu .ink-seg-btn[aria-pressed="true"] { background: var(--bg); color: var(--fg); border-color: transparent;
+  box-shadow: 0 1px 3px color-mix(in srgb, #000 18%, transparent); }
+.ink-root .ink-width-line { width: 18px; height: var(--w); border-radius: 4px; background: currentColor; }
 
 .ink-root .ink-stage { position: relative; flex: 1; min-height: 0; overflow: hidden;
                        background: color-mix(in srgb, var(--fg) 6%, var(--bg)); }
@@ -80,7 +138,10 @@
 
 /* H2: the Write / Text tabs, the Text tab (page above, transcript below) and the
    Needs review list. */
-.ink-root .ink-tab[aria-selected="true"] { border-color: var(--fg); }
+.ink-root .ink-tabs { gap: 2px; padding: 2px; border-radius: 10px; background: color-mix(in srgb, var(--fg) 6%, transparent); }
+.ink-root .ink-bar .ink-tab { height: 32px; border-color: transparent; border-radius: 8px; padding: 0 12px; }
+.ink-root .ink-tab[aria-selected="true"] { background: var(--bg); color: var(--fg); border-color: transparent;
+  box-shadow: 0 1px 3px color-mix(in srgb, #000 18%, transparent); }
 .ink-root .ink-group[hidden], .ink-root .ink-stage[hidden], .ink-root .ink-text[hidden],
 .ink-root .bs-btn[hidden] { display: none; }
 .ink-root .ink-text { display: flex; flex-direction: column; flex: 1; min-height: 0; gap: 8px; padding: 8px 10px; }

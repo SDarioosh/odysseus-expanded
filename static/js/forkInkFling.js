@@ -7,12 +7,15 @@
 // gives none, a very fast one is capped, and a new touch or the edge of the page stops it.
 
 export const FLING = {
-  WINDOW_MS: 100,   // the speed is measured over the last this-many ms of the drag
-  STALE_MS: 60,     // the last move was longer ago than this when the finger lifted: it rested
-  MIN_SPEED: 50,    // px/s: slower than this is a drag, not a flick (Android's minimum)
-  MAX_SPEED: 8000,  // px/s: a cap (Android's maximum)
-  STOP_SPEED: 20,   // px/s: the coasting stops below this
-  TAU_MS: 300,      // the speed falls to 1/e of itself every TAU_MS (a flick coasts about 1 s)
+  WINDOW_MS: 60,    // the speed is measured over the last this-many ms of the drag (a flick
+                    // speeds up as it leaves the glass: a longer window undercounts it)
+  STALE_MS: 90,     // the last move was longer ago than this when the finger lifted: it rested
+  MIN_SPEED: 30,    // px/s: slower than this is a drag, not a flick
+  MAX_SPEED: 12000, // px/s: a cap
+  GAIN: 1.15,       // the coast starts a little faster than the finger left (feels lighter)
+  STOP_SPEED: 15,   // px/s: the coasting stops below this
+  TAU_MS: 520,      // the speed falls to 1/e of itself every TAU_MS (iOS's normal rate is
+                    // ~500 ms: a hard flick coasts about 3 s)
   MAX_STEP_MS: 48,  // a frame later than this (a hiccup) counts as this long
 };
 
@@ -40,11 +43,13 @@ export function createVelocityTracker({ windowMs = FLING.WINDOW_MS, staleMs = FL
   };
 }
 
-// The speed to coast with: capped, or null when it is too slow to be a flick.
+// The speed to coast with (the finger's, times GAIN): capped, or null when the finger
+// was too slow for a flick.
 export function startSpeed({ vx, vy }) {
   const speed = Math.hypot(vx, vy);
   if (!(speed >= FLING.MIN_SPEED)) return null;
-  const scale = speed > FLING.MAX_SPEED ? FLING.MAX_SPEED / speed : 1;
+  const want = speed * FLING.GAIN;
+  const scale = want > FLING.MAX_SPEED ? FLING.MAX_SPEED / speed : FLING.GAIN;
   return { vx: vx * scale, vy: vy * scale };
 }
 
@@ -69,7 +74,8 @@ export const flingDone = (v) => Math.hypot(v.vx, v.vy) < FLING.STOP_SPEED;
 // Where the coast of `v` ({vx, vy}, px/s, the finger's) ends, per axis. `room` is how far
 // the content can still move in each direction ({xPos, xNeg, yPos, yNeg}, px: Pos is the
 // way of a positive speed). An axis that meets its edge stops there, earlier than the
-// other. null when nothing would move. {x: {dist, ms}, y: {dist, ms}, ms}.
+// other. null when nothing would move. {x: {dist, ms}, y: {dist, ms}, ms}; an axis cut
+// short by `maxTravel` (not by its edge) has `capped: true` and coasts on (slideRest).
 export function slidePlan(v, room, { tau = FLING.TAU_MS, stopSpeed = FLING.STOP_SPEED, maxTravel = Infinity,
   minTravel = 1 } = {}) {
   const speed = Math.hypot(v.vx, v.vy);
@@ -84,12 +90,25 @@ export function slidePlan(v, room, { tau = FLING.TAU_MS, stopSpeed = FLING.STOP_
     const sign = s > 0 ? 1 : -1;
     if (reach <= limit) return reach < minTravel ? { dist: 0, ms: 0 } : { dist: sign * reach, ms: natural };
     if (!(limit >= minTravel)) return { dist: 0, ms: 0 };
-    return { dist: sign * limit, ms: -tau * Math.log(1 - limit / total) };   // meets its edge
+    const capped = maxTravel < (s > 0 ? pos : neg);
+    const out = { dist: sign * limit, ms: -tau * Math.log(1 - limit / total) };   // meets its edge or the cap
+    if (capped) out.capped = true;
+    return out;
   };
   const x = axis(v.vx, room.xPos, room.xNeg);
   const y = axis(v.vy, room.yPos, room.yNeg);
   if (!x.dist && !y.dist) return null;
   return { x, y, ms: Math.max(x.ms, y.ms) };
+}
+
+// The speed a slide of `plan` (from slidePlan, for speed `v`) still has when it ends, on
+// the axes the cap cut short (an axis that met its edge or stopped has none): the next
+// slide's speed. null when there is none to go on with.
+export function slideRest(v, plan, tau = FLING.TAU_MS) {
+  if (!plan) return null;
+  const rest = (s, a) => (a.capped ? s * Math.exp(-a.ms / tau) : 0);
+  const out = { vx: rest(v.vx, plan.x), vy: rest(v.vy, plan.y) };
+  return Math.hypot(out.vx, out.vy) > FLING.STOP_SPEED ? out : null;
 }
 
 // The share of an axis's distance covered `tMs` into a coast that lasts `ms`.

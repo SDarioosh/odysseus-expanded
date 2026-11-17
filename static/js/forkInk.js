@@ -46,7 +46,7 @@
 import { el, request as api } from './forkDom.js';
 import { addPart, createPdfImages, groupMarks, inkPageCount, isPdfNote, isPdfPage, libraryItem, markDisplay,
   marksStillReading, MAX_PART_LEN, partsShown, pdfDownloads, removePart, pageIndexAt, pageTops, planPdfPages, scrollForBox, tierFor } from './forkInkPdf.js';
-import { createVelocityTracker, flingDone, flingStep, slideEasing, slideFraction, slidePlan } from './forkInkFling.js'; // flick to scroll
+import { createVelocityTracker, flingDone, flingStep, slideEasing, slideFraction, slidePlan, slideRest } from './forkInkFling.js'; // flick to scroll
 
 export const PAGE_W = 1000;
 export const PAGE_H = 1414;
@@ -335,6 +335,9 @@ const ICONS = {
   trash: SVG('<path d="M4 7h16M10 11v6M14 11v6M6 7l1 13h10l1-13M9 7V4h6v3"/>'),
   marks: SVG('<path d="M4 6h10M4 12h16M4 18h12"/><path d="M17 3l3 3-3 3"/>'),
   remove: SVG('<path d="M6 6l12 12M18 6L6 18"/>'),
+  chevron: SVG('<path d="M6 9l6 6 6-6"/>'),
+  expand: SVG('<path d="M4 9V4h5M20 9V4h-5M4 15v5h5M20 15v5h-5"/>'),
+  shrink: SVG('<path d="M9 4v5H4M15 4v5h5M9 20v-5H4M15 20v-5h5"/>'),
 };
 
 // ----------------------------------------------------------------- local store
@@ -420,6 +423,21 @@ function saveBooks(user, books) {
 }
 
 // Write a DOM value only when it changes (see syncTools).
+// Full screen (the browser's own): wanted by default on a touch screen; the Full screen
+// button's choice is remembered on the device.
+const FS_KEY = 'fork-ink-fullscreen';
+function fullscreenSupported() {
+  return typeof document !== 'undefined' && !!document.documentElement
+    && typeof document.documentElement.requestFullscreen === 'function' && document.fullscreenEnabled !== false;
+}
+function fullscreenWanted() {
+  try {
+    const v = localStorage.getItem(FS_KEY);
+    if (v === '1' || v === '0') return v === '1';
+  } catch (_) { /* private mode */ }
+  return typeof matchMedia === 'function' && matchMedia('(pointer: coarse)').matches;
+}
+
 const setAttr = (node, name, value) => { if (node.getAttribute(name) !== value) node.setAttribute(name, value); };
 const setProp = (node, name, value) => { if (node[name] !== value) node[name] = value; };
 const setText = (node, text) => { if (node.textContent !== text) node.textContent = text; };
@@ -606,39 +624,85 @@ export function mountInk(root, options = {}) {
   const nextNoteBtn = iconBtn('next', 'Next page of the notebook', () => flipPage(1));
   const bookLabel = el('span', { class: 'bs-meta ink-book-label' });
   const bookGroup = el('div', { class: 'ink-group ink-book-nav', hidden: true }, prevNoteBtn, bookLabel, nextNoteBtn);
+  // The pen menu: every pen, the eraser, the width and the paper in one dropdown under
+  // the pen button (which shows the tool in hand). A pick of a pen or the eraser closes
+  // it; width and paper leave it open. It closes on a tap outside it (the pen touching
+  // the page too), on Esc, and when the editor changes screen.
   const penBtns = PENS.map((p) => {
     const b = el('button', { type: 'button', class: 'bs-btn ink-pen', title: p.label, 'aria-label': p.label,
       'data-pen': p.key, 'aria-pressed': 'false' });
     b.append(el('span', { class: `ink-swatch${p.highlighter ? ' hl' : ''}`, style: `--ink:${p.color}` }));
-    b.addEventListener('click', () => { state.pen = p.key; state.eraser = false; syncTools(); });
+    b.addEventListener('click', () => { state.pen = p.key; state.eraser = false; syncTools(); closeMenu(); });
     return b;
   });
-  const widthBtn = el('button', { type: 'button', class: 'bs-btn ink-width', title: 'Pen width',
-    onclick: () => { state.width = state.width === 'thin' ? 'medium' : 'thin'; syncTools(); } });
+  const eraserPick = iconBtn('eraser', 'Eraser', () => { state.eraser = true; syncTools(); closeMenu(); });
+  eraserPick.classList.add('ink-pen', 'ink-eraser-pick');
+  eraserPick.setAttribute('aria-pressed', 'false');
+  const widthBtns = Object.keys(WIDTHS).map((key) => {
+    const b = el('button', { type: 'button', class: 'bs-btn ink-seg-btn', 'data-width': key, 'aria-pressed': 'false',
+      title: key === 'thin' ? 'Thin' : 'Medium' });
+    b.append(el('span', { class: 'ink-width-line', style: `--w:${WIDTHS[key].ink}px` }),
+      key === 'thin' ? 'Thin' : 'Medium');
+    b.addEventListener('click', () => { state.width = key; syncTools(); });
+    return b;
+  });
+  const paperBtns = PAPERS.map((p) => el('button', { type: 'button', class: 'bs-btn ink-seg-btn', 'data-paper': p.key,
+    'aria-pressed': 'false', text: p.label, title: 'Paper (not part of the ink)', onclick: () => {
+      if (!state.note || state.live || paperOf(state.note) === p.key) return;
+      state.note.paper = p.key;
+      markDirty(); syncTools(); render();
+    } }));
+  const menuLabel = (text) => el('div', { class: 'ink-menu-label', text });
+  const penMenu = el('div', { class: 'ink-menu', hidden: true, role: 'dialog', 'aria-label': 'Pen, width and paper' },
+    menuLabel('Pen'),
+    el('div', { class: 'ink-pen-row', role: 'group', 'aria-label': 'Pens' }, ...penBtns, eraserPick),
+    menuLabel('Width'),
+    el('div', { class: 'ink-seg', role: 'group', 'aria-label': 'Pen width' }, ...widthBtns),
+    menuLabel('Paper'),
+    el('div', { class: 'ink-seg', role: 'group', 'aria-label': 'Paper' }, ...paperBtns));
+  const toolSwatch = el('span', { class: 'ink-swatch' });
+  const toolIcon = el('span', { class: 'ink-tool-icon', hidden: true });
+  toolIcon.innerHTML = ICONS.eraser; // our own static SVG
+  const toolChevron = el('span', { class: 'ink-tool-chevron' });
+  toolChevron.innerHTML = ICONS.chevron; // our own static SVG
+  const toolBtn = el('button', { type: 'button', class: 'bs-btn ink-tool-btn', title: 'Pen, width and paper',
+    'aria-label': 'Pen, width and paper', 'aria-haspopup': 'dialog', 'aria-expanded': 'false',
+    onclick: () => (penMenu.hidden ? openMenu() : closeMenu()) }, toolSwatch, toolIcon, toolChevron);
+  // Quick switch between the eraser and the pen in hand, without opening the menu.
   const eraserBtn = iconBtn('eraser', 'Eraser (removes whole strokes)', () => {
     state.eraser = !state.eraser; syncTools();
   });
   const undoBtn = iconBtn('undo', 'Undo', () => undo());
   const redoBtn = iconBtn('redo', 'Redo', () => redo());
-  const paperBtn = el('button', { type: 'button', class: 'bs-btn ink-paper',
-    title: 'Paper: lined, dotted or blank (not part of the ink)', onclick: () => {
-      if (!state.note || state.live) return;
-      const i = PAPERS.findIndex((p) => p.key === paperOf(state.note));
-      state.note.paper = PAPERS[(i + 1) % PAPERS.length].key;
-      markDirty(); syncTools(); render();
-    } });
+  function openMenu() {
+    if (!penMenu.hidden) return;
+    penMenu.hidden = false;
+    toolBtn.setAttribute('aria-expanded', 'true');
+    document.addEventListener('pointerdown', menuOutside, true);
+    // The opening transition (CSS) starts from the closed look.
+    requestAnimationFrame(() => { if (!penMenu.hidden) penMenu.classList.add('open'); });
+  }
+  function closeMenu() {
+    if (penMenu.hidden) return;
+    penMenu.hidden = true;
+    penMenu.classList.remove('open');
+    toolBtn.setAttribute('aria-expanded', 'false');
+    document.removeEventListener('pointerdown', menuOutside, true);
+  }
+  function menuOutside(e) {
+    if (penMenu.contains(e.target) || toolBtn.contains(e.target)) return;
+    closeMenu();
+  }
   // A quick note gets another sheet; in a notebook this makes the next page of it.
   const addPageBtn = iconBtn('page', 'Add a page', () => {
     if (state.note && state.note.notebook && bookById(state.note.notebook)) newBookPage();
     else addPage();
   });
-  addPageBtn.append('Page');
   // H6: photo pages, after the page shown. Without `capture`, Android offers the camera
   // and the files.
   const photoBtn = iconBtn('photo', 'Add photos of paper pages', () => {
     if (state.note && !state.live) pickPhotos(state.note.id, false);
   });
-  photoBtn.append('Photo');
   const photoInput = el('input', { type: 'file', accept: 'image/*', multiple: true, hidden: true,
     class: 'ink-photo-input' });
   // PDF datasheets: the file picker of Import PDF, and the Marks panel of a PDF note.
@@ -647,15 +711,20 @@ export function mountInk(root, options = {}) {
   marksBtn.classList.add('ink-marks-btn');
   marksBtn.setAttribute('aria-pressed', 'false');
   marksBtn.hidden = true;
-  marksBtn.append('Marks');
+  // Full screen: the browser's own (no status or navigation bar), on by default on a
+  // touch screen and remembered per device. Entered when a note opens (a tap, so the
+  // browser allows it) and left when Write closes.
+  const fsBtn = iconBtn('expand', 'Full screen', () => toggleFullscreen());
+  fsBtn.classList.add('ink-fs-btn');
+  fsBtn.hidden = !fullscreenSupported();
 
   const tabInk = el('button', { type: 'button', class: 'bs-btn ink-tab', role: 'tab', text: 'Write',
     onclick: () => showInkTab() });
   const tabText = el('button', { type: 'button', class: 'bs-btn ink-tab', role: 'tab', text: 'Text',
     title: 'The text of each page: transcribe, check, save', onclick: () => showTextTab() });
-  const penGroup = el('div', { class: 'ink-group ink-pens', role: 'group', 'aria-label': 'Pens' },
-    ...penBtns, widthBtn, eraserBtn);
-  const editGroup = el('div', { class: 'ink-group' }, undoBtn, redoBtn, paperBtn, addPageBtn, photoBtn, marksBtn);
+  const penGroup = el('div', { class: 'ink-group ink-pens ink-tools' }, toolBtn, eraserBtn, penMenu);
+  const editGroup = el('div', { class: 'ink-group ink-tools' }, undoBtn, redoBtn);
+  const pageGroup = el('div', { class: 'ink-group ink-tools' }, addPageBtn, photoBtn, marksBtn);
   // A datasheet's part numbers, beside the title: chips, each with Remove, and a field
   // to add one (Enter). Saved on the hub at once (PUT .../parts).
   const partsList = el('span', { class: 'ink-parts-list' });
@@ -668,7 +737,7 @@ export function mountInk(root, options = {}) {
     partsBox,
     bookGroup,
     el('div', { class: 'ink-group ink-tabs', role: 'tablist', 'aria-label': 'View' }, tabInk, tabText),
-    penGroup, editGroup, status);
+    status, penGroup, editGroup, pageGroup, fsBtn);
   const stage = el('div', { class: 'ink-stage' });
   // One visible canvas, opaque and desynchronized (low latency). The pages are drawn
   // off-screen on `base` and copied in, with the stroke being drawn on top. A
@@ -736,6 +805,37 @@ export function mountInk(root, options = {}) {
   let lctx = null;
   try { lctx = live.getContext('2d', { desynchronized: true, alpha: false }); } catch (_) { lctx = null; }
   if (!lctx) lctx = live.getContext('2d', { alpha: false });
+
+  // Write's full screen: entered when a note opens (if wanted), left when Write closes.
+  let fsOurs = false;          // the full screen on now is the one Write asked for
+  function enterFullscreen() {
+    if (!fullscreenSupported() || document.fullscreenElement) return;
+    fsOurs = true;
+    try {
+      const p = document.documentElement.requestFullscreen({ navigationUI: 'hide' });
+      if (p && typeof p.catch === 'function') p.catch(() => { fsOurs = false; }); // no tap to allow it
+    } catch (_) { fsOurs = false; }
+  }
+  function leaveFullscreen(force = false) {
+    if ((fsOurs || force) && document.fullscreenElement && typeof document.exitFullscreen === 'function') {
+      document.exitFullscreen().catch(() => {});
+    }
+    fsOurs = false;
+  }
+  function toggleFullscreen() {
+    const on = !document.fullscreenElement;
+    try { localStorage.setItem(FS_KEY, on ? '1' : '0'); } catch (_) { /* private mode */ }
+    if (on) enterFullscreen(); else leaveFullscreen(true);
+  }
+  function syncFullscreen() {
+    const on = !!(typeof document !== 'undefined' && document.fullscreenElement);
+    if (!on) fsOurs = false;
+    fsBtn.innerHTML = ICONS[on ? 'shrink' : 'expand']; // our own static SVG
+    const label = on ? 'Leave full screen' : 'Full screen';
+    setAttr(fsBtn, 'title', label);
+    setAttr(fsBtn, 'aria-label', label);
+  }
+  if (typeof document !== 'undefined') document.addEventListener('fullscreenchange', syncFullscreen);
 
   function iconBtn(icon, label, onclick) {
     const b = el('button', { type: 'button', class: 'bs-btn', title: label, 'aria-label': label, onclick });
@@ -1286,7 +1386,7 @@ export function mountInk(root, options = {}) {
       state.sy = keep.sy;
     }
     const s = { x: { ...plan.x, dist: tx }, y: { ...plan.y, dist: ty }, k, sx: state.sx, sy: state.sy,
-      zoom: state.zoom, note: state.note.id, t0: null, anims: [], left: 0, raf: 0 };
+      zoom: state.zoom, note: state.note.id, t0: null, anims: [], left: 0, raf: 0, rest: slideRest(v, plan) };
     slide = s;
     // Start once the strip has been painted (two frames): the animation would otherwise
     // begin over the still picture.
@@ -1307,7 +1407,10 @@ export function mountInk(root, options = {}) {
       const a = strip.animate(frames, { duration: ms, easing: slideEasing(ms), fill: 'forwards' });
       s.anims.push([axis, a]);
       s.left++;
-      a.onfinish = () => { if (slide === s && --s.left === 0) stopSlide(true); };
+      a.onfinish = () => {
+        if (slide !== s || --s.left !== 0) return;
+        if (s.rest) chainSlide(s); else stopSlide(true);
+      };
     }
   }
 
@@ -1316,6 +1419,20 @@ export function mountInk(root, options = {}) {
     s.raf = 0;
     for (const [, a] of s.anims) { try { a.cancel(); } catch (_) { /* gone */ } }
     if (strip) { strip.style.display = 'none'; strip.width = 0; strip.height = 0; }
+  }
+
+  // A hard flick goes further than one strip holds: when a slide cut short by the strip's
+  // size ends, the next strip is drawn at once (same task, so no frame shows the stale
+  // `base`) and the coast goes on with the speed it had there.
+  function chainSlide(s) {
+    slide = null;
+    cleanupSlide(s);
+    if (!(slideStillValid(s) && state.screen === 'editor' && state.view === 'ink')) { endPan(); return; }
+    state.sx -= s.x.dist / s.k;
+    state.sy -= s.y.dist / s.k;
+    clampScroll();
+    dirty = 'all';
+    if (startSlide(s.rest) !== 'slide') { noteCurrentPage(); endPan(); }
   }
 
   function stopSlide(apply) {
@@ -1824,6 +1941,7 @@ export function mountInk(root, options = {}) {
     }
   }, { passive: false });
   wrap.addEventListener('keydown', (e) => {
+    if (e.key === 'Escape' && !penMenu.hidden) { closeMenu(); toolBtn.focus(); e.stopPropagation(); return; }
     // Not in the Text tab: Ctrl+Z there undoes typing, never strokes.
     if (state.screen !== 'editor' || state.view !== 'ink' || e.target === titleInput || marksPanel.contains(e.target)
       || partsBox.contains(e.target)) return;
@@ -1915,9 +2033,15 @@ export function mountInk(root, options = {}) {
   function syncTools() {
     for (const b of penBtns) setAttr(b, 'aria-pressed', String(!state.eraser && b.dataset.pen === state.pen));
     setAttr(eraserBtn, 'aria-pressed', String(state.eraser));
-    setText(widthBtn, state.width === 'thin' ? 'Thin' : 'Medium');
+    setAttr(eraserPick, 'aria-pressed', String(state.eraser));
+    for (const b of widthBtns) setAttr(b, 'aria-pressed', String(b.dataset.width === state.width));
     const paper = state.note ? paperOf(state.note) : 'lined';
-    setText(paperBtn, PAPERS.find((p) => p.key === paper).label);
+    for (const b of paperBtns) setAttr(b, 'aria-pressed', String(b.dataset.paper === paper));
+    const pen = PENS.find((p) => p.key === state.pen) || PENS[0];
+    setAttr(toolSwatch, 'class', `ink-swatch${pen.highlighter ? ' hl' : ''}${state.width === 'medium' ? ' wide' : ''}`);
+    setAttr(toolSwatch, 'style', `--ink:${pen.color}`);
+    setProp(toolSwatch, 'hidden', state.eraser);
+    setProp(toolIcon, 'hidden', !state.eraser);
     setProp(undoBtn, 'disabled', !state.undo.length);
     setProp(redoBtn, 'disabled', !state.redo.length);
     const full = !!(state.note && inkPageCount(state.note.pages) >= MAX_PAGES);
@@ -2156,6 +2280,8 @@ export function mountInk(root, options = {}) {
     textPanel.hidden = !text;
     penGroup.hidden = text;
     editGroup.hidden = text;
+    pageGroup.hidden = text;
+    closeMenu();
     syncTools();
     if (text) renderText();
     else {
@@ -3280,6 +3406,7 @@ export function mountInk(root, options = {}) {
     syncDownloads();
     listView.hidden = true;
     editor.hidden = false;
+    if (fullscreenWanted()) enterFullscreen();
     syncTools();
     setStatus(note.synced ? 'Saved' : 'Saved on this device');
     applyView();
@@ -3569,6 +3696,7 @@ export function mountInk(root, options = {}) {
     state.book = null;
     editor.hidden = true;
     listView.hidden = false;
+    closeMenu();
     listView.textContent = '';
     const head = screenHead(
       el('button', { type: 'button', class: 'bs-btn primary ink-new-note', title: 'A one-off page, outside any notebook',
@@ -3626,6 +3754,7 @@ export function mountInk(root, options = {}) {
     state.book = id;
     editor.hidden = true;
     listView.hidden = false;
+    closeMenu();
     listView.textContent = '';
     const name = el('h2', { class: 'ink-book-name', text: (bookById(id) || {}).name || 'Notebook' });
     const back = iconBtn('back', 'All notes', () => showList());
@@ -3823,6 +3952,8 @@ export function mountInk(root, options = {}) {
   // note still waiting for the hub syncs when the browser is back online.
   function suspend() {
     suspended = true;
+    closeMenu();
+    leaveFullscreen();
     router.release();
     flush();
     if (state.note) autoTranscribe([...edited]); // like Back: read the pages changed
@@ -3839,6 +3970,8 @@ export function mountInk(root, options = {}) {
   // changed elsewhere and not here.
   async function refresh() {
     resume();
+    if (state.screen === 'editor' && fullscreenWanted()) enterFullscreen(); // reopened: a tap
+
     if (state.screen === 'list') return showList();
     if (state.screen === 'book') return showBook(state.book);
     if (state.note && state.view === 'text') loadTranscripts();
@@ -3866,6 +3999,7 @@ export function mountInk(root, options = {}) {
   }
 
   syncTools();
+  syncFullscreen();
   resume();
   showList();
   flushQueue();
@@ -3886,6 +4020,7 @@ export function mountInk(root, options = {}) {
       window.removeEventListener('pagehide', onHidden);
       window.removeEventListener('online', onOnline);
       window.removeEventListener('orientationchange', onResize);
+      document.removeEventListener('fullscreenchange', syncFullscreen);
     },
     // For tests.
     _state: state,

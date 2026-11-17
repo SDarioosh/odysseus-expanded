@@ -41,12 +41,15 @@ def test_speed_is_the_fingers_over_its_last_moves_and_has_its_direction():
     for (let i = 0; i <= 20; i++) fast.add(i * 16, 0, 1000 - i * 2);              // slow
     for (let i = 1; i <= 6; i++) fast.add(320 + i * 16, 0, 1000 - 40 - i * 32);   // 2000 px/s
     out.fast = fast.release(320 + 96 + 5);
+    out.gain = F.FLING.GAIN;
     """)
+    g = got["gain"]   # the coast starts a little faster than the finger
+    assert 1 <= g <= 1.3
     assert got["up"]["vx"] == pytest.approx(0, abs=1e-6)
-    assert got["up"]["vy"] == pytest.approx(-1000, rel=0.02)
-    assert got["right"]["vx"] == pytest.approx(1500, rel=0.02)
+    assert got["up"]["vy"] == pytest.approx(-1000 * g, rel=0.02)
+    assert got["right"]["vx"] == pytest.approx(1500 * g, rel=0.02)
     assert got["right"]["vy"] == pytest.approx(0, abs=1e-6)
-    assert got["fast"]["vy"] == pytest.approx(-2000, rel=0.1)
+    assert got["fast"]["vy"] == pytest.approx(-2000 * g, rel=0.1)
 
 
 @needs_node
@@ -83,13 +86,15 @@ def test_a_very_fast_flick_is_capped_keeping_its_direction():
     out.capped = F.startSpeed({ vx: -30000, vy: 40000 });
     out.slow = F.startSpeed({ vx: 20, vy: 20 });
     out.edge = F.startSpeed({ vx: F.FLING.MIN_SPEED, vy: 0 });
-    out.max = F.FLING.MAX_SPEED;
+    out.max = F.FLING.MAX_SPEED; out.min = F.FLING.MIN_SPEED; out.gain = F.FLING.GAIN;
     """)
     assert (got["capped"]["vx"] ** 2 + got["capped"]["vy"] ** 2) ** 0.5 == pytest.approx(got["max"], rel=1e-9)
     assert got["capped"]["vx"] < 0 < got["capped"]["vy"]
     assert got["capped"]["vx"] / got["capped"]["vy"] == pytest.approx(-0.75)
     assert got["slow"] is None
-    assert got["edge"] == {"vx": 50, "vy": 0}
+    assert got["edge"]["vx"] == pytest.approx(got["min"] * got["gain"]) and got["edge"]["vy"] == 0
+    # A light flick counts: the threshold is low (more sensitive than Android's 50 px/s).
+    assert got["min"] <= 50
 
 
 @needs_node
@@ -106,13 +111,15 @@ def test_coasting_goes_the_same_distance_at_any_frame_rate_and_stops():
     out.duration = Math.round(F.flingDuration(2000));
     out.tau = F.FLING.TAU_MS;
     """)
-    # Total distance = speed x tau (2000 px/s x 0.3 s = 600 px), less what is left at the stop.
-    assert got["analytic"] == 600
+    # Total distance = speed x tau (2000 px/s x tau), less what is left at the stop.
+    full = 2000 * got["tau"] / 1000
+    assert got["analytic"] == round(full)
     for key in ("hz60", "hz120", "hz30"):
-        assert got[key]["y"] == pytest.approx(-600, abs=15)
+        assert got[key]["y"] == pytest.approx(-full, abs=25)
     assert abs(got["hz60"]["y"] - got["hz120"]["y"]) <= 2
-    # About a second for a hard flick; never long.
-    assert 1000 <= got["hz60"]["ms"] <= 1700
+    # A long, gliding coast: a 2000 px/s flick goes on over two seconds, never forever.
+    assert 450 <= got["tau"] <= 650
+    assert 2000 <= got["hz60"]["ms"] <= 3500
     assert got["hz60"]["ms"] == pytest.approx(got["duration"], abs=40)
 
 
@@ -143,10 +150,11 @@ def test_slide_plan_goes_the_distance_of_the_coast_on_each_axis():
     out.none = F.slidePlan({ vx: 0, vy: 0 }, room);
     out.tau = F.FLING.TAU_MS; out.stop = F.FLING.STOP_SPEED;
     """)
-    # 2000 px/s x 0.3 s = 600 px, less what is left at the stop (20 px/s x 0.3 s).
-    assert got["up"]["y"]["dist"] == pytest.approx(-(600 - 6), abs=0.01)
+    # 2000 px/s x tau, less what is left at the stop (stop speed x tau).
+    tau, stop = got["tau"], got["stop"]
+    assert got["up"]["y"]["dist"] == pytest.approx(-(2000 - stop) * tau / 1000, abs=0.01)
     assert got["up"]["x"] == {"dist": 0, "ms": 0}
-    assert got["up"]["ms"] == pytest.approx(300 * math.log(2000 / 20), rel=1e-9)   # until the speed is 20 px/s
+    assert got["up"]["ms"] == pytest.approx(tau * math.log(2000 / stop), rel=1e-9)   # until the speed is the stop speed
     # Both axes take the same time and split the distance by their speeds.
     assert got["diag"]["x"]["ms"] == got["diag"]["y"]["ms"] == got["diag"]["ms"]
     assert got["diag"]["x"]["dist"] / got["diag"]["y"]["dist"] == pytest.approx(0.75)
@@ -177,7 +185,8 @@ def test_slide_plan_stops_an_axis_at_its_edge_and_caps_the_travel():
     assert got["xedge"]["x"]["dist"] == 50
     assert got["xedge"]["y"]["dist"] > 200
     assert got["xedge"]["x"]["ms"] < got["xedge"]["y"]["ms"] == got["xedge"]["ms"]
-    assert got["cap"]["y"]["dist"] == 1000
+    assert got["cap"]["y"]["dist"] == 1000 and got["cap"]["y"].get("capped") is True
+    assert "capped" not in got["edge"]["y"]
     assert got["free"]["y"]["dist"] > 2000
 
 
@@ -241,3 +250,25 @@ console.log(JSON.stringify(ends));
                           text=True, cwd=str(_REPO), timeout=30)
     assert proc.returncode == 0, proc.stderr
     assert json.loads(proc.stdout.strip().splitlines()[-1]) == ["lift", '{"dropped":true}']
+
+
+@needs_node
+def test_a_coast_cut_short_by_the_strip_goes_on_with_the_speed_it_had():
+    got = _node("""
+    const room = { xPos: 0, xNeg: 0, yPos: 1e6, yNeg: 0 };
+    const v = { vx: 0, vy: 8000 };
+    const plan = F.slidePlan(v, room, { maxTravel: 1000 });
+    out.rest = F.slideRest(v, plan);
+    // The rest of the coast, chained until it stops, adds up to the uncut coast.
+    let total = plan.y.dist, next = out.rest, n = 0;
+    while (next && n < 20) { const p = F.slidePlan(next, room, { maxTravel: 1000 }); if (!p) break; total += p.y.dist; next = F.slideRest(next, p); n++; }
+    out.total = total; out.n = n;
+    out.free = F.slidePlan(v, room).y.dist;
+    // An axis that met its edge has no rest.
+    out.edge = F.slideRest(v, F.slidePlan(v, { xPos: 0, xNeg: 0, yPos: 300, yNeg: 0 }, { maxTravel: 1000 }));
+    out.none = F.slideRest(v, null);
+    """)
+    assert 0 < got["rest"]["vy"] < 8000 and got["rest"]["vx"] == 0
+    assert got["n"] >= 2
+    assert got["total"] == pytest.approx(got["free"], rel=0.01)
+    assert got["edge"] is None and got["none"] is None
