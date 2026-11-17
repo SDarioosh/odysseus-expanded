@@ -110,11 +110,13 @@ it.
   Mouse draws too, for testing on a desktop.
 - **Flick to scroll.** Like the platform's own scrolling: lift a finger while it is
   still moving and the page coasts on and slows down (`static/js/forkInkFling.js`,
-  tests `tests/fork/test_ink_fling.py`). The speed is the finger's over its last 100 ms,
-  decaying exponentially (time constant 300 ms: a hard flick, about 3500 px/s, coasts
-  about 1 s and 1000 px; a gentle one less). No flick when the finger rested before
-  lifting, moved slower than 50 px/s or was a pinch, and the speed is capped at 8000
-  px/s. It stops at once when a finger or the pen touches down (the touch catches the
+  tests `tests/fork/test_ink_fling.py`). The speed is the finger's over its last 60 ms
+  (a flick speeds up as it leaves the glass) times 1.15, decaying exponentially (time
+  constant 520 ms, near iOS's normal rate: a hard flick, about 3500 px/s, coasts about
+  2.9 s and 2100 px; a gentle one less). No flick when the finger rested 90 ms before
+  lifting, moved slower than 30 px/s or was a pinch, and the speed is capped at 12000
+  px/s. On the Lenovo Tab Plus the same adb swipes coast 1.7 to 1.8 times as far as with
+  the first numbers (300 ms, 100 ms window, no gain). It stops at once when a finger or the pen touches down (the touch catches the
   page), the wheel turns, the page reaches an edge, or something else moves the view
   (a tapped mark, another note); a pen or palm cancelling the gesture gives no flick.
   The numbers are `FLING` at the top of `forkInkFling.js`. It applies to every note,
@@ -130,8 +132,21 @@ it.
   catches it, the view takes the place the strip had got to and draws as usual (the sharper
   pages load then). Pages whose images were not loaded when the flick began stay as
   "Loading page..." until it stops. The strip is at most 8000 device px tall (so at most
-  about 2900 px of travel at a pixel ratio of 2) and is freed afterwards. A browser without
+  about 2700 px of travel at a pixel ratio of 2) and is freed afterwards. A coast longer
+  than that goes on in a next strip, drawn in the same task as the last one ends (no frame
+  shows the stale `base`) with the speed the coast had there (`slideRest`, `chainSlide`);
+  on the tablet no frame of a 6000 px coast took longer than 16 ms. A browser without
   the `linear()` easing coasts frame by frame instead (`startFling`).
+- **Toolbar.** One row: Back and the title, Write/Text, the status, then quiet pill
+  groups: the pen button (the colour and width in hand, or the eraser) with a quick
+  eraser toggle, undo/redo, Add page/photo/Marks, and Full screen. The pen button opens a
+  dropdown with every pen and the eraser, the width (thin/medium) and the paper
+  (lined/dotted/blank); picking a pen or the eraser closes it, so does a tap outside it
+  (the pen on the page too) or Esc. With a note open on a touch screen the window's
+  title bar is hidden (Back returns to the list, which shows it), and Write asks the
+  browser for full screen (no status or navigation bar) when a note opens; on by default
+  on a touch screen, the Full screen button's choice is remembered on the device
+  (`fork-ink-fullscreen` in localStorage), and it is left when Write closes.
 - **Pens.** A row of preset pen buttons: black, blue, red, green, plus a yellow
   highlighter (drawn under the ink, semi-transparent). One tap to switch. Each pen has a
   fixed width (thin / medium toggle). Pressure is ignored even if the pen reports it.
