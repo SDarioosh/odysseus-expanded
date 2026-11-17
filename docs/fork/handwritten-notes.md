@@ -108,6 +108,30 @@ it.
   in range or down, touch is ignored (palm rejection); otherwise one finger scrolls and
   two fingers zoom. `touch-action: none` on the canvas, and pan/zoom handled in code.
   Mouse draws too, for testing on a desktop.
+- **Flick to scroll.** Like the platform's own scrolling: lift a finger while it is
+  still moving and the page coasts on and slows down (`static/js/forkInkFling.js`,
+  tests `tests/fork/test_ink_fling.py`). The speed is the finger's over its last 100 ms,
+  decaying exponentially (time constant 300 ms: a hard flick, about 3500 px/s, coasts
+  about 1 s and 1000 px; a gentle one less). No flick when the finger rested before
+  lifting, moved slower than 50 px/s or was a pinch, and the speed is capped at 8000
+  px/s. It stops at once when a finger or the pen touches down (the touch catches the
+  page), the wheel turns, the page reaches an edge, or something else moves the view
+  (a tapped mark, another note); a pen or palm cancelling the gesture gives no flick.
+  The numbers are `FLING` at the top of `forkInkFling.js`. It applies to every note,
+  not only datasheets.
+  **How it moves.** The distance of the coast is known when the finger lifts (speed x
+  300 ms, less what the page's edges allow), so the view draws the pages once over that
+  distance on a strip canvas (`startSlide` in `forkInk.js`, the existing `drawScene`) and
+  the compositor slides it along the same exponential curve (Web Animations: `translate`
+  for x and `transform` for y, the curve as a CSS `linear()` easing, so an axis that meets
+  the page's edge stops alone). Redrawing the whole canvas every frame instead made the GPU
+  miss vsyncs on the 90 Hz Lenovo Tab Plus (about 7 dropped frames per flick against about
+  2.5 for the slide; a quiet page drops 1.5 to 3). When it stops, or a touch or the pen
+  catches it, the view takes the place the strip had got to and draws as usual (the sharper
+  pages load then). Pages whose images were not loaded when the flick began stay as
+  "Loading page..." until it stops. The strip is at most 8000 device px tall (so at most
+  about 2900 px of travel at a pixel ratio of 2) and is freed afterwards. A browser without
+  the `linear()` easing coasts frame by frame instead (`startFling`).
 - **Pens.** A row of preset pen buttons: black, blue, red, green, plus a yellow
   highlighter (drawn under the ink, semi-transparent). One tap to switch. Each pen has a
   fixed width (thin / medium toggle). Pressure is ignored even if the pen reports it.

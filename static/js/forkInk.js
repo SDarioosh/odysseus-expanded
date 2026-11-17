@@ -46,6 +46,7 @@
 import { el, request as api } from './forkDom.js';
 import { addPart, createPdfImages, groupMarks, inkPageCount, isPdfNote, isPdfPage, libraryItem, markDisplay,
   marksStillReading, MAX_PART_LEN, partsShown, pdfDownloads, removePart, pageIndexAt, pageTops, planPdfPages, scrollForBox, tierFor } from './forkInkPdf.js';
+import { createVelocityTracker, flingDone, flingStep, slideEasing, slideFraction, slidePlan } from './forkInkFling.js'; // flick to scroll
 
 export const PAGE_W = 1000;
 export const PAGE_H = 1414;
@@ -141,7 +142,8 @@ const HIGHLIGHT_ALPHA = 0.35;
 // handlers: drawStart(e, {eraser}), drawMove(e), drawEnd(e), drawSwitch(e, {eraser})
 // (the barrel button was pressed or released mid-stroke), gesture(from, to) (touch
 // pan/zoom: move the page point under `from`'s midpoint to `to`'s, scaled by the
-// change in finger distance), gestureEnd().
+// change in finger distance), gestureEnd({dropped}) (the fingers lifted; `dropped` when a
+// pen or palm cancelled the gesture, so it is no flick).
 
 // A pen's barrel button: Chrome reports it as the secondary button (2) on most
 // Android pens, as the eraser button (32) on pens with an eraser end.
@@ -173,7 +175,7 @@ export function createInputRouter(handlers, clock = () => performance.now()) {
     if (!touches.size) return;
     touches.clear();
     gesture = null;
-    if (h.gestureEnd) h.gestureEnd();
+    if (h.gestureEnd) h.gestureEnd({ dropped: true });
   }
 
   function endDraw(e) {
@@ -790,6 +792,7 @@ export function mountInk(root, options = {}) {
   function resize() {
     const r = stage.getBoundingClientRect();
     if (!r.width || !r.height) return;
+    stopFling(false); // a coast's strip has the old size
     // Keep the top-left doc point in place (rotation keeps the writing where it was).
     cssW = r.width;
     cssH = r.height;
@@ -812,10 +815,27 @@ export function mountInk(root, options = {}) {
   // goes on the visible canvas only, a piece at a time.
   let frame = 0;
   let panning = false;           // fingers pan or zoom: `base` is shown (see startPan)
+  const velocity = createVelocityTracker(); // the dragging finger's last moves (forkInkFling.js)
+  let fling = null;              // coasting after a flick, frame by frame (the fallback): {vx, vy, last, sx, sy, zoom, note, raf}
+  let slide = null;              // coasting after a flick as a slide of a strip: see startSlide
   let dirty = null;              // null, 'all', or a screen box {x0, y0, x1, y1}
   let bg = '#808080';
 
-  function render() { noteCurrentPage(); dirty = 'all'; schedule(); }
+  function render() {
+    if (slide) {
+      // A coast's strip is on screen: nothing to redraw (an image arriving, say) until it
+      // stops. Anything that moved the view, zoomed it or changed the note ends the coast.
+      if (slideStillValid(slide)) return;
+      cleanupSlide(slide);
+      slide = null;
+      noteCurrentPage();
+      dirty = 'all';
+      endPan();
+      if (dirty) schedule();
+      return;
+    }
+    noteCurrentPage(); dirty = 'all'; schedule();
+  }
   function renderBox(box) {
     if (!box || dirty === 'all') return;
     dirty = unionBox(dirty, box);
@@ -1000,9 +1020,9 @@ export function mountInk(root, options = {}) {
   function drawInk(ctx, box, pages, k, wanted) {
     const hl = pages.map(([page, , y0, rect]) => [page.strokes.filter((st) => st.pen.highlighter && wanted(st, y0)), y0, rect]);
     if (hl.some(([list]) => list.length)) {
-      if (marks.width !== base.width || marks.height !== base.height) {
-        marks.width = base.width;
-        marks.height = base.height;
+      if (marks.width !== ctx.canvas.width || marks.height !== ctx.canvas.height) { // the target's size (a coast's strip is taller than `base`)
+        marks.width = ctx.canvas.width;
+        marks.height = ctx.canvas.height;
       }
       mctx.save();
       mctx.setTransform(dpr, 0, 0, dpr, 0, 0);
@@ -1178,6 +1198,180 @@ export function mountInk(root, options = {}) {
     }
     stage.classList.remove('ink-panning');
     pdfPrefetch(); // the gesture's last view: now the sharper pages
+  }
+
+  // Flick to scroll: when a finger lifts while moving, the page coasts on and slows down
+  // (forkInkFling.js). `base` stays on screen as in a drag and the sharper pages load once
+  // it stops. It stops at once when a finger or the pen touches down, the wheel turns,
+  // the page reaches an edge, or anything else moves or zooms the view (a tapped mark,
+  // another note, leaving the editor).
+  function startFling(v) {
+    fling = { vx: v.vx, vy: v.vy, last: performance.now(), sx: state.sx, sy: state.sy, zoom: state.zoom,
+      note: state.note && state.note.id, raf: 0 };
+    fling.raf = requestAnimationFrame(flingFrame);
+  }
+  // `apply`: keep where the coast had got to (a touch caught the page); false when the view
+  // was changed some other way and the coast just ends.
+  function stopFling(apply = true) {
+    stopSlide(apply);
+    const f = fling;
+    if (!f) return;
+    fling = null;
+    if (f.raf) cancelAnimationFrame(f.raf);
+    endPan();
+  }
+
+  // The coast as a slide (the way to coast: redrawing the whole canvas every frame made
+  // the GPU miss vsyncs on a tablet). The distance of the flick is known when the finger
+  // lifts, so the pages are drawn once, over that distance, on a strip canvas, and the
+  // compositor slides it along the exponential curve (Web Animations: `translate` for x,
+  // `transform` for y, so an axis that meets the page's edge stops alone). `base` stays
+  // under it, still. When it stops, or a touch catches it, the view takes the place the
+  // strip got to and draws as usual (sharper pages load then). Browsers without the
+  // `linear()` easing keep the frame by frame coast (startFling).
+  const MAX_STRIP_PX = 8000;   // device px: the longest side of the strip (GPU texture limits)
+  const slideSupported = typeof Element !== 'undefined' && typeof Element.prototype.animate === 'function'
+    && typeof CSS !== 'undefined' && typeof CSS.supports === 'function'
+    && CSS.supports('animation-timing-function', 'linear(0, 1)');
+  let strip = null;
+  const slideStillValid = (s) => !!state.note && state.note.id === s.note && state.sx === s.sx
+    && state.sy === s.sy && state.zoom === s.zoom;
+
+  // 'slide', 'none' (nothing to coast: at the page's edge) or 'unsupported'.
+  function startSlide(v) {
+    if (!slideSupported || !state.note) return 'unsupported';
+    const k = scale();
+    const viewW = cssW / k;
+    const viewH = cssH / k;
+    const fitsW = PAGE_W + 2 * SIDE <= viewW;
+    const minX = -SIDE;
+    const maxX = PAGE_W + SIDE - viewW;
+    const minY = -PAGE_GAP;
+    const maxY = Math.max(-PAGE_GAP, docHeight() + PAGE_GAP - viewH);
+    const room = {            // px the content can still move: Pos = right/down (the view goes the other way)
+      xPos: fitsW ? 0 : Math.max(0, (state.sx - minX) * k),
+      xNeg: fitsW ? 0 : Math.max(0, (maxX - state.sx) * k),
+      yPos: Math.max(0, (state.sy - minY) * k),
+      yNeg: Math.max(0, (maxY - state.sy) * k),
+    };
+    const maxTravel = Math.min(MAX_STRIP_PX / dpr - cssW, MAX_STRIP_PX / dpr - cssH, 3000);
+    if (!(maxTravel >= 50)) return 'unsupported';
+    const plan = slidePlan(v, room, { maxTravel });
+    if (!plan) return 'none';
+    const snap = (d) => Math.round(d * dpr) / dpr;      // whole device px: the strip lines up with `base`
+    const tx = snap(plan.x.dist);
+    const ty = snap(plan.y.dist);
+    const W2 = cssW + Math.abs(tx);
+    const H2 = cssH + Math.abs(ty);
+    const px0 = tx > 0 ? -tx : 0;                        // the strip reaches back, behind the motion
+    const py0 = ty > 0 ? -ty : 0;
+    if (!strip) {
+      strip = el('canvas', { class: 'ink-canvas ink-strip', 'aria-hidden': 'true' });
+      stage.insertBefore(strip, live);
+    }
+    strip.width = Math.round(W2 * dpr);
+    strip.height = Math.round(H2 * dpr);
+    const sctx = strip.getContext('2d', { alpha: false });
+    if (!sctx) { strip.width = 0; strip.height = 0; return 'unsupported'; }
+    strip.style.cssText = `inset:auto;left:${px0}px;top:${py0}px;width:${W2}px;height:${H2}px;display:block`;
+    const keep = { w: cssW, h: cssH, sx: state.sx, sy: state.sy };
+    cssW = W2;                                           // draw as if the view were the strip
+    cssH = H2;
+    state.sx = keep.sx + px0 / k;
+    state.sy = keep.sy + py0 / k;
+    try { drawScene(null, sctx); } finally {
+      cssW = keep.w;
+      cssH = keep.h;
+      state.sx = keep.sx;
+      state.sy = keep.sy;
+    }
+    const s = { x: { ...plan.x, dist: tx }, y: { ...plan.y, dist: ty }, k, sx: state.sx, sy: state.sy,
+      zoom: state.zoom, note: state.note.id, t0: null, anims: [], left: 0, raf: 0 };
+    slide = s;
+    // Start once the strip has been painted (two frames): the animation would otherwise
+    // begin over the still picture.
+    s.raf = requestAnimationFrame(() => { s.raf = requestAnimationFrame(() => beginSlide(s)); });
+    return 'slide';
+  }
+
+  function beginSlide(s) {
+    if (slide !== s) return;
+    s.raf = 0;
+    s.t0 = performance.now();
+    for (const axis of ['x', 'y']) {
+      const { dist, ms } = s[axis];
+      if (!dist) continue;
+      const frames = axis === 'x'
+        ? [{ translate: '0px 0px' }, { translate: `${dist}px 0px` }]
+        : [{ transform: 'translateY(0px)' }, { transform: `translateY(${dist}px)` }];
+      const a = strip.animate(frames, { duration: ms, easing: slideEasing(ms), fill: 'forwards' });
+      s.anims.push([axis, a]);
+      s.left++;
+      a.onfinish = () => { if (slide === s && --s.left === 0) stopSlide(true); };
+    }
+  }
+
+  function cleanupSlide(s) {
+    if (s.raf) cancelAnimationFrame(s.raf);
+    s.raf = 0;
+    for (const [, a] of s.anims) { try { a.cancel(); } catch (_) { /* gone */ } }
+    if (strip) { strip.style.display = 'none'; strip.width = 0; strip.height = 0; }
+  }
+
+  function stopSlide(apply) {
+    const s = slide;
+    if (!s) return;
+    slide = null;
+    let dx = 0;
+    let dy = 0;
+    const same = slideStillValid(s) && state.screen === 'editor' && state.view === 'ink';
+    if (apply && same && s.t0 !== null) {
+      for (const [axis, a] of s.anims) {                 // how far each axis had got
+        const d = s[axis].dist * slideFraction(Number(a.currentTime) || 0, s[axis].ms);
+        if (axis === 'x') dx = d; else dy = d;
+      }
+    }
+    cleanupSlide(s);
+    if (!same) { endPan(); return; }
+    if (apply) {
+      state.sx -= dx / s.k;                              // the page followed the finger: the other way round
+      state.sy -= dy / s.k;
+      clampScroll();
+    }
+    noteCurrentPage();
+    dirty = 'all';
+    endPan();                                            // draws `base` at the new place, shows the writing canvas
+    if (dirty === 'all') {
+      if (frame) { cancelAnimationFrame(frame); frame = 0; }
+      renderNow();
+    }
+  }
+  function flingFrame(now) {
+    const f = fling;
+    if (!f) return;
+    f.raf = 0;
+    if (document.hidden || state.screen !== 'editor' || state.view !== 'ink' || !state.note
+      || state.note.id !== f.note || state.sx !== f.sx || state.sy !== f.sy || state.zoom !== f.zoom) {
+      stopFling();
+      return;
+    }
+    const step = flingStep(f, now - f.last);
+    f.last = now;
+    f.vx = step.vx;
+    f.vy = step.vy;
+    const k = scale();
+    const wantX = state.sx - step.dx / k;   // the page follows the finger: the other way round
+    const wantY = state.sy - step.dy / k;
+    state.sx = wantX;
+    state.sy = wantY;
+    clampScroll();
+    if (state.sx !== wantX) f.vx = 0;       // at an edge
+    if (state.sy !== wantY) f.vy = 0;
+    f.sx = state.sx;
+    f.sy = state.sy;
+    render();
+    if (flingDone(f)) stopFling();
+    else f.raf = requestAnimationFrame(flingFrame);
   }
 
   // While the eraser moves, what it took is redrawn straight onto the visible canvas
@@ -1518,6 +1712,7 @@ export function mountInk(root, options = {}) {
   const router = createInputRouter({
     drawStart(e, { eraser }) {
       try { live.setPointerCapture(e.pointerId); } catch (_) { /* synthetic */ }
+      stopFling();
       endPan();
       startLive(e, eraser);
     },
@@ -1566,6 +1761,9 @@ export function mountInk(root, options = {}) {
       // The page point under the fingers' old midpoint moves to their new midpoint,
       // zoomed by how much the fingers spread: one step, so pinching doesn't drift.
       startPan();
+      // One finger dragging: remember its moves, a flick coasts on when it lifts.
+      if (to.n === 1) velocity.add(performance.now(), to.x, to.y);
+      else velocity.reset();                                   // zooming is no flick
       const [dx, dy] = toDoc(from.x, from.y);
       if (to.n > 1 && from.dist > 0) {
         state.zoom = Math.min(MAX_ZOOM, Math.max(MIN_ZOOM, state.zoom * (to.dist / from.dist)));
@@ -1577,7 +1775,14 @@ export function mountInk(root, options = {}) {
       clampScroll();
       render();
     },
-    gestureEnd() { endPan(); },
+    gestureEnd(info) {
+      const v = info && info.dropped ? null : velocity.release(performance.now());
+      velocity.reset();
+      if (!v) { endPan(); return; }
+      const how = startSlide(v);  // `base` stays up while it coasts
+      if (how === 'unsupported') startFling(v);
+      else if (how === 'none') endPan();
+    },
   }, now);
 
   function zoomAt(factor, clientX, clientY) {
@@ -1594,6 +1799,7 @@ export function mountInk(root, options = {}) {
   for (const type of ['pointerdown', 'pointermove', 'pointerrawupdate', 'pointerup', 'pointercancel',
     'lostpointercapture', 'pointerover', 'pointerenter', 'pointerleave', 'pointerout']) {
     live.addEventListener(type, (e) => {
+      if (type === 'pointerdown') { stopFling(); velocity.reset(); } // a touch catches a coasting page
       const what = router.handle(e);
       if (what === 'draw' || what === 'gesture' || (type === 'pointerdown' && e.pointerType === 'touch')) {
         e.preventDefault();
@@ -1607,6 +1813,7 @@ export function mountInk(root, options = {}) {
   live.addEventListener('contextmenu', (e) => e.preventDefault());
   live.addEventListener('wheel', (e) => {
     e.preventDefault();
+    stopFling();
     if (e.ctrlKey || e.metaKey) zoomAt(Math.exp(-e.deltaY / 300), e.clientX, e.clientY);
     else {
       const k = scale();

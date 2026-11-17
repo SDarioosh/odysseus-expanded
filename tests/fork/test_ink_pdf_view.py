@@ -139,6 +139,45 @@ def test_image_cache_keeps_the_lower_tier_until_the_sharper_one_loads():
 
 
 @needs_node
+def test_image_cache_still_asks_for_a_sharper_tier_after_a_decode_clears_the_src():
+    # A browser fires `error` on an <img> whose src is set to '' (found on the tablet: the
+    # decode path clears the src after createImageBitmap). That stray error must not mark
+    # the page failed, or no sharper tier is ever asked for (zoom, or a neighbour page that
+    # loaded at 1200 and then comes into view).
+    got = _node(IMAGES + """
+    const browser = [];
+    function browserImage() {
+      const img = { naturalWidth: 0, naturalHeight: 0, _src: '' };
+      Object.defineProperty(img, 'src', { get() { return this._src; }, set(v) {
+        this._src = v;
+        if (v === '') setTimeout(() => { if (img.onerror) img.onerror(); }, 0);   // like a browser
+      } });
+      browser.push(img);
+      return img;
+    }
+    const c = P.createPdfImages({ urlOf: (id, t) => `/x/${id}.png?w=${t}`, makeImage: browserImage,
+      toBitmap: (img) => Promise.resolve({ w: img.naturalWidth, close() {} }) });
+    c.want('a', 1200);
+    loadImg(browser[0], 1200);
+    for (let i = 0; i < 4; i++) await tick();   // decoded, src cleared, the error event delivered
+    out.status = c.status('a');
+    out.shown = c.best('a').tier;
+    c.want('a', 3000);
+    out.asked = browser.length;
+    out.url = browser[1] && browser[1].src;
+    // A real failure is still remembered.
+    c.want('f', 600);
+    browser[browser.length - 1].onerror();
+    out.failed = c.status('f');
+    """)
+    assert got["status"] == "ok"
+    assert got["shown"] == 1200
+    assert got["asked"] == 2
+    assert got["url"] == "/x/a.png?w=3000"
+    assert got["failed"] == "failed"
+
+
+@needs_node
 def test_image_cache_drops_far_pages_and_stays_in_budget_and_does_not_retry_failures():
     got = _node(IMAGES + """
     for (const id of ['a', 'b', 'c']) imgs.want(id, 1200);

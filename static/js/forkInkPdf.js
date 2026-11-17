@@ -140,6 +140,10 @@ export function createPdfImages({ urlOf, onChange = () => {}, makeImage = null, 
       const h = img.naturalHeight || img.height || 0;
       if (!bitmap) { done(img, w, h); return; }
       Promise.resolve().then(() => bitmap(img)).then((bmp) => {
+        // A browser fires `error` on an <img> whose src is set to '': detach the handlers
+        // first, or that error marks the page failed and no sharper tier is ever asked for.
+        img.onload = null;
+        img.onerror = null;
         try { img.src = ''; } catch (_) { /* fake image */ }
         done(bmp, w, h);
       }, () => done(img, w, h));

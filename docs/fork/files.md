@@ -348,6 +348,7 @@ is an old path of a module that moved into `fork/`; it only aliases the new modu
 - `static/js/forkDom.js`
 - `static/js/forkEntityHash.js`
 - `static/js/forkInk.js`
+- `static/js/forkInkFling.js`
 - `static/js/forkInkLinks.js`
 - `static/js/forkInkPdf.js`
 - `static/js/forkMeetingAutoJoin.js`
@@ -492,6 +493,7 @@ is an old path of a module that moved into `fork/`; it only aliases the new modu
 - `tests/fork/test_ink_athena.py`
 - `tests/fork/test_ink_auto_send.py`
 - `tests/fork/test_ink_eval.py`
+- `tests/fork/test_ink_fling.py`
 - `tests/fork/test_ink_library.py`
 - `tests/fork/test_ink_mark_reading.py`
 - `tests/fork/test_ink_marks_routes.py`
