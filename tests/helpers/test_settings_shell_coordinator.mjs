@@ -67,6 +67,7 @@ const REAL_MODULES = new Set([
   path.join(JS, 'settings/teacherModel.js'),
   path.join(JS, 'settings/utilityModel.js'),
   path.join(JS, 'settings/visionModel.js'),
+  path.join(JS, 'forkModuleShortcuts.js'), // Fork: settings/shortcuts.js shortcut hook (static/js/forkModuleShortcuts.js)
 ]);
 
 const realModulesLoaded = new Set();
