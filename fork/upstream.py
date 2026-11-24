@@ -190,6 +190,22 @@ def owner_documents_filter(query: Any, user: Any) -> Any:
     return _owner_session_filter(query, user)
 
 
+def verify_document_owner(db: Any, doc: Any, user: Any) -> None:
+    """``routes.document.document_helpers._verify_doc_owner(db, doc, user)``: raises
+    ``HTTPException`` unless ``user`` may read ``doc`` (Write's PDF import)."""
+    from routes.document.document_helpers import _verify_doc_owner
+
+    _verify_doc_owner(db, doc, user)
+
+
+def resolve_user_upload_path(handler: Any, upload_id: str, user: Any, auth_manager: Any) -> Any:
+    """``routes.document.document_helpers._resolve_user_upload_path(...)``: the file of
+    ``upload_id`` when ``user`` may read it, else None (Write's PDF import)."""
+    from routes.document.document_helpers import _resolve_user_upload_path
+
+    return _resolve_user_upload_path(handler, upload_id, user, auth_manager)
+
+
 # name -> (upstream module, private attribute) for every function above that imports one
 PRIVATE_NAMES: dict[str, tuple[str, str]] = {
     "load_mcp_disabled_map": ("src.agent_loop", "_load_mcp_disabled_map"),
@@ -214,4 +230,6 @@ PRIVATE_NAMES: dict[str, tuple[str, str]] = {
     "completion_claim_patterns:bare": ("src.agent_runtime.completion", "_BARE_SUCCESS"),
     "completion_claim_patterns:scope": ("src.agent_runtime.completion", "_NON_REPORT_SCOPE"),
     "owner_documents_filter": ("routes.document.document_helpers", "_owner_session_filter"),
+    "verify_document_owner": ("routes.document.document_helpers", "_verify_doc_owner"),
+    "resolve_user_upload_path": ("routes.document.document_helpers", "_resolve_user_upload_path"),
 }
