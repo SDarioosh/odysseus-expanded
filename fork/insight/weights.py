@@ -341,6 +341,8 @@ def t5_table(owner: str | None, today: Date, *, notes: Iterable[Any] | None = No
              now: datetime | None = None) -> dict:
     """One weight per to-do note for the T5 PDA: ``list:<id>`` + ``note_type:<type>``,
     clamped to [-6, 6]; only non-zero, at most 32 (largest |weight| first, ties by key)."""
+    from fork.common.note_items import note_type as _note_type
+
     weights = current(owner, today, now=now)
     if notes is None:
         try:
@@ -355,7 +357,7 @@ def t5_table(owner: str | None, today: Date, *, notes: Iterable[Any] | None = No
         nid = _value(getattr(n, "id", None))
         if not nid:
             continue
-        note_type = _value(getattr(n, "note_type", None)) or "checklist"
+        note_type = _value(_note_type(n)) or "checklist"
         w = _clamp(_key_weight(weights, f"list:{nid}")
                    + _key_weight(weights, f"note_type:{note_type}"), CANDIDATE_LIMIT)
         if w:

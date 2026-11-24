@@ -1290,6 +1290,7 @@ def create_note(owner: str | None, title: str, label: str, image_url: str | None
     import uuid
 
     from core.database import Note, SessionLocal
+    from core.notes_markdown import fold_image_url
 
     _reserve(owner, image_url)
     db = SessionLocal()
@@ -1297,7 +1298,8 @@ def create_note(owner: str | None, title: str, label: str, image_url: str | None
         new_id = note_id or str(uuid.uuid4())
         if db.query(Note).filter(Note.id == new_id).first() is not None:
             return None
-        db.add(Note(id=new_id, owner=owner, title=title, content="", note_type="note",
+        content = fold_image_url("", image_url) if image_url else ""  # as upstream's route
+        db.add(Note(id=new_id, owner=owner, title=title, content=content, note_type="note",
                     label=label, image_url=image_url or None, source="user",
                     repeat="none", sort_order=0))
         db.commit()
@@ -1308,8 +1310,13 @@ def create_note(owner: str | None, title: str, label: str, image_url: str | None
 
 def update_note(owner: str | None, note_id: str, *, content: str | None = None,
                 image_url: str | None = None, title: str | None = None) -> bool:
-    """Change fields of the owner's handwritten note (``image_url=""`` clears it)."""
+    """Change fields of the owner's handwritten note (``image_url=""`` clears it).
+
+    Like upstream's note route (``routes/note/note_routes.py``): the page image is also a
+    ``![](url)`` line of ``content`` (upstream's notes are one markdown document), kept
+    when the text changes and swapped or removed with ``image_url``."""
     from core.database import Note, SessionLocal
+    from core.notes_markdown import fold_image_url, remove_image_line
 
     if image_url:
         _reserve(owner, image_url)
@@ -1319,9 +1326,13 @@ def update_note(owner: str | None, note_id: str, *, content: str | None = None,
         if note is None:
             return False
         if content is not None:
-            note.content = content
+            note.content = fold_image_url(content, note.image_url) if note.image_url else content
         if image_url is not None:
-            note.image_url = image_url or None
+            previous, note.image_url = note.image_url, image_url or None
+            if note.image_url:
+                note.content = fold_image_url(note.content, note.image_url, replace=previous)
+            elif previous:
+                note.content = remove_image_line(note.content, previous)
         if title is not None:
             note.title = title
         db.commit()

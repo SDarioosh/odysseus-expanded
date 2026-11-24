@@ -3,6 +3,9 @@ import datetime
 
 import pytest
 
+from core.notes_markdown import items_to_markdown
+from fork.common.note_items import note_items, set_note_items
+
 from src import module_action_items as bai
 
 LIST = """3 all action items (times are Europe/Berlin). When answering, put the link next to each fact you use:
@@ -296,11 +299,11 @@ async def test_task_and_reminder_become_todos(hub, pushes):
     proposal, mom, holidays = (by_title[t] for t in
                                ("Get the proposal done", "Call Mom", "Voice notes"))
     assert proposal.note_type == "todo" and proposal.due_date == "2031-10-22T08:00:00+02:00"
-    assert json.loads(proposal.items) == [{"text": "Get the proposal done", "done": False}]
+    assert note_items(proposal) == [{"text": "Get the proposal done", "done": False}]
     assert LINK.format(c="c14") in proposal.content
     assert mom.due_date == "2031-10-20T17:00:00+02:00"
     assert holidays.due_date is None and holidays.note_type == "todo"
-    assert json.loads(holidays.items) == [{"text": "Think about holidays", "done": False}]
+    assert note_items(holidays) == [{"text": "Think about holidays", "done": False}]
     (p,) = pushes  # one combined push
     assert p["title"] == "Filed 3 items from your voice notes"
     assert p["body"].splitlines() == [
@@ -375,8 +378,13 @@ async def test_status_follows_both_ways_once(hub, pushes):
     filed = await bai.filed_state("alice")
 
     # ticked in Odysseus -> done in the module
+    from core.note_writes import note_body_revision
+
+    with hub() as db:  # upstream's toggle_item needs the note's current revision
+        revision = note_body_revision(db.get(cdb.Note, filed[14]["ref"]))
     await do_manage_notes(json.dumps({"action": "toggle_item", "id": filed[14]["ref"],
-                                      "index": 0, "done": True}), owner="alice")
+                                      "index": 0, "done": True, "body_revision": revision}),
+                          owner="alice")
     # done in the module -> ticked in Odysseus
     module.rows[15]["status"] = "done"
     # event deleted in Odysseus -> dismissed in the module
@@ -388,7 +396,7 @@ async def test_status_follows_both_ways_once(hub, pushes):
     assert {(u["item_id"], u["status"]) for u in module.updates} == {(14, "done"), (12, "dismissed")}
     assert (await bai.filed_state("alice"))[12]["removed"] is True
     milk = next(n for n in notes(hub) if n.title == "Buy milk")
-    assert json.loads(milk.items) == [{"text": "Buy milk", "done": True}]
+    assert note_items(milk) == [{"text": "Buy milk", "done": True}]
 
     # nothing ping-pongs on later passes
     module.updates.clear()
@@ -561,7 +569,7 @@ async def test_auth_off_task_and_page_share_one_state(hub):
 # ------------------------------------------------------------- named to-do lists
 def lines(factory, note_id):
     with factory() as db:
-        return json.loads(db.get(cdb.Note, note_id).items)
+        return note_items(db.get(cdb.Note, note_id))
 
 
 def make_list(factory, title, items, owner="alice", note_type="checklist"):
@@ -569,7 +577,7 @@ def make_list(factory, title, items, owner="alice", note_type="checklist"):
 
     with factory() as db:
         n = cdb.Note(id=str(uuid.uuid4()), owner=owner, title=title, note_type=note_type,
-                     items=json.dumps(items))
+                     content=items_to_markdown(items))
         db.add(n)
         db.commit()
         return n.id
@@ -649,7 +657,7 @@ async def test_list_line_status_follows_both_ways(hub):
 
 def _set_items(factory, note_id, items):
     with factory() as db:
-        db.get(cdb.Note, note_id).items = json.dumps(items)
+        set_note_items(db.get(cdb.Note, note_id), items)
         db.commit()
 
 
@@ -714,17 +722,23 @@ async def test_todo_lists_leave_out_single_todos(hub):
 
 @pytest.mark.asyncio
 async def test_list_edits_keep_other_lines_as_stored(hub):
-    odd = [{"text": "Bread", "done": False, "pos": 3}, "Legacy line"]
-    shopping = make_list(hub, "Shopping", odd)
+    # the list's text, other bullets and nesting stay byte for byte (upstream's notes
+    # are markdown; fork/common/note_items.py)
+    odd = "Weekly shop\n\n* [ ] Bread\n  - [x] Rye\n"
+    shopping = make_list(hub, "Shopping", [])
+    with hub() as db:
+        db.get(cdb.Note, shopping).content = odd
+        db.commit()
     module = JsonModule()
     await _start(module)
     module.add(row(60, "Milk", list_name="shopping"))
     await bai.sync("alice", module, now=T0)
     module.rows[60]["status"] = "done"
     await bai.sync("alice", module, now=T0)
-    assert lines(hub, shopping) == odd + [{"text": "Milk", "done": True}]
+    assert content(hub, shopping).startswith(odd)
+    assert lines(hub, shopping)[-1] == {"text": "Milk", "done": True}
     await bai.unfile_item("alice", 60, module)
-    assert lines(hub, shopping) == odd
+    assert content(hub, shopping).rstrip("\n") == odd.rstrip("\n")
 
 
 # ------------------------------------------------------------------------ notes
@@ -1030,7 +1044,7 @@ async def test_dated_task_has_a_short_title_and_the_full_text(hub, pushes):
     await bai.sync("alice", module, now=T0)
     (todo,) = notes(hub)
     assert todo.title == "Send battery measurements"
-    assert json.loads(todo.items) == [{"text": text, "done": False}]
+    assert note_items(todo) == [{"text": text, "done": False}]
     assert todo.due_date == "2031-10-22T08:00:00+02:00"
     assert LINK.format(c="c97") in todo.content
     assert pushes[0]["body"] == "☑️ Send battery measurements · due Wed 22 Oct → To-dos"
@@ -1147,7 +1161,7 @@ async def test_emptied_voice_notes_list_is_archived(hub):
     await bai.unfile_item("alice", 100, module)
     with hub() as db:
         n = db.get(cdb.Note, fresh.id)
-        assert json.loads(n.items) == [] and n.archived is False
+        assert note_items(n) == [] and n.archived is False
 
 
 VOICE = bai.VOICE_LIST

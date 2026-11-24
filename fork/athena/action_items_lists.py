@@ -137,16 +137,19 @@ def list_title(name: Any) -> str | None:
 
 
 def _lists(owner: str) -> list:
-    """The owner's open checklists and to-do notes, most recently changed first."""
+    """The owner's open checklists and to-do notes, most recently changed first. A
+    checklist made in the notes window is stored as ``note``; its content says what it
+    is (fork/common/note_items.py)."""
     from core.database import Note, SessionLocal
+    from fork.common.note_items import is_checklist
 
     db = SessionLocal()
     try:
-        q = db.query(Note).filter(Note.archived == False,  # noqa: E712
-                                  Note.note_type.in_(LIST_TYPES))
+        q = db.query(Note).filter(Note.archived == False)  # noqa: E712
         if owner:
             q = q.filter(Note.owner == owner)
-        notes = q.order_by(Note.updated_at.desc()).limit(500).all()
+        notes = [n for n in q.order_by(Note.updated_at.desc()).limit(2000).all()
+                 if is_checklist(n, LIST_TYPES)][:500]
         for n in notes:
             db.expunge(n)
         return notes
@@ -183,13 +186,11 @@ def _norm_line(text: Any) -> str:
 
 
 def _raw_items(note) -> list:
-    """A list's lines exactly as stored (also lines that aren't objects), so changing one
-    line writes the others back unchanged."""
-    try:
-        items = json.loads(note.items or "[]")
-    except (TypeError, ValueError):
-        return []
-    return items if isinstance(items, list) else []
+    """A list's lines as stored (its task lines, fork/common/note_items.py); writing them
+    back through ``checklist_items`` keeps the unchanged lines byte for byte."""
+    from fork.common.note_items import note_items
+
+    return note_items(note)
 
 
 def _ticked(item: Any) -> bool:
@@ -311,8 +312,6 @@ def _event(owner: str, ref: str):
 
 
 def _note_items(note) -> list[dict]:
-    try:
-        items = json.loads(note.items or "[]")
-    except (TypeError, ValueError):
-        return []
-    return [i for i in items if isinstance(i, dict)] if isinstance(items, list) else []
+    from fork.common.note_items import note_items
+
+    return note_items(note)

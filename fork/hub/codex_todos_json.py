@@ -17,9 +17,10 @@ recently updated.
 
 from __future__ import annotations
 
-import json
 from datetime import datetime
 from typing import Any, Iterable, Optional
+
+from fork.common.note_items import CHECKLIST_TYPES, is_checklist
 
 
 def _iso(value: Any) -> Optional[str]:
@@ -28,34 +29,65 @@ def _iso(value: Any) -> Optional[str]:
     return str(value) if value else None
 
 
-def _items(raw: Any) -> list[dict[str, Any]]:
-    """The note's checklist items as ``[{"text", "done"}]``, in stored order.
+def _items(note: Any) -> list[dict[str, Any]]:
+    """The note's checklist items as ``[{"text", "done"}]``, in document order.
 
-    The order matters: ``toggle_item`` addresses items by index. Items that
-    can't be read are kept as empty text, so the indexes still line up.
+    The order matters: ``toggle_item`` addresses items by index (the n-th task line of
+    the note's markdown, fork/common/note_items.py).
     """
-    if not raw:
-        return []
-    try:
-        data = json.loads(raw) if isinstance(raw, str) else raw
-    except (json.JSONDecodeError, TypeError):
-        return []
-    if not isinstance(data, list):
-        return []
-    out = []
-    for item in data:
-        if isinstance(item, dict):
-            text = item.get("text")
-            done = bool(item.get("done") or item.get("checked") or item.get("complete"))
-        else:
-            text, done = item, False
-        out.append({"text": text if isinstance(text, str) else "", "done": done})
-    return out
+    from fork.common.note_items import note_items
+
+    return [{"text": i["text"], "done": i["done"]} for i in note_items(note)]
 
 
 # Note types whose items are a checklist. ``manage_notes`` (and the notes UI) treat all
-# three the same; "todo" is what the Module Action Items task files.
-CHECKLIST_TYPES = frozenset({"checklist", "todo", "goal"})
+# three the same; "todo" is what the Module Action Items task files. A checklist made
+# in the notes window is stored as "note" (fork/common/note_items.py). CHECKLIST_TYPES
+# is imported from there above and kept as this module's name for its importers.
+__all__ = ["CHECKLIST_TYPES", "list_notes_json", "notes_to_json"]
+
+
+def _revision(note: Any) -> Optional[str]:
+    """The note's body revision (upstream's ``core/note_writes.py``), which
+    ``toggle_item`` and ``update`` check: send it back to tick an item."""
+    try:
+        from core.note_writes import note_body_revision
+
+        return note_body_revision(note)
+    except (AttributeError, TypeError, ValueError):
+        return None
+
+
+def fill_toggle_revision(args: dict[str, Any], owner: Optional[str]) -> None:
+    """Hook for ``POST /api/codex/todos`` (``routes/codex_routes.py``).
+
+    Upstream's ``toggle_item`` now refuses a call without the note's current
+    ``body_revision``. Athena's T5 PDA relays (phone and PC) toggle by note id and item
+    index with an explicit ``done`` and no revision, as the hub asked before. For such
+    a call the current revision is filled in, so the PDA keeps working: the same
+    index-based tick it always made. A call that sends a revision, or no explicit
+    ``done`` (a flip, which a stale index could turn the wrong way), is left as it is.
+    The relays can send the ``revision`` this feed now gives each note.
+    """
+    if args.get("action") != "toggle_item" or "body_revision" in args:
+        return
+    if not isinstance(args.get("done"), bool):
+        return
+    note_id = str(args.get("id") or args.get("note_id") or args.get("noteId") or "").strip()
+    if not note_id:
+        return
+    from core.database import Note, SessionLocal
+
+    db = SessionLocal()
+    try:
+        q = db.query(Note).filter(Note.id == note_id)
+        if owner:
+            q = q.filter(Note.owner == owner)
+        note = q.first()
+        if note is not None:
+            args["body_revision"] = _revision(note)
+    finally:
+        db.close()
 
 
 def _is_calendar_reminder(note: Any) -> bool:
@@ -72,7 +104,7 @@ def notes_to_json(notes: Iterable[Any]) -> dict[str, Any]:
     """Serialize notes (already selected) in the documented shape and order."""
     out = []
     for n in sorted((n for n in notes if not _is_calendar_reminder(n)), key=_sort_key):
-        checklist = (getattr(n, "note_type", None) or "note") in CHECKLIST_TYPES
+        checklist = is_checklist(n)
         out.append({
             "id": n.id,
             "title": getattr(n, "title", None) or "",
@@ -81,8 +113,9 @@ def notes_to_json(notes: Iterable[Any]) -> dict[str, Any]:
             "pinned": bool(getattr(n, "pinned", False)),
             "due_date": getattr(n, "due_date", None) or None,
             "updated_at": _iso(getattr(n, "updated_at", None)),
-            "items": _items(getattr(n, "items", None)) if checklist else [],
+            "items": _items(n) if checklist else [],
             "content": None if checklist else (getattr(n, "content", None) or ""),
+            "revision": _revision(n),
         })
     return {"notes": out}
 

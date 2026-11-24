@@ -343,8 +343,9 @@ def outcome(data_dir: Path, factory) -> dict:
             T0 + datetime.timedelta(hours=1))
     with factory() as db:
         notes_after = sorted((n.title, n.note_type, n.label) for n in db.query(cdb.Note).all())
-        voice = [json.loads(n.items or "[]") for n in db.query(cdb.Note).all()
-                 if n.title == mai.VOICE_LIST]
+        from fork.common.note_items import note_items
+
+        voice = [note_items(n) for n in db.query(cdb.Note).all() if n.title == mai.VOICE_LIST]
         events_after = sorted(e.uid for e in db.query(cdb.CalendarEvent).all())
     out.update(notes=notes, new_notes=sorted(set(notes_after) - set(notes)),
                voice_lists=[[i["text"] for i in v] for v in voice],

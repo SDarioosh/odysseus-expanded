@@ -148,9 +148,12 @@ def is_calendar_reminder(note: Any) -> bool:
 
 
 def note_text(note: Any) -> str:
-    """Title and text as the model sees them."""
+    """Title and text as the model sees them: the note's prose, without its task lines
+    and image lines (fork/common/note_items.py)."""
+    from fork.common.note_items import prose_of
+
     title = str(getattr(note, "title", None) or "").strip()
-    content = str(getattr(note, "content", None) or "").strip()
+    content = prose_of(note)
     return f"{title}\n\n{content}".strip() if title else content
 
 
@@ -175,6 +178,7 @@ def skip_reason(note: Any) -> str | None:
 def _load_notes(owner: str | None) -> list:
     """The owner's unarchived plain notes (every owner's without auth)."""
     from core.database import Note, SessionLocal
+    from fork.common.note_items import note_type
 
     db = SessionLocal()
     try:
@@ -182,7 +186,8 @@ def _load_notes(owner: str | None) -> list:
                                   Note.note_type == NOTE_TYPE)
         if owner:
             q = q.filter(Note.owner == owner)
-        notes = q.order_by(Note.id).all()
+        # a pure task list made in the notes window is stored as "note" too
+        notes = [n for n in q.order_by(Note.id).all() if note_type(n) == NOTE_TYPE]
         for n in notes:
             db.expunge(n)
     finally:
@@ -283,6 +288,8 @@ async def run(owner: str | None, *, llm: Llm | None = None, now: datetime | None
     voice-note filed, reminders, short), ``unchanged``, ``failed`` (no usable answer),
     ``facts`` (extracted this pass) and the ledger's counts. ``notes`` replaces the
     database read (tests)."""
+    from fork.common.note_items import note_type
+
     now = (now or datetime.now(timezone.utc)).astimezone(timezone.utc)
     stats = dict.fromkeys(("read", "skipped", "unchanged", "failed", "facts",
                            *_LEDGER_KEYS), 0)
@@ -292,7 +299,7 @@ async def run(owner: str | None, *, llm: Llm | None = None, now: datetime | None
         current: dict[str, dict] = {}
         todo = []
         for note in (_load_notes(owner) if notes is None else notes):
-            if (getattr(note, "note_type", None) or NOTE_TYPE) != NOTE_TYPE \
+            if note_type(note) != NOTE_TYPE \
                     or getattr(note, "archived", False):
                 continue
             if skip_reason(note):

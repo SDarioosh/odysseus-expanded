@@ -15,8 +15,9 @@ After that, the list is in the notes archive and can be unarchived; unarchiving 
 change, so the list then waits another full period and is archived again unless it has
 an open item by then.
 
-Checklist means note types ``checklist``, ``todo`` and ``goal`` (the same as
-``src/codex_todos_json.py``). Calendar-reminder notes and repeating notes are left
+Checklist means note types ``checklist``, ``todo`` and ``goal``, or a pure task list
+made in the notes window (``fork/common/note_items.py``, the same as
+``fork/hub/codex_todos_json.py``). Calendar-reminder notes and repeating notes are left
 alone. ``FORK_CHECKLIST_ARCHIVE_MINUTES=0`` (or ``off``) turns it off.
 
 Hook: ``app.py`` startup, next to the background-job monitor.
@@ -47,17 +48,18 @@ def archive_minutes() -> Optional[float]:
 
 def is_finished(note: Any) -> bool:
     """True for an unpinned checklist with at least one item, all of them done."""
-    from fork.hub.codex_todos_json import CHECKLIST_TYPES, _is_calendar_reminder, _items
+    from fork.common.note_items import is_checklist, note_items
+    from fork.hub.codex_todos_json import _is_calendar_reminder
 
     if getattr(note, "pinned", False) or getattr(note, "archived", False):
         return False
-    if (getattr(note, "note_type", None) or "note") not in CHECKLIST_TYPES:
+    if not is_checklist(note):
         return False
     if _is_calendar_reminder(note):
         return False
     if (getattr(note, "repeat", None) or "none") != "none":
         return False
-    items = _items(getattr(note, "items", None))
+    items = note_items(note)
     return bool(items) and all(item["done"] for item in items)
 
 
@@ -66,23 +68,23 @@ def is_empty(note: Any) -> bool:
     The sweep leaves empty checklists alone (a new, still empty list is fine); callers
     that just took a list's last line off use this to archive it then
     (src/module_action_items.py, the "Voice notes" list)."""
-    from fork.hub.codex_todos_json import CHECKLIST_TYPES, _is_calendar_reminder, _items
+    from fork.common.note_items import is_checklist, note_items
+    from fork.hub.codex_todos_json import _is_calendar_reminder
 
     if getattr(note, "pinned", False) or getattr(note, "archived", False):
         return False
-    if (getattr(note, "note_type", None) or "note") not in CHECKLIST_TYPES:
+    if not is_checklist(note):
         return False
     if _is_calendar_reminder(note):
         return False
     if (getattr(note, "repeat", None) or "none") != "none":
         return False
-    return not _items(getattr(note, "items", None))
+    return not note_items(note)
 
 
 def sweep(now: Optional[datetime] = None, minutes: Optional[float] = None) -> int:
     """Archive the finished checklists unchanged for ``minutes``. Returns how many."""
     from core.database import Note, SessionLocal, utcnow_naive
-    from fork.hub.codex_todos_json import CHECKLIST_TYPES
 
     if minutes is None:
         minutes = archive_minutes()
@@ -95,7 +97,6 @@ def sweep(now: Optional[datetime] = None, minutes: Optional[float] = None) -> in
             db.query(Note)
             .filter(Note.archived == False)  # noqa: E712 (SQL comparison)
             .filter(Note.pinned != True)  # noqa: E712
-            .filter(Note.note_type.in_(sorted(CHECKLIST_TYPES)))
             .filter(Note.updated_at <= cutoff)
             .all()
         )

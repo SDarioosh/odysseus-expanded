@@ -138,9 +138,13 @@ When answering, put the link next to each fact you use."""
 
 
 def _hub_rows(factory) -> dict:
+    # what a note means, not how it is stored: its checklist and its prose
+    # (fork/common/note_items.py; upstream keeps both in one markdown document)
+    from fork.common.note_items import note_items, prose_of
+
     with factory() as db:
         notes = [{"id": n.id, "owner": n.owner, "title": n.title, "note_type": n.note_type,
-                  "label": n.label, "items": n.items, "content": n.content,
+                  "label": n.label, "items": note_items(n), "content": prose_of(n),
                   "due_date": n.due_date, "archived": bool(n.archived), "repeat": n.repeat}
                  for n in db.query(cdb.Note).all()]
         events = [{"uid": e.uid, "summary": e.summary, "description": e.description,
@@ -202,11 +206,12 @@ async def scenario(factory, monkeypatch) -> dict:
     # status changes on both sides
     module.rows[14]["status"] = "done"
     module.rows[13]["status"] = "dismissed"
+    from fork.common.note_items import note_items, set_note_items
+
     with factory() as db:
         lst = next(n for n in db.query(cdb.Note).all() if n.title == "My shopping list"
                    or n.title.lower().startswith("my shopping"))
-        lst.items = json.dumps([{"text": i["text"], "done": True}
-                                for i in json.loads(lst.items)])
+        set_note_items(lst, [{"text": i["text"], "done": True} for i in note_items(lst)])
         todo = next(n for n in db.query(cdb.Note).all() if n.title == "Call Mom")
         todo.archived = True
         db.commit()

@@ -18,6 +18,7 @@ from src import ink_transcribe as tr
 from src import tool_utils
 from src.upload_handler import UploadHandler
 from tests.helpers.sqlite_db import make_temp_sqlite
+from fork.common.note_items import prose_of  # the text, without the page image line
 
 PEN = {"color": "#1f1f1f", "width": 2.0, "highlighter": False}
 HL = {"color": "#ffd400", "width": 14.0, "highlighter": True}
@@ -102,7 +103,7 @@ def note_row(factory, note_id):
     s = factory()
     try:
         n = s.query(Note).filter(Note.id == note_id).first()
-        return None if n is None else {"title": n.title, "content": n.content, "label": n.label,
+        return None if n is None else {"title": n.title, "content": prose_of(n), "label": n.label,
                                        "image_url": n.image_url}
     finally:
         s.close()

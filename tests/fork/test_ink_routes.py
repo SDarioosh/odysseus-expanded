@@ -19,6 +19,7 @@ from src import ink_transcribe as tr
 from src import tool_utils
 from src.upload_handler import UploadHandler
 from tests.helpers.sqlite_db import make_temp_sqlite
+from fork.common.note_items import prose_of  # the text, without the page image line
 
 PEN = {"color": "#1f5fbf", "width": 2.5, "highlighter": False}
 
@@ -230,7 +231,7 @@ def test_transcribe_then_review(env, reader):
         assert page["previous"]["text"].startswith("Pick up the blue parcel")
     s = env()
     row = s.query(Note).filter(Note.id == note_id).first()
-    assert row.content == "Pick up the blue parcel\nPond walk 9:00"
+    assert prose_of(row) == "Pick up the blue parcel\nPond walk 9:00"
     s.close()
 
 
@@ -260,7 +261,7 @@ def test_transcription_routes_are_the_owners_only(env, reader):
     assert token.put(f"/api/ink/notes/{note_id}/pages/p0/transcript",
                      json={"text": "x"}).status_code == 403
     s = env()
-    assert s.query(Note).filter(Note.id == typed).first().content == "keep"
+    assert prose_of(s.query(Note).filter(Note.id == typed).first()) == "keep"
     s.close()
 
 

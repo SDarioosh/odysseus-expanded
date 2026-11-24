@@ -331,7 +331,9 @@ def _find_list(owner: Any, args: dict):
             return None
         if note is None:
             return None
-        return note.id, note.title or "", _items_of(note.items)
+        from fork.common.note_items import note_items
+
+        return note.id, note.title or "", _items_of(note_items(note))
     finally:
         db.close()
 

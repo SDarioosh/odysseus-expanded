@@ -305,10 +305,15 @@
    "notes": [
     {
      "archived": false,
-     "content": null,
+     "content": "",
      "due_date": "2031-10-22T09:30:00Z",
      "id": "id1",
-     "items": "[{\"text\": \"Meet Jason @ Cafe Blau \\u2014 Wed Oct 22 12:00\", \"done\": false, \"checked\": false}]",
+     "items": [
+      {
+       "done": false,
+       "text": "Meet Jason @ Cafe Blau — Wed Oct 22 12:00"
+      }
+     ],
      "label": "calendar",
      "note_type": "todo",
      "owner": "alice",
@@ -320,7 +325,12 @@
      "content": "From your voice note \"Note 15\" — http://h:8000/view/c15?sig=s#t=4",
      "due_date": "2031-10-20T17:00:00+02:00",
      "id": "id2",
-     "items": "[{\"text\": \"Call Mom\", \"done\": false}]",
+     "items": [
+      {
+       "done": false,
+       "text": "Call Mom"
+      }
+     ],
      "label": "odysseus-sound",
      "note_type": "todo",
      "owner": "alice",
@@ -332,7 +342,7 @@
      "content": "Ideas for the garden\n\n- raised beds\n- compost\n\nFrom your voice note \"Note 18\" — http://h:8000/view/c18?sig=s#t=4",
      "due_date": null,
      "id": "id3",
-     "items": null,
+     "items": [],
      "label": "odysseus-sound",
      "note_type": "note",
      "owner": "alice",
@@ -344,7 +354,7 @@
      "content": "- Solder the second board",
      "due_date": null,
      "id": "id4",
-     "items": null,
+     "items": [],
      "label": "odysseus-sound",
      "note_type": "note",
      "owner": "alice",
@@ -353,10 +363,15 @@
     },
     {
      "archived": false,
-     "content": null,
+     "content": "",
      "due_date": null,
      "id": "id5",
-     "items": "[{\"text\": \"Oat milk\", \"done\": false}]",
+     "items": [
+      {
+       "done": false,
+       "text": "Oat milk"
+      }
+     ],
      "label": "odysseus-sound",
      "note_type": "todo",
      "owner": "alice",
@@ -368,7 +383,12 @@
      "content": "From your voice note \"Note 14\" — http://h:8000/view/c14?sig=s#t=4",
      "due_date": "2031-10-22T08:00:00+02:00",
      "id": "id6",
-     "items": "[{\"text\": \"Get the proposal done\", \"done\": false}]",
+     "items": [
+      {
+       "done": false,
+       "text": "Get the proposal done"
+      }
+     ],
      "label": "odysseus-sound",
      "note_type": "todo",
      "owner": "alice",
@@ -377,10 +397,19 @@
     },
     {
      "archived": false,
-     "content": null,
+     "content": "",
      "due_date": null,
      "id": "id7",
-     "items": "[{\"text\": \"Think about the holidays and where to go this winter with\\u2026\", \"done\": false}, {\"text\": \"Remind me to water the plants\", \"done\": false}]",
+     "items": [
+      {
+       "done": false,
+       "text": "Think about the holidays and where to go this winter with…"
+      },
+      {
+       "done": false,
+       "text": "Remind me to water the plants"
+      }
+     ],
      "label": "odysseus-sound",
      "note_type": "todo",
      "owner": "alice",
@@ -406,10 +435,15 @@
    "notes": [
     {
      "archived": false,
-     "content": null,
+     "content": "",
      "due_date": null,
      "id": "old-31",
-     "items": "[{\"text\": \"A page-filed one\", \"done\": false}]",
+     "items": [
+      {
+       "done": false,
+       "text": "A page-filed one"
+      }
+     ],
      "label": "odysseus-sound",
      "note_type": "todo",
      "owner": "alice",
@@ -418,10 +452,15 @@
     },
     {
      "archived": false,
-     "content": null,
+     "content": "",
      "due_date": "2031-10-25T07:00:00Z",
      "id": "id10",
-     "items": "[{\"text\": \"Think about the holidays and where to go this winter with the family and the dog \\u2014 Sat Oct 25 09:30\", \"done\": false, \"checked\": false}]",
+     "items": [
+      {
+       "done": false,
+       "text": "Think about the holidays and where to go this winter with the family and the dog — Sat Oct 25 09:30"
+      }
+     ],
      "label": "calendar",
      "note_type": "todo",
      "owner": "alice",
@@ -433,7 +472,12 @@
      "content": "From your voice note \"Note 15\" — http://h:8000/view/c15?sig=s#t=4",
      "due_date": "2031-10-20T17:00:00+02:00",
      "id": "id2",
-     "items": "[{\"text\": \"Call Mom\", \"done\": false}]",
+     "items": [
+      {
+       "done": false,
+       "text": "Call Mom"
+      }
+     ],
      "label": "odysseus-sound",
      "note_type": "todo",
      "owner": "alice",
@@ -442,10 +486,10 @@
     },
     {
      "archived": false,
-     "content": null,
+     "content": "",
      "due_date": null,
      "id": "id9",
-     "items": "[]",
+     "items": [],
      "label": "odysseus-sound",
      "note_type": "todo",
      "owner": "alice",
@@ -457,7 +501,7 @@
      "content": "Ideas for the garden\n\n- raised beds\n- compost\n\nFrom your voice note \"Note 18\" — http://h:8000/view/c18?sig=s#t=4",
      "due_date": null,
      "id": "id3",
-     "items": null,
+     "items": [],
      "label": "odysseus-sound",
      "note_type": "note",
      "owner": "alice",
@@ -469,7 +513,7 @@
      "content": "",
      "due_date": null,
      "id": "id4",
-     "items": null,
+     "items": [],
      "label": "odysseus-sound",
      "note_type": "note",
      "owner": "alice",
@@ -478,10 +522,15 @@
     },
     {
      "archived": false,
-     "content": null,
+     "content": "",
      "due_date": null,
      "id": "id5",
-     "items": "[{\"text\": \"Oat milk\", \"done\": true}]",
+     "items": [
+      {
+       "done": true,
+       "text": "Oat milk"
+      }
+     ],
      "label": "odysseus-sound",
      "note_type": "todo",
      "owner": "alice",
@@ -493,7 +542,12 @@
      "content": "From your voice note \"Note 14\" — http://h:8000/view/c14?sig=s#t=4",
      "due_date": "2031-10-22T08:00:00+02:00",
      "id": "id6",
-     "items": "[{\"text\": \"Get the proposal done\", \"done\": true}]",
+     "items": [
+      {
+       "done": true,
+       "text": "Get the proposal done"
+      }
+     ],
      "label": "odysseus-sound",
      "note_type": "todo",
      "owner": "alice",
@@ -505,7 +559,7 @@
      "content": "Send Alice the spreadsheet\n\nFrom your conversation \"Note 20\" — http://h:8000/view/c20?sig=s#t=4",
      "due_date": null,
      "id": "id8",
-     "items": null,
+     "items": [],
      "label": "odysseus-sound",
      "note_type": "note",
      "owner": "alice",
@@ -514,10 +568,19 @@
     },
     {
      "archived": false,
-     "content": null,
+     "content": "",
      "due_date": null,
      "id": "id7",
-     "items": "[{\"text\": \"Maybe read more\", \"done\": false}, {\"text\": \"Meet Jason\", \"done\": false}]",
+     "items": [
+      {
+       "done": false,
+       "text": "Maybe read more"
+      },
+      {
+       "done": false,
+       "text": "Meet Jason"
+      }
+     ],
      "label": "odysseus-sound",
      "note_type": "todo",
      "owner": "alice",
@@ -1439,6 +1502,7 @@
   "MAX_FILE_ATTEMPTS",
   "MAX_PUSHED_ITEMS",
   "NOTE_KIND",
+  "OLD_LABEL",
   "REMINDER_MINUTES",
   "TARGETS",
   "TASK_NAME",
@@ -1513,6 +1577,7 @@
   "find_notes",
   "hub_status",
   "is_explicit",
+  "is_label",
   "item_title",
   "list_key",
   "list_title",
@@ -1561,15 +1626,15 @@
  ],
  "uids": {
   "Athena": [
-   "63cd9fc9-d785-58d0-a080-04d08fa4c99f",
-   "15c21c5f-2fff-521b-a7ad-bf9b6247e1ba",
-   "6481d0f0-08d0-5f0a-9400-8cdf3f4a9be3",
-   "ede732ad-ecd4-554e-8ddb-97454d903ac3",
-   "d7aff337-6ea0-5e9a-9068-110deb64ab78",
-   "671b914d-bd70-5707-9c86-f05be0c7238c",
-   "64fbba39-821e-5fc6-9f45-3a68845e3d78",
-   "b28d2322-e75e-5d9d-bb99-86b767f62918",
-   "8d595675-d888-50d5-b449-4d5e95d7eb50"
+   "7e31c3fd-ecba-595d-ba38-86ed451b113e",
+   "3959b2ee-8b87-5a05-8955-1d5a4b72ef77",
+   "404cad67-f629-5b52-86e1-78104eca5a6d",
+   "d8a15a0a-d2b1-5246-a8b9-8d844527d6b7",
+   "b3204101-739b-5275-8744-a71f1c52ccc7",
+   "ec26c0f2-b3a0-5a5a-8027-fbeefa219075",
+   "fe41b93c-5e20-5a0e-8d9f-88dfa9d00682",
+   "1e0a629e-6a61-5f87-af3c-cbd3e584beaa",
+   "ea91d2fe-fad7-56e5-aec8-b07e98da74b9"
   ],
   "BARVIS": [
    "be0116be-ff80-53a5-a563-b7a8fa91ca4e",

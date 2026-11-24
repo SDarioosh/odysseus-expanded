@@ -83,12 +83,19 @@ def bucket_for(day: Date | None, today: Date) -> str:
     return "later"
 
 
-def _items(raw: Any) -> list:
-    try:
-        data = json.loads(raw) if isinstance(raw, str) else (raw or [])
-    except (TypeError, ValueError):
-        return []
-    return data if isinstance(data, list) else []
+def _items(note: Any) -> list:
+    """The note's checklist lines (fork/common/note_items.py)."""
+    from fork.common.note_items import note_items
+
+    return note_items(note)
+
+
+def _todo_type(note: Any) -> str:
+    """The note's to-do type: its stored one, or "checklist" for a pure task list made in
+    the notes window (stored as "note"); else its stored or derived type."""
+    from fork.common.note_items import note_type
+
+    return note_type(note)
 
 
 def _item_done(item: Any) -> bool:
@@ -107,7 +114,7 @@ def todo_candidates(notes: Iterable[Any], today: Date, tz: tzinfo,
     names = skip_lists() if names is None else names
     out = []
     for n in notes:
-        if (getattr(n, "note_type", None) or "note") not in TODO_TYPES:
+        if _todo_type(n) not in TODO_TYPES:
             continue
         if getattr(n, "archived", False):
             continue
@@ -119,7 +126,7 @@ def todo_candidates(notes: Iterable[Any], today: Date, tz: tzinfo,
             continue
         day = local_date(due_raw, tz)
         bucket = bucket_for(day, today)
-        for index, item in enumerate(_items(getattr(n, "items", None))):
+        for index, item in enumerate(_items(n)):
             text = _item_text(item)
             if not text or _item_done(item):
                 continue
@@ -128,7 +135,7 @@ def todo_candidates(notes: Iterable[Any], today: Date, tz: tzinfo,
                         "time": None, "list": title[:80] or None,
                         "pinned": bool(getattr(n, "pinned", False)),
                         "note_id": str(n.id),
-                        "note_type": getattr(n, "note_type", None) or "checklist"})
+                        "note_type": _todo_type(n)})
     return out
 
 
@@ -317,8 +324,8 @@ def notes_state(notes: Iterable[Any]) -> dict[str, dict]:
     out = {}
     for n in notes:
         out[str(n.id)] = {
-            "note_type": getattr(n, "note_type", None) or "note",
+            "note_type": _todo_type(n),
             "due_date": getattr(n, "due_date", None),
             "archived": bool(getattr(n, "archived", False)),
-            "items": [(_item_text(i), _item_done(i)) for i in _items(getattr(n, "items", None))]}
+            "items": [(_item_text(i), _item_done(i)) for i in _items(n)]}
     return out

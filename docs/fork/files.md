@@ -129,6 +129,7 @@ is an old path of a module that moved into `fork/`; it only aliases the new modu
 - `fork/common/athena_names.py`
 - `fork/common/llm.py`
 - `fork/common/local_time.py`
+- `fork/common/note_items.py`
 - `fork/common/owner.py`
 - `fork/common/settings.py`
 - `fork/common/sqlite.py`
@@ -544,6 +545,7 @@ is an old path of a module that moved into `fork/`; it only aliases the new modu
 - `tests/fork/test_news_feeds.py`
 - `tests/fork/test_news_gather.py`
 - `tests/fork/test_news_push.py`
+- `tests/fork/test_note_items.py`
 - `tests/fork/test_notes_evidence.py`
 - `tests/fork/test_offered_reads.py`
 - `tests/fork/test_personal_read_grants.py`
