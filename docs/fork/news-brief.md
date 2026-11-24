@@ -365,7 +365,7 @@ News section in `static/js/today.js`, the story anchor in `static/js/news.js`,
   model picks them again).
 - **Model time.** One call per category on the local model; six categories take a few
   minutes, so the brief is ready a few minutes after the delivery time.
-- **Cancellation.** Upstream cancels a running model-backed task on a non-passive request
+- **Cancellation.** (An Echo's own polls no longer count: `fork/hub/passive_requests.py`.) Upstream cancels a running model-backed task on a non-passive request
   (see [today-insight.md](today-insight.md#known-limits)). That is why the task runs every
   15 minutes: a cancelled run is tried again at the next pass after the delivery time,
   and passes after a written brief are no-ops.

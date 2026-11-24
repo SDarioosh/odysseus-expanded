@@ -99,6 +99,9 @@ def should_track_interactive_request(path: str, method: str = "GET") -> bool:
         return False
     if any(path.startswith(prefix) for prefix in _PASSIVE_PREFIXES):
         return False
+    from fork.hub.passive_requests import is_passive as _fork_passive  # Fork: a voice device's own polls are passive (fork/hub/passive_requests.py)
+    if _fork_passive(path, method):
+        return False
     return True
 
 

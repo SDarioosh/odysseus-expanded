@@ -272,6 +272,7 @@ to be offered) upstream, "with discussion" a change upstream may want in another
 | `src/mcp_manager.py` | `call_tool`, the call | `fork/mcp/session_recovery.py` | deadline for module calls | yes |
 | `src/mcp_manager.py` | `call_tool`, the error branch | `fork/mcp/session_recovery.py` | reconnect a lost HTTP/SSE session and retry once | yes |
 | `src/task_scheduler.py` | `_check_due_tasks` (two places) | `fork/athena/meeting_auto_join.py` | Send Athena joins are not deferred and skip the model slot | no |
+| `src/interactive_gate.py` | `should_track_interactive_request` | `fork/hub/passive_requests.py` | an Echo's own feed polls and pings (`/api/chat/voice/v1/announcements`, `turns/latest`, settings, hello, ...) are passive, so they stop cancelling running background tasks such as the News Brief | no |
 | `src/task_scheduler.py` | `_execute_action` | `fork/hub/builtin_task_authority.py` | re-seal a built-in task's broken authority, else say why | yes |
 | `src/task_scheduler.py` | end of file | `fork/tasks.py` (`register_scheduler`, table `TASKS`) | seed the fork's housekeeping tasks (`HOUSEKEEPING_DEFAULTS`); `barvis_sync_action_items`, `module_sync_facts` post nothing to chat; `today_insight`, `notes_evidence`, `belief_structure`, `news_brief` post nothing and queue for the model (`_SILENT_ACTIONS`, `_MODEL_BACKED_ACTIONS`) | no |
 | `src/tool_capabilities.py` | capability registry (`_register`) | `fork/routing/auto_mode.py` | `calculate` is a public read | no |
