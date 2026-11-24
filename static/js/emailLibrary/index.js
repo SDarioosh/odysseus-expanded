@@ -7,6 +7,10 @@
  */
 
 import spinnerModule from '../spinner.js';
+import { downloadBlob } from '../shared/platform/downloads.js';
+import { withClipboardTextarea } from '../shared/platform/clipboard.js';
+import { escapeHtmlText } from '../shared/domain/html.js';
+import { formatRecentAge } from '../shared/domain/relativeTime.js';
 import { styledConfirm, showToast, emptyStateIcon } from '../ui.js?v=20260916largetoolscroll1';
 import { folderDisplayName, sortedFolders } from '../emailInbox.js?v=20260914aireply4';
 import settingsModule from '../settings.js?v=20260912writingstyle3';
@@ -398,17 +402,10 @@ async function _copyTextToClipboard(text) {
     }
   } catch (_) {}
   try {
-    const ta = document.createElement('textarea');
-    ta.value = value;
-    ta.setAttribute('readonly', '');
-    ta.style.position = 'fixed';
-    ta.style.left = '-9999px';
-    ta.style.top = '0';
-    document.body.appendChild(ta);
-    ta.select();
-    const ok = document.execCommand('copy');
-    ta.remove();
-    return !!ok;
+    return !!withClipboardTextarea(value, 'position:fixed;left:-9999px;top:0', field => {
+      field.select();
+      return document.execCommand('copy');
+    }, { readOnly: true });
   } catch (_) {
     return false;
   }
@@ -1101,14 +1098,7 @@ function _selectedEmailExportPayload() {
 }
 
 function _downloadBlob(blob, filename) {
-  const url = URL.createObjectURL(blob);
-  const a = document.createElement('a');
-  a.href = url;
-  a.download = filename || 'selected-email-attachments.zip';
-  document.body.appendChild(a);
-  a.click();
-  a.remove();
-  setTimeout(() => URL.revokeObjectURL(url), 1500);
+  downloadBlob(blob, filename || 'selected-email-attachments.zip', 1500);
 }
 
 function _filenameFromContentDisposition(header) {
@@ -1203,11 +1193,11 @@ async function _printSelectedEmails(messages) {
     const fieldParts = [];
     for (const [lbl, val] of [['From', from], ['To', data.to], ['Cc', data.cc], ['Date', data.date_display || data.date || message.date]]) {
       if (!val) continue;
-      const esc = (s) => String(s).replace(/&/g, '&amp;').replace(/</g, '&lt;').replace(/>/g, '&gt;');
+      const esc = (s) => escapeHtmlText(String(s));
       fieldParts.push(`<div class="email-export-pdf-field"><span class="email-export-pdf-label">${esc(lbl)}</span><span>${esc(val)}</span></div>`);
     }
 
-    const esc = (s) => String(s).replace(/&/g, '&amp;').replace(/</g, '&lt;').replace(/>/g, '&gt;');
+    const esc = (s) => escapeHtmlText(String(s));
     articles.push(
       `<article class="email-export-pdf-message">` +
       `<h1>${esc(subject)}</h1>` +
@@ -1498,8 +1488,11 @@ let _libSyncStatus = {
   source: '',
   warming: false,
   loading: false,
+  stale: false,
 };
 let _libSyncTicker = null;
+let _libStaleRefetchTimer = null;
+let _libStaleRefetchCount = 0;
 
 function _libSyncDateFrom(value) {
   if (!value) return null;
@@ -1511,13 +1504,7 @@ function _libRelativeTime(value) {
   const d = _libSyncDateFrom(value);
   if (!d) return '';
   const seconds = Math.max(0, Math.floor((Date.now() - d.getTime()) / 1000));
-  if (seconds < 45) return 'just now';
-  const minutes = Math.floor(seconds / 60);
-  if (minutes < 60) return `${minutes}m ago`;
-  const hours = Math.floor(minutes / 60);
-  if (hours < 24) return `${hours}h ago`;
-  const days = Math.floor(hours / 24);
-  return `${days}d ago`;
+  return formatRecentAge(seconds, 45) ?? `${Math.floor(seconds / 86400)}d ago`;
 }
 
 function _renderEmailSyncStatus() {
@@ -1554,7 +1541,35 @@ function _setEmailSyncStatus(next = {}) {
   if (Object.prototype.hasOwnProperty.call(next, 'loading')) {
     _libSyncStatus.loading = Boolean(next.loading);
   }
+  if (Object.prototype.hasOwnProperty.call(next, 'stale')) {
+    _libSyncStatus.stale = Boolean(next.stale);
+  }
   _renderEmailSyncStatus();
+}
+
+// A server-side stale (sync.stale) response means the SWR snapshot was served
+// while a background IMAP refresh is still running. Re-fetch in place after a
+// short delay (bounded) so the fresh rows land with no skeleton and no scroll
+// jump. We only keep retrying while the response is still marked stale.
+function _clearStaleEmailRefetch() {
+  if (_libStaleRefetchTimer) {
+    clearTimeout(_libStaleRefetchTimer);
+    _libStaleRefetchTimer = null;
+  }
+  _libStaleRefetchCount = 0;
+}
+
+function _scheduleStaleEmailRefetch() {
+  if (_libStaleRefetchTimer || _libStaleRefetchCount >= 3) return;
+  const folderAtSchedule = state._libFolder;
+  const accountAtSchedule = state._libAccountId || '';
+  _libStaleRefetchCount++;
+  _libStaleRefetchTimer = setTimeout(() => {
+    _libStaleRefetchTimer = null;
+    if (document.hidden) return;
+    if (folderAtSchedule !== state._libFolder || accountAtSchedule !== (state._libAccountId || '')) return;
+    _loadEmails({ force: false, useCache: false, skipFastPath: true });
+  }, 2500);
 }
 
 function _libCacheKeyFor(accountId, folder, filter, hasAttachments) {
@@ -2619,7 +2634,14 @@ export function openEmailLibrary(opts = {}) {
   }
 
   // Wire events
-  document.getElementById('email-lib-close').addEventListener('click', closeEmailLibrary);
+  document.getElementById('email-lib-close').addEventListener('click', () => {
+    const modal = document.getElementById('email-lib-modal');
+    if (modal?.classList.contains('email-reading') || modal?.querySelector('.doclib-card-expanded')) {
+      _exitEmailReaderModeForList();
+      return;
+    }
+    closeEmailLibrary();
+  });
   document.getElementById('email-settings-header-back')?.addEventListener('click', _hideEmailSettingsPage);
 
   // Clicking the modal header (anywhere except buttons/inputs) collapses
@@ -4990,7 +5012,7 @@ export async function _refreshUnreadBadge({ unreadCountOverride = null, preserve
   } catch (_) { _syncUnreadTabBadge(0); }
 }
 
-export async function _loadEmails({ force = false, useCache = true } = {}) {
+export async function _loadEmails({ force = false, useCache = true, skipFastPath = false } = {}) {
   const seq = ++_libLoadSeq;
   state._libLoading = true;
   const accountAtStart = state._libAccountId || '';
@@ -5044,11 +5066,15 @@ export async function _loadEmails({ force = false, useCache = true } = {}) {
     }
     const stats = document.getElementById('email-lib-stats');
     if (stats) stats.textContent = `${state._libTotal} emails`;
+    const _isStale = Boolean(sync.stale);
     _setEmailSyncStatus({
       updatedAt: sync.updated_at || '',
       source: sync.source || (cacheSource ? 'client_cache' : ''),
       loading: false,
+      stale: _isStale,
     });
+    if (_isStale) _scheduleStaleEmailRefetch();
+    else _clearStaleEmailRefetch();
     if (cacheable && !cacheSource) {
       _libCachePut(ck, { emails: state._libEmails.slice(), total: state._libTotal, sync });
     }
@@ -5084,7 +5110,7 @@ export async function _loadEmails({ force = false, useCache = true } = {}) {
       const accountQS = accountAtStart ? `&account_id=${encodeURIComponent(accountAtStart)}` : '';
       const attQS = hasAttachmentsAtStart ? '&has_attachments=1' : '';
       const dateQS = `${dateFromAtStart ? `&date_from=${encodeURIComponent(dateFromAtStart)}` : ''}${dateToAtStart ? `&date_to=${encodeURIComponent(dateToAtStart)}` : ''}`;
-      if (!cached && cacheable && !force) {
+      if (!cached && cacheable && !force && !skipFastPath) {
         const ctrl = new AbortController();
         const timer = setTimeout(() => ctrl.abort(), 450);
         try {

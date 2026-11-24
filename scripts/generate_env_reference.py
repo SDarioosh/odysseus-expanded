@@ -513,6 +513,25 @@ VARIABLE_NOTES: dict[str, tuple[str, str, str]] = {
         "declare `readOnlyHint: true` run without per-call approval. Empty by "
         "default.",
     ),
+    "ODYSSEUS_LOCAL_MCP_READ_TOOLS": (
+        "Agent loop and tool execution", USER,
+        "Security-relevant. Comma-separated exact MCP read-tool names "
+        "on configured stdio MCP servers. Only stdio servers qualify. "
+        "Declarations do not override built-in tool effects. Output remains "
+        "untrusted to prevent privilege escalation, but allows continuation to "
+        "declared write tools on the same stdio server without external taint. "
+        "Stdio transport does not guarantee network isolation. Automatic "
+        "same-store writes carry residual prompt-injection risk.",
+    ),
+    "ODYSSEUS_LOCAL_MCP_WRITE_TOOLS": (
+        "Agent loop and tool execution", USER,
+        "Security-relevant. Comma-separated exact MCP write-tool names "
+        "on configured stdio MCP servers. Only stdio servers qualify. "
+        "Declarations do not override built-in tool effects. Allowed to execute "
+        "after declared local reads on the same stdio server, but blocked once "
+        "external untrusted context enters the run. Authorization must still "
+        "originate from the trusted request grant.",
+    ),
     "ODYSSEUS_MCP_ALLOWED_COMMANDS": (
         "Agent loop and tool execution", USER,
         "Security-relevant. Comma-separated allowlist of MCP launcher basenames the "
@@ -813,6 +832,12 @@ VARIABLE_NOTES: dict[str, tuple[str, str, str]] = {
         "of setup. `start-macos.sh` sets it because it starts the server itself.",
     ),
     # Fork: belief eval chat runs (scripts/belief_eval.py)
+    # Fork: checking a server for the Echos (scripts/echo_verify.py)
+    "ODYSSEUS_ECHO_TOKEN": (
+        "Testing, capture and development tooling", INTERNAL,
+        "Fork. The Echo's `voice` token `scripts/echo_verify.py` checks a server "
+        "with when neither `--token` nor `--token-file` is given.",
+    ),
     "ODYSSEUS_USER": (
         "Testing, capture and development tooling", INTERNAL,
         "Fork. The account `scripts/belief_eval.py --chat` signs in as; defaults "
@@ -928,6 +953,10 @@ VARIABLE_NOTES: dict[str, tuple[str, str, str]] = {
     "ODYSSEUS_TINY_MODEL_PATH": (
         "Testing, capture and development tooling", INTERNAL,
         "Path to a local compact model GGUF file used in Cookbook serve lifecycle audit flows.",
+    ),
+    "ODYSSEUS_VALIDATION_DIR": (
+        "Testing, capture and development tooling", INTERNAL,
+        "Directory where real application Playwright validation artifacts and reports are written.",
     ),
 
     # -- Build and release metadata ----------------------------------------

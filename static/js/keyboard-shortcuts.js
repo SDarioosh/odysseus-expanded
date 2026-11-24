@@ -155,7 +155,7 @@ export function initKeyboardShortcuts(modules) {
   document.addEventListener('keydown', (e) => {
     const kb = window._odysseusKeybinds;
 
-    if (_matchesCombo(e, kb.search)) {
+    if (!e.defaultPrevented && _matchesCombo(e, kb.search)) {
       e.preventDefault();
       if (searchChatModule) {
         searchChatModule.isOpen() ? searchChatModule.closeSearch() : searchChatModule.openSearch();
