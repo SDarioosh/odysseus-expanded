@@ -39,7 +39,9 @@ def test_how_why_question_stays_chat(message):
 def test_screenshot_message_was_escalated_upstream():
     message = STAY_CHAT[0]
     intent = classify_tool_intent(message)
-    assert intent.needs_tools and intent.category == "workspace"
+    # Upstream's category for it moved from "workspace" to "shell" (e4cc8efa: "on <word>"
+    # alone no longer names a computer); either way the fork keeps it in chat mode.
+    assert intent.needs_tools and intent.category in {"shell", "workspace"}
     assert keep_chat_for_question(message, intent)
 
 
