@@ -1,7 +1,7 @@
 // Fork: the fork windows' shortcuts ("Open Records", "Open Meetings", "Open Today",
 // "Open Write", "Open Wisdom", "Open News" in
 // Settings → Shortcuts) and their `/open` targets. Data only (no side effects), spread
-// into upstream's tables by small hooks in static/js/settings.js,
+// into upstream's tables by small hooks in static/js/settings/shortcuts.js,
 // static/js/keyboard-shortcuts.js and static/js/slashCommands.js. Unbound by default,
 // like upstream's other open-tool shortcuts. The buttons they click are the sidebar
 // entries whose clicks static/js/forkModuleWindows.js turns into windows (it adds the

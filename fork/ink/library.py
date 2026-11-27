@@ -39,7 +39,7 @@ def pdf_documents(user: str | None) -> list[dict[str, Any]]:
     from sqlalchemy import or_
 
     from core.database import Document, SessionLocal
-    from routes.document.document_helpers import _owner_session_filter
+    from fork.upstream import owner_documents_filter
     from src.pdf_form_doc import find_source_upload_id
 
     db = SessionLocal()
@@ -50,7 +50,7 @@ def pdf_documents(user: str | None) -> list[dict[str, Any]]:
                          Document.archived.is_(None)))
              .filter(or_(Document.current_content.like('%<!-- pdf_source upload_id="%'),
                          Document.current_content.like('%<!-- pdf_form_source upload_id="%'))))
-        q = _owner_session_filter(q, user)
+        q = owner_documents_filter(q, user)
         rows = q.order_by(Document.updated_at.desc()).limit(MAX_DOCUMENTS).all()
         return [{"id": d.id, "title": d.title or "", "updated_at": _iso(d.updated_at)}
                 for d in rows if find_source_upload_id(d.current_content or "")]
@@ -67,7 +67,7 @@ def document_pdf(user: str | None, document_id: str, auth_manager: Any = None
 
     from core.database import Document, SessionLocal
     from fork.ink import pdf as ink_pdf
-    from routes.document.document_helpers import _resolve_user_upload_path, _verify_doc_owner
+    from fork.upstream import resolve_user_upload_path, verify_document_owner
     from src.pdf_form_doc import find_source_upload_id
     from src.tool_utils import get_upload_handler
 
@@ -79,7 +79,7 @@ def document_pdf(user: str | None, document_id: str, auth_manager: Any = None
         if doc is None:
             raise InkError("Document not found", 404)
         try:
-            _verify_doc_owner(db, doc, user)
+            verify_document_owner(db, doc, user)
         except HTTPException:
             raise InkError("Document not found", 404) from None
         upload_id = find_source_upload_id(doc.current_content or "")
@@ -88,7 +88,7 @@ def document_pdf(user: str | None, document_id: str, auth_manager: Any = None
         db.close()
     if not upload_id:
         raise InkError("That document is not a PDF", 404)
-    path = _resolve_user_upload_path(get_upload_handler(), upload_id, user, auth_manager)
+    path = resolve_user_upload_path(get_upload_handler(), upload_id, user, auth_manager)
     if not path:
         raise InkError("The document's PDF is no longer available", 404)
     try:

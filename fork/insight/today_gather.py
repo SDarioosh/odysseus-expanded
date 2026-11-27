@@ -26,14 +26,16 @@ CallTool = Callable[[str, dict], Awaitable[str]]
 
 def _load_notes(owner: str | None) -> list:
     from core.database import Note, SessionLocal
+    from fork.common.note_items import note_type
 
     db = SessionLocal()
     try:
-        q = db.query(Note).filter(Note.archived == False,  # noqa: E712
-                                  Note.note_type.in_(TODO_TYPES))
+        q = db.query(Note).filter(Note.archived == False)  # noqa: E712
         if owner:
             q = q.filter(Note.owner == owner)
-        notes = q.all()
+        # the type is the stored one, or the content's for a task list made in the notes
+        # window (stored as "note"): filtered here, not in SQL (fork/common/note_items.py)
+        notes = [n for n in q.all() if note_type(n) in TODO_TYPES]
         for n in notes:
             db.expunge(n)
     finally:

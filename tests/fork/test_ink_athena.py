@@ -26,6 +26,7 @@ from src import module_facts
 from src import tool_utils
 from src.upload_handler import UploadHandler
 from tests.helpers.sqlite_db import make_temp_sqlite
+from fork.common.note_items import prose_of  # the text, without the page image line
 
 TOKEN = "fake-mcp-token"
 PEN = {"color": "#1f1f1f", "width": 2.0, "highlighter": False}
@@ -726,7 +727,7 @@ def test_qc12_unusable_public_url_falls_back_to_the_request(env, monkeypatch):
 def _content(note_id):
     db = cdb.SessionLocal()
     try:
-        return db.query(cdb.Note).filter(cdb.Note.id == note_id).first().content
+        return prose_of(db.query(cdb.Note).filter(cdb.Note.id == note_id).first())
     finally:
         db.close()
 

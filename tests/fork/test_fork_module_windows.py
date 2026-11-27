@@ -114,7 +114,7 @@ def test_hooks_are_in_place():
     keys = (_JS / "keyboard-shortcuts.js").read_text()
     for name in ("FORK_SHORTCUT_DEFAULTS", "FORK_SHORTCUT_BUTTONS", "FORK_WINDOW_TRIGGERS"):
         assert f"...{name}," in keys
-    settings = (_JS / "settings.js").read_text()
+    settings = (_JS / "settings" / "shortcuts.js").read_text()  # upstream split Settings
     for name in ("DEFAULTS", "ICONS", "LABELS", "ACTIONS"):
         assert f"..._forkShortcuts.FORK_SHORTCUT_{name}" in settings
     slash = (_JS / "slashCommands.js").read_text()

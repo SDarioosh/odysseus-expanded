@@ -91,7 +91,9 @@ def test_update_note_and_upstream_edits_are_seen_both_ways(env):
     assert ink.update_note("alice", note_id, content="milk, eggs", image_url=url, title="List")
     c = upstream_client(env)
     got = c.get(f"/api/notes/{note_id}").json()
-    assert (got["content"], got["image_url"], got["title"]) == ("milk, eggs", url, "List")
+    # upstream's notes are one markdown document: the page image is a line of it
+    assert (got["content"], got["image_url"], got["title"]) == (
+        f"milk, eggs\n\n![]({url})", url, "List")
     assert ink.update_note("bob", note_id, content="x") is False
     c.put(f"/api/notes/{note_id}", json={"title": "Renamed in Notes"})
     assert ink.note_title("alice", note_id) == "Renamed in Notes"
@@ -99,7 +101,8 @@ def test_update_note_and_upstream_edits_are_seen_both_ways(env):
     assert ink.existing_note_ids("alice", [note_id]) == {note_id}
     assert ink.handwritten_notes("alice") == []  # archived notes leave the Write list
     assert ink.update_note("alice", note_id, image_url="")
-    assert c.get(f"/api/notes/{note_id}").json()["image_url"] is None
+    got = c.get(f"/api/notes/{note_id}").json()
+    assert (got["image_url"], got["content"]) == (None, "milk, eggs")
 
 
 def test_existing_note_ids_follows_upstream_deletes(env):

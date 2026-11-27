@@ -151,6 +151,7 @@ the link goes to its details (what it does, its files, whether it can go upstrea
 - [Calendar reminder shows the wall time](docs/fork/features/notes-and-tasks.md#calendar-reminder-shows-the-wall-time): the reminder to-do of a timed event shows the local time, not UTC (general bug).
 - [Calendar events in the wall time](docs/fork/features/notes-and-tasks.md#calendar-events-in-the-wall-time): `list_events` gives the model each event's local time, not UTC, and a voice turn uses the owner's timezone (general bug).
 - [Structured notes for token clients](docs/fork/features/notes-and-tasks.md#structured-notes-for-token-clients): `GET /api/codex/todos?format=json` returns notes as data.
+- [Fork code reads notes as upstream's markdown documents](docs/fork/features/notes-and-tasks.md#fork-code-reads-notes-as-upstreams-markdown-documents): `fork/common/note_items.py` is the one place fork code reads or writes a note's checklist (task lines in `content`); T5 ticks without a body revision keep working.
 - [Finished checklists archive themselves](docs/fork/features/notes-and-tasks.md#finished-checklists-archive-themselves): a finished, unpinned checklist is archived after `FORK_CHECKLIST_ARCHIVE_MINUTES`.
 - [Built-in tasks recover from a broken sealed authority](docs/fork/features/notes-and-tasks.md#built-in-tasks-recover-from-a-broken-sealed-authority): a built-in housekeeping task with a broken sealed authority is re-sealed.
 
@@ -238,6 +239,7 @@ to be offered) upstream, "with discussion" a change upstream may want in another
 | `routes/chat_routes.py` | after the final turn policy | `fork/routing/turn_policy.py` (`admit_offered_reads`: `fork/routing/offered_reads.py`) | read grants for every offered personal store | yes, with discussion |
 | `routes/chat_routes.py` | `_AgentRenderState.consume`, `metadata` | `fork/hub/round_flow.py` | save the text each agent round showed in `round_texts` | yes |
 | `routes/codex_routes.py` | `list_todos` | `fork/hub/codex_todos_json.py` | `format=json` | yes |
+| `routes/codex_routes.py` | `manage_todos` | `fork/hub/codex_todos_json.py` | `fill_toggle_revision`: a `toggle_item` with an explicit `done` and no `body_revision` (Athena's T5 relays) gets the current one | no |
 | `scripts/verify_frontend_runtime.py` | folders copied into the isolated runtime | none | copy `fork/` too | no |
 | `scripts/verify_notes_browser_runtime.py` | folders copied into the isolated runtime | none | copy `fork/` too | no |
 | `scripts/generate_env_reference.py` | `SOURCE_ROOTS` | none | walk `fork/` too, so the fork's settings stay in the reference | no |
@@ -309,15 +311,16 @@ to be offered) upstream, "with discussion" a change upstream may want in another
 | `static/js/keyboard-shortcuts.js` | `initKeyboardShortcuts`, window triggers | `static/js/forkModuleShortcuts.js` | "Toggle Window" includes the module windows | no |
 | `static/js/keyboard-shortcuts.js` | `initKeyboardShortcuts`, `_toolBtns` | `static/js/forkModuleShortcuts.js` | shortcut buttons | no |
 | `static/js/mobileBulkSelect.js` | `_mobileSelectEnabled`, the `MutationObserver` | none | no layout read per DOM change; binds only added cards | yes |
-| `static/js/settings.js` | imports | `static/js/forkModuleShortcuts.js` | import the fork's shortcut tables | no |
-| `static/js/settings.js` | `SHORTCUT_DEFAULTS` | `static/js/forkModuleShortcuts.js` | defaults | no |
-| `static/js/settings.js` | `SHORTCUT_ICONS` | `static/js/forkModuleShortcuts.js` | icons | no |
-| `static/js/settings.js` | `SHORTCUT_LABELS` | `static/js/forkModuleShortcuts.js` | labels | no |
-| `static/js/settings.js` | `SHORTCUT_CATEGORIES` | `static/js/forkModuleShortcuts.js` | the module windows under Open Tools | no |
+| `static/sw.js` | `PRECACHE` | `static/js/forkModuleShortcuts.js` | precached, so Settings (which imports it) opens offline | no |
+| `static/js/settings/shortcuts.js` | imports | `static/js/forkModuleShortcuts.js` | import the fork's shortcut tables | no |
+| `static/js/settings/shortcuts.js` | `SHORTCUT_DEFAULTS` | `static/js/forkModuleShortcuts.js` | defaults | no |
+| `static/js/settings/shortcuts.js` | `SHORTCUT_ICONS` | `static/js/forkModuleShortcuts.js` | icons | no |
+| `static/js/settings/shortcuts.js` | `SHORTCUT_LABELS` | `static/js/forkModuleShortcuts.js` | labels | no |
+| `static/js/settings/shortcuts.js` | `SHORTCUT_CATEGORIES` | `static/js/forkModuleShortcuts.js` | the module windows under Open Tools | no |
 | `static/js/slashCommands.js` | imports | `static/js/forkModuleShortcuts.js` | import `FORK_OPEN_TARGETS` | no |
 | `static/js/slashCommands.js` | `_cmdOpen`, targets | `static/js/forkModuleShortcuts.js` | `/open records`, `meetings`, `today`, `write`, `wisdom`, `news` and their aliases | no |
-| `static/js/spinner.js` | `_drawWhirlpool`, `start`, `stop`, `_armOffscreenPause` | none | the whirlpool pauses while off screen | yes |
-| `tests/helpers/test_settings_shell_coordinator.mjs` | `REAL_MODULES` | `static/js/forkModuleShortcuts.js` | the settings.js import loads in the test shell | no |
+| `frontend/src/shared/ui/spinner.js` (published to `static/js/spinner.js` by `scripts/build_frontend.py`) | `_drawWhirlpool`, `start`, `stop`, `_armOffscreenPause` | none | the whirlpool pauses while off screen | yes |
+| `tests/helpers/test_settings_shell_coordinator.mjs` | `REAL_MODULES` | `static/js/forkModuleShortcuts.js` | the settings/shortcuts.js import loads in the test shell | no |
 | `tests/test_reserved_username_admin_escalation.py` | `test_legacy_reserved_username_session_cannot_pass_admin_gate` | none | evict the fresh `core.middleware` with `monkeypatch` | yes |
 
 ## Fork files

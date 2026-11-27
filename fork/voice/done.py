@@ -42,7 +42,6 @@ undo"}``; 503 ``{"error": "athena unavailable"}`` when Athena can't be reached, 
 from __future__ import annotations
 
 import asyncio
-import json
 import logging
 import re
 import sqlite3
@@ -206,11 +205,10 @@ def parse_device_id(value: Any) -> str:
 
 # ------------------------------------------------------------------------ notes
 def _items(note: Any) -> list:
-    try:
-        items = json.loads(note.items) if note.items else []
-    except (TypeError, ValueError):
-        return []
-    return items if isinstance(items, list) else []
+    """The note's checklist lines (fork/common/note_items.py)."""
+    from fork.common.note_items import note_items
+
+    return note_items(note)
 
 
 def _item_text(item: Any) -> str:
@@ -267,10 +265,9 @@ def _note(owner: str, note_id: str) -> Iterator[tuple[Any, Any]]:
 
 
 def _save_items(db: Any, note: Any, items: list) -> None:
-    from sqlalchemy.orm.attributes import flag_modified
+    from fork.common.note_items import set_note_items
 
-    note.items = json.dumps(items)
-    flag_modified(note, "items")
+    set_note_items(note, items)
     db.commit()
 
 

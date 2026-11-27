@@ -9,7 +9,8 @@ from src.codex_todos_json import notes_to_json
 
 
 def _note(id, **kw):
-    base = dict(title="", content=None, items=None, note_type="note", label=None, pinned=False,
+    base = dict(title="", content=None, items=None, image_url=None, note_type="note",
+                label=None, pinned=False,
                 archived=False, due_date=None, source="user", owner="alice",
                 updated_at=datetime(2026, 10, 20, 9, 0, tzinfo=timezone.utc))
     base.update(kw)
@@ -58,10 +59,13 @@ def test_calendar_reminder_notes_are_left_out():
     assert ids == ["c"]
 
 
-def test_unreadable_items_keep_indexes_aligned():
-    n = _note("n3", note_type="checklist", items=json.dumps(["Plain string", {"text": 5}, {"text": "Ok"}]))
+def test_item_indexes_are_upstreams_task_line_indexes():
+    # toggle_item addresses the n-th task line outside fenced code (core/notes_markdown.py)
+    content = "Shop\n\n- [ ] Milk\n```\n- [ ] not an item\n```\n* [x] Bread\n  - [ ] Rye\n"
+    n = _note("n3", note_type="checklist", content=content)
     assert notes_to_json([n])["notes"][0]["items"] == [
-        {"text": "Plain string", "done": False}, {"text": "", "done": False}, {"text": "Ok", "done": False}]
+        {"text": "Milk", "done": False}, {"text": "Bread", "done": True},
+        {"text": "Rye", "done": False}]
     broken = _note("n4", note_type="checklist", items="{not json")
     assert notes_to_json([broken])["notes"][0]["items"] == []
 
@@ -148,6 +152,8 @@ def _client(monkeypatch, scopes, rows):
 
 
 def test_route_returns_structured_notes_for_a_todos_read_token(monkeypatch):
+    from core.note_writes import note_body_revision
+
     rows = [_note("n1", title="Groceries", note_type="checklist", items=json.dumps([{"text": "Milk", "done": True}])),
             _note("bob", owner="bob")]
     r = _client(monkeypatch, ["calendar:read", "todos:read"], rows).get("/api/codex/todos?format=json")
@@ -155,9 +161,50 @@ def test_route_returns_structured_notes_for_a_todos_read_token(monkeypatch):
     assert r.json() == {"notes": [{
         "id": "n1", "title": "Groceries", "type": "checklist", "label": None, "pinned": False,
         "due_date": None, "updated_at": "2026-10-20T09:00:00+00:00",
-        "items": [{"text": "Milk", "done": True}], "content": None}]}
+        "items": [{"text": "Milk", "done": True}], "content": None,
+        "revision": note_body_revision(rows[0])}]}
 
 
 def test_route_needs_a_todos_scope(monkeypatch):
     r = _client(monkeypatch, ["calendar:read", "calendar:write"], []).get("/api/codex/todos?format=json")
     assert r.status_code == 403
+
+
+def test_a_pda_tick_without_a_revision_still_works(monkeypatch):
+    """Athena's T5 relays toggle with an explicit done and no body_revision
+    (fork/hub/codex_todos_json.py fill_toggle_revision)."""
+    import asyncio
+
+    import core.database as cdb
+    import src.tools.notes as tool_notes
+    from fork.hub.codex_todos_json import fill_toggle_revision
+    from tests.helpers.sqlite_db import make_temp_sqlite
+
+    factory, engine, _ = make_temp_sqlite(cdb.Base.metadata)
+    monkeypatch.setattr(cdb, "SessionLocal", factory)
+    monkeypatch.setattr(tool_notes, "SessionLocal", factory, raising=False)
+    try:
+        with factory() as db:
+            db.add(cdb.Note(id="n1", owner="alice", title="Shop", note_type="checklist",
+                            content="- [ ] Milk\n- [ ] Bread\n"))
+            db.commit()
+
+        def toggle(args, owner="alice"):
+            args = {"action": "toggle_item", "note_id": "n1", **args}
+            fill_toggle_revision(args, owner)
+            return asyncio.run(tool_notes.do_manage_notes(json.dumps(args), owner=owner)), args
+
+        result, _ = toggle({"index": 1, "done": True})
+        assert result.get("exit_code") == 0, result
+        with factory() as db:
+            assert db.get(cdb.Note, "n1").content == "- [ ] Milk\n- [x] Bread\n"
+        # a flip without an explicit done, or another owner's note, gets no revision
+        result, args = toggle({"index": 0})
+        assert "body_revision" not in args and result.get("conflict"), result
+        _, args = toggle({"index": 0, "done": True}, owner="bob")
+        assert "body_revision" not in args
+        # a client that sends its own revision keeps it
+        _, args = toggle({"index": 0, "done": True, "body_revision": "stale"})
+        assert args["body_revision"] == "stale"
+    finally:
+        engine.dispose()

@@ -3,13 +3,14 @@ the notes database is a temp SQLite file, Athena is a fake ``module_json``."""
 from __future__ import annotations
 
 import asyncio
-import json
 import time
 
 import pytest
 from fastapi import FastAPI
 from fastapi.testclient import TestClient
 
+from core.notes_markdown import items_to_markdown
+from fork.common.note_items import note_items, set_note_items
 from fork.voice import done as vd
 from fork.voice import ledger
 from fork.voice.routes import PREFIX
@@ -38,7 +39,7 @@ def add_note(factory, note_id, *, owner="alice", title="Home", items=None,
     s = factory()
     try:
         s.add(Note(id=note_id, owner=owner, title=title, note_type=note_type,
-                   items=json.dumps(items) if items is not None else None,
+                   content=items_to_markdown(items) if items is not None else None,
                    due_date=due, archived=archived))
         s.commit()
     finally:
@@ -51,7 +52,8 @@ def get_note(factory, note_id):
     s = factory()
     try:
         n = s.query(Note).filter(Note.id == note_id).first()
-        return {"items": json.loads(n.items) if n.items else None, "archived": n.archived}
+        return {"items": note_items(n) if n.content is not None else None,
+                "archived": n.archived}
     finally:
         s.close()
 
@@ -236,8 +238,8 @@ def test_todo_undo_follows_a_moved_line(db):
     vd.todo_done("alice", "todo:n41:1", DEVICE)
     s = db()
     n = s.query(Note).filter(Note.id == "n41").first()
-    items = json.loads(n.items)
-    n.items = json.dumps([{"text": "New first line", "done": False}] + items)
+    items = note_items(n)
+    set_note_items(n, [{"text": "New first line", "done": False}] + items)
     s.commit()
     s.close()
     assert vd.todo_undo("alice", "todo:n41:1")["already"] is False
@@ -251,9 +253,9 @@ def test_todo_undo_after_a_ticked_again_elsewhere_is_409(db):
     from core.database import Note
     s = db()
     n = s.query(Note).filter(Note.id == "n41").first()
-    items = json.loads(n.items)
+    items = note_items(n)
     items[1]["done"] = True
-    n.items = json.dumps(items)
+    set_note_items(n, items)
     s.commit()
     s.close()
     with pytest.raises(vd.Failure) as e:
@@ -414,7 +416,7 @@ def _set_items(factory, note_id, items):
     s = factory()
     try:
         n = s.query(Note).filter(Note.id == note_id).first()
-        n.items = json.dumps(items)
+        set_note_items(n, items)
         s.commit()
     finally:
         s.close()
@@ -511,7 +513,7 @@ def _set_items(factory, note_id, items):
     s = factory()
     try:
         n = s.query(Note).filter(Note.id == note_id).first()
-        n.items = json.dumps(items)
+        set_note_items(n, items)
         s.commit()
     finally:
         s.close()

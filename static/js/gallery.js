@@ -2,7 +2,10 @@
  * Gallery Module — photo backup + AI-generated image library.
  */
 
+import { formatRecentAge } from './shared/domain/relativeTime.js';
 import uiModule from './ui.js?v=20260916largetoolscroll1';
+import { debounceTrailing } from './shared/platform/debounce.js';
+import { downloadBlob } from './shared/platform/downloads.js';
 import { loadPanel } from './panels.js?v=20260909movepicklayer1';
 import spinnerModule from './spinner.js';
 import { makeWindowDraggable } from './windowDrag.js';
@@ -172,7 +175,10 @@ function _computeFetchLimit() {
   const rows = Math.ceil(gridH / ROW_H) + 2; // +2 buffer rows for scroll
   return Math.min(100, Math.max(24, cols * rows));
 }
-let _searchDebounce = null;
+const _searchDebounce = debounceTrailing((input) => {
+  _search = input.value.trim();
+  _fetchLibrary(false);
+}, 300);
 let _escHandler = null;
 let _albums = [];
 // Albums tab — search filter + multi-select state. Mirrors what the
@@ -623,13 +629,12 @@ function _ensureAlbumsToolbar(container) {
 
   // Wire search — debounced re-render, same pattern as Photos.
   const searchInput = container.querySelector('#gallery-albums-search');
-  let _albumSearchDebounce = null;
+  const albumSearchDebounce = debounceTrailing(() => {
+    _albumSearch = searchInput.value;
+    _renderAlbumsGrid();
+  }, 150);
   searchInput.addEventListener('input', () => {
-    clearTimeout(_albumSearchDebounce);
-    _albumSearchDebounce = setTimeout(() => {
-      _albumSearch = searchInput.value;
-      _renderAlbumsGrid();
-    }, 150);
+    albumSearchDebounce();
   });
 
   // Wire Select + bulk bar — Cancel restores the normal click-to-open
@@ -1228,9 +1233,8 @@ function _draftsWireOnce() {
 // Human-readable "x minutes ago" / "y days ago" for the drafts list.
 function _humanRelativeDate(when) {
   const diff = (Date.now() - when.getTime()) / 1000;
-  if (diff < 60) return 'just now';
-  if (diff < 3600) return Math.floor(diff / 60) + 'm ago';
-  if (diff < 86400) return Math.floor(diff / 3600) + 'h ago';
+  const recent = formatRecentAge(diff);
+  if (recent !== null) return recent;
   if (diff < 86400 * 30) return Math.floor(diff / 86400) + 'd ago';
   return when.toLocaleDateString();
 }
@@ -1321,7 +1325,12 @@ function _renderEditorLanding() {
     // openEditor() now returns a Promise — it's async because the size
     // prompt is a styled modal. Await it before checking whether the
     // editor actually opened (the user may have cancelled).
-    await openEditor(null, null, null, 'New canvas');
+    try {
+      await openEditor(null, null, null, 'New canvas');
+    } catch (error) {
+      // openEditor reports the initialization error and tears down its shell.
+      console.error('[gallery] New canvas failed', error);
+    }
     if (!document.querySelector('#gallery-editor-container .gallery-editor')) {
       _renderEditorLanding();
     }
@@ -1511,14 +1520,7 @@ function _renderGrid() {
       try {
         const res = await fetch(url, { credentials: 'same-origin' });
         const blob = await res.blob();
-        const objUrl = URL.createObjectURL(blob);
-        const a = document.createElement('a');
-        a.href = objUrl;
-        a.download = filename;
-        document.body.appendChild(a);
-        a.click();
-        a.remove();
-        setTimeout(() => URL.revokeObjectURL(objUrl), 1000);
+        downloadBlob(blob, filename, 1000);
       } catch (_) {
         const a = document.createElement('a');
         a.href = url;
@@ -1920,14 +1922,7 @@ function _openDetail(img) {
     try {
       const res = await fetch(img.url, { credentials: 'same-origin' });
       const blob = await res.blob();
-      const objUrl = URL.createObjectURL(blob);
-      const a = document.createElement('a');
-      a.href = objUrl;
-      a.download = img.filename || `image-${img.id}.png`;
-      document.body.appendChild(a);
-      a.click();
-      a.remove();
-      setTimeout(() => URL.revokeObjectURL(objUrl), 1000);
+      downloadBlob(blob, img.filename || `image-${img.id}.png`, 1000);
     } catch (e) {
       // Fallback: direct link
       const a = document.createElement('a');
@@ -2229,6 +2224,41 @@ function _makeGalleryDraggable(content) {
 // Re-export the manager for the rail click handler
 import * as Modals from './modalManager.js';
 
+// Module-owned listeners resolve the current picker; closed modals are never retained.
+window.addEventListener('ge-ai-command-model-change', (e) => {
+  let val = (e && e.detail && typeof e.detail.value === 'string') ? e.detail.value : '';
+  const imageModelSelect = document.getElementById('gallery-image-model');
+  if (imageModelSelect && imageModelSelect._modelsReady) {
+    if (val && ![...imageModelSelect.options].some(o => o.value === val)) {
+      if (localStorage.getItem('ge-ai-command-model') === val) localStorage.removeItem('ge-ai-command-model');
+      val = '';
+    }
+    if (imageModelSelect.value !== val) {
+      imageModelSelect.value = val;
+      if (imageModelSelect.value !== val) imageModelSelect.value = '';
+    }
+  }
+  try {
+    if (val) localStorage.setItem('ge-ai-command-model', val);
+    else localStorage.removeItem('ge-ai-command-model');
+  } catch (_) {}
+});
+window.addEventListener('storage', (e) => {
+  const imageModelSelect = document.getElementById('gallery-image-model');
+  if (e && e.key === 'ge-ai-command-model' && imageModelSelect?._modelsReady) {
+    let val = e.newValue || '';
+    if (val && ![...imageModelSelect.options].some(o => o.value === val)) {
+      if (localStorage.getItem('ge-ai-command-model') === val) localStorage.removeItem('ge-ai-command-model');
+      val = '';
+    }
+    if (imageModelSelect.value !== val) {
+      imageModelSelect.value = val;
+      if (imageModelSelect.value !== val) imageModelSelect.value = '';
+    }
+  }
+});
+
+
 export function openGallery() {
   // If already minimized — restore in place, preserve all state
   if (Modals.isRegistered('gallery-modal') && Modals.isMinimized('gallery-modal')) {
@@ -2487,11 +2517,7 @@ export function openGallery() {
 
   const searchInput = document.getElementById('gallery-search');
   searchInput.addEventListener('input', () => {
-    clearTimeout(_searchDebounce);
-    _searchDebounce = setTimeout(() => {
-      _search = searchInput.value.trim();
-      _fetchLibrary(false);
-    }, 300);
+    _searchDebounce(searchInput);
   });
   // Pressing Enter in the search box converts the current query into a
   // stacked tag-filter pill (strips a leading "#"), clears the box, and
@@ -2515,7 +2541,7 @@ export function openGallery() {
     }
     searchInput.value = '';
     _search = '';
-    clearTimeout(_searchDebounce);
+    _searchDebounce.cancel();
     _fetchLibrary(false);
     _renderAlbums();
   });
@@ -2607,7 +2633,7 @@ export function openGallery() {
 
   // ── Image model (Settings tab) ──
   // Mirror of the Quick Edit picker: same source (GET /api/editor/image-models)
-  // and the SAME localStorage key `ge-ai-command-model` (value `<base_url>::<id>`)
+  // and the SAME localStorage key `ge-ai-command-model` (value `<endpoint_id>::<id>`)
   // so the two stay in sync.
   const _GE_MODEL_KEY = 'ge-ai-command-model';
   const imageModelSelect = document.getElementById('gallery-image-model');
@@ -2617,7 +2643,8 @@ export function openGallery() {
         const r = await fetch(`${API_BASE}/api/editor/image-models`, { credentials: 'same-origin' });
         const data = r.ok ? await r.json() : null;
         const models = (data && Array.isArray(data.models)) ? data.models : [];
-        const saved = localStorage.getItem(_GE_MODEL_KEY) || '';
+        const rawSaved = localStorage.getItem(_GE_MODEL_KEY) || '';
+        let saved = rawSaved;
         imageModelSelect.innerHTML = '';
         const def = document.createElement('option');
         def.value = '';
@@ -2625,12 +2652,34 @@ export function openGallery() {
         imageModelSelect.appendChild(def);
         for (const m of models) {
           const opt = document.createElement('option');
-          opt.value = `${m.base_url || ''}::${m.id}`;
+          const endpointKey = m.endpoint_id ? String(m.endpoint_id) : (m.source === 'local' ? 'local' : '');
+          opt.value = endpointKey ? `${endpointKey}::${m.id}` : m.id;
           opt.textContent = `${m.id} · ${m.provider || ''} (${m.kind || 'edit'})`.trim();
           imageModelSelect.appendChild(opt);
         }
+        imageModelSelect._modelsReady = true;
+        // Invalidate or migrate legacy localStorage values containing URLs or leading ::
+        if (saved.startsWith('http://') || saved.startsWith('https://') || saved.includes('://') || saved.startsWith('::')) {
+          const modelPart = saved.includes('::') ? saved.split('::').pop() : '';
+          const matching = models.filter(m => m.id === modelPart);
+          if (matching.length === 1) {
+            const epKey = matching[0].endpoint_id ? String(matching[0].endpoint_id) : (matching[0].source === 'local' ? 'local' : '');
+            saved = epKey ? `${epKey}::${matching[0].id}` : matching[0].id;
+          } else {
+            saved = '';
+          }
+          try {
+            if (saved) localStorage.setItem(_GE_MODEL_KEY, saved);
+            else localStorage.removeItem(_GE_MODEL_KEY);
+          } catch (_) {}
+        }
         imageModelSelect.value = saved;
         if (imageModelSelect.value !== saved) imageModelSelect.value = '';
+        if (imageModelSelect.value !== rawSaved) {
+          if (imageModelSelect.value) localStorage.setItem(_GE_MODEL_KEY, imageModelSelect.value);
+          else localStorage.removeItem(_GE_MODEL_KEY);
+          window.dispatchEvent(new CustomEvent('ge-ai-command-model-change', { detail: { value: imageModelSelect.value } }));
+        }
       } catch (e) {
         imageModelSelect.innerHTML = '<option value="">Default (configured provider)</option>';
       }
@@ -2645,11 +2694,7 @@ export function openGallery() {
     });
     _fillImageModels();
   }
-  window.addEventListener('storage', (e) => {
-    if (e && e.key === _GE_MODEL_KEY && imageModelSelect) {
-      imageModelSelect.value = e.newValue || '';
-    }
-  });
+
 
   // ── Tag All Untagged ──
   let _tagCancelRequested = false;
@@ -3047,14 +3092,7 @@ export function openGallery() {
         });
         if (!res.ok) throw new Error('zip failed');
         const blob = await res.blob();
-        const objUrl = URL.createObjectURL(blob);
-        const a = document.createElement('a');
-        a.href = objUrl;
-        a.download = 'gallery-photos.zip';
-        document.body.appendChild(a);
-        a.click();
-        a.remove();
-        setTimeout(() => URL.revokeObjectURL(objUrl), 2000);
+        downloadBlob(blob, 'gallery-photos.zip', 2000);
         _exitSelectMode();
         if (uiModule) uiModule.showToast(`Downloaded ${ids.length} photos (zip)`);
       } catch (e) {
@@ -3070,14 +3108,7 @@ export function openGallery() {
       try {
         const res = await fetch(it.url, { credentials: 'same-origin' });
         const blob = await res.blob();
-        const objUrl = URL.createObjectURL(blob);
-        const a = document.createElement('a');
-        a.href = objUrl;
-        a.download = it.filename || `image-${it.id}.png`;
-        document.body.appendChild(a);
-        a.click();
-        a.remove();
-        setTimeout(() => URL.revokeObjectURL(objUrl), 1000);
+        downloadBlob(blob, it.filename || `image-${it.id}.png`, 1000);
         n++;
         // Stagger so the browser doesn't drop simultaneous downloads.
         await new Promise(r => setTimeout(r, 250));
@@ -3274,7 +3305,7 @@ function _doCloseGallery() {
     return;
   }
   _open = false;
-  clearTimeout(_searchDebounce);
+  _searchDebounce.cancel();
   if (_galleryResizeHandler) {
     window.removeEventListener('resize', _galleryResizeHandler);
     _galleryResizeHandler = null;

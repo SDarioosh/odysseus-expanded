@@ -15,6 +15,7 @@ from src import ink_notes as ink
 from src import tool_utils
 from src.upload_handler import UploadHandler
 from tests.helpers.sqlite_db import make_temp_sqlite
+from fork.common.note_items import prose_of  # the text, without the page image line
 
 BLACK = {"color": "#1f1f1f", "width": 2.5, "highlighter": False}
 YELLOW = {"color": "#ffd400", "width": 18, "highlighter": True}
@@ -64,7 +65,7 @@ def test_first_save_creates_a_handwritten_note_and_round_trips(env):
     assert saved["title"] == "Shopping ideas"
     assert saved["link"] == f"/#open=notes&note={note_id}"
     row = note_row(env, note_id)
-    assert (row.owner, row.label, row.note_type, row.content) == ("alice", "handwritten", "note", "")
+    assert (row.owner, row.label, row.note_type, prose_of(row)) == ("alice", "handwritten", "note", "")
     assert row.image_url and row.image_url.startswith("/api/upload/")
 
     loaded = ink.load("alice", note_id)

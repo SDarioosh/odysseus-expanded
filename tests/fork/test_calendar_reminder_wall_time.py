@@ -21,7 +21,9 @@ def _reminder_text(monkeypatch, args):
         assert result.get("exit_code", 0) == 0, result
         with factory() as db:
             note = db.query(cdb.Note).filter(cdb.Note.label == "calendar").one()
-            return json.loads(note.items)[0]["text"]
+            from fork.common.note_items import note_items
+
+            return note_items(note)[0]["text"]
     finally:
         engine.dispose()
 
