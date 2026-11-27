@@ -138,6 +138,7 @@ is an old path of a module that moved into `fork/`; it only aliases the new modu
 - `fork/hub/checklist_auto_archive.py`
 - `fork/hub/codex_todos_json.py`
 - `fork/hub/log_redact.py`
+- `fork/hub/passive_requests.py`
 - `fork/hub/private_endpoint_thinking.py`
 - `fork/hub/round_flow.py`
 - `fork/hub/vision_auto_detect.py`
@@ -546,6 +547,7 @@ is an old path of a module that moved into `fork/`; it only aliases the new modu
 - `tests/fork/test_news_push.py`
 - `tests/fork/test_notes_evidence.py`
 - `tests/fork/test_offered_reads.py`
+- `tests/fork/test_passive_requests.py`
 - `tests/fork/test_personal_read_grants.py`
 - `tests/fork/test_personal_store_escalation.py`
 - `tests/fork/test_private_endpoint_thinking.py`
