@@ -61,6 +61,21 @@ score. The owner fast-forwards `dev` to `upstream/dev`.
 
 Merge, don't rebase: `barvis` is shared history.
 
+## Backports between syncs
+
+An upstream fix that can't wait for the next sync is cherry-picked as is, onto a branch
+from `barvis`, with `git cherry-pick -x <upstream commit>` (the `-x` line names it). Take
+upstream's later follow-ups to the same lines too, so the backported code matches
+`upstream/dev`. Change nothing in the picked code: a fork change belongs in a hook.
+
+- `tests/fork/test_fork_inventory.py` treats code identical to `upstream/dev` as upstream's
+  own: an added file identical to upstream's copy is not listed in `docs/fork/files.md`,
+  and a hunk whose added lines all appear in upstream's file needs no `Fork:` marker. If
+  upstream later changes that code again, the hunk shows up as unmarked: take the
+  follow-up too, or let the next sync absorb it.
+- The next sync merges cleanly over a backport (both sides made the same change).
+- The PR lists the upstream commits and why each one is needed now.
+
 ## Conflict hot spots
 
 - `src/agent_loop.py`: hook in `_web_search_unavailable_for_turn`; four

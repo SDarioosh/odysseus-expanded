@@ -18,6 +18,11 @@ it would report upstream's own newer code as fork changes.
    generated: run ``UPDATE_FORK_FILES=1 pytest tests/fork/test_fork_inventory.py`` to
    rewrite it after adding, moving or deleting a fork file.
 
+Backports are not fork changes: a file identical to its copy on the upstream ref,
+and a hunk whose added lines all appear in that file on the upstream ref, are
+upstream's own code taken early (``git cherry-pick -x`` of an upstream fix). They
+need no marker and no listing, and they disappear from the diff at the next sync.
+
 Both look at the working tree (tracked files, staged or not), so a hook or a
 file can be checked before it is committed. Untracked files are ignored.
 """
@@ -66,16 +71,45 @@ def _git(*args: str) -> str:
     ).stdout
 
 
-def _upstream_base() -> str:
+def _upstream_ref() -> str | None:
+    """The upstream ref in use: ``upstream/dev``, else ``FORK_UPSTREAM_REF``."""
     refs = [UPSTREAM_REF]
     if os.environ.get(UPSTREAM_REF_ENV):
         refs.append(os.environ[UPSTREAM_REF_ENV])
     for ref in refs:
         try:
             _git("rev-parse", "--verify", "--quiet", f"{ref}^{{commit}}")
-            return _git("merge-base", "HEAD", ref).strip()
+            _git("merge-base", "HEAD", ref)
+            return ref
         except (subprocess.CalledProcessError, OSError):
             continue
+    return None
+
+
+def _upstream_text(path: str) -> str | None:
+    """``path`` on the upstream ref, or None where upstream has no such file."""
+    ref = _upstream_ref()
+    if ref is None:
+        return None
+    try:
+        return _git("show", f"{ref}:{path}")
+    except subprocess.CalledProcessError:
+        return None
+
+
+def _is_backport(added: list[str], upstream_text: str | None) -> bool:
+    """True when every non-blank added line is a line of upstream's current file."""
+    if upstream_text is None:
+        return False
+    lines = [a for a in added if a.strip()]
+    upstream_lines = set(upstream_text.splitlines())
+    return bool(lines) and all(a in upstream_lines for a in lines)
+
+
+def _upstream_base() -> str:
+    ref = _upstream_ref()
+    if ref is not None:
+        return _git("merge-base", "HEAD", ref).strip()
     pytest.skip(
         f"no upstream ref: '{UPSTREAM_REF}' is missing (git fetch upstream) and "
         f"{UPSTREAM_REF_ENV} is unset or not a commit with a merge base"
@@ -161,6 +195,10 @@ def _unmarked_hunks(base: str) -> list[Hunk]:
         # A hunk that only uses a name a marked hook of the same file
         # introduced (one upstream never had) continues that hook, e.g. the
         # `and not _managed` conditions after `# Fork: ... _managed = ...`.
+        upstream_text = _upstream_text(path)
+        unmarked = [h for h in unmarked if not _is_backport(h.added, upstream_text)]
+        if not unmarked:
+            continue
         base_text = _git("show", f"{base}:{path}")
         fork_names = {
             n for n in _introduced_names([a for h in marked for a in h.added])
@@ -233,9 +271,23 @@ def _shim_target(path: str) -> str | None:
     return m[1] if m else None
 
 
+def _backported_file(path: str) -> bool:
+    """A file added since the base that is identical on the upstream ref."""
+    upstream = _upstream_text(path)
+    if upstream is None:
+        return False
+    try:
+        return (REPO / path).read_text(encoding="utf-8") == upstream
+    except (OSError, UnicodeDecodeError):
+        return False
+
+
 def _fork_files(base: str) -> list[str]:
     added = _git("diff", "--no-renames", "--name-only", "--diff-filter=A", base).split("\n")
-    files = {p for p in added if p and not p.startswith(NOT_FORK_FILES_PREFIXES)}
+    files = {
+        p for p in added
+        if p and not p.startswith(NOT_FORK_FILES_PREFIXES) and not _backported_file(p)
+    }
     files.add(FILES_DOC)  # lists itself, also before it is first committed
     return sorted(files)
 
@@ -302,6 +354,14 @@ def test_introduced_names() -> None:
     assert {"recover_failed_web_read", "_fork_recovered", "approved_result",
             "_fork_on_time", "forkThing"} <= names
     assert "is_time_critical" not in names
+
+
+def test_is_backport() -> None:
+    upstream = "def f():\n    html_parts = []\n    return html_parts\n"
+    assert _is_backport(["    html_parts = []", ""], upstream)
+    assert not _is_backport(["    html_parts = []", "    from fork.x import y"], upstream)
+    assert not _is_backport(["    html_parts = []"], None)  # upstream has no such file
+    assert not _is_backport(["", "   "], upstream)  # nothing but blank lines
 
 
 def test_render_groups_and_parses_back() -> None:
