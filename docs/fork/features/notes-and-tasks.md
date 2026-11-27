@@ -28,7 +28,17 @@ Upstreamable: yes (the `list_events` part)
 
 Files: `src/codex_todos_json.py` (new), hook in `routes/codex_routes.py` (`list_todos`); test `tests/fork/test_codex_todos_json.py` (new)
 
+Since the 2026-11-24 sync, items are the note's task lines (see [the next section](#fork-code-reads-notes-as-upstreams-markdown-documents)) and each note also has `revision`, upstream's body revision that `toggle_item` checks. Upstream's `toggle_item` now refuses a call without the current `body_revision`; Athena's T5 relays send none, so a hook in `manage_todos` (`fill_toggle_revision`) fills in the current one for a `toggle_item` with an explicit `done`: the same index-based tick as before. A call without an explicit `done` (a flip) gets upstream's 409. The relays can send the feed's `revision` later.
+
 Upstreamable: yes
+
+## Fork code reads notes as upstream's markdown documents
+
+**Fork code reads notes as upstream's markdown documents.** Upstream keeps a note as one markdown document since odysseus-dev/odysseus#7323: checklist items are task lines (`- [ ] milk`) and images are `![](url)` lines in `Note.content`, parsed by `core/notes_markdown.py`; a boot migration folds the legacy `items` and `image_url` columns into it (backing up each row to `note_legacy_fields`). `fork/common/note_items.py` is the one place fork code reads or writes a note's checklist (`note_items`, `set_note_items`, `is_checklist`, `note_type`, `prose_of`); a row the migration skipped is folded on read. A checklist made in the notes window is stored as `note`, so a note counts as a checklist by its stored type (`checklist`, `todo`, `goal`) or when its content is a pure task list (upstream's `derive_note_type`); the fork's SQL filters on `note_type` moved into Python. Users: Athena's filed to-dos and named lists, voice Done on the Echos, finished-checklist archiving, the T5 todos feed, the Today insight and its weights, and notes evidence (which reads a note's prose without its task and image lines). Write's handwritten notes put their page image into `content` the way upstream's note route does.
+
+Files: `fork/common/note_items.py` (new); callers in `fork/athena/action_items_lists.py`, `fork/voice/done.py`, `fork/voice/confirm.py`, `fork/hub/checklist_auto_archive.py`, `fork/hub/codex_todos_json.py`, `fork/insight/today_candidates.py`, `fork/insight/today_gather.py`, `fork/insight/weights.py`, `fork/beliefs/notes_evidence.py`, `fork/ink/notes.py`; test `tests/fork/test_note_items.py` (new)
+
+Upstreamable: no (fork code)
 
 ## Finished checklists archive themselves
 

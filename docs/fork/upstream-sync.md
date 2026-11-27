@@ -103,6 +103,17 @@ upstream's later follow-ups to the same lines too, so the backported code matche
   function there, not its callers.
 - `static/index.html`: the fork's script tags at the end of the body (the sidebar entries
   are added by `static/js/forkModuleWindows.js`).
+- Notes: fork code reaches a note's checklist only through `fork/common/note_items.py`,
+  on upstream's `core/notes_markdown.py` (since the 2026-11-24 sync). If upstream changes
+  how notes are stored again, fix it there. Writes go through upstream's `manage_notes`
+  (`do_manage_notes`); its `toggle_item` needs a `body_revision`, filled in for the T5
+  relays by the `manage_todos` hook in `routes/codex_routes.py`.
+- `static/js/settings/shortcuts.js`: the module-window shortcut spreads (upstream split
+  `settings.js` on 2026-11-18), and `tests/helpers/test_settings_shell_coordinator.mjs`'s
+  `REAL_MODULES` entry for `forkModuleShortcuts.js`. Taking upstream's copy of that test
+  helper drops the entry.
+- `scripts/generate_env_reference.py` scans `scripts/` too: a fork script reading an
+  `ODYSSEUS_*` variable needs an entry in `VARIABLE_NOTES`.
 
 Before merging, list the files both sides changed since the last sync; those are where
 conflicts can happen:
