@@ -310,6 +310,7 @@ to be offered) upstream, "with discussion" a change upstream may want in another
 | `static/js/keyboard-shortcuts.js` | `initKeyboardShortcuts`, window triggers | `static/js/forkModuleShortcuts.js` | "Toggle Window" includes the module windows | no |
 | `static/js/keyboard-shortcuts.js` | `initKeyboardShortcuts`, `_toolBtns` | `static/js/forkModuleShortcuts.js` | shortcut buttons | no |
 | `static/js/mobileBulkSelect.js` | `_mobileSelectEnabled`, the `MutationObserver` | none | no layout read per DOM change; binds only added cards | yes |
+| `static/sw.js` | `PRECACHE` | `static/js/forkModuleShortcuts.js` | precached, so Settings (which imports it) opens offline | no |
 | `static/js/settings/shortcuts.js` | imports | `static/js/forkModuleShortcuts.js` | import the fork's shortcut tables | no |
 | `static/js/settings/shortcuts.js` | `SHORTCUT_DEFAULTS` | `static/js/forkModuleShortcuts.js` | defaults | no |
 | `static/js/settings/shortcuts.js` | `SHORTCUT_ICONS` | `static/js/forkModuleShortcuts.js` | icons | no |

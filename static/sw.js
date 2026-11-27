@@ -220,6 +220,7 @@ const PRECACHE = [
   '/static/js/settings/utilityModel.js',
   '/static/js/settings/visionModel.js',
   '/static/js/settings/writingStyle.js',
+  '/static/js/forkModuleShortcuts.js', // Fork: settings/shortcuts.js imports it (static/js/forkModuleShortcuts.js)
   '/static/js/foregroundFallbackSettings.js',
   '/static/js/admin.js?v=20260929csssplit',
   '/static/js/chatgptSubscriptionUsage.js',
