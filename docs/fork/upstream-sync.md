@@ -112,6 +112,10 @@ upstream's later follow-ups to the same lines too, so the backported code matche
   `settings.js` on 2026-11-18), and `tests/helpers/test_settings_shell_coordinator.mjs`'s
   `REAL_MODULES` entry for `forkModuleShortcuts.js`. Taking upstream's copy of that test
   helper drops the entry.
+- Frontend modules mapped in `frontend/modules.json` are published from `frontend/src/` to
+  `static/js/` by `scripts/build_frontend.py`; CI fails on a stale published file. A fork hook
+  in such a module goes in the `frontend/src/` source (e.g. `shared/ui/spinner.js`), then
+  rebuild.
 - `scripts/generate_env_reference.py` scans `scripts/` too: a fork script reading an
   `ODYSSEUS_*` variable needs an entry in `VARIABLE_NOTES`.
 

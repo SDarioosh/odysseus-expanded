@@ -262,7 +262,10 @@ class Spinner {
       }
     }
 
-    if (connected || !this._wpWasConnected) {
+    if (connected && this._wpOffscreen) {
+      // Fork: off-screen pause (docs/fork/features/chat-ui.md). In the page but not shown (a hidden parent, scrolled away, under a full-screen
+      // window): no frames until it shows again (see _armOffscreenPause).
+    } else if (connected || !this._wpWasConnected) {
       this._requestFrame();
     } else {
       this.stop();
@@ -304,6 +307,30 @@ class Spinner {
       }
     };
     document.addEventListener('visibilitychange', this._visHandler);
+  }
+
+  /**
+   * Fork: off-screen pause (docs/fork/features/chat-ui.md).
+   * Stop drawing while the canvas isn't on screen: a spinner inside a hidden panel
+   * (display: none) stays connected, so the check above never stops it, and its frame
+   * every vsync kept the page compositing behind everything (Write on a tablet lagged).
+   */
+  _armOffscreenPause() {
+    if (this._io || typeof IntersectionObserver !== 'function' || !this._wpCanvas) return;
+    this._wpOffscreen = false;
+    this._io = new IntersectionObserver((entries) => {
+      const shown = entries[entries.length - 1].isIntersecting;
+      this._wpOffscreen = !shown;
+      if (shown && this.isRunning && !this.rafId && !document.hidden) this._requestFrame();
+    });
+    this._io.observe(this._wpCanvas);
+  }
+
+  _disarmOffscreenPause() {
+    if (!this._io) return;
+    this._io.disconnect();
+    this._io = null;
+    this._wpOffscreen = false;
   }
 
   _disarmVisibilityPause() {
@@ -350,6 +377,7 @@ class Spinner {
       this._wpStartedAt = performance.now();
       this._wpUnattachedSince = null;
       this._armVisibilityPause();
+      this._armOffscreenPause(); // Fork: off-screen pause
       this._drawWhirlpool();
       return;
     }
@@ -375,6 +403,7 @@ class Spinner {
       this.rafId = null;
     }
     this._disarmVisibilityPause();
+    this._disarmOffscreenPause(); // Fork: off-screen pause
   }
 
   /**

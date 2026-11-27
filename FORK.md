@@ -317,7 +317,7 @@ to be offered) upstream, "with discussion" a change upstream may want in another
 | `static/js/settings/shortcuts.js` | `SHORTCUT_CATEGORIES` | `static/js/forkModuleShortcuts.js` | the module windows under Open Tools | no |
 | `static/js/slashCommands.js` | imports | `static/js/forkModuleShortcuts.js` | import `FORK_OPEN_TARGETS` | no |
 | `static/js/slashCommands.js` | `_cmdOpen`, targets | `static/js/forkModuleShortcuts.js` | `/open records`, `meetings`, `today`, `write`, `wisdom`, `news` and their aliases | no |
-| `static/js/spinner.js` | `_drawWhirlpool`, `start`, `stop`, `_armOffscreenPause` | none | the whirlpool pauses while off screen | yes |
+| `frontend/src/shared/ui/spinner.js` (published to `static/js/spinner.js` by `scripts/build_frontend.py`) | `_drawWhirlpool`, `start`, `stop`, `_armOffscreenPause` | none | the whirlpool pauses while off screen | yes |
 | `tests/helpers/test_settings_shell_coordinator.mjs` | `REAL_MODULES` | `static/js/forkModuleShortcuts.js` | the settings/shortcuts.js import loads in the test shell | no |
 | `tests/test_reserved_username_admin_escalation.py` | `test_legacy_reserved_username_session_cannot_pass_admin_gate` | none | evict the fresh `core.middleware` with `monkeypatch` | yes |
 
